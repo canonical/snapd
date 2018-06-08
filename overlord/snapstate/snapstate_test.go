@@ -35,6 +35,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -160,6 +161,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
 		return nil, nil
 	}
 }
@@ -1795,6 +1799,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -1950,6 +1955,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -2156,6 +2162,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -4230,6 +4237,7 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -4322,6 +4330,7 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -4499,6 +4508,7 @@ version: 1.0`)
 		Flags: snapstate.Flags{
 			Required: true,
 		},
+		Type: snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
 
@@ -7603,6 +7613,23 @@ func (s *snapmgrTestSuite) TestSeqTotalABAFailure(c *C) {
 	// gets nuked after all tasks succeeded).
 }
 
+func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
+	revseq := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+	for i := 2; i <= 10; i++ {
+		// wot, me, hacky?
+		s.TearDownTest(c)
+		s.SetUpTest(c)
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", i)
+		tr.Commit()
+		s.state.Unlock()
+
+		s.testUpdateSequence(c, &opSeqOpts{before: revseq[:9], current: 9, via: 10, after: revseq[10-i:]})
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8933,6 +8960,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -9002,7 +9034,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:    "cleanup-trash",
 			name:  "core",
-			revno: snap.R(11),
+			revno: snap.R(42),
 		},
 		{
 			op:    "cleanup-trash",
@@ -9069,11 +9101,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 26)
+		c.Assert(chg1.Tasks(), HasLen, 27)
 		c.Assert(chg2.Tasks(), HasLen, 13)
 	} else {
 		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 26)
+		c.Assert(chg2.Tasks(), HasLen, 27)
 	}
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
@@ -9891,6 +9923,90 @@ func (s *snapmgrTestSuite) TestInjectTasksWithNullChange(c *C) {
 	// verify that halt tasks of the main task now wait for extra tasks
 	c.Assert(t1.HaltTasks(), HasLen, 1)
 	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
+}
+
+func hasConfigureTask(ts *state.TaskSet) bool {
+	for _, tk := range taskKinds(ts.Tasks()) {
+		if tk == "run-hook[configure]" {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// normal snaps get a configure task
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, true)
+
+	// but bases do not for install
+	ts, err = snapstate.Install(s.state, "some-base", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+	// or for refresh
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	ts, err = snapstate.Update(s.state, "some-base", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// but snapd do not for install
+	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+	// or for refresh
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	ts, err = snapstate.Update(s.state, "snapd", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+}
+
+func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
+	// ensure we don't crash when loading a SnapSetup json without
+	// a type set
+	oldSnapSetup := []byte(`{
+ "snap-path":"/some/path",
+ "side-info": {
+    "channel": "edge",
+    "name": "some-snap",
+    "revision": "1",
+    "snap-id": "some-snap-id"
+ }
+}`)
+	var snapsup snapstate.SnapSetup
+	err := json.Unmarshal(oldSnapSetup, &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.SnapPath, Equals, "/some/path")
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		Channel:  "edge",
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	})
+	c.Check(snapsup.Type, Equals, snap.Type(""))
 }
 
 type canDisableSuite struct{}

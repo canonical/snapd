@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -38,6 +39,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+)
+
+// hook setup by devicestate
+var (
+	Model func(st *state.State) (*asserts.Model, error)
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -578,8 +584,13 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	snapst.Active = true
-	err = m.backend.LinkSnap(oldInfo)
+	err = m.backend.LinkSnap(oldInfo, model)
 	if err != nil {
 		return err
 	}
@@ -733,7 +744,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.SetType(newInfo.Type)
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
-	err = m.backend.LinkSnap(newInfo)
+	model, _ := Model(st)
+	err = m.backend.LinkSnap(newInfo, model)
 	if err != nil {
 		pb := NewTaskProgressAdapterLocked(t)
 		err := m.backend.UnlinkSnap(newInfo, pb)
@@ -812,7 +824,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		t.Logf("Requested daemon restart.")
 		st.RequestRestart(state.RestartDaemon)
 	}
-	if !release.OnClassic && boot.KernelOrOsRebootRequired(info) {
+	if !release.OnClassic && boot.KernelOsBaseRebootRequired(info) {
 		t.Logf("Requested system restart.")
 		st.RequestRestart(state.RestartSystem)
 	}

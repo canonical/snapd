@@ -246,7 +246,7 @@ func (iface *locationControlInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *locationControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *locationControlInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
