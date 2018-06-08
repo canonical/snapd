@@ -34,6 +34,8 @@ case $CMD in
             echo "cannot run without the prefix for the snapd snap"
             exit 1
         fi
+        echo "Add the bind mount of the snapd tooling"
+        mount -o bind "$PREFIX"/usr/lib/snapd /usr/lib/snapd
         # use existing snapd.service as a template and modify so that the
         # right prefix is used
         for u in $UNITS $ENABLE_UNITS; do
@@ -60,6 +62,8 @@ case $CMD in
             rm -f /run/systemd/system/"$unit"
         done
         systemctl daemon-reload
+        echo "Remove the bind mount of the snapd tooling"
+        umount /usr/lib/snapd || true
         ;;
     *)
         echo "unknown action: $1"
