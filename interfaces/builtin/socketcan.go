@@ -25,7 +25,8 @@ const socketCanBaseDeclarationSlots = `
   socketcan:
     allow-installation:
       slot-snap-type:
-        - core
+		- core
+	deny-auto-connection: true
 `
 
 const socketCanConnectedPlugAppArmor = `
