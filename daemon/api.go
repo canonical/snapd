@@ -2496,7 +2496,7 @@ type debugAction struct {
 
 type ConnectivityStatus struct {
 	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable"`
+	Unreachable  []string `json:"unreachable,omitempty"`
 }
 
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2527,18 +2527,19 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "connectivity":
 		s := snapstate.Store(st)
 		st.Unlock()
-		check, err := s.ConnectivityCheck()
+		checkResult, err := s.ConnectivityCheck()
 		st.Lock()
 		if err != nil {
 			return InternalError("cannot run connectivity check: %v", err)
 		}
 		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range check {
+		for host, reachable := range checkResult {
 			if !reachable {
 				status.Connectivity = false
 				status.Unreachable = append(status.Unreachable, host)
 			}
 		}
+		sort.Strings(status.Unreachable)
 
 		return SyncResponse(status, nil)
 	default:

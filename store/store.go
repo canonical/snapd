@@ -2375,6 +2375,10 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	reqOptions := downloadOptions(dlURL, cdnHeader)
 	reqOptions.Method = "HEAD" // not actually a download
 
+	// TODO: We need the HEAD here so that we get redirected to the
+	//       right CDN machine. Consider just doing a "net.Dial"
+	//       after the redirect here. Suggested in
+	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
 	resp, err = httputil.RetryRequest(remote.AnonDownloadURL, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
 	}, func(resp *http.Response) error {
