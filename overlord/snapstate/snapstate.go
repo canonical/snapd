@@ -224,6 +224,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+		var retain int
+		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
+			retain = 3
+		}
+		retain-- //  we're adding one
+
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -255,7 +261,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
-		for i := 0; i <= currentIndex-2; i++ {
+		for i := 0; i <= currentIndex-retain; i++ {
 			si := seq[i]
 			if boot.InUse(snapsup.Name(), si.Revision) {
 				continue
@@ -284,9 +290,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		confFlags |= UseConfigDefaults
 	}
 
-	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
-	configSet.WaitAll(ts)
-	ts.AddAll(configSet)
+	// we do not support configuration for bases or the "snapd" snap yet
+	// TODO: we don't need maybeCore anymore we can look at
+	//      snapsup.Type now
+	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
+		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
+		configSet.WaitAll(ts)
+		ts.AddAll(configSet)
+	}
 
 	return ts, nil
 }
@@ -616,6 +627,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    flags.ForSnapSetup(),
+		Type:     info.Type,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -665,6 +677,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
+		Type:         info.Type,
 	}
 
 	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
@@ -822,6 +835,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
+			Type:         update.Type,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))

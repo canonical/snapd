@@ -757,7 +757,7 @@ static void sc_make_slave_mount_ns(void)
 }
 
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-                          const char *snap_name)
+			  const char *snap_name)
 {
 	debug("%s: %s", __FUNCTION__, snap_name);
 

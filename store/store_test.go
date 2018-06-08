@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -4153,7 +4154,7 @@ func (s *storeTestSuite) TestListRefreshWithDeltas(c *C) {
 			"epoch":       "0",
 			"confinement": "",
 		})
-		c.Assert(resp.Fields, DeepEquals, getStructFields((*snapDetails)(nil), "snap_yaml_raw"))
+		c.Assert(resp.Fields, DeepEquals, jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw"))
 
 		io.WriteString(w, MockUpdatesWithDeltasJSON)
 	}))

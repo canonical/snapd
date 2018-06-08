@@ -138,7 +138,7 @@ func (iface *boolFileInterface) isGPIO(slot *snap.SlotInfo) bool {
 // candidate and declaration-based checks allow.
 //
 // By default we allow what declarations allowed.
-func (iface *boolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *boolFileInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 

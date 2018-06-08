@@ -29,6 +29,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -161,8 +162,11 @@ func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
-	if spec.Name == "some-core" {
+	switch spec.Name {
+	case "core", "some-core":
 		typ = snap.TypeOS
+	case "some-base":
+		typ = snap.TypeBase
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -244,6 +248,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeBase
 	case "snap-content-plug-id":
 		name = "snap-content-plug"
+	case "snapd-id":
+		name = "snapd"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -632,7 +638,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",
