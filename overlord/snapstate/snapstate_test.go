@@ -9926,8 +9926,8 @@ func (s *snapmgrTestSuite) TestInjectTasksWithNullChange(c *C) {
 }
 
 func hasConfigureTask(ts *state.TaskSet) bool {
-	for _, t := range ts.Tasks() {
-		if t.Kind() == "run-hook" && strings.HasPrefix(t.Summary(), "Run configure hook of") {
+	for _, tk := range taskKinds(ts.Tasks()) {
+		if tk == "run-hook[configure]" {
 			return true
 		}
 	}
@@ -9982,6 +9982,31 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(hasConfigureTask(ts), Equals, false)
 
+}
+
+func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
+	// ensure we don't crash when loading a SnapSetup json without
+	// a type set
+	oldSnapSetup := []byte(`{
+ "snap-path":"/some/path",
+ "side-info": {
+    "channel": "edge",
+    "name": "some-snap",
+    "revision": "1",
+    "snap-id": "some-snap-id"
+ }
+}`)
+	var snapsup snapstate.SnapSetup
+	err := json.Unmarshal(oldSnapSetup, &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.SnapPath, Equals, "/some/path")
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		Channel:  "edge",
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	})
+	c.Check(snapsup.Type, Equals, snap.Type(""))
 }
 
 type canDisableSuite struct{}
