@@ -551,6 +551,14 @@ func migrateXauthority(info *snap.Info) (string, error) {
 
 func activateXdgDocumentPortal(info *snap.Info) error {
 	// Don't do anything for snaps that don't plug the desktop interface
+	//
+	// NOTE: This check is imperfect because we don't really know
+	// if the interface is connected or not but this is an
+	// acceptable compromise for not having to communicate with
+	// snapd in snap run. In a typical desktop session the
+	// document portal can be in use by many applications, not
+	// just by snaps, so this is at most, pre-emptively using some
+	// extra memory.
 	plugsDesktop := false
 	for _, plug := range info.Plugs {
 		if plug.Interface == "desktop" {
@@ -592,7 +600,7 @@ func activateXdgDocumentPortal(info *snap.Info) error {
 	actualMountPoint := strings.TrimRight(string(mountPoint), "\x00")
 	expectedMountPoint := fmt.Sprintf("%s/%d/doc", dirs.XdgRuntimeDirBase, os.Getuid())
 	if actualMountPoint != expectedMountPoint {
-		return fmt.Errorf("Expected portal at %#v, got %#v", expectedMountPoint, actualMountPoint)
+		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
 	}
 	return nil
 }
