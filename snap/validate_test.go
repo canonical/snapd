@@ -111,6 +111,41 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateInstanceName(c *C) {
+	validNames := []string{
+		// plain names are also valid instance names
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		// snap instance
+		"foo_bar",
+		"foo_0000000001",
+		"01game_0000000001",
+		"foo_1", "foo_1234abcd",
+	}
+	for _, name := range validNames {
+		err := ValidateInstanceName(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// invalid names are also invalid instance names, just a few
+		// samples
+		"",
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"a--a",
+		"a-",
+		"a ", " a", "a a",
+		// bad instance name
+		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
+		"_", "foo__bar",
+	}
+	for _, name := range invalidNames {
+		err := ValidateInstanceName(name)
+		c.Assert(err, ErrorMatches, `invalid snap (name|instance key): ".*"`)
+	}
+
+}
+
 func (s *ValidateSuite) TestValidateVersion(c *C) {
 	validVersions := []string{
 		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
