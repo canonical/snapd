@@ -300,6 +300,7 @@ func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname str
 			if err != nil {
 				return fmt.Errorf("cannot open existing file %q: %v", filepath.Join(dirName, name), err)
 			}
+			defer sysClose(objFd)
 			var statBuf syscall.Stat_t
 			err = sysFstat(objFd, &statBuf)
 			if err != nil {
