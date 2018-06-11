@@ -1,8 +1,5 @@
 summary: Ensure that /dev/input/event* is denied by default.
 
-# on s390x/arm64 we do not have /dev/input
-systems: [-ubuntu-*-s390x, -ubuntu-*-arm64]
-
 details: |
     The default policy disallows access to /dev/input/event*.
 
@@ -25,6 +22,16 @@ restore: |
     rm -f call.error
 
 execute: |
+    if [ ! -d /dev/input/by-path/ ]; then
+        if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+            # ensure the test runs at least on this spread system
+            echo "No /dev/input/by-path but this test cannot be skipped on ubuntu-16.04-64"
+            exit 1
+        fi
+        echo "SKIP: no /dev/input/by-path"
+        exit 0
+    fi
+
     echo "The joystick plug is not connected by default"
     snap interfaces -i joystick | MATCH '\- +test-snapd-event:joystick'
 
