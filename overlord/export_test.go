@@ -22,6 +22,8 @@ package overlord
 import (
 	"time"
 
+	"github.com/pilebones/go-udev/crawler"
+	"github.com/pilebones/go-udev/netlink"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -75,9 +77,19 @@ func MockConfigstateInit(new func(hookmgr *hookstate.HookManager)) (restore func
 	}
 }
 
-func MockCreateUDevMonitor(new func() UDevMon) (restore func()) {
+func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
 	createUDevMonitor = new
 	return func() {
 		createUDevMonitor = NewUDevMonitor
 	}
+}
+
+func MockUDevMonitorChannels(mon *UDevMonitor, devices chan crawler.Device, events chan netlink.UEvent) {
+	mon.crawlerDevices = devices
+	mon.netlinkEvents = events
+}
+
+func MockUDevMonitorStopChannels(mon *UDevMonitor, crawlerStop, monitorStop chan struct{}) {
+	mon.crawlerStop = crawlerStop
+	mon.monitorStop = monitorStop
 }
