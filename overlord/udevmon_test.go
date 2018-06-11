@@ -20,6 +20,9 @@
 package overlord_test
 
 import (
+	"github.com/pilebones/go-udev/crawler"
+	"github.com/pilebones/go-udev/netlink"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord"
 	. "gopkg.in/check.v1"
 )
@@ -29,9 +32,81 @@ type udevMonitorSuite struct{}
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := overlord.NewUDevMonitor()
+	mon := overlord.NewUDevMonitor(nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
 	c.Assert(mon.Stop(), IsNil)
+}
+
+func (s *udevMonitorSuite) TestDiscovery(c *C) {
+	var addCalled, removeCalled bool
+	var addInfo, remInfo *interfaces.HotplugDeviceInfo
+	addedCb := func(inf *interfaces.HotplugDeviceInfo) {
+		addCalled = true
+		addInfo = inf
+	}
+	removedCb := func(inf *interfaces.HotplugDeviceInfo) {
+		removeCalled = true
+		remInfo = inf
+	}
+	mon := overlord.NewUDevMonitor(addedCb, removedCb)
+	c.Assert(mon, NotNil)
+	udevmon, _ := mon.(*overlord.UDevMonitor)
+
+	// stop channels are normally created by netlink crawler/monitor, but since
+	// we don't create them with Connect(), they must be mocked.
+	cstop := make(chan struct{})
+	mstop := make(chan struct{})
+
+	crawl := make(chan crawler.Device)
+	event := make(chan netlink.UEvent)
+
+	overlord.MockUDevMonitorStopChannels(udevmon, cstop, mstop)
+	overlord.MockUDevMonitorChannels(udevmon, crawl, event)
+
+	c.Assert(udevmon.Run(), IsNil)
+
+	event <- netlink.UEvent{
+		Action: netlink.ADD,
+		KObj:   "foo",
+		Env: map[string]string{
+			"DEVPATH":   "abc",
+			"SUBSYSTEM": "usb",
+			"MINOR":     "1",
+			"MAJOR":     "2",
+			"DEVNAME":   "def",
+			"DEVTYPE":   "boo",
+		},
+	}
+	event <- netlink.UEvent{
+		Action: netlink.REMOVE,
+		KObj:   "bar",
+		Env: map[string]string{
+			"DEVPATH":   "def",
+			"SUBSYSTEM": "usb",
+			"MINOR":     "3",
+			"MAJOR":     "0",
+			"DEVNAME":   "ghi",
+			"DEVTYPE":   "bzz",
+		},
+	}
+	c.Assert(udevmon.Stop(), IsNil)
+
+	c.Assert(addCalled, Equals, true)
+	c.Assert(removeCalled, Equals, true)
+
+	c.Assert(addInfo.Name(), Equals, "def")
+	c.Assert(addInfo.Type(), Equals, "boo")
+	c.Assert(addInfo.Subsystem(), Equals, "usb")
+	c.Assert(addInfo.Path(), Equals, "/sys/abc")
+	c.Assert(addInfo.Major(), Equals, "2")
+	c.Assert(addInfo.Minor(), Equals, "1")
+
+	c.Assert(remInfo.Name(), Equals, "ghi")
+	c.Assert(remInfo.Type(), Equals, "bzz")
+	c.Assert(remInfo.Subsystem(), Equals, "usb")
+	c.Assert(remInfo.Path(), Equals, "/sys/def")
+	c.Assert(remInfo.Major(), Equals, "0")
+	c.Assert(remInfo.Minor(), Equals, "3")
 }

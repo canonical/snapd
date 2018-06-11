@@ -27,6 +27,7 @@ import (
 	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -36,11 +37,15 @@ type UDevMon interface {
 	Stop() error
 }
 
+type DeviceAddedCallback func(device *interfaces.HotplugDeviceInfo)
+type DeviceRemovedCallback func(device *interfaces.HotplugDeviceInfo)
+
 // UDevMonitor monitors kernel uevents making it possible to find USB devices.
-// TODO: document new tasks.
 type UDevMonitor struct {
-	tmb         *tomb.Tomb
-	netlinkConn *netlink.UEventConn
+	tmb             *tomb.Tomb
+	deviceAddedCb   DeviceAddedCallback
+	deviceRemovedCb DeviceRemovedCallback
+	netlinkConn     *netlink.UEventConn
 	// channels used by netlink connection and monitor
 	monitorStop    chan struct{}
 	crawlerStop    chan struct{}
@@ -50,11 +55,20 @@ type UDevMonitor struct {
 	netlinkEvents  chan netlink.UEvent
 }
 
-func NewUDevMonitor() UDevMon {
+func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
 	m := &UDevMonitor{
-		netlinkConn: &netlink.UEventConn{},
-		tmb:         new(tomb.Tomb),
+		deviceAddedCb:   addedCb,
+		deviceRemovedCb: removedCb,
+		netlinkConn:     &netlink.UEventConn{},
+		tmb:             new(tomb.Tomb),
 	}
+
+	m.crawlerErrors = make(chan error)
+	m.crawlerDevices = make(chan crawler.Device)
+
+	m.netlinkEvents = make(chan netlink.UEvent)
+	m.netlinkErrors = make(chan error)
+
 	return m
 }
 
@@ -64,15 +78,9 @@ func (m *UDevMonitor) Connect() error {
 		panic("cannot run UDevMonitor more than once")
 	}
 
-	m.crawlerErrors = make(chan error)
-	m.crawlerDevices = make(chan crawler.Device)
-
 	if err := m.netlinkConn.Connect(); err != nil {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
-
-	m.netlinkEvents = make(chan netlink.UEvent)
-	m.netlinkErrors = make(chan error)
 
 	// TODO: pass filters
 	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
@@ -128,9 +136,15 @@ func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
 }
 
 func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
-	// TODO: handle device added (just plugged, or discovered on startup) by creating "hotplug-add" task
+	di := interfaces.NewHotplugDeviceInfo(kobj, env)
+	if m.deviceAddedCb != nil {
+		m.deviceAddedCb(di)
+	}
 }
 
 func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
-	// TODO: handle device removal by creating "hotplug-remove" task
+	di := interfaces.NewHotplugDeviceInfo(kobj, env)
+	if m.deviceRemovedCb != nil {
+		m.deviceRemovedCb(di)
+	}
 }

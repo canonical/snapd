@@ -107,7 +107,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	restoreUdevMon := overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
+	restoreUdevMon := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
 		return nil
 	})
 
@@ -1896,7 +1896,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
+	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
 		return nil
 	})
 
