@@ -50,7 +50,8 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 				SnapID:   "ididid",
 			},
 		},
-		Current: snapInfo.Revision,
+		Current:  snapInfo.Revision,
+		SnapType: string(snapInfo.Type),
 	})
 
 	// Put the snap into the interface repository

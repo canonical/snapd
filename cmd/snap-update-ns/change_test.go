@@ -50,6 +50,11 @@ func (s *changeSuite) SetUpTest(c *C) {
 	s.sec = &update.Secure{}
 }
 
+func (s *changeSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+	s.sys.CheckForStrayDescriptors(c)
+}
+
 func (s *changeSuite) TestFakeFileInfo(c *C) {
 	c.Assert(testutil.FileInfoDir.IsDir(), Equals, true)
 	c.Assert(testutil.FileInfoFile.IsDir(), Equals, false)
@@ -368,7 +373,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointWithErrors(c *C
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot create directory "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -517,7 +522,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create writable mimic over "/rofs": cannot create path "/tmp/.snap/rofs": cannot create directory ".snap": testing`)
+	c.Assert(err, ErrorMatches, `cannot create writable mimic over "/rofs": cannot create directory "/tmp/.snap": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -780,7 +785,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointWithErrors(c
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot create directory "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -797,7 +802,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceWithErrors(
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/source": cannot create directory "source": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "/source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -925,7 +930,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/rofs/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/rofs/source": cannot operate on read-only filesystem at /rofs`)
+	c.Assert(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,                                    // -> directory
@@ -1235,7 +1240,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointWithErrors(c *C) 
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot open file "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot open file "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -1284,7 +1289,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountSourceWithErrors(c *C)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/source": cannot open file "source": testing`)
+	c.Assert(err, ErrorMatches, `cannot open file "/source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -1535,7 +1540,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithError(c *C) {
 	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/name": cannot create symlink "name": testing`)
+	c.Assert(err, ErrorMatches, `cannot create symlink "/name": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/name"`,
@@ -1550,7 +1555,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithNoTargetError(c *C) {
 	s.sys.InsertFault(`lstat "/name"`, syscall.ENOENT)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink="}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/name": cannot create symlink with empty target`)
+	c.Assert(err, ErrorMatches, `cannot create symlink with empty target: "/name"`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/name"`,
@@ -1582,7 +1587,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirWithErrors(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "base" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/base/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/base/name": cannot create directory "base": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "/base": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/base/name"`,
@@ -1706,6 +1711,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithGoodSymlinkPresent(c *C) {
 		`openat 3 "name" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, // -> 4
 		`fstat 4 <ptr>`,
 		`readlinkat 4 "" <ptr>`,
+		`close 4`,
 		`close 3`,
 	})
 }
@@ -1718,7 +1724,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithBadSymlinkPresent(c *C) {
 	s.sys.InsertReadlinkatResult(`readlinkat 4 "" <ptr>`, "/evil")
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/name": cannot create symbolic link "name": existing symbolic link in the way`)
+	c.Assert(err, ErrorMatches, `cannot create symbolic link "/name": existing symbolic link in the way`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/name"`,
@@ -1727,6 +1733,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithBadSymlinkPresent(c *C) {
 		`openat 3 "name" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, // -> 4
 		`fstat 4 <ptr>`,
 		`readlinkat 4 "" <ptr>`,
+		`close 4`,
 		`close 3`,
 	})
 }
