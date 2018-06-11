@@ -24,3 +24,4 @@ debug: |
     systemctl list-timers --all
     ls -l /lib/systemd/system/snapd* || true
     systemctl show snapd.snap-repair.timer
+    journalctl -u snapd.snap-repair.timer -u snapd.snap-repair.service
