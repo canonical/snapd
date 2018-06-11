@@ -84,8 +84,8 @@ func (s *DvbInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/dvb/adapter[0-9]*/* rw")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/udev/data/c212:[0-9]* r")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/dvb/adapter[0-9]*/* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/udev/data/c212:[0-9]* r,")
 }
 
 func (s *DvbInterfaceSuite) TestUDevSpec(c *C) {
