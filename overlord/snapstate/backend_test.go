@@ -162,8 +162,11 @@ func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
-	if spec.Name == "core" || spec.Name == "some-core" {
+	switch spec.Name {
+	case "core", "some-core":
 		typ = snap.TypeOS
+	case "some-base":
+		typ = snap.TypeBase
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -245,6 +248,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeBase
 	case "snap-content-plug-id":
 		name = "snap-content-plug"
+	case "snapd-id":
+		name = "snapd"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
