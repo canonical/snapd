@@ -791,7 +791,6 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSource(c *C) {
 
 // Change.Perform wants to create a directory bind mount but the mount point isn't there and cannot be created.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointWithErrors(c *C) {
-	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir) // TODO: this line can be removed
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
@@ -1252,7 +1251,6 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
 
 // Change.Perform wants to create a directory bind mount but the mount point isn't there and cannot be created.
 func (s *changeSuite) TestPerformFileBindMountWithoutMountPointWithErrors(c *C) {
-	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile) // TODO: remove this line
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
@@ -1425,7 +1423,6 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 // Change.Perform wants to bind mount a file but there's a symlink in mount point.
 func (s *changeSuite) TestPerformFileBindMountWithSymlinkInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoSymlink)
-	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile) // TODO: remove this line
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a regular file`)
