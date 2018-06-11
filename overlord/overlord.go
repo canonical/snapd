@@ -142,7 +142,7 @@ func New() (*Overlord, error) {
 
 	configstateInit(hookMgr)
 
-	o.udevMon = createUDevMonitor(nil, nil) // FIXME
+	o.udevMon = createUDevMonitor(ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
 
 	s.Lock()
 	defer s.Unlock()
