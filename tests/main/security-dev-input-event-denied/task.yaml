@@ -1,5 +1,8 @@
 summary: Ensure that /dev/input/event* is denied by default.
 
+# on s390x/arm64 we do not have /dev/input
+systems: [-ubuntu-*-s390x, -ubuntu-*-arm64]
+
 details: |
     The default policy disallows access to /dev/input/event*.
 
