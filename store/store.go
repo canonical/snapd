@@ -2086,15 +2086,16 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
 	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
-	instanceKeyToName := make(map[string]string, len(currentSnaps))
 	instanceNameToKey := make(map[string]string, len(currentSnaps))
 	for i, curSnap := range currentSnaps {
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
+		// due to privacy concerns, avoid sending the local names to the
+		// backend and instead just number current snaps, this requires
+		// extra hoops to translate instance key -> instance name
 		instanceKey := fmt.Sprintf("%s-%d", curSnap.SnapID, i)
 		curSnaps[instanceKey] = curSnap
-		instanceKeyToName[instanceKey] = curSnap.InstanceName
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
 		channel := curSnap.TrackingChannel
@@ -2115,8 +2116,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	installNum := 0
 	downloadNum := 0
+	installNum := 0
 	installs := make(map[string]*SnapAction, len(actions))
 	downloads := make(map[string]*SnapAction, len(actions))
 	refreshes := make(map[string]*SnapAction, len(actions))
@@ -2125,7 +2126,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if !isValidAction(a.Action) {
 			return nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
 		}
-
 		if a.InstanceName == "" {
 			return nil, fmt.Errorf("internal error: action without instance name")
 		}
@@ -2139,6 +2139,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := instanceNameToKey[a.InstanceName]
+		aJSON := &snapActionJSON{
+			Action:           a.Action,
+			InstanceKey:      instanceKey,
+			SnapID:           a.SnapID,
+			Channel:          a.Channel,
+			Revision:         a.Revision.N,
+			Epoch:            a.Epoch,
+			IgnoreValidation: ignoreValidation,
+		}
 		if !a.Revision.Unset() {
 			a.Channel = ""
 		}
@@ -2153,21 +2162,13 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		} else {
 			refreshes[instanceKey] = a
 		}
-		instanceKeyToName[instanceKey] = a.InstanceName
 
-		// TODO parallel-install: use of proper instance/store name
-		aJSON := &snapActionJSON{
-			Action:           a.Action,
-			InstanceKey:      instanceKey,
-			SnapID:           a.SnapID,
-			Channel:          a.Channel,
-			Revision:         a.Revision.N,
-			Epoch:            a.Epoch,
-			IgnoreValidation: ignoreValidation,
-		}
-		if a.Action == "install" || a.Action == "download" {
+		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
 		}
+
+		aJSON.InstanceKey = instanceKey
+
 		actionJSONs[i] = aJSON
 	}
 
@@ -2246,18 +2247,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if err != nil {
 			return nil, fmt.Errorf("unexpected invalid install/refresh API result: %v", err)
 		}
-		instanceName := instanceKeyToName[res.InstanceKey]
 
-		if instanceName == "" {
-			return nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected instance-key %q", res.InstanceKey)
-		}
-
-		logger.Noticef("adjusting instance name: %s", instanceName)
-		store, instance := snap.SplitInstanceName(instanceName)
-		snapInfo.RealName = store
-		snapInfo.InstanceKey = instance
 		snapInfo.Channel = res.EffectiveChannel
 
+		var instanceName string
 		if res.Result == "refresh" {
 			cur := curSnaps[res.InstanceKey]
 			if cur == nil {
@@ -2268,7 +2261,20 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				refreshErrors[cur.InstanceName] = ErrNoUpdateAvailable
 				continue
 			}
+			instanceName = cur.InstanceName
+		} else if res.Result == "install" {
+			if action := installs[res.InstanceKey]; action != nil {
+				instanceName = action.InstanceName
+			}
 		}
+
+		if res.Result != "download" && instanceName == "" {
+			return nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected instance-key %q", res.InstanceKey)
+		}
+
+		_, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+
 		snaps = append(snaps, snapInfo)
 	}
 
