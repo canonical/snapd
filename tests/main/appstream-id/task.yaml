@@ -1,5 +1,5 @@
 summary: Verify AppStream ID integration
-# fedora-*: uses GNU netcat by default
+# fedora-*: uses nmap netcat by default (https://nmap.org/ncat/)
 systems: [-fedora-*]
 
 prepare: |
