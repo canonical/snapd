@@ -478,6 +478,25 @@ apps:
 	})
 }
 
+func (s *infoSuite) TestHookTakesGlobalEnv(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+hooks:
+ foo:
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Hooks["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"global-k=global-v",
+	})
+}
+
 func (s *infoSuite) TestSplitSnapApp(c *C) {
 	for _, t := range []struct {
 		in  string
