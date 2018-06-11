@@ -89,14 +89,14 @@ func IsReadOnly(dirFd int, dirName string) (bool, error) {
 	return false, nil
 }
 
-// IsTrustedTmpfs returns true if a directory belongs to a tmpfs mounted by snapd.
+// IsSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
 //
 // The function inspects the directory (represented as both an open file
 // descriptor and the absolute path) and a list of changes that were applied to
 // the mount namespace. A directory is trusted if it is a tmpfs that was
 // mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
 // trusted tmpfs are not considered trusted by this function.
-func IsTrustedTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) {
+func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) {
 	var fsData syscall.Statfs_t
 	if err := sysFstatfs(dirFd, &fsData); err != nil {
 		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
