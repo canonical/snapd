@@ -66,22 +66,22 @@ func (s *utilsSuite) TearDownTest(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllUnclean(c *C) {
 	err := s.sec.MkdirAll("/unclean//path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
-	c.Assert(s.sys.Calls(), HasLen, 0)
+	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
 	err := s.sec.MkdirAll("rel/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot create directory with relative path: "rel/path"`)
-	c.Assert(s.sys.Calls(), HasLen, 0)
+	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we can "create the root directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel0(c *C) {
 	c.Assert(s.sec.MkdirAll("/", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `close 3`},
 	})
 }
 
@@ -90,51 +90,51 @@ func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
 	c.Assert(s.sec.MkdirAll("/path", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`fchown 4 123 456`,
-		`close 4`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "path" 0755`},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
 // Ensure that we can create a directory two levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel2(c *C) {
 	c.Assert(s.sec.MkdirAll("/path/to", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`fchown 4 123 456`,
-		`close 3`,
-		`mkdirat 4 "to" 0755`,
-		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`fchown 3 123 456`,
-		`close 3`,
-		`close 4`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "path" 0755`},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 3`},
+		{C: `mkdirat 4 "to" 0755`},
+		{C: `openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 123 456`},
+		{C: `close 3`},
+		{C: `close 4`},
 	})
 }
 
 // Ensure that we can create a directory three levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
 	c.Assert(s.sec.MkdirAll("/path/to/something", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`fchown 4 123 456`,
-		`mkdirat 4 "to" 0755`,
-		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 5
-		`fchown 5 123 456`,
-		`close 4`,
-		`close 3`,
-		`mkdirat 5 "something" 0755`,
-		`openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`fchown 3 123 456`,
-		`close 3`,
-		`close 5`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "path" 0755`},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `mkdirat 4 "to" 0755`},
+		{C: `openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `mkdirat 5 "something" 0755`},
+		{C: `openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 123 456`},
+		{C: `close 3`},
+		{C: `close 5`},
 	})
 }
 
@@ -145,13 +145,13 @@ func (s *utilsSuite) TestSecureMkdirAllROFS(c *C) {
 	err := s.sec.MkdirAll("/rofs/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,        // -> 3
-		`mkdirat 3 "rofs" 0755`,                              // -> EEXIST
-		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`close 3`,
-		`mkdirat 4 "path" 0755`, // -> EROFS
-		`close 4`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "rofs" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `mkdirat 4 "path" 0755`, E: syscall.EROFS},
+		{C: `close 4`},
 	})
 }
 
@@ -161,15 +161,15 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`mkdirat 4 "path" 0755`, syscall.EEXIST)
 	err := s.sec.MkdirAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`close 3`,
-		`mkdirat 4 "path" 0755`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`close 3`,
-		`close 4`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "abs" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `mkdirat 4 "path" 0755`, E: syscall.EEXIST},
+		{C: `openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `close 3`},
+		{C: `close 4`},
 	})
 }
 
@@ -178,10 +178,10 @@ func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
 	err := s.sec.MkdirAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot create directory "/abs": testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "abs" 0755`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "abs" 0755`, E: errTesting},
+		{C: `close 3`},
 	})
 }
 
@@ -190,13 +190,13 @@ func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
 	err := s.sec.MkdirAll("/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot chown directory "/path" to 123.456: testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`fchown 4 123 456`,
-		`close 4`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "path" 0755`},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`, E: errTesting},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -205,8 +205,8 @@ func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
 	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkdirAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, "cannot open root directory: testing")
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
 	})
 }
 
@@ -215,11 +215,11 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkdirAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot open directory "/abs": testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "abs" 0755`},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
+		{C: `close 3`},
 	})
 }
 
@@ -470,68 +470,68 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllUnclean(c *C) {
 	err := s.sec.MkfileAll("/unclean//path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
-	c.Assert(s.sys.Calls(), HasLen, 0)
+	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we refuse to create a file with an relative path.
 func (s *utilsSuite) TestSecureMkfileAllRelative(c *C) {
 	err := s.sec.MkfileAll("rel/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot create file with relative path: "rel/path"`)
-	c.Assert(s.sys.Calls(), HasLen, 0)
+	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we refuse creating the root directory as a file.
 func (s *utilsSuite) TestSecureMkfileAllLevel0(c *C) {
 	err := s.sec.MkfileAll("/", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
-	c.Assert(s.sys.Calls(), HasLen, 0)
+	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we can create a file in the top-level directory.
 func (s *utilsSuite) TestSecureMkfileAllLevel1(c *C) {
 	c.Assert(s.sec.MkfileAll("/path", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,              // -> 3
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 4
-		`fchown 4 123 456`,
-		`close 4`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
 // Ensure that we can create a file two levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkfileAllLevel2(c *C) {
 	c.Assert(s.sec.MkfileAll("/path/to", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`fchown 4 123 456`,
-		`close 3`,
-		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
-		`fchown 3 123 456`,
-		`close 3`,
-		`close 4`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "path" 0755`},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 3`},
+		{C: `openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 3},
+		{C: `fchown 3 123 456`},
+		{C: `close 3`},
+		{C: `close 4`},
 	})
 }
 
 // Ensure that we can create a file three levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
 	c.Assert(s.sec.MkfileAll("/path/to/something", 0755, 123, 456), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "path" 0755`,
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`fchown 4 123 456`,
-		`mkdirat 4 "to" 0755`,
-		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 5
-		`fchown 5 123 456`,
-		`close 4`,
-		`close 3`,
-		`openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
-		`fchown 3 123 456`,
-		`close 3`,
-		`close 5`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "path" 0755`},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `mkdirat 4 "to" 0755`},
+		{C: `openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 3},
+		{C: `fchown 3 123 456`},
+		{C: `close 3`},
+		{C: `close 5`},
 	})
 }
 
@@ -542,13 +542,13 @@ func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 	err := s.sec.MkfileAll("/rofs/path", 0755, 123, 456)
 	c.Check(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,        // -> 3
-		`mkdirat 3 "rofs" 0755`,                              // -> EEXIST
-		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`close 3`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EROFS
-		`close 4`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "rofs" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, E: syscall.EROFS},
+		{C: `close 4`},
 	})
 }
 
@@ -558,15 +558,15 @@ func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
 	err := s.sec.MkfileAll("/abs/path", 0755, 123, 456)
 	c.Check(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
-		`close 3`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EEXIST
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC 0`,                   // -> 3
-		`close 3`,
-		`close 4`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "abs" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, E: syscall.EEXIST},
+		{C: `openat 4 "path" O_NOFOLLOW|O_CLOEXEC 0`, R: 3},
+		{C: `close 3`},
+		{C: `close 4`},
 	})
 }
 
@@ -576,11 +576,11 @@ func (s *utilsSuite) TestSecureMkfileAllOpenat2ndError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`, errTesting)
 	err := s.sec.MkfileAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot open file "/abs": testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,             // -> 3
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EEXIST
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`,                   // -> err
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`, E: errTesting},
+		{C: `close 3`},
 	})
 }
 
@@ -589,10 +589,10 @@ func (s *utilsSuite) TestSecureMkfileAllOpenatError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
 	err := s.sec.MkfileAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot open file "/abs": testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,             // -> 3
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> err
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, E: errTesting},
+		{C: `close 3`},
 	})
 }
 
@@ -601,12 +601,12 @@ func (s *utilsSuite) TestSecureMkfileAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
 	err := s.sec.MkfileAll("/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot chown file "/path" to 123.456: testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,              // -> 3
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 4
-		`fchown 4 123 456`,
-		`close 4`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 4},
+		{C: `fchown 4 123 456`, E: errTesting},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -615,8 +615,8 @@ func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
 	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkfileAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, "cannot open root directory: testing")
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
 	})
 }
 
@@ -625,11 +625,11 @@ func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkfileAll("/abs/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot open directory "/abs": testing`)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
-		`mkdirat 3 "abs" 0755`,
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "abs" 0755`},
+		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
+		{C: `close 3`},
 	})
 }
 
@@ -721,13 +721,13 @@ func (s *utilsSuite) TestSecureOpenPath(c *C) {
 	c.Assert(err, IsNil)
 	defer s.sys.Close(fd)
 	c.Assert(fd, Equals, 5)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,       // -> 3
-		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "bar" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,             // -> 5
-		`fstat 5 <ptr>`,
-		`close 4`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "bar" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: stat},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -738,11 +738,11 @@ func (s *utilsSuite) TestSecureOpenPathSingleSegment(c *C) {
 	c.Assert(err, IsNil)
 	defer s.sys.Close(fd)
 	c.Assert(fd, Equals, 4)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
-		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,       // -> 4
-		`fstat 4 <ptr>`,
-		`close 3`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: stat},
+		{C: `close 3`},
 	})
 }
 
@@ -753,9 +753,9 @@ func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
 	c.Assert(err, IsNil)
 	defer s.sys.Close(fd)
 	c.Assert(fd, Equals, 3)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
-		`fstat 3 <ptr>`,
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `fstat 3 <ptr>`, R: stat},
 	})
 }
 
