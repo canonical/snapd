@@ -304,11 +304,6 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		"setup-profiles",
 		"link-snap",
 	)
-	if opts&maybeCore != 0 {
-		expected = append(expected,
-			"setup-profiles",
-		)
-	}
 	expected = append(expected,
 		"auto-connect",
 		"set-auto-aliases",
@@ -500,28 +495,6 @@ version: 1.0`)
 	c.Assert(runHooks[0].Summary(), Equals, `Run pre-refresh hook of "some-snap" snap if present`)
 	c.Assert(runHooks[1].Summary(), Equals, `Run post-refresh hook of "some-snap" snap if present`)
 	c.Assert(runHooks[2].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
-}
-
-func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	ts, err := snapstate.Install(s.state, "some-core", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	verifyInstallTasks(c, maybeCore, 0, ts, s.state)
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	var phase2 *state.Task
-	for _, t := range ts.Tasks() {
-		if t.Kind() == "setup-profiles" {
-			phase2 = t
-		}
-	}
-	c.Assert(phase2, NotNil)
-	var flag bool
-	err = phase2.Get("core-phase-2", &flag)
-	c.Assert(err, IsNil)
-	c.Check(flag, Equals, true)
 }
 
 type fullFlags struct{ before, change, after, setup snapstate.Flags }
@@ -4207,11 +4180,6 @@ version: 1.0`)
 			name: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
-			op:    "setup-profiles:Doing", // core phase 2
-			name:  "mock",
-			revno: snap.R("x1"),
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -4288,7 +4256,7 @@ version: 1.0`)
 
 	ops := s.fakeBackend.ops
 	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops.Ops(), HasLen, 12)
+	c.Assert(ops.Ops(), HasLen, 11)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
 	// and setup-snap
@@ -4320,7 +4288,6 @@ version: 1.0`)
 	})
 	c.Check(ops[7].op, Equals, "link-snap")
 	c.Check(ops[7].name, Equals, filepath.Join(dirs.SnapMountDir, "mock/x3"))
-	c.Check(ops[8].op, Equals, "setup-profiles:Doing") // core phase 2
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -4422,11 +4389,6 @@ version: 1.0`)
 			name: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "mock",
-			revno: snap.R("x1"),
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -4484,7 +4446,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -6691,33 +6653,6 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	c.Assert(l, HasLen, 1)
 }
 
-func (s *snapmgrTestSuite) TestGuardCoreSetupProfilesPhase2Basics(c *C) {
-	r := release.MockOnClassic(true)
-	defer r()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	task := st.NewTask("setup-profiles", "...")
-
-	// not core snap
-	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
-	c.Check(err, IsNil)
-	c.Check(proceed, Equals, false)
-
-	// core snap, not restarting
-	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
-	c.Check(err, IsNil)
-	c.Check(proceed, Equals, true)
-
-	// core snap, restarting ... wait
-	state.MockRestarting(st, state.RestartDaemon)
-	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
-	c.Check(err, FitsTypeOf, &state.Retry{})
-	c.Check(proceed, Equals, false)
-}
-
 type snapmgrQuerySuite struct {
 	st      *state.State
 	restore func()
@@ -7110,7 +7045,6 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-		"setup-profiles",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -8309,11 +8243,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "core",
-			revno: snap.R(11),
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -8960,11 +8889,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "core",
-			revno: snap.R(11),
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -9101,11 +9025,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 27)
+		c.Assert(chg1.Tasks(), HasLen, 26)
 		c.Assert(chg2.Tasks(), HasLen, 13)
 	} else {
 		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 27)
+		c.Assert(chg2.Tasks(), HasLen, 26)
 	}
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
