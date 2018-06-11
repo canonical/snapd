@@ -50,7 +50,7 @@ execute: |
     Name=org.freedesktop.portal.Documents
     Exec=$(pwd)/fake-document-portal.py $(pwd)/doc-portal.log $(pwd)/report-error.txt
     EOF
-    > report-error.txt
+    : > report-error.txt
 
     echo "No output on stderr when running with a session bus and xdg-document-portal is present".
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
@@ -59,7 +59,7 @@ execute: |
 
     echo "Putting fake document portal into failure mode"
     echo "error" > report-error.txt
-    > doc-portal.log
+    : > doc-portal.log
 
     echo "Failures from a running xdg-document-portal are reported"
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
@@ -67,7 +67,7 @@ execute: |
     MATCH "WARNING: cannot start document portal: failure" < stderr.log
 
     echo "Snaps not using the desktop interface will not try to contact the document portal"
-    > doc-portal.log
+    : > doc-portal.log
     test-snapd-tools.success 2>stderr.log
     [ "$(wc -c < stderr.log)" -eq 0 ]
     [ "$(wc -c < doc-portal.log)" -eq 0 ]
