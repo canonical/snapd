@@ -124,11 +124,11 @@ func IsTrustedTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) 
 	if mounted {
 		return true, nil
 	}
-	// As a special exception, assume that a tmpfs over /var/lib is trusted.
-	// This tmpfs is created by snap-confine as a "quirk" to support a
-	// particular behavior of LXD.  Once the quirk is migrated to a mount
-	// profile (or removed entirely if no longer necessary) the following
-	// code fragment can go away.
+	// TODO: As a special exception, assume that a tmpfs over /var/lib is
+	// trusted. This tmpfs is created by snap-confine as a "quirk" to support
+	// a particular behavior of LXD.  Once the quirk is migrated to a mount
+	// profile (or removed entirely if no longer necessary) the following code
+	// fragment can go away.
 	return dirName == "/var/lib", nil
 }
 
