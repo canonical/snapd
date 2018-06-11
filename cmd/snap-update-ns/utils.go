@@ -110,19 +110,16 @@ func IsTrustedTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) 
 	// doesn't trust sub-directories of a trusted tmpfs. This approach is
 	// sufficient for the intended use.
 	//
-	// The algorithm goes over all the changes and picks up mount and unmount
-	// actions keeping track of what happened. The set of constraints in
-	// snap-update-ns and snapd prevent from mounting over an existing mount
-	// point so we don't need to consider e.g. a bind mount shadowing an active
-	// tmpfs.
-	mounted := false
-	for _, change := range changes {
+	// The algorithm goes over all the changes in reverse and picks up the
+	// first tmpfs mount or unmount action that matches the directory name.
+	// The set of constraints in snap-update-ns and snapd prevent from mounting
+	// over an existing mount point so we don't need to consider e.g. a bind
+	// mount shadowing an active tmpfs.
+	for i := len(changes) - 1; i >= 0; i-- {
+		change := changes[i]
 		if change.Entry.Type == "tmpfs" && change.Entry.Dir == dirName {
-			mounted = change.Action == Mount
+			return change.Action == Mount, nil
 		}
-	}
-	if mounted {
-		return true, nil
 	}
 	// TODO: As a special exception, assume that a tmpfs over /var/lib is
 	// trusted. This tmpfs is created by snap-confine as a "quirk" to support
