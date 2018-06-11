@@ -38,7 +38,16 @@ execute: |
     test-snapd-tools.echo hello
 
 
-
+    echo "Check if snap-confine profile generation test is applicable"
+    if [ $(snap debug confinement) != "strict" ]; then
+        if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+            echo "No strict confinement on ubuntu-16.04-64 is impossible"
+            echo "Test broken"
+            exit 1
+        fi
+        echo "SKIP: no strict confinement"
+        exit 0
+    fi
 
     echo "Ensure snapd generates the right apparmor profile on restart"
     PROFILES="$(find /etc/apparmor.d/ -maxdepth 1 -name "snap.core.*.snap-confine")"
