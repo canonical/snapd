@@ -3071,3 +3071,73 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 		"snap3": snap.R(3),
 	})
 }
+
+func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddSnap(consumerInfo), IsNil)
+	c.Assert(repo.AddSnap(producerInfo), IsNil)
+
+	plugDynAttrs := map[string]interface{}{
+		"attr3": "value3",
+	}
+	slotDynAttrs := map[string]interface{}{
+		"attr4": "value4",
+	}
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}, plugDynAttrs, slotDynAttrs, nil)
+
+	chg := s.state.NewChange("install", "")
+	t := s.state.NewTask("disconnect-interfaces", "")
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ht := t.HaltTasks()
+	c.Assert(ht, HasLen, 2)
+
+	var expectedHooks = []struct{ snap, hook string }{
+		{snap: "producer", hook: "disconnect-slot-slot"},
+		{snap: "consumer", hook: "disconnect-plug-plug"},
+	}
+
+	for i := 0; i < 2; i++ {
+		var hsup hookstate.HookSetup
+		c.Assert(ht[i].Kind(), Equals, "run-hook")
+		c.Assert(ht[i].Get("hook-setup", &hsup), IsNil)
+
+		c.Assert(hsup.Snap, Equals, expectedHooks[i].snap)
+		c.Assert(hsup.Hook, Equals, expectedHooks[i].hook)
+
+		var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]interface{}
+		c.Assert(ht[i].Get("plug-static", &plugStatic), IsNil)
+		c.Assert(ht[i].Get("plug-dynamic", &plugDynamic), IsNil)
+		c.Assert(ht[i].Get("slot-static", &slotStatic), IsNil)
+		c.Assert(ht[i].Get("slot-dynamic", &slotDynamic), IsNil)
+
+		c.Assert(plugStatic, DeepEquals, map[string]interface{}{"attr1": "value1"})
+		c.Assert(slotStatic, DeepEquals, map[string]interface{}{"attr2": "value2"})
+		c.Assert(plugDynamic, DeepEquals, map[string]interface{}{"attr3": "value3"})
+		c.Assert(slotDynamic, DeepEquals, map[string]interface{}{"attr4": "value4"})
+	}
+}
