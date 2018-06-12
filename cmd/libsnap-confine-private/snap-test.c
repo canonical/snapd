@@ -316,7 +316,7 @@ static void test_sc_snap_split_instance_name_short_instance_dest(void)
 static void test_sc_snap_split_instance_name_basic(void)
 {
 	char name[41] = { 0xff };
-	char instance[11] = { 0xff };
+	char instance[20] = { 0xff };
 
 	sc_snap_split_instance_name("foo_bar", name, sizeof name, instance,
 				    sizeof instance);
@@ -359,6 +359,20 @@ static void test_sc_snap_split_instance_name_basic(void)
 	sc_snap_split_instance_name("foo_bar", NULL, 0, instance,
 				    sizeof instance);
 	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("hello_world_surprise", name, sizeof name,
+				    instance, sizeof instance);
+	g_assert_cmpstr(name, ==, "hello");
+	g_assert_cmpstr(instance, ==, "world_surprise");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "");
 }
 
 static void __attribute__ ((constructor)) init(void)

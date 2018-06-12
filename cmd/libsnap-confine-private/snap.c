@@ -169,39 +169,42 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_drop_instance_name(const char *snap_name, char *base,
-				size_t base_size)
+void sc_snap_drop_instance_name(const char *name, char *snap_name,
+				size_t snap_name_size)
 {
-	sc_snap_split_instance_name(snap_name, base, base_size, NULL, 0);
+	sc_snap_split_instance_name(name, snap_name, snap_name_size, NULL, 0);
 }
 
-void sc_snap_split_instance_name(const char *snap_name, char *base,
-				 size_t base_size, char *instance_key,
+void sc_snap_split_instance_name(const char *name, char *snap_name,
+				 size_t snap_name_size, char *instance_key,
 				 size_t instance_key_size)
 {
-	if (snap_name == NULL || (base == NULL && instance_key == NULL)) {
-		die("base and instance key or snap name are unset");
+	if (name == NULL) {
+		die("name not provided");
+	}
+	if (snap_name == NULL && instance_key == NULL) {
+		die("snap name and instance key are unset");
 	}
 
-	const char *pos = strchr(snap_name, '_');
+	const char *pos = strchr(name, '_');
 	const char *instance_key_start = NULL;
-	size_t base_len = 0;
+	size_t snap_name_len = 0;
 	size_t instance_key_len = 0;
 	if (pos == NULL) {
-		base_len = strlen(snap_name);
+		snap_name_len = strlen(name);
 	} else {
-		base_len = pos - snap_name;
+		snap_name_len = pos - name;
 		instance_key_start = pos + 1;
-		instance_key_len = strlen(snap_name) - base_len - 1;
+		instance_key_len = strlen(name) - snap_name_len - 1;
 	}
 
-	if (base != NULL) {
-		if (base_len >= base_size) {
-			die("base buffer too small");
+	if (snap_name != NULL) {
+		if (snap_name_len >= snap_name_size) {
+			die("snap name buffer too small");
 		}
 
-		memcpy(base, snap_name, base_len);
-		base[base_len] = '\0';
+		memcpy(snap_name, name, snap_name_len);
+		snap_name[snap_name_len] = '\0';
 	}
 
 	if (instance_key != NULL) {
