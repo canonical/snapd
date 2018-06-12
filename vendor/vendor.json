@@ -73,6 +73,12 @@
 			"revisionTime": "2018-03-15T12:37:24Z"
 		},
 		{
+			"checksumSHA1": "Hd5U2iAkEd7dUZJxU7Bceh3Nf0s=",
+			"path": "github.com/pilebones/go-udev/netlink",
+			"revision": "02dfd8edaaf3a7a46ad1509ae44c8f08dfaf8ece",
+			"revisionTime": "2018-03-15T12:37:24Z"
+		},
+		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
@@ -85,14 +91,6 @@
 			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
 			"revisionTime": "2017-12-20T16:53:23Z",
 			"tree": true
-		},
-		{
-			"checksumSHA1": "+8cysZc/uJ0lcQll/Luvbt9qjSE=",
-			"path": "github.com/stolowski/go-udev/netlink",
-			"revision": "ce87343f433f973caa04c20d13120f621cdd3d29",
-			"revisionTime": "2018-06-11T16:19:57Z",
-			"version": "check-recvfrom-err",
-			"versionExact": "check-recvfrom-err"
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
