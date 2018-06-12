@@ -182,6 +182,6 @@ func (spec *Specification) TriggerSubsystem(subsystem string) {
 	spec.udevadmSubsystemTriggers = append(spec.udevadmSubsystemTriggers, subsystem)
 }
 
-func (spec *Specification) GetTriggeredSubsystems() []string {
+func (spec *Specification) TriggeredSubsystems() []string {
 	return spec.udevadmSubsystemTriggers
 }

@@ -69,7 +69,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %s", snapName, err)
 	}
 	content := b.deriveContent(spec.(*Specification), snapInfo)
-	subsystemTriggers := spec.(*Specification).GetTriggeredSubsystems()
+	subsystemTriggers := spec.(*Specification).TriggeredSubsystems()
 
 	dir := dirs.SnapUdevRulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
