@@ -39,6 +39,7 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/privs.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -202,6 +203,9 @@ struct sc_mount {
 	// Alternate path defines the rbind mount "alternative" of path.
 	// It exists so that we can make /media on systems that use /run/media.
 	const char *altpath;
+	// Optional mount points are not processed unless the source and
+	// destination both exist.
+	bool is_optional;
 };
 
 struct sc_mount_config {
@@ -301,7 +305,30 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
-		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
+		// NOTE: we are not using sc_do_mount because we want non-fatal errors.
+		if (mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL) < 0) {
+			if (errno == ENOENT && mnt->is_optional) {
+				// When an optional mount entry fails with ENOENT then just
+				// carry on. This represents a missing mount point in the base
+				// snap or missing mount source on the host.
+				continue;
+			}
+			char mount_cmd_buf[10000] = { 0 };
+			const char *mount_cmd = NULL;
+			// Save errno as ensure can clobber it.
+			int saved_errno = errno;
+			// Drop privileges so that we can compute our nice error message
+			// without risking an attack on one of the string functions there.
+			sc_privs_drop();
+			// Compute the equivalent mount command.
+			mount_cmd =
+			    sc_mount_cmd(mount_cmd_buf, sizeof(mount_cmd_buf),
+					 mnt->path, dst, NULL, MS_REC | MS_BIND,
+					 NULL);
+			// Restore errno and die.
+			errno = saved_errno;
+			die("cannot perform operation: %s", mount_cmd);
+		}
 		if (!mnt->is_bidirectional) {
 			// Mount events will only propagate inwards to the namespace. This
 			// way the running application cannot alter any global state apart
