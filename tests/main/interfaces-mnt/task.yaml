@@ -1,0 +1,38 @@
+summary: Ensure that the mnt interface works.
+details: |
+    The mnt interface allows a snap to access anything mounted in /mnt
+prepare: |
+    echo "Mount a filesystem in /tmp/testing and put some data there"
+    mkdir -p /mnt/testing/
+    mount -t tmpfs none /mnt/testing
+    echo canary > /mnt/testing/data
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    echo "Given a snap declaring the home plug is installed"
+    install_local mnt-consumer
+restore: |
+    umount /mnt/testing
+    rmdir /mnt/testing || true # in case the user had /mnt/testing
+execute: |
+    echo "When the plug is connected"
+    snap connect mnt-consumer:mnt
+
+    echo "Then the snap has read-write access to /mnt/testing/data"
+    mnt-consumer.sh -c 'cat /mnt/testing/data' | MATCH canary
+    mnt-consumer.sh -c 'echo modified > /mnt/testing/data'
+    MATCH modified < /mnt/testing/data
+
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "The snap cannot create new things in /mnt" 
+        if mnt-consumer.sh -c 'echo foo > /mnt/bad'; then
+            echo "/mnt/bad should never be writable" && exit 1
+        fi
+
+        echo "When the plug is disconnected"
+        snap disconnect mnt-consumer:mnt
+
+        echo "Then /mnt/testing/data is no longer readable"
+        if mnt-consumer.sh -c 'cat /mnt/testing/data'; then
+            echo "/mnt/testing/data should no longer be readable" && exit 1
+        fi
+    fi
