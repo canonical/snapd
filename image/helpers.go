@@ -225,12 +225,16 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 		Action:   "download",
 		Name:     name,
 		Revision: revision,
-		Channel:  opts.Channel,
 	}}
+
+	if revision.Unset() {
+		actions[0].Channel = opts.Channel
+	}
 
 	snaps, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
+		// err will be 'cannot download snap "foo": <reasons>'
+		return "", nil, err
 	}
 	snap := snaps[0]
 
