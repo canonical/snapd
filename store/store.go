@@ -2219,15 +2219,19 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := a.SnapID
-		switch a.Action {
-		case "install":
-			installNum++
-			instanceKey = fmt.Sprintf("install-%d", installNum)
-			installKeys[instanceKey] = true
-		case "download":
-			downloadNum++
-			instanceKey = fmt.Sprintf("download-%d", downloadNum)
-			downloadKeys[instanceKey] = true
+		if a.Action == "install" || a.Action == "download" {
+			if !a.Revision.Unset() {
+				a.Channel = ""
+			}
+			if a.Action == "install" {
+				installNum++
+				instanceKey = fmt.Sprintf("install-%d", installNum)
+				installKeys[instanceKey] = true
+			} else {
+				downloadNum++
+				instanceKey = fmt.Sprintf("download-%d", downloadNum)
+				downloadKeys[instanceKey] = true
+			}
 		}
 
 		aJSON := &snapActionJSON{

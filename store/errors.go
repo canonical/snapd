@@ -163,10 +163,10 @@ func (e SnapActionError) Error() string {
 			header = "cannot install:"
 		case nDownload == 0 && nInstall == 0:
 			header = "cannot refresh:"
-		case nDownload == 0:
-			header = "cannot refresh or install:"
 		case nRefresh == 0 && nInstall == 0:
 			header = "cannot download:"
+		case nDownload == 0:
+			header = "cannot refresh or install:"
 		case nInstall == 0:
 			header = "cannot refresh or download:"
 		case nRefresh == 0:

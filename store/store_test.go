@@ -6297,6 +6297,13 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
+	s.testSnapActionGet("install", c)
+}
+func (s *storeTestSuite) TestSnapActionDownload(c *C) {
+	s.testSnapActionGet("download", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
+	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -6328,16 +6335,16 @@ func (s *storeTestSuite) TestSnapActionInstall(c *C) {
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":       "install",
-			"instance-key": "install-1",
+			"action":       action,
+			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"channel":      "beta",
 		})
 
-		io.WriteString(w, `{
+		fmt.Fprintf(w, `{
   "results": [{
-     "result": "install",
-     "instance-key": "install-1",
+     "result": "%s",
+     "instance-key": "%[1]s-1",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "effective-channel": "candidate",
@@ -6353,7 +6360,7 @@ func (s *storeTestSuite) TestSnapActionInstall(c *C) {
        }
      }
   }]
-}`)
+}`, action)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -6369,7 +6376,7 @@ func (s *storeTestSuite) TestSnapActionInstall(c *C) {
 	results, err := sto.SnapAction(context.TODO(), nil,
 		[]*SnapAction{
 			{
-				Action:  "install",
+				Action:  action,
 				Name:    "hello-world",
 				Channel: "beta",
 			},
@@ -6387,6 +6394,15 @@ func (s *storeTestSuite) TestSnapActionInstall(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstallWithRevision(c *C) {
+	s.testSnapActionGetWithRevision("install", c)
+}
+
+func (s *storeTestSuite) TestSnapActionDownloadWithRevision(c *C) {
+	s.testSnapActionGetWithRevision("download", c)
+}
+
+func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
+	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -6418,16 +6434,16 @@ func (s *storeTestSuite) TestSnapActionInstallWithRevision(c *C) {
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":       "install",
-			"instance-key": "install-1",
+			"action":       action,
+			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"revision":     float64(28),
 		})
 
-		io.WriteString(w, `{
+		fmt.Fprintf(w, `{
   "results": [{
-     "result": "install",
-     "instance-key": "install-1",
+     "result": "%s",
+     "instance-key": "%[1]s-1",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6442,7 +6458,7 @@ func (s *storeTestSuite) TestSnapActionInstallWithRevision(c *C) {
        }
      }
   }]
-}`)
+}`, action)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -6458,7 +6474,7 @@ func (s *storeTestSuite) TestSnapActionInstallWithRevision(c *C) {
 	results, err := sto.SnapAction(context.TODO(), nil,
 		[]*SnapAction{
 			{
-				Action:   "install",
+				Action:   action,
 				Name:     "hello-world",
 				Revision: snap.R(28),
 			},
@@ -6499,7 +6515,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
-		c.Assert(req.Actions, HasLen, 2)
+		c.Assert(req.Actions, HasLen, 3)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
@@ -6511,6 +6527,12 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+			"action":       "download",
+			"instance-key": "download-1",
+			"name":         "bar",
+			"revision":     42.,
 		})
 
 		io.WriteString(w, `{
@@ -6531,6 +6553,15 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
      "error": {
        "code": "revision-not-found",
        "message": "msg2"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "download-1",
+     "snap-id": "bar-id",
+     "name": "bar",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg3"
      }
   }]
 }`)
@@ -6563,6 +6594,10 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			Action:  "install",
 			Name:    "foo",
 			Channel: "stable",
+		}, {
+			Action:   "download",
+			Name:     "bar",
+			Revision: snap.R(42),
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
@@ -6572,6 +6607,9 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		},
 		Install: map[string]error{
 			"foo": ErrRevisionNotAvailable,
+		},
+		Download: map[string]error{
+			"bar": ErrRevisionNotAvailable,
 		},
 	})
 }
@@ -6600,7 +6638,7 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
-		c.Assert(req.Actions, HasLen, 2)
+		c.Assert(req.Actions, HasLen, 3)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
@@ -6612,6 +6650,12 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+			"action":       "download",
+			"instance-key": "download-1",
+			"name":         "bar",
+			"revision":     42.,
 		})
 
 		io.WriteString(w, `{
@@ -6630,6 +6674,14 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
      "error": {
        "code": "name-not-found",
        "message": "msg2"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "download-1",
+     "name": "bar",
+     "error": {
+       "code": "name-not-found",
+       "message": "msg3"
      }
   }]
 }`)
@@ -6662,6 +6714,10 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			Action:  "install",
 			Name:    "foo",
 			Channel: "stable",
+		}, {
+			Action:   "download",
+			Name:     "bar",
+			Revision: snap.R(42),
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
@@ -6671,6 +6727,9 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 		},
 		Install: map[string]error{
 			"foo": ErrSnapNotFound,
+		},
+		Download: map[string]error{
+			"bar": ErrSnapNotFound,
 		},
 	})
 }
