@@ -66,7 +66,10 @@ func (c *UEventConn) ReadMsg() (msg []byte, err error) {
 	}
 
 	// Now read complete data
-	n, _, _ = syscall.Recvfrom(c.Fd, buf, 0)
+	n, _, err = syscall.Recvfrom(c.Fd, buf, 0)
+	if err != nil {
+		return
+	}
 
 	// Extract only real data from buffer and return that
 	msg = buf[:n]
