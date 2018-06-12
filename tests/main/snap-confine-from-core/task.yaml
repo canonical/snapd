@@ -39,13 +39,13 @@ execute: |
 
 
     echo "Check if snap-confine profile generation test is applicable"
-    if [ $(aa-enabled) != "Yes" ]; then
+    if [ "$(aa-enabled)" != "Yes" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
             echo "No apparmor on ubuntu-16.04-64 is impossible"
             echo "Test broken"
             exit 1
         fi
-        echo "SKIP: no strict confinement"
+        echo "SKIP: apparmor not enabled"
         exit 0
     fi
 
@@ -66,11 +66,6 @@ execute: |
     wait_for_service snapd.service
 
     echo "Ensure this also re-generates the snap-confine from core profile"
-    for _ in $(seq 30); do
-        if ls /etc/apparmor.d/snap.core.*.snap-confine*; then
-            break
-        fi
-    done
     PROFILES="$(find /etc/apparmor.d/ -maxdepth 1 -name "snap.core.*.snap-confine")"
     if [ -z "$PROFILES" ]; then
         echo "apparmor profiles for snap-confine from core were not re-generated"

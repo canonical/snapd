@@ -87,7 +87,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	// We no longer do/need core-phase-2, see
 	//   https://github.com/snapcore/snapd/pull/5301
 	// This code is just here to deal with old state that may still
-	// have this flag.
+	// have the 2nd setup-profiles with this flag set.
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
 		return err
