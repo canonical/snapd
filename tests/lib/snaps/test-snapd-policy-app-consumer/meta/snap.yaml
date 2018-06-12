@@ -332,6 +332,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  mnt:
+    command: bin/run
+    plugs: [ mnt ]
 
 plugs:
   browser-sandbox:
