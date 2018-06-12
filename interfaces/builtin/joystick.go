@@ -93,10 +93,7 @@ type joystickInterface struct {
 
 func (iface *joystickInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.TriggerSubsystem("input/joystick")
-	for _, rule := range joystickConnectedPlugUDev {
-		spec.TagDevice(rule)
-	}
-	return nil
+	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
 }
 
 func init() {
@@ -107,6 +104,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  joystickBaseDeclarationSlots,
 		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
+		connectedPlugUDev:     joystickConnectedPlugUDev,
 		reservedForOS:         true,
 	}})
 }
