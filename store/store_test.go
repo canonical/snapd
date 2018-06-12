@@ -6799,6 +6799,35 @@ func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 	})
 }
 
+func (s *storeTestSuite) TestSnapActionUnknownAction(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("should not have made it to the server")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), nil,
+		[]*SnapAction{
+			{
+				Action: "something unexpected",
+				Name:   "hello-world",
+			},
+		}, nil, nil)
+	c.Assert(err, ErrorMatches, `.* unsupported action .*`)
+	c.Assert(results, IsNil)
+}
+
 func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	e := &SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh"),
