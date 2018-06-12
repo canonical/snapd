@@ -22,6 +22,10 @@ prepare: |
 restore: |
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
+
+    # Retry until the xdg directory can be removed sucessfully
+    # The retry is needed because sporadically it is still locked and
+    # it needs more time until the we can remove it.
     for i in $(seq 3); do
         if rm -rf "$XDG"; then
             exit 0
