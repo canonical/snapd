@@ -24,8 +24,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/pilebones/go-udev/crawler"
-	"github.com/pilebones/go-udev/netlink"
+	"github.com/stolowski/go-udev/crawler"
+	"github.com/stolowski/go-udev/netlink"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
