@@ -56,9 +56,6 @@ func snapRulesFilePath(snapName string) string {
 	return filepath.Join(dirs.SnapUdevRulesDir, rulesFileName)
 }
 
-// subsystemTriggers holds the subsystems that ReloadRules() will trigger
-var subsystemTriggers []string
-
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
@@ -150,6 +147,7 @@ func (b *Backend) Remove(snapName string) error {
 	// FIXME: somehow detect the interfaces that were disconnected and set
 	// subsystemTriggers appropriately. ATM, it is always going to be empty
 	// on disconnect.
+	subsystemTriggers := []string{}
 	return ReloadRules(subsystemTriggers)
 }
 
