@@ -134,7 +134,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		baseSnap = model.Base()
 	}
 
-	installSeedHelper := func(snapName string, last int) error {
+	installSeedEssential := func(snapName string, last int) error {
 		seedSnap := seeding[snapName]
 		if seedSnap == nil {
 			return fmt.Errorf("cannot proceed without seeding %q", snapName)
@@ -154,11 +154,11 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" {
-			if err := installSeedHelper("snapd", -1); err != nil {
+			if err := installSeedEssential("snapd", -1); err != nil {
 				return nil, err
 			}
 		}
-		if err := installSeedHelper(baseSnap, -1); err != nil {
+		if err := installSeedEssential(baseSnap, -1); err != nil {
 			return nil, err
 		}
 		// we *always* configure "core" here even if bases are used
@@ -168,7 +168,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 
 	last := 0
 	if kernelName := model.Kernel(); kernelName != "" {
-		if err := installSeedHelper(kernelName, last); err != nil {
+		if err := installSeedEssential(kernelName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
@@ -178,7 +178,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		if err := installSeedHelper(gadgetName, last); err != nil {
+		if err := installSeedEssential(gadgetName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
