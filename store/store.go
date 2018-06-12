@@ -368,6 +368,7 @@ const (
 	commandsEndpPath    = "api/v1/snaps/names"
 	// v2
 	snapActionEndpPath = "v2/snaps/refresh"
+	snapInfoEndpPath   = "v2/snaps/info"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -2372,22 +2373,37 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	return snaps, nil
 }
 
+// abbreviated info structs just for the download info
+type storeInfoChannelAbbrev struct {
+	Download storeSnapDownload `json:"download"`
+}
+
+type storeInfoAbbrev struct {
+	// discard anything beyond the first entry
+	ChannelMap [1]storeInfoChannelAbbrev `json:"channel-map"`
+}
+
 var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
 
 func (s *Store) snapConnCheck() ([]string, error) {
 	var hosts []string
-	// TODO: move this to SnapAction:download when that's done (and maybe
-	//       avoid doRequest with its compulsory macaroon refresh dance)
 	// NOTE: "core" is possibly the only snap that's sure to be in all stores
 	//       when we drop "core" in the move to snapd/core18/etc, change this
-	deetsURL := s.endpointURL(path.Join(detailsEndpPath, "core"), url.Values{"fields": {"anon_download_url"}})
-	hosts = append(hosts, deetsURL.Host)
+	infoURL := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
+		"fields":       {"download"},
+		"architecture": {"amd64"},
+	})
+	hosts = append(hosts, infoURL.Host)
 
-	var remote snapDetails
-	resp, err := httputil.RetryRequest(deetsURL.String(), func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: deetsURL}, nil)
+	var result storeInfoAbbrev
+	resp, err := httputil.RetryRequest(infoURL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{
+			Method:   "GET",
+			URL:      infoURL,
+			APILevel: apiV2Endps,
+		}, nil)
 	}, func(resp *http.Response) error {
-		return decodeJSONBody(resp, &remote, nil)
+		return decodeJSONBody(resp, &result, nil)
 	}, connCheckStrategy)
 
 	if err != nil {
@@ -2395,7 +2411,8 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	}
 	resp.Body.Close()
 
-	dlURL, err := url.ParseRequestURI(remote.AnonDownloadURL)
+	dlURLraw := result.ChannelMap[0].Download.URL
+	dlURL, err := url.ParseRequestURI(dlURLraw)
 	if err != nil {
 		return hosts, err
 	}
@@ -2413,7 +2430,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	//       right CDN machine. Consider just doing a "net.Dial"
 	//       after the redirect here. Suggested in
 	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
-	resp, err = httputil.RetryRequest(remote.AnonDownloadURL, func() (*http.Response, error) {
+	resp, err = httputil.RetryRequest(dlURLraw, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
 	}, func(resp *http.Response) error {
 		// account for redirect
