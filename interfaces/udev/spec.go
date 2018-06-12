@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type entry struct {
@@ -174,10 +175,8 @@ func (spec *Specification) TriggerSubsystem(subsystem string) {
 		return
 	}
 
-	for _, elem := range spec.udevadmSubsystemTriggers {
-		if subsystem == elem {
-			return
-		}
+	if strutil.ListContains(spec.udevadmSubsystemTriggers, subsystem) {
+		return
 	}
 	spec.udevadmSubsystemTriggers = append(spec.udevadmSubsystemTriggers, subsystem)
 }
