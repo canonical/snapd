@@ -19,18 +19,18 @@
 
 package builtin
 
-const legacyMntSummary = `allows access to anything mounted in /mnt`
+const mntSummary = `allows access to anything mounted in /mnt`
 
-const legacyMntBaseDeclarationSlots = `
-  legacy-mnt:
+const mntBaseDeclarationSlots = `
+  mnt:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const legacyMntConnectedPlugAppArmor = `
-# Description: Can access (read and write) file systems mounted in the legacy /mnt directory.
+const mntConnectedPlugAppArmor = `
+# Description: Can access (read and write) file systems mounted in the /mnt directory.
 
 # Allow read-only access to /mnt to enumerate items.
 /mnt/ r,
@@ -40,12 +40,12 @@ const legacyMntConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "legacy-mnt",
-		summary:               legacyMntSummary,
+		name:                  "mnt",
+		summary:               mntSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  legacyMntBaseDeclarationSlots,
-		connectedPlugAppArmor: legacyMntConnectedPlugAppArmor,
+		baseDeclarationSlots:  mntBaseDeclarationSlots,
+		connectedPlugAppArmor: mntConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }
