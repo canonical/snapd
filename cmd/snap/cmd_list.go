@@ -54,7 +54,7 @@ func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
 		map[string]string{
 			"all":    i18n.G("Show all revisions"),
-			"format": i18n.G("Use format string for output (try --format=help or help-all)"),
+			"format": i18n.G("Use format string for output (try --format=help)"),
 		}, nil)
 }
 
@@ -114,8 +114,8 @@ func listSnaps(names []string, format string, all bool) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	if format == "help" || format == "help-all" {
-		return describeListFormat(w, format)
+	if format == "help" {
+		return describeListFormat(w)
 	}
 
 	cli := Client()
@@ -154,27 +154,38 @@ func clientSnapFields() []fieldDesc {
 	fields := make([]fieldDesc, n)
 	for i := 0; i < n; i++ {
 		field := v.Field(i)
-		fields[i].name = field.Name
+		fields[i].name = strings.Split(field.Tag.Get("json"), ",")[0]
 		fields[i].help = field.Tag.Get("help")
 	}
 
 	return fields
 }
 
-func describeListFormat(w io.Writer, format string) error {
+func clientSnapMap(s *client.Snap) map[string]interface{} {
+	res := make(map[string]interface{})
+
+	v := reflect.Indirect(reflect.ValueOf(s))
+	t := v.Type()
+	n := v.NumField()
+	for i := 0; i < n; i++ {
+		field := v.Field(i)
+		name := strings.Split(t.Field(i).Tag.Get("json"), ",")[0]
+		res[name] = field.Interface()
+	}
+
+	return res
+}
+
+func describeListFormat(w io.Writer) error {
 	fmt.Fprintf(w, `Format uses a simple template system.
 
-Use --format="{{.Name}} {{.Version}}" to get started.
+Use --format="{{.name}} {{.version}}" to get started.
 
 All the elements available for snaps are:
 `)
 	for _, fld := range clientSnapFields() {
 		if fld.help != "" {
 			fmt.Fprintf(w, " - %s:\t%s\n", fld.name, fld.help)
-		} else {
-			if format == "help-all" {
-				fmt.Fprintf(w, " - %s\n", fld.name)
-			}
 		}
 	}
 
@@ -188,7 +199,8 @@ func outputSnapsWithFormat(w io.Writer, snaps []*client.Snap, format string) err
 	}
 
 	for _, snap := range snaps {
-		if err := t.Execute(w, snap); err != nil {
+		m := clientSnapMap(snap)
+		if err := t.Execute(w, m); err != nil {
 			return err
 		}
 		fmt.Fprint(w, "\n")

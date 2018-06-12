@@ -37,7 +37,7 @@ The list command displays a summary of snaps installed in the current system.
 
 [list command options]
           --all     Show all revisions
-          --format= Use format string for output (try --format=help or help-all)
+          --format= Use format string for output (try --format=help)
 `
 	rest, err := snap.Parser().ParseArgs([]string{"list", "--help"})
 	c.Assert(err.Error(), check.Equals, msg)
@@ -259,7 +259,7 @@ func (s *SnapSuite) TestListFormat(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list", "--format={{.Name}} {{.Revision}}"})
+	rest, err := snap.Parser().ParseArgs([]string{"list", "--format={{.name}} {{.revision}}"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `foo +17
@@ -277,31 +277,9 @@ func (s *SnapSuite) TestListFormatHelp(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), testutil.Contains, `Format uses a simple template system.
 
-Use --format="{{.Name}} {{.Version}}" to get started.
+Use --format="{{.name}} {{.version}}" to get started.
 
 All the elements available for snaps are:
 `)
-	c.Check(s.Stderr(), check.Equals, "")
-}
-
-func (s *SnapSuite) TestListFormatHelpAll(c *check.C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Fatalf("unexpected call to test server")
-	})
-	rest, err := snap.Parser().ParseArgs([]string{"list", "--format=help-all"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), testutil.Contains, `Format uses a simple template system.
-
-Use --format="{{.Name}} {{.Version}}" to get started.
-
-All the elements available for snaps are:
-`)
-	// screenshots has no "help" tag (and likely never will be) so
-	// check that it is still shows with --format=help-all
-	c.Check(s.Stdout(), testutil.Contains, `
- - Screenshots
-`)
-
 	c.Check(s.Stderr(), check.Equals, "")
 }
