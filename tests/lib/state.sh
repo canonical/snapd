@@ -1,13 +1,18 @@
 #!/bin/bash
 
-SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
-SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
+SNAPD_STATE_DIR="$SPREAD_PATH/tests"
+SNAPD_STATE_PATH="$SNAPD_STATE_DIR/snapd-state"
+SNAPD_STATE_FILE="$SNAPD_STATE_DIR/snapd-state.tar"
+SNAPD_ACTIVE_UNITS="$SNAPD_STATE_DIR/snapd-active-units"
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
+
+# shellcheck source=tests/lib/systemd.sh
+. "$TESTSLIB/systemd.sh"
 
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
@@ -61,6 +66,9 @@ save_snapd_state() {
             systemctl start "$unit"
         done
     fi
+
+    # Save the snapd active units
+    systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_state() {
@@ -80,6 +88,11 @@ restore_snapd_state() {
 
         tar -C/ -xf "$SNAPD_STATE_FILE"
     fi
+
+    # Start all the units which have to be active
+    for unit in $(cat "$SNAPD_ACTIVE_UNITS"); do
+        systemctl start "$unit"
+    done
 }
 
 restore_snapd_lib() {
