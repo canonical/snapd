@@ -2083,6 +2083,15 @@ type SnapAction struct {
 	Epoch    *snap.Epoch
 }
 
+func isValidAction(action string) bool {
+	switch action {
+	case "download", "install", "refresh":
+		return true
+	default:
+		return false
+	}
+}
+
 type snapActionJSON struct {
 	Action           string      `json:"action"`
 	InstanceKey      string      `json:"instance-key"`
@@ -2204,9 +2213,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	installNum := 0
+	downloadNum := 0
 	installKeys := make(map[string]bool, len(actions))
+	downloadKeys := make(map[string]bool, len(actions))
 	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
+		if !isValidAction(a.Action) {
+			return nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
+		}
+
 		var ignoreValidation *bool
 		if a.Flags&SnapActionIgnoreValidation != 0 {
 			var t = true
@@ -2217,10 +2232,19 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := a.SnapID
-		if a.Action == "install" {
-			installNum++
-			instanceKey = fmt.Sprintf("install-%d", installNum)
-			installKeys[instanceKey] = true
+		if a.Action == "install" || a.Action == "download" {
+			if !a.Revision.Unset() {
+				a.Channel = ""
+			}
+			if a.Action == "install" {
+				installNum++
+				instanceKey = fmt.Sprintf("install-%d", installNum)
+				installKeys[instanceKey] = true
+			} else {
+				downloadNum++
+				instanceKey = fmt.Sprintf("download-%d", downloadNum)
+				downloadKeys[instanceKey] = true
+			}
 		}
 
 		aJSON := &snapActionJSON{
@@ -2277,6 +2301,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
+	downloadErrors := make(map[string]error)
 	var otherErrors []error
 
 	var snaps []*snap.Info
@@ -2285,6 +2310,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			if installKeys[res.InstanceKey] {
 				if res.Name != "" {
 					installErrors[res.Name] = translateSnapActionError("install", res.Error.Code, res.Error.Message)
+					continue
+				}
+			} else if downloadKeys[res.InstanceKey] {
+				if res.Name != "" {
+					downloadErrors[res.Name] = translateSnapActionError("download", res.Error.Code, res.Error.Message)
 					continue
 				}
 			} else {
@@ -2319,7 +2349,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		otherErrors = append(otherErrors, translateSnapActionError("-", errObj.Code, errObj.Message))
 	}
 
-	if len(refreshErrors)+len(installErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
+	if len(refreshErrors)+len(installErrors)+len(downloadErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
 		// normalize empty maps
 		if len(refreshErrors) == 0 {
 			refreshErrors = nil
@@ -2327,10 +2357,14 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
+		if len(downloadErrors) == 0 {
+			downloadErrors = nil
+		}
 		return snaps, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
+			Download:  downloadErrors,
 			Other:     otherErrors,
 		}
 	}
