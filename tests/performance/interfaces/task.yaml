@@ -1,0 +1,19 @@
+summary: Measure the time needed to show interfaces
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/perf.sh
+    . "$TESTSLIB/perf.sh"
+
+    install_local network-consumer
+    install_local test-snapd-netlink-connector
+    install_local test-snapd-framebuffer
+
+    snap connect test-snapd-netlink-connector:netlink-connector
+    snap connect test-snapd-framebuffer:framebuffer
+
+    for _ in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap interfaces" interfaces all
+        measure_exec_time "snap interface network" interface network
+    done

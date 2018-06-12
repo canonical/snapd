@@ -1,0 +1,14 @@
+summary: Measure the time needed to pack a local snap
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/perf.sh
+    . "$TESTSLIB/perf.sh"
+
+    install_local test-snapd-tools
+
+    for _ in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap disable test-snapd-tools" disable test-snapd-tools
+        measure_exec_time "snap enable test-snapd-tools" enable test-snapd-tools
+    done

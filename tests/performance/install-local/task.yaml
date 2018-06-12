@@ -1,0 +1,18 @@
+summary: Measure the time needed to pack a local snap
+
+environment:
+    SNAP_NAME: test-snapd-tools    
+    SNAP_FILE: "$TESTSLIB/snaps/test-snapd-tools/test-snapd-tools_1.0_all.snap"
+    SNAP_DIR: "$TESTSLIB/snaps/test-snapd-tools"
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/perf.sh
+    . "$TESTSLIB/perf.sh"
+
+    for _ in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap pack \"$SNAP_DIR\" \"$SNAP_DIR\" >/dev/null" pack test-snapd-tools
+        measure_exec_time "snap install --dangerous \"$SNAP_FILE\"" install_local test-snapd-tools
+        measure_exec_time "snap remove test-snapd-tools" remove_pack test-snapd-tools
+    done

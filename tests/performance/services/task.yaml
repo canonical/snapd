@@ -1,0 +1,16 @@
+summary: Measure the time needed to manage services
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/perf.sh
+    . "$TESTSLIB/perf.sh"
+
+    install_local test-snapd-service
+
+    for _ in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap services" services all
+        measure_exec_time "snap start test-snapd-service.service" start test-snapd-service.service
+        measure_exec_time "snap stop test-snapd-service.service" stop test-snapd-service.service
+        measure_exec_time "snap logs test-snapd-service.service" logs test-snapd-service.service
+    done

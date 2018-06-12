@@ -577,4 +577,32 @@ suites:
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
 
+    tests/performance/:
+        summary: Performance tests for snapd
+        manual: true
+        environment:
+            PERF_RESULTS_FILE: "$PROJECT_PATH/test.perf"
+            PERF_ITERATIONS: "$(HOST: echo ${SPREAD_PERF_ITERATIONS:-30})"
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+
+            # Create a results file where the performance results are stored until
+            # the full execution is finished, then those results are displayed.
+            #shellcheck source=tests/lib/perf.sh
+            . "$TESTSLIB/perf.sh"
+            create_results_file
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+            # The results file is tagged as finished and the cleaned.
+            #shellcheck source=tests/lib/perf.sh
+            . "$TESTSLIB/perf.sh"
+            finish_results_file
+            clean_results_file
+            exit 1
+
 # vim:ts=4:sw=4:et

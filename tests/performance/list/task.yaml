@@ -1,0 +1,11 @@
+summary: Measure the time needed to list the installed snaps
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/perf.sh
+    . "$TESTSLIB/perf.sh"
+
+    for _ in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap list" list all
+    done
