@@ -68,7 +68,13 @@ save_snapd_state() {
     fi
 
     # Save the snapd active units
-    systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
+    echo "snapd.service" > "$SNAPD_ACTIVE_UNITS"
+    echo "snapd.socket" >> "$SNAPD_ACTIVE_UNITS"
+    for unit in $(systemd_get_active_snapd_units); do
+        if [ ! "$unit" == snapd.service ] && [ ! "$unit" == snapd.socket ]; then
+            echo "$unit" >> "$SNAPD_ACTIVE_UNITS"
+        fi
+    done
 }
 
 restore_snapd_state() {
@@ -91,7 +97,9 @@ restore_snapd_state() {
 
     # Start all the units which have to be active
     for unit in $(cat "$SNAPD_ACTIVE_UNITS"); do
-        systemctl start "$unit"
+        if ! systemctl is-active "$unit"; then
+            systemctl start "$unit"
+        fi
     done
 }
 
