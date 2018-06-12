@@ -30,7 +30,7 @@ const socketCanControlBaseDeclarationSlots = `
 `
 
 const socketCanControlConnectedPlugAppArmor = `
-# Description: Can configure and use SocketCAN networks
+# Description: Can configure and use SocketCAN networking
 network can,
 
 # Allow configuration of the interface using the ip command for SocketCAN
@@ -42,7 +42,7 @@ network netlink raw,
 `
 
 const socketCanControlConnectedPlugSecComp = `
-# Description: Can access SocketCAN networks.
+# Description: Can use SocketCAN networking
 bind
 
 # required by ip to configure SocketCAN networks

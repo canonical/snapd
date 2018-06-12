@@ -30,12 +30,12 @@ const socketCanBaseDeclarationSlots = `
 `
 
 const socketCanConnectedPlugAppArmor = `
-# Description: Can access SocketCAN networks
+# Description: Can use SocketCAN networking
 network can,
 `
 
 const socketCanConnectedPlugSecComp = `
-# Description: Can access SocketCAN networks.
+# Description: Can use SocketCAN networking
 bind
 `
 
