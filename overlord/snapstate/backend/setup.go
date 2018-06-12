@@ -37,7 +37,7 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 	if oErr != nil {
 		return snapType, oErr
 	}
-	instdir := s.MountDir()
+	instdir := s.InstanceMountDir()
 
 	defer func() {
 		if err == nil {
@@ -53,7 +53,7 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 		return snapType, err
 	}
 
-	if err := snapf.Install(s.MountFile(), instdir); err != nil {
+	if err := snapf.Install(s.InstanceMountFile(), instdir); err != nil {
 		return snapType, err
 	}
 
@@ -61,6 +61,8 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 	if err := addMountUnit(s, meter); err != nil {
 		return snapType, err
 	}
+
+	// TODO create s.StoreName() directory for bind mounts
 
 	if s.Type == snap.TypeKernel {
 		if err := boot.ExtractKernelAssets(s, snapf); err != nil {
@@ -73,7 +75,7 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
 func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
-	mountDir := s.MountDir()
+	mountDir := s.InstanceMountDir()
 
 	// this also ensures that the mount unit stops
 	if err := removeMountUnit(mountDir, meter); err != nil {
@@ -89,7 +91,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 	os.Remove(filepath.Dir(mountDir))
 
 	// snapPath may either be a file or a (broken) symlink to a dir
-	snapPath := s.MountFile()
+	snapPath := s.InstanceMountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		if typ == snap.TypeKernel {
@@ -103,6 +105,8 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 			return err
 		}
 	}
+
+	// TODO remove s.StoreName() directory if there are no more snaps
 
 	return nil
 }

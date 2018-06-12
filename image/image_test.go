@@ -330,7 +330,7 @@ func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
 	c.Assert(err, IsNil)
 
 	if !rev.Unset() {
-		info.SnapID = info.Name() + "-Id"
+		info.SnapID = info.InstanceName() + "-Id"
 		info.Revision = rev
 	}
 	return info
@@ -441,7 +441,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	// check the files are in place
 	for i, name := range []string{"core", "pc-kernel", "pc"} {
 		info := s.storeSnapInfo[name]
-		fn := filepath.Base(info.MountFile())
+		fn := filepath.Base(info.InstanceMountFile())
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
@@ -555,12 +555,12 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 			}
 		}
 
-		fn := filepath.Base(info.MountFile())
+		fn := filepath.Base(info.InstanceMountFile())
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
-			Name:       info.Name(),
+			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: unasserted,
@@ -657,7 +657,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 			Revision: snap.R("x1"),
 		},
 	}
-	fn := filepath.Base(info.MountFile())
+	fn := filepath.Base(info.InstanceMountFile())
 	p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 	c.Check(osutil.FileExists(p), Equals, true)
 
@@ -748,12 +748,12 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 			}
 		}
 
-		fn := filepath.Base(info.MountFile())
+		fn := filepath.Base(info.InstanceMountFile())
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
-			Name:       info.Name(),
+			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: unasserted,
@@ -936,12 +936,12 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 			}
 		}
 
-		fn := filepath.Base(info.MountFile())
+		fn := filepath.Base(info.InstanceMountFile())
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true, Commentf("cannot find %s", p))
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
-			Name:       info.Name(),
+			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: false,

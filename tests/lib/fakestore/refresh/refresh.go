@@ -196,7 +196,7 @@ func copySnap(snapName, targetDir string) (*info, error) {
 	}
 
 	place := snap.MinimalPlaceInfo(snapName, rev)
-	origDigest, origSize, err := asserts.SnapFileSHA3_384(place.MountFile())
+	origDigest, origSize, err := asserts.SnapFileSHA3_384(place.InstanceMountFile())
 	if err != nil {
 		return nil, err
 	}

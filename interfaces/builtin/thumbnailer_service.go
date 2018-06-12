@@ -127,7 +127,7 @@ func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.S
 func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
-	new := plug.Snap().Name()
+	new := plug.Snap().StoreName()
 	snippet = strings.Replace(snippet, old, new, -1)
 
 	old = "###PLUG_SECURITY_TAGS###"

@@ -67,7 +67,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -121,7 +121,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil
 		buffer.WriteString(module)
 		buffer.WriteRune('\n')
 	}
-	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.Name()))] = &osutil.FileState{
+	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}

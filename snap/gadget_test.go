@@ -143,7 +143,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := snap.ReadGadgetInfo(info, true)
@@ -153,7 +153,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockClassicGadgetYaml, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := snap.ReadGadgetInfo(info, true)
@@ -168,7 +168,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := snap.ReadGadgetInfo(info, false)
@@ -214,7 +214,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockMultiVolumeGadgetYaml, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := snap.ReadGadgetInfo(info, false)
@@ -272,7 +272,7 @@ volumes:
   bootloader: silo
 `)
 
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadGadgetInfo(info, false)
@@ -287,7 +287,7 @@ volumes:
   bootloader:
 `)
 
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadGadgetInfo(info, false)
@@ -297,7 +297,7 @@ volumes:
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadGadgetInfo(info, false)

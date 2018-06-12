@@ -57,7 +57,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // setupDbusServiceForUserd will setup the service file for the new
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
-	coreRoot := snapInfo.MountDir()
+	coreRoot := snapInfo.InstanceMountDir()
 
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
@@ -78,7 +78,7 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {

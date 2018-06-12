@@ -44,7 +44,7 @@ var errNoSnap = errors.New("snap not installed")
 // snapIcon tries to find the icon inside the snap
 func snapIcon(info *snap.Info) string {
 	// XXX: copy of snap.Snap.Icon which will go away
-	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
+	found, _ := filepath.Glob(filepath.Join(info.InstanceMountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
 		return info.IconURL
 	}
@@ -157,8 +157,8 @@ type bySnapApp []*snap.AppInfo
 func (a bySnapApp) Len() int      { return len(a) }
 func (a bySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a bySnapApp) Less(i, j int) bool {
-	iName := a[i].Snap.Name()
-	jName := a[j].Snap.Name()
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
 	if iName == jName {
 		return a[i].Name < a[j].Name
 	}
@@ -221,7 +221,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	found := make(map[string]bool)
 	appInfos := make([]*snap.AppInfo, 0, len(requested))
 	for _, snp := range snaps {
-		snapName := snp.info.Name()
+		snapName := snp.info.InstanceName()
 		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
 		for _, app := range snp.info.Apps {
 			if !opts.service || app.IsService() {
@@ -272,7 +272,7 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	out := make([]client.AppInfo, len(apps))
 	for i, app := range apps {
 		out[i] = client.AppInfo{
-			Snap:     app.Snap.Name(),
+			Snap:     app.Snap.InstanceName(),
 			Name:     app.Name,
 			CommonID: app.CommonID,
 		}
@@ -321,7 +321,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		ID:               localSnap.SnapID,
 		InstallDate:      localSnap.InstallDate(),
 		InstalledSize:    localSnap.Size,
-		Name:             localSnap.Name(),
+		Name:             localSnap.InstanceName(),
 		Revision:         localSnap.Revision,
 		Status:           status,
 		Summary:          localSnap.Summary(),
@@ -342,7 +342,8 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Title:            localSnap.Title(),
 		License:          localSnap.License,
 		CommonIDs:        localSnap.CommonIDs,
-		MountedFrom:      localSnap.MountFile(),
+		MountedFrom:      localSnap.InstanceMountFile(),
+		// TODO expose instance key for parallel installs
 	}
 
 	if result.TryMode {
@@ -382,7 +383,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
 		ID:           remoteSnap.SnapID,
-		Name:         remoteSnap.Name(),
+		Name:         remoteSnap.StoreName(),
 		Revision:     remoteSnap.Revision,
 		Status:       status,
 		Summary:      remoteSnap.Summary(),

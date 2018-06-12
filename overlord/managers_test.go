@@ -311,8 +311,8 @@ apps:
 	c.Assert(osutil.IsSymlink(binaryWrapper), Equals, true)
 
 	// data dirs
-	c.Assert(osutil.IsDirectory(snap.DataDir()), Equals, true)
-	c.Assert(osutil.IsDirectory(snap.CommonDataDir()), Equals, true)
+	c.Assert(osutil.IsDirectory(snap.InstanceDataDir()), Equals, true)
+	c.Assert(osutil.IsDirectory(snap.InstanceCommonDataDir()), Equals, true)
 
 	// snap file and its mounting
 
@@ -354,8 +354,8 @@ apps:
 	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
 
 	// data dirs
-	c.Assert(osutil.FileExists(snapInfo.DataDir()), Equals, false)
-	c.Assert(osutil.FileExists(snapInfo.CommonDataDir()), Equals, false)
+	c.Assert(osutil.FileExists(snapInfo.InstanceDataDir()), Equals, false)
+	c.Assert(osutil.FileExists(snapInfo.InstanceCommonDataDir()), Equals, false)
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
@@ -449,7 +449,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
-		"snap-id":       fakeSnapID(info.Name()),
+		"snap-id":       fakeSnapID(info.StoreName()),
 		"snap-sha3-384": snapDigest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-revision": revno,
@@ -642,7 +642,7 @@ func (ms *mgrsSuite) serveSnap(snapPath, revno string) {
 	if err != nil {
 		panic(err)
 	}
-	name := info.Name()
+	name := info.StoreName()
 	ms.serveIDtoName[fakeSnapID(name)] = name
 	ms.serveSnapPath[name] = snapPath
 	ms.serveRevision[name] = revno
@@ -697,7 +697,7 @@ apps:
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
-	c.Assert(osutil.FileExists(info.MountFile()), Equals, true)
+	c.Assert(osutil.FileExists(info.InstanceMountFile()), Equals, true)
 
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
@@ -812,8 +812,8 @@ apps:
 	c.Assert(osutil.IsSymlink(binaryWrapper), Equals, true)
 
 	// data dirs
-	c.Assert(osutil.IsDirectory(info.DataDir()), Equals, true)
-	c.Assert(osutil.IsDirectory(info.CommonDataDir()), Equals, true)
+	c.Assert(osutil.IsDirectory(info.InstanceDataDir()), Equals, true)
+	c.Assert(osutil.IsDirectory(info.InstanceCommonDataDir()), Equals, true)
 
 	// snap file and its mounting
 
@@ -1165,7 +1165,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	c.Assert(err, IsNil)
 
 	// store current state
-	snapName := info.Name()
+	snapName := info.InstanceName()
 	var snapst snapstate.SnapState
 	snapstate.Get(st, snapName, &snapst)
 

@@ -83,7 +83,7 @@ func (snapsup *SnapSetup) Name() string {
 	if snapsup.SideInfo.RealName == "" {
 		panic("SnapSetup.SideInfo.RealName not set")
 	}
-	return snapsup.SideInfo.RealName
+	return snap.InstanceName(snapsup.SideInfo.RealName, snapsup.SideInfo.InstanceKey)
 }
 
 func (snapsup *SnapSetup) Revision() snap.Revision {
@@ -229,9 +229,13 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
+		storeName, instanceKey := snap.SplitInstanceName(name)
 		info := &snap.Info{
-			SuggestedName: name,
+			SuggestedName: storeName,
 			Broken:        bse.Broken(),
+			SideInfo: snap.SideInfo{
+				InstanceKey: instanceKey,
+			},
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -246,7 +250,7 @@ var revisionDate = revisionDateImpl
 
 // revisionDate returns a good approximation of when a revision reached the system.
 func revisionDateImpl(info *snap.Info) time.Time {
-	fi, err := os.Lstat(info.MountFile())
+	fi, err := os.Lstat(info.InstanceMountFile())
 	if err != nil {
 		return time.Time{}
 	}
@@ -259,7 +263,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(cur.RealName, cur, 0)
+	return readInfo(snap.InstanceName(cur.RealName, cur.InstanceKey), cur, 0)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {

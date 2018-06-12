@@ -146,6 +146,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 	}
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
+	// TODO split snap name to store name and instance key
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
@@ -183,7 +184,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
 
 	// run the command
-	fullCmd := []string{filepath.Join(app.Snap.MountDir(), cmd)}
+	fullCmd := []string{filepath.Join(snap.MountDir(snapName, rev), cmd)}
 	switch command {
 	case "shell":
 		fullCmd[0] = defaultShell
@@ -192,7 +193,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 		fullCmd[0] = defaultShell
 		cmdArgs = []string{
 			dirs.CompletionHelper,
-			filepath.Join(app.Snap.MountDir(), app.Completer),
+			filepath.Join(snap.MountDir(snapName, rev), app.Completer),
 		}
 	case "gdb":
 		fullCmd = append(fullCmd, fullCmd[0])
@@ -213,6 +214,7 @@ func execHook(snapName, revision, hookName string) error {
 		return err
 	}
 
+	// TODO split snap name to store name and instance key
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
@@ -229,6 +231,6 @@ func execHook(snapName, revision, hookName string) error {
 	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
 
 	// run the hook
-	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)
+	hookPath := filepath.Join(snap.HooksDir(snapName, rev), hook.Name)
 	return syscallExec(hookPath, []string{hookPath}, env)
 }

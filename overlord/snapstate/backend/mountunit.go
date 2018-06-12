@@ -33,11 +33,11 @@ import (
 )
 
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	squashfsPath := dirs.StripRootDir(s.MountFile())
-	whereDir := dirs.StripRootDir(s.MountDir())
+	squashfsPath := dirs.StripRootDir(s.InstanceMountFile())
+	whereDir := dirs.StripRootDir(s.InstanceMountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
-	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
+	mountUnitName, err := sysd.WriteMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
 	if err != nil {
 		return err
 	}

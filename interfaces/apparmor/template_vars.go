@@ -31,7 +31,7 @@ import (
 // apparmor template and by apparmor snippets.
 func templateVariables(info *snap.Info, securityTag string) string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.Name())
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.StoreName())
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
 		dbus.SafePath(securityTag))

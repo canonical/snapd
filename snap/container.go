@@ -201,7 +201,7 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 
 		if needsrx[path] || mode.IsDir() {
 			if mode.Perm()&0555 != 0555 {
-				logf("in snap %q: %q should be world-readable and executable, and isn't: %s", s.Name(), path, mode)
+				logf("in snap %q: %q should be world-readable and executable, and isn't: %s", s.StoreName(), path, mode)
 				hasBadModes = true
 			}
 		} else {
@@ -213,19 +213,19 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 				// more than anything else, not worth it IMHO (as I can't
 				// imagine this happening by accident).
 				if mode&(os.ModeDir|os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
-					logf("in snap %q: %q should be a regular file (or a symlink) and isn't", s.Name(), path)
+					logf("in snap %q: %q should be a regular file (or a symlink) and isn't", s.StoreName(), path)
 					hasBadModes = true
 				}
 			}
 			if needsx[path] || strings.HasPrefix(path, "meta/hooks/") {
 				if mode.Perm()&0111 == 0 {
-					logf("in snap %q: %q should be executable, and isn't: %s", s.Name(), path, mode)
+					logf("in snap %q: %q should be executable, and isn't: %s", s.StoreName(), path, mode)
 					hasBadModes = true
 				}
 			} else {
 				// in needsr, or under meta but not a hook
 				if mode.Perm()&0444 != 0444 {
-					logf("in snap %q: %q should be world-readable, and isn't: %s", s.Name(), path, mode)
+					logf("in snap %q: %q should be world-readable, and isn't: %s", s.StoreName(), path, mode)
 					hasBadModes = true
 				}
 			}
@@ -239,7 +239,7 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 		for _, needs := range []map[string]bool{needsx, needsrx, needsr} {
 			for path := range needs {
 				if !seen[path] {
-					logf("in snap %q: path %q does not exist", s.Name(), path)
+					logf("in snap %q: path %q does not exist", s.StoreName(), path)
 				}
 			}
 		}

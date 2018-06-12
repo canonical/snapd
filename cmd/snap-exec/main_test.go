@@ -261,8 +261,8 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 	})
 	hookPath := filepath.Join("meta", "hooks", "configure")
 	hookPathAndContents := []string{hookPath, fmt.Sprintf(binaryTemplate, canaryFile)}
-	snaptest.PopulateDir(testSnap.MountDir(), [][]string{hookPathAndContents})
-	hookPath = filepath.Join(testSnap.MountDir(), hookPath)
+	snaptest.PopulateDir(snap.MountDir(testSnap.StoreName(), testSnap.Revision), [][]string{hookPathAndContents})
+	hookPath = filepath.Join(snap.MountDir(testSnap.StoreName(), testSnap.Revision), hookPath)
 	c.Assert(os.Chmod(hookPath, 0755), IsNil)
 
 	// we can not use the real syscall.execv here because it would

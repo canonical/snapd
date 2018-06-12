@@ -61,19 +61,19 @@ type tableT struct {
 func table(si snap.PlaceInfo, homeDir string) []tableT {
 	return []tableT{
 		{
-			dir:     si.DataDir(),
+			dir:     si.InstanceDataDir(),
 			name:    "foo",
 			content: "versioned system canary\n",
 		}, {
-			dir:     si.CommonDataDir(),
+			dir:     si.InstanceCommonDataDir(),
 			name:    "bar",
 			content: "common system canary\n",
 		}, {
-			dir:     si.UserDataDir(homeDir),
+			dir:     si.InstanceUserDataDir(homeDir),
 			name:    "ufoo",
 			content: "versioned user canary\n",
 		}, {
-			dir:     si.UserCommonDataDir(homeDir),
+			dir:     si.InstanceUserCommonDataDir(homeDir),
 			name:    "ubar",
 			content: "common user canary\n",
 		},
@@ -445,7 +445,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
-	c.Check(shw.Snap, check.Equals, info.Name())
+	c.Check(shw.Snap, check.Equals, info.InstanceName())
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
@@ -461,7 +461,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	defer shr.Close()
 
 	c.Check(shr.SetID, check.Equals, shID)
-	c.Check(shr.Snap, check.Equals, info.Name())
+	c.Check(shr.Snap, check.Equals, info.InstanceName())
 	c.Check(shr.Version, check.Equals, info.Version)
 	c.Check(shr.Revision, check.Equals, info.Revision)
 	c.Check(shr.Conf, check.DeepEquals, cfg)
@@ -493,6 +493,6 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(diff().Run(), check.IsNil, comm)
 
 		// dirty it -> no longer like it was
-		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), "marker"), []byte("scribble\n"), 0644), check.IsNil, comm)
+		c.Check(ioutil.WriteFile(filepath.Join(info.InstanceDataDir(), "marker"), []byte("scribble\n"), 0644), check.IsNil, comm)
 	}
 }

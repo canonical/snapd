@@ -79,8 +79,8 @@ func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, d
 		return err
 	}
 
-	if snapDecl.SnapName() != name {
-		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %q", name, snapDecl.SnapName())
+	if snapDecl.SnapName() != snap.StoreName(name) {
+		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %q", snap.StoreName(name), snapDecl.SnapName())
 	}
 
 	return nil

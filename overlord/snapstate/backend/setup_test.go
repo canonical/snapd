@@ -94,7 +94,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created
-	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountDir()), Equals, true)
 
 	// undo undoes the mount unit and the instdir creation
 	err = s.be.UndoSetupSnap(minInfo, "app", progress.Null)
@@ -102,9 +102,9 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
-	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountDir()), Equals, false)
 
-	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountFile()), Equals, false)
 
 }
 
@@ -189,9 +189,9 @@ type: kernel
 	// sanity checks
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 1)
-	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountDir()), Equals, true)
 
-	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountFile()), Equals, true)
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
@@ -241,9 +241,9 @@ type: kernel
 	// sanity checks
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
-	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountDir()), Equals, false)
 
-	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.InstanceMountFile()), Equals, false)
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
@@ -274,7 +274,7 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	c.Check(l, HasLen, 0)
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
-	c.Check(osutil.FileExists(minInfo.MountDir()), Equals, false)
-	c.Check(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Check(osutil.FileExists(minInfo.InstanceMountDir()), Equals, false)
+	c.Check(osutil.FileExists(minInfo.InstanceMountFile()), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, false)
 }

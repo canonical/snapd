@@ -34,12 +34,12 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 
 	// Make sure the common data directory exists, even if this isn't a new
 	// install.
-	if err := os.MkdirAll(newSnap.CommonDataDir(), 0755); err != nil {
+	if err := os.MkdirAll(newSnap.InstanceCommonDataDir(), 0755); err != nil {
 		return err
 	}
 
 	if oldSnap == nil {
-		return os.MkdirAll(newSnap.DataDir(), 0755)
+		return os.MkdirAll(newSnap.InstanceDataDir(), 0755)
 	} else if oldSnap.Revision == newSnap.Revision {
 		// nothing to do
 		return nil
@@ -56,7 +56,7 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 	}
 	err1 := b.RemoveSnapData(newInfo)
 	if err1 != nil {
-		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.Name(), err1)
+		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.InstanceName(), err1)
 	}
 
 	var err2 error
@@ -64,12 +64,12 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 		// first install, remove created common data dir
 		err2 = b.RemoveSnapCommonData(newInfo)
 		if err2 != nil {
-			logger.Noticef("Cannot remove common data directories for %q: %v", newInfo.Name(), err2)
+			logger.Noticef("Cannot remove common data directories for %q: %v", newInfo.InstanceName(), err2)
 		}
 	} else {
 		err2 = b.untrashData(newInfo)
 		if err2 != nil {
-			logger.Noticef("Cannot restore original data for %q while undoing: %v", newInfo.Name(), err2)
+			logger.Noticef("Cannot restore original data for %q while undoing: %v", newInfo.InstanceName(), err2)
 		}
 	}
 
@@ -80,7 +80,7 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
 	dirs, err := snapDataDirs(oldSnap)
 	if err != nil {
-		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.Name(), err)
+		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.InstanceName(), err)
 		return
 	}
 

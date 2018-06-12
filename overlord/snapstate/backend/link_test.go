@@ -106,8 +106,8 @@ version: 1.0
 	err := s.be.LinkSnap(info, nil)
 	c.Assert(err, IsNil)
 
-	mountDir := info.MountDir()
-	dataDir := info.DataDir()
+	mountDir := info.InstanceMountDir()
+	dataDir := info.InstanceDataDir()
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
@@ -158,8 +158,8 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 
-	mountDir := info.MountDir()
-	dataDir := info.DataDir()
+	mountDir := info.InstanceMountDir()
+	dataDir := info.InstanceDataDir()
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
@@ -205,8 +205,8 @@ apps:
 	c.Assert(l, HasLen, 0)
 
 	// no symlinks
-	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
-	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
+	currentActiveSymlink := filepath.Join(info.InstanceMountDir(), "..", "current")
+	currentDataSymlink := filepath.Join(info.InstanceDataDir(), "..", "current")
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 }
@@ -245,7 +245,7 @@ apps:
 `
 	s.info = snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
+	guiDir := filepath.Join(s.info.InstanceMountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
 [Desktop Entry]

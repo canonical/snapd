@@ -81,7 +81,7 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 
 	var gi GadgetInfo
 
-	gadgetYamlFn := filepath.Join(info.MountDir(), "meta", "gadget.yaml")
+	gadgetYamlFn := filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
 	if classic && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets

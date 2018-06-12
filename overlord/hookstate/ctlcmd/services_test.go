@@ -143,22 +143,22 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	info2 := snaptest.MockSnap(c, string(otherSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-	snapstate.Set(s.st, info1.Name(), &snapstate.SnapState{
+	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				RealName: info1.Name(),
+				RealName: info1.StoreName(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
 		},
 		Current: info1.Revision,
 	})
-	snapstate.Set(s.st, info2.Name(), &snapstate.SnapState{
+	snapstate.Set(s.st, info2.InstanceName(), &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				RealName: info2.Name(),
+				RealName: info2.StoreName(),
 				Revision: info2.Revision,
 				SnapID:   "other-snap-id",
 			},

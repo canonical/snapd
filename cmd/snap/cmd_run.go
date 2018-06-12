@@ -251,7 +251,7 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
-	userData := info.UserDataDir(usr.HomeDir)
+	userData := info.InstanceUserDataDir(usr.HomeDir)
 	wantedSymlinkValue := filepath.Base(userData)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 
@@ -300,8 +300,8 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	userData := info.UserDataDir(usr.HomeDir)
-	commonUserData := info.UserCommonDataDir(usr.HomeDir)
+	userData := info.InstanceUserDataDir(usr.HomeDir)
+	commonUserData := info.InstanceUserCommonDataDir(usr.HomeDir)
 	for _, d := range []string{userData, commonUserData} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
@@ -690,7 +690,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
-			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
 			return nil
 		}
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
