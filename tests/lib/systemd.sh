@@ -58,7 +58,5 @@ systemd_stop_units() {
 }
 
 systemd_get_active_snapd_units() {
-    echo "snapd.service"
-    echo "snapd.socket"
-    echo "$(systemctl --state=active | grep -E "^snapd\." | cut -f1 -d ' ')"
+    echo "$(systemctl --state=active | grep -E "^snapd\." | awk '{print $1}')"
 }
