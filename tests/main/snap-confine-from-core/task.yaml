@@ -39,9 +39,9 @@ execute: |
 
 
     echo "Check if snap-confine profile generation test is applicable"
-    if [ $(snap debug confinement) != "strict" ]; then
+    if [ $(aa-enabled) != "Yes" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
-            echo "No strict confinement on ubuntu-16.04-64 is impossible"
+            echo "No apparmor on ubuntu-16.04-64 is impossible"
             echo "Test broken"
             exit 1
         fi
