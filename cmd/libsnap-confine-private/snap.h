@@ -68,22 +68,23 @@ bool sc_is_hook_security_tag(const char *security_tag);
  *
  * For example: snap_instance => snap, just-snap => just-snap
  **/
-void sc_snap_drop_instance_name(const char *snap_name, char *base,
-				size_t base_size);
+void sc_snap_drop_instance_name(const char *name, char *snap_name,
+				size_t snap_name_size);
 
 /**
  * Extract snap name and instance key out of a snap with optional instance name string.
  *
  * A snap may be installed multiple times in parallel under distinct instance
  * names. This function extracts the snap name and instance key out of a name
- * that possibly contains a snap instance name.
+ * that possibly contains a snap instance name. One of snap_name,
+ * instance_key must be non-NULL.
  *
  * For example:
  *    snap_instance => "snap"      & "instance"
  *    just-snap     => "just-snap" & ""
  **/
-void sc_snap_split_instance_name(const char *snap_name, char *base,
-				 size_t base_size, char *instance_key,
+void sc_snap_split_instance_name(const char *name, char *snap_name,
+				 size_t snap_name_size, char *instance_key,
 				 size_t instance_key_size);
 
 #endif
