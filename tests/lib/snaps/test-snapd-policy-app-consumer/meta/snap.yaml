@@ -263,6 +263,9 @@ apps:
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
+  socketcan:
+    command: bin/run
+    plugs: [ socketcan ]
   socketcan-control:
     command: bin/run
     plugs: [ socketcan-control ]
