@@ -87,6 +87,9 @@ func Run(tr Conf) error {
 	if err := validateExperimentalSettings(tr); err != nil {
 		return err
 	}
+	if err := validateWatchdogOptions(tr); err != nil {
+		return err
+	}
 	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information
@@ -117,6 +120,10 @@ func Run(tr Conf) error {
 	}
 	// proxy.{http,https,ftp}
 	if err := handleProxyConfiguration(tr); err != nil {
+		return err
+	}
+	// watchdog.{runtime-timeout,shutdown-timeout}
+	if err := handleWatchdogConfiguration(tr); err != nil {
 		return err
 	}
 
