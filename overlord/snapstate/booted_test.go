@@ -22,6 +22,7 @@ package snapstate_test
 // test the boot related code
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -44,6 +45,8 @@ import (
 type bootedSuite struct {
 	testutil.BaseTest
 	bootloader *boottest.MockBootloader
+
+	modelBase string
 
 	o           *overlord.Overlord
 	state       *state.State
@@ -85,7 +88,22 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 		return nil, nil
 	}
 	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return nil, nil
+		core18model := []byte(fmt.Sprintf(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model
+gadget: my-gadget
+kernel: my-kernel
+%s
+architecture: amd64
+timestamp: 2018-06-08T10:33:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`, bs.modelBase))
+		model, err := asserts.Decode(core18model)
+		c.Assert(err, IsNil)
+		return model.(*asserts.Model), nil
 	}
 }
 
@@ -317,7 +335,7 @@ func (bs *bootedSuite) TestGuardCoreSetupProfilesPhase2OnCore(c *C) {
 	c.Check(proceed, Equals, false)
 
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = "try"
 	// core snap, restarted, waiting for current core revision
 	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, &snap.Info{Type: snap.TypeOS})
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
@@ -333,5 +351,30 @@ func (bs *bootedSuite) TestGuardCoreSetupProfilesPhase2OnCore(c *C) {
 	// core snap, restarted, wrong core revision, rollback!
 	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, &snap.Info{Type: snap.TypeOS, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
 	c.Check(err, ErrorMatches, `cannot finish core installation, there was a rollback across reboot`)
+	c.Check(proceed, Equals, false)
+}
+
+func (bs *bootedSuite) TestGuardCoreSetupProfilesPhase2OnCoreWithBase(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	// mock us booting from core18
+	bs.bootloader.BootVars["snap_core"] = "core18_81"
+	bs.modelBase = "base: core18"
+
+	task := st.NewTask("setup-profiles", "...")
+
+	// core snap ... but we booted from a different base
+	snapsup := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+		},
+	}
+	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, &snapsup, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, IsNil)
 	c.Check(proceed, Equals, false)
 }

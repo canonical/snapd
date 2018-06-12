@@ -502,6 +502,19 @@ func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo
 		if err != nil {
 			return false, err
 		}
+		// check what snap we use for booting
+		model, err := Model(task.State())
+		if err != nil {
+			return false, err
+		}
+		// if the boot snap does not match the "core" nothing
+		// to do
+		if model.Base() != "" && snapsup.Name() != model.Base() {
+			return false, nil
+		}
+		// Ensure there was no rollback. We need to check both
+		// name and revision because name might have changed from
+		// ubuntu-core -> core.
 		if snapsup.Name() != name || snapInfo.Revision != rev {
 			return false, fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
 		}
