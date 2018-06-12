@@ -4207,11 +4207,6 @@ version: 1.0`)
 			name: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
-			op:    "setup-profiles:Doing", // core phase 2
-			name:  "mock",
-			revno: snap.R("x1"),
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -4288,7 +4283,7 @@ version: 1.0`)
 
 	ops := s.fakeBackend.ops
 	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops.Ops(), HasLen, 12)
+	c.Assert(ops.Ops(), HasLen, 11)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
 	// and setup-snap
@@ -4320,7 +4315,7 @@ version: 1.0`)
 	})
 	c.Check(ops[7].op, Equals, "link-snap")
 	c.Check(ops[7].name, Equals, filepath.Join(dirs.SnapMountDir, "mock/x3"))
-	c.Check(ops[8].op, Equals, "setup-profiles:Doing") // core phase 2
+	c.Check(ops[8].op, Equals, "auto-connect:Doing")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -4422,11 +4417,6 @@ version: 1.0`)
 			name: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "mock",
-			revno: snap.R("x1"),
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -4484,7 +4474,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -7110,7 +7100,6 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-		"setup-profiles",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
