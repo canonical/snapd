@@ -432,6 +432,19 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 
+	// the first taskset installs core and waits for noone
+	i := 0
+	tCore := tsAll[i].Tasks()[0]
+	c.Check(tCore.WaitTasks(), HasLen, 0)
+	// the next installs the kernel and that will wait for core
+	i++
+	tKernel := tsAll[i].Tasks()[0]
+	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore)
+	// the next installs the gadget and will wait for the kernel
+	i++
+	tGadget := tsAll[i].Tasks()[0]
+	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+
 	// the last task of the last taskset must be mark-seeded
 	markSeededTask := tsAll[len(tsAll)-1].Tasks()[0]
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
