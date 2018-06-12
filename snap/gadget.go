@@ -145,7 +145,7 @@ func parseSnapIDColonName(s string) (snapID, name string, err error) {
 }
 
 func systemOrSnapID(s string) bool {
-	if s != "system" && len(s) != 32 {
+	if s != "system" && len(s) != validSnapIDLength {
 		return false
 	}
 	return true
