@@ -22,6 +22,16 @@ restore: |
     rm -f call.error
 
 execute: |
+    if [ ! -d /dev/input/by-path/ ]; then
+        if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+            # ensure the test runs at least on this spread system
+            echo "No /dev/input/by-path but this test cannot be skipped on ubuntu-16.04-64"
+            exit 1
+        fi
+        echo "SKIP: no /dev/input/by-path"
+        exit 0
+    fi
+
     echo "The joystick plug is not connected by default"
     snap interfaces -i joystick | MATCH '\- +test-snapd-event:joystick'
 
