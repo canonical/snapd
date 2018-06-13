@@ -621,7 +621,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var newconns []*interfaces.ConnRef
 
-	chg := task.Change()
 	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
@@ -666,7 +665,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
+		const auto = true
+		if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.Name(), slot.Snap.Name())
 				return err // will retry
@@ -714,7 +714,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 
-			if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
+			const auto = true
+			if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
 				if _, retry := err.(*state.Retry); retry {
 					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.Name(), slot.Snap.Name())
 					return err // will retry
@@ -727,7 +728,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		ts, err := connect(st, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+		const auto = true
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, auto)
 		if err != nil {
 			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
