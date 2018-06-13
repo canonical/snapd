@@ -37,6 +37,9 @@ import (
 // Regular expressions describing correct identifiers.
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
+// The fixed length of valid snap IDs.
+const validSnapIDLength = 32
+
 // almostValidName is part of snap and socket name validation.
 //   the full regexp we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is
 //   O(2ⁿ) on the length of the string in python. An equivalent regexp that
