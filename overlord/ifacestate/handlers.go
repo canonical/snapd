@@ -767,11 +767,9 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		if err != nil {
 			return err
 		}
-
 		if ignore {
 			continue
 		}
-
 		if err := checkConnectConflicts(st, task.Change(), connRef.PlugRef.Snap, connRef.SlotRef.Snap, task); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("disconnect-interfaces task for snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
@@ -781,7 +779,7 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		}
 	}
 
-	connectts := state.NewTaskSet()
+	hookTasks := state.NewTaskSet()
 	for _, connRef := range connections {
 		conn, err := m.repo.Connection(connRef)
 		if err != nil {
@@ -791,14 +789,13 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		if err != nil {
 			return err
 		}
-		connectts.AddAll(ts)
+		hookTasks.AddAll(ts)
 	}
 
-	snapstate.InjectTasks(task, connectts)
+	snapstate.InjectTasks(task, hookTasks)
 
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
 	task.SetStatus(state.DoneStatus)
-
-	st.EnsureBefore(0)
 	return nil
 }
 
