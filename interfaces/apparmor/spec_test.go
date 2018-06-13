@@ -283,37 +283,72 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 
 func (s *specSuite) TestChopTree(c *C) {
 	for _, tc := range []struct {
-		p    string
-		d    int
-		l, r string
+		p    string   // path
+		d    int      // depth
+		l, r []string // left and right path expressions
+		e    string   // error pattern, if non-empty
 	}{
-		// for directories
-		{p: "/foo/bar/froz/", d: 0, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz/}}}"},
-		{p: "/foo/bar/froz/", d: 1, l: "/{,foo/}", r: "/foo/{*,*/,bar/{*,*/,froz/}}"},
-		{p: "/foo/bar/froz/", d: 2, l: "/{,foo/{,bar/}}", r: "/foo/bar/{*,*/,froz/}"},
-		{p: "/foo/bar/froz/", d: 3, l: "/{,foo/{,bar/{,froz/}}}", r: "/foo/bar/froz/"},
-		{p: "/foo/bar/froz/", d: 4, l: "/{,foo/{,bar/{,froz/}}}", r: "/foo/bar/froz/"},
+		// Test case from the documentation of the function.
+		{p: "/foo/bar/froz/baz/", d: 3, // Assume first three directories exist
+			l: []string{"/", "/foo/", "/foo/bar/"},
+			// Assume that /foo/bar/froz and beyond may be missing
+			r: []string{"/foo/bar/*", "/foo/bar/*/", "/foo/bar/froz/*", "/foo/bar/froz/*/"}},
 
-		// for files
-		{p: "/foo/bar/froz", d: 0, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz}}}"},
-		{p: "/foo/bar/froz", d: 1, l: "/{,foo/}", r: "/foo/{*,*/,bar/{*,*/,froz}}"},
-		{p: "/foo/bar/froz", d: 2, l: "/{,foo/{,bar/}}", r: "/foo/bar/{*,*/,froz}"},
-		{p: "/foo/bar/froz", d: 3, l: "/{,foo/{,bar/{,froz}}}", r: "/foo/bar/froz"},
-		{p: "/foo/bar/froz", d: 4, l: "/{,foo/{,bar/{,froz}}}", r: "/foo/bar/froz"},
+		// Exhaustive test cases for directory paths.
 
-		// for relative things
-		{p: "foo/bar/froz", d: 3, l: "{,foo/{,bar/{,froz}}}", r: "foo/bar/froz"},
+		{p: "/foo/bar/froz/", d: 0, // Assume that no directories exist
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 1, // Assume that the root directory exists
+			l: []string{"/"},
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 2, // Assume that /foo/ exists.
+			l: []string{"/", "/foo/"},
+			r: []string{"/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 3, // Assume that /foo/bar/ exists.
+			l: []string{"/", "/foo/", "/foo/bar/"},
+			r: []string{"/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 4, // Assume that /foo/bar/froz/ exists.
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz/"}},
 
-		// for unclean paths
-		{p: "/some/other/../place", d: 1, l: "/{,some/}", r: "/some/{*,*/,place}"},
-		{p: "/some//place", d: 1, l: "/{,some/}", r: "/some/{*,*/,place}"},
+		// Exhaustive test cases for file paths.
+
+		{p: "/foo/bar/froz", d: 0, // Assume that no directories exist
+			l: []string(nil),
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 1, // Assume that the root directory exists
+			l: []string{"/"},
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 2, // Assume that /foo/ exists.
+			l: []string{"/", "/foo/"},
+			r: []string{"/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 3, // Assume that /foo/bar/ exists.
+			l: []string{"/", "/foo/", "/foo/bar/"},
+			r: []string{"/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 4, // Assume that /foo/bar/froz exists.
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz"}},
+
+		// Assumed prefix depth larger than actual path depth is harmless.
+		{p: "/foo/bar/froz/", d: 5,
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz/"}},
+		{p: "/foo/bar/froz", d: 5,
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz"}},
+
+		// Unclean paths are not allowed.
+		{p: "/foo/../bar", d: 1, e: "cannot chop unclean path: .*"},
+		{p: "/foo//bar", d: 1, e: "cannot chop unclean path: .*"},
 
 		// https://twitter.com/thebox193/status/654457902208557056
-		{p: "/foo/bar/froz", d: -1, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz}}}"},
+		{p: "/foo/bar/froz/", d: -1,
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
 	} {
-		l, r := apparmor.ChopTree(tc.p, tc.d)
+		l, r, err := apparmor.ChopTree(tc.p, tc.d)
 		comment := Commentf("test case: %#v", tc)
-		c.Assert(l, Equals, tc.l, comment)
-		c.Assert(r, Equals, tc.r, comment)
+		if tc.e == "" {
+			c.Assert(err, IsNil, comment)
+			c.Assert(l, DeepEquals, tc.l, comment)
+			c.Assert(r, DeepEquals, tc.r, comment)
+		} else {
+			c.Assert(err, ErrorMatches, tc.e, comment)
+		}
 	}
 }
