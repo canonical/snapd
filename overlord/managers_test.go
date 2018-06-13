@@ -2423,7 +2423,7 @@ func (ms *mgrsSuite) TestUpdateWithAutoconnectRetryPlugSide(c *C) {
 	ms.testUpdateWithAutoconnectRetry(c, "other-snap", "some-snap")
 }
 
-func (ms *mgrsSuite) TestRemoveWithDisconnectIgnore(c *C) {
+func (ms *mgrsSuite) TestDisconnectIgnoredOnSymmetricRemove(c *C) {
 	const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
@@ -2499,4 +2499,24 @@ apps:
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
 	c.Assert(conns, HasLen, 0)
+
+	var disconnectInterfacesCount, slotHookCount, plugHookCount int
+	for _, t := range st.Tasks() {
+		if t.Kind() == "disconnect-interfaces" {
+			disconnectInterfacesCount++
+		}
+		if t.Kind() == "run-hook" {
+			var hsup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &hsup), IsNil)
+			if hsup.Hook == "disconnect-plug-media-hub" {
+				plugHookCount++
+			}
+			if hsup.Hook == "disconnect-slot-media-hub" {
+				slotHookCount++
+			}
+		}
+	}
+	c.Assert(plugHookCount, Equals, 1)
+	c.Assert(slotHookCount, Equals, 1)
+	c.Assert(disconnectInterfacesCount, Equals, 2)
 }
