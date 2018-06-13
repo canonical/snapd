@@ -296,7 +296,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 
 	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
 	if err != nil {
-		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.InstanceName(), err)
 	}
 
 	ic := policy.InstallCandidate{

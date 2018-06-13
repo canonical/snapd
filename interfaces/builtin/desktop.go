@@ -240,7 +240,8 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	// Allow mounting document portal
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "  # Mount the document portal\n")
-	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().Name())
+	// TODO parallel-install: use of proper instance/store name
+	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	fmt.Fprintf(&buf, "  umount /run/user/[0-9]*/doc/,\n\n")
 	spec.AddUpdateNS(buf.String())
 
@@ -265,7 +266,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	appId := "snap." + plug.Snap().Name()
+	appId := "snap." + plug.Snap().InstanceName()
 	spec.AddUserMountEntry(osutil.MountEntry{
 		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
 		Dir:     "$XDG_RUNTIME_DIR/doc",
