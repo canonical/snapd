@@ -1577,6 +1577,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
+			Type:         newInfo.Type,
 		}, 0)
 		if err != nil {
 			return nil, err
