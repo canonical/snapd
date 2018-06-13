@@ -187,9 +187,14 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// core/ubuntu-core can not have prerequisites
-	snapName := snapsup.Name()
-	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+	// os/base/kernel/gadget cannot have prerequisites other
+	// than the models default base (or core) which is installed anyway
+	switch snapsup.Type {
+	case snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
+		return nil
+	}
+	// snapd is special and has no prereqs
+	if snapsup.Name() == "snapd" {
 		return nil
 	}
 
