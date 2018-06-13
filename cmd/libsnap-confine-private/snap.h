@@ -69,7 +69,7 @@ bool sc_is_hook_security_tag(const char *security_tag);
  * For example: snap_instance => snap, just-snap => just-snap
  **/
 void sc_snap_drop_instance_key(const char *name, char *snap_name,
-				size_t snap_name_size);
+			       size_t snap_name_size);
 
 /**
  * Extract snap name and instance key out of a snap with optional instance name string.

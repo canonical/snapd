@@ -231,7 +231,7 @@ static void test_sc_snap_drop_instance_key_short_dest(void)
 	if (g_test_subprocess()) {
 		char dest[10] = { 0 };
 		sc_snap_drop_instance_key("foo-foo-foo-foo-foo_bar", dest,
-					   sizeof dest);
+					  sizeof dest);
 		g_test_fail();
 		return;
 	}
@@ -377,14 +377,14 @@ static void test_sc_snap_split_instance_name_basic(void)
 	memset(name, 0xff, sizeof name);
 	memset(instance, 0xff, sizeof instance);
 	sc_snap_split_instance_name("_", name, sizeof name, instance,
-                              sizeof instance);
+				    sizeof instance);
 	g_assert_cmpstr(name, ==, "");
 	g_assert_cmpstr(instance, ==, "");
 
 	memset(name, 0xff, sizeof name);
 	memset(instance, 0xff, sizeof instance);
 	sc_snap_split_instance_name("foo_", name, sizeof name, instance,
-                              sizeof instance);
+				    sizeof instance);
 	g_assert_cmpstr(name, ==, "foo");
 	g_assert_cmpstr(instance, ==, "");
 }
