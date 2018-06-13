@@ -3141,3 +3141,65 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 		c.Assert(slotDynamic, DeepEquals, map[string]interface{}{"attr4": "value4"})
 	}
 }
+
+func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingKind string) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	mgr := s.manager(c)
+
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	}
+
+	s.state.Lock()
+
+	chg1 := s.state.NewChange("remove", "")
+	t1 := s.state.NewTask(conflictingKind, "")
+	chg1.AddTask(t1)
+	t1.Set("snap-setup", sup)
+
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddSnap(consumerInfo), IsNil)
+	c.Assert(repo.AddSnap(producerInfo), IsNil)
+
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}, nil, nil, nil)
+
+	sup = &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+
+	chg2 := s.state.NewChange("install", "")
+	t2 := s.state.NewTask("disconnect-interfaces", "")
+	t2.Set("snap-setup", sup)
+	chg2.AddTask(t2)
+
+	s.state.Unlock()
+
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*disconnect-interfaces task for snap "consumer" will be retried because of "consumer" - "producer" conflict`)
+	c.Assert(t2.Status(), Equals, state.DoingStatus)
+}
+
+func (s *interfaceManagerSuite) TestDisconnectInterfacesRetryUnlink(c *C) {
+	s.testDisconnectInterfacesRetry(c, "unlink-snap")
+}
+
+func (s *interfaceManagerSuite) TestDisconnectInterfacesRetryLink(c *C) {
+	s.testDisconnectInterfacesRetry(c, "link-snap")
+}
+
+func (s *interfaceManagerSuite) TestDisconnectInterfacesRetrySetupProfiles(c *C) {
+	s.testDisconnectInterfacesRetry(c, "setup-profiles")
+}
