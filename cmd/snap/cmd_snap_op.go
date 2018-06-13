@@ -338,6 +338,8 @@ type cmdInstall struct {
 
 	Unaliased bool `long:"unaliased"`
 
+	Instance string `long:"instance" hidden:"yes"`
+
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -353,6 +355,9 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
 	} else {
+		if opts.Instance != "" {
+			return errors.New(i18n.G("cannot use instance name when installing from store"))
+		}
 		changeID, err = cli.Install(name, opts)
 	}
 	if err != nil {
@@ -457,6 +462,7 @@ func (x *cmdInstall) Execute([]string) error {
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 		Unaliased: x.Unaliased,
+		Instance:  x.Instance,
 	}
 	x.setModes(opts)
 
@@ -469,6 +475,9 @@ func (x *cmdInstall) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
+	if x.Instance != "" {
+		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))
+	}
 	return x.installMany(names, nil)
 }
 
@@ -897,6 +906,7 @@ func init() {
 			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
 			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
+			"instance":        i18n.G("Install the snap file as given snap instance"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
