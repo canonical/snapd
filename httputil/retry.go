@@ -131,6 +131,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 				if ShouldRetryError(attempt, err) {
 					continue
 				} else {
+					maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
 					return nil, err
 				}
 			}
