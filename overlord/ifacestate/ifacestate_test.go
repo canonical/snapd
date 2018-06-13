@@ -2842,58 +2842,6 @@ slots:
 	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
 }
 
-func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfCore(c *C) {
-	mgr := s.manager(c)
-
-	si1 := &snap.SideInfo{
-		RealName: "core",
-		Revision: snap.R(1),
-	}
-	sup1 := &snapstate.SnapSetup{SideInfo: si1}
-	_ = snaptest.MockSnap(c, ubuntuCoreSnapYaml, si1)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	task1 := s.state.NewTask("setup-profiles", "")
-	task1.Set("snap-setup", sup1)
-
-	task2 := s.state.NewTask("setup-profiles", "")
-	task2.Set("snap-setup", sup1)
-	task2.Set("core-phase-2", true)
-	task2.WaitFor(task1)
-
-	chg := s.state.NewChange("test", "")
-	chg.AddTask(task1)
-	chg.AddTask(task2)
-
-	s.state.Unlock()
-
-	defer mgr.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	// ensure all our tasks ran
-	c.Assert(chg.Err(), IsNil)
-	c.Assert(chg.Tasks(), HasLen, 3)
-
-	// sanity checks
-	t := chg.Tasks()[0]
-	c.Assert(t.Kind(), Equals, "setup-profiles")
-	t = chg.Tasks()[1]
-	c.Assert(t.Kind(), Equals, "setup-profiles")
-	var phase2 bool
-	c.Assert(t.Get("core-phase-2", &phase2), IsNil)
-	c.Assert(t.HaltTasks(), HasLen, 1)
-
-	// check that auto-connect task was added after phase2
-	var autoconnectSup snapstate.SnapSetup
-	t = chg.Tasks()[2]
-	c.Assert(t.Kind(), Equals, "auto-connect")
-	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "core")
-}
-
 func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
