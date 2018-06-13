@@ -57,6 +57,8 @@ EOF
         # and now use systemd to start it
         systemctl daemon-reload
 
+        echo "Ensure tooling is available"
+        systemctl start usr-lib-snapd.mount
         # some units only need to get enabled
         for unit in $ENABLE_UNITS; do
             if ! systemctl is-enabled $unit; then
