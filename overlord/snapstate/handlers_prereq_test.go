@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -247,16 +248,18 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
 
-	s.state.Unlock()
-	// wait the prereq-retry-timeout
-	for i := 0; i < 10; i++ {
+	// wait, we will hit prereq-retry-timeout eventually
+	// (this can take a while on very slow machines)
+	for i := 0; i < 50; i++ {
 		time.Sleep(10 * time.Millisecond)
+		s.state.Unlock()
 		s.snapmgr.Ensure()
 		s.snapmgr.Wait()
+		s.state.Lock()
+		if t.Status() == state.DoneStatus {
+			break
+		}
 	}
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
@@ -324,4 +327,55 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		},
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqNothingToDoForBase(c *C) {
+	for _, typ := range []snap.Type{
+		snap.TypeOS,
+		snap.TypeGadget,
+		snap.TypeKernel,
+		snap.TypeBase,
+	} {
+
+		s.state.Lock()
+		t := s.state.NewTask("prerequisites", "test")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: fmt.Sprintf("foo-%s", typ),
+				Revision: snap.R(1),
+			},
+			Type: typ,
+		})
+		s.state.NewChange("dummy", "...").AddTask(t)
+		s.state.Unlock()
+
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+
+		s.state.Lock()
+		c.Assert(s.fakeBackend.ops, HasLen, 0)
+		c.Check(t.Status(), Equals, state.DoneStatus)
+		s.state.Unlock()
+	}
+}
+
+func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(1),
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	s.state.Unlock()
 }

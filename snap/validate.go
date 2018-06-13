@@ -37,6 +37,9 @@ import (
 // Regular expressions describing correct identifiers.
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
+// The fixed length of valid snap IDs.
+const validSnapIDLength = 32
+
 // almostValidName is part of snap and socket name validation.
 //   the full regexp we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is
 //   O(2ⁿ) on the length of the string in python. An equivalent regexp that
@@ -316,6 +319,11 @@ func Validate(info *Info) error {
 		}
 	}
 
+	// ensure that common-id(s) are unique
+	if err := ValidateCommonIDs(info); err != nil {
+		return err
+	}
+
 	return ValidateLayoutAll(info)
 }
 
@@ -476,6 +484,23 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
+func validateAppWatchdog(app *AppInfo) error {
+	if app.WatchdogTimeout == 0 {
+		// no watchdog
+		return nil
+	}
+
+	if !app.IsService() {
+		return fmt.Errorf("cannot define watchdog-timeout in application %q as it's not a service", app.Name)
+	}
+
+	if app.WatchdogTimeout < 0 {
+		return fmt.Errorf("cannot use a negative watchdog-timeout in application %q", app.Name)
+	}
+
+	return nil
+}
+
 func validateAppTimer(app *AppInfo) error {
 	if app.Timer == nil {
 		return nil
@@ -551,6 +576,10 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 	if err := validateAppOrderNames(app, app.After); err != nil {
+		return err
+	}
+
+	if err := validateAppWatchdog(app); err != nil {
 		return err
 	}
 
@@ -664,7 +693,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
-	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media"} {
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap"} {
 		// We use the mountedTree constraint as this has the right semantics.
 		if mountedTree(path).IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
@@ -757,6 +786,20 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 
 	if layout.Mode&01777 != layout.Mode {
 		return fmt.Errorf("layout %q uses invalid mode %#o", layout.Path, layout.Mode)
+	}
+	return nil
+}
+
+func ValidateCommonIDs(info *Info) error {
+	seen := make(map[string]string, len(info.Apps))
+	for _, app := range info.Apps {
+		if app.CommonID != "" {
+			if other, was := seen[app.CommonID]; was {
+				return fmt.Errorf("application %q common-id %q must be unique, already used by application %q",
+					app.Name, app.CommonID, other)
+			}
+			seen[app.CommonID] = app.Name
+		}
 	}
 	return nil
 }

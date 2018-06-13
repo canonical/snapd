@@ -11,6 +11,7 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
     snap pack "$TESTSLIB/snaps/classic-gadget"
@@ -39,12 +40,13 @@ prepare: |
     cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
     cp ./classic-gadget_1.0_all.snap "$SEED_DIR/snaps/classic-gadget.snap"
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(which fakedevicesvc) localhost:11029"
+    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc

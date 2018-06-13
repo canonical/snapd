@@ -42,7 +42,8 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
-    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SKIP_REMOVE_SNAPS:-})"
+    # always skip removing the rsync snap
+    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SPREAD_SKIP_REMOVE_SNAPS:-}) test-snapd-rsync"
 
 backends:
     google:
@@ -56,7 +57,6 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180424
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -75,11 +75,11 @@ backends:
             - fedora-27-64:
                 image: fedora-27-64-selinux-permissive
                 workers: 4
-
-            - opensuse-42.2-64:
-                image: opensuse-leap-42-2
-                workers: 4
                 manual: true
+            - fedora-28-64:
+                image: fedora-28-64-selinux-permissive
+                workers: 4
+
             - opensuse-42.3-64:
                 image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
@@ -140,6 +140,12 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
             - debian-sid-64:
@@ -228,6 +234,25 @@ backends:
             - ubuntu-18.04-arm64:
                 username: ubuntu
                 password: ubuntu
+            # Cosmic
+            - ubuntu-18.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-arm64:
+                username: ubuntu
+                password: ubuntu
     external:
         type: adhoc
         environment:
@@ -264,8 +289,11 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+        # shellcheck source=tests/lib/journalctl.sh
+        . "$TESTSLIB/journalctl.sh"
+
         echo '# journal messages for snapd'
-        journalctl -u snapd
+        get_journalctl_log -u snapd
         echo '# apparmor denials '
         dmesg --ctime | grep DENIED || true
         echo '# seccomp denials (kills) '
@@ -284,13 +312,13 @@ repack: |
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo $SPREAD_BACKENDS | grep linode; then
+    if ! echo "$SPREAD_BACKENDS" | grep linode; then
         cat <&3 >&4
-    elif ! git show-ref $DELTA_REF > /dev/null; then
+    elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
     else
         trap "rm -f delta-ref.tar current.delta" EXIT
-        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
         xdelta3 -s delta-ref.tar <&3 > current.delta
         tar c current.delta >&4
     fi
@@ -361,8 +389,8 @@ prepare: |
     fi
 
     # Take the MATCH and REBOOT functions from spread and allow our shell scripts to use them.
-    type MATCH | tail -n +2 > $TESTSLIB/spread-funcs.sh
-    type REBOOT | tail -n +2 >> $TESTSLIB/spread-funcs.sh
+    type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
+    type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
@@ -444,6 +472,7 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
@@ -468,14 +497,17 @@ suites:
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
             . $TESTSLIB/prepare.sh
             prepare_classic
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            "$TESTSLIB"/reset.sh --reuse-core
+            #shellcheck source=tests/lib/prepare.sh
             . $TESTSLIB/prepare.sh
             prepare_each_classic
         restore: |
-            $TESTSLIB/reset.sh --store
+            "$TESTSLIB"/reset.sh --store
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
 
             distro_purge_package snapd
@@ -497,18 +529,26 @@ suites:
         # drop this blacklist.
         systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            #shellcheck source=tests/lib/systems.sh
+            . "$TESTSLIB"/systems.sh
+            if is_core_system; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh --reuse-core
         restore: |
-            $TESTSLIB/reset.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh
+            #shellcheck source=tests/lib/systems.sh
+            . "$TESTSLIB"/systems.sh
+            if is_classic_system; then
+                #shellcheck source=tests/lib/pkgdb.sh
+                . "$TESTSLIB"/pkgdb.sh
                 distro_purge_package snapd
             fi
 
@@ -525,12 +565,14 @@ suites:
         kill-timeout: 2h
         manual: true
         prepare: |
-            . $TESTSLIB/pkgdb.sh
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
-            . $TESTSLIB/pkgdb.sh
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
 

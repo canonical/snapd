@@ -18,7 +18,7 @@ prepare: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-netlink-audit:netlink-audit"
+    snap interfaces -i netlink-audit | MATCH "\- +test-snapd-netlink-audit:netlink-audit"
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-audit:netlink-audit

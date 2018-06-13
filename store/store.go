@@ -33,7 +33,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,13 +47,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -82,6 +81,13 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	retry.Exponential{
 		Initial: 300 * time.Millisecond,
 		Factor:  2.5,
+	},
+))
+
+var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
+	retry.Exponential{
+		Initial: 900 * time.Millisecond,
+		Factor:  1.3,
 	},
 ))
 
@@ -156,24 +162,6 @@ func respToError(resp *http.Response, msg string) error {
 	}
 
 	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
-}
-
-func getStructFields(s interface{}, exceptions ...string) []string {
-	st := reflect.TypeOf(s).Elem()
-	num := st.NumField()
-	fields := make([]string, 0, num)
-	for i := 0; i < num; i++ {
-		tag := st.Field(i).Tag.Get("json")
-		idx := strings.IndexRune(tag, ',')
-		if idx > -1 {
-			tag = tag[:idx]
-		}
-		if tag != "" && !strutil.ListContains(exceptions, tag) {
-			fields = append(fields, tag)
-		}
-	}
-
-	return fields
 }
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
@@ -267,11 +255,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
+var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
+
 func storeDeveloperURL() string {
 	if useStaging() {
 		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://dashboard.snapcraft.io/"
+	return defaultStoreDeveloperURL
 }
 
 var defaultConfig = Config{}
@@ -309,7 +299,7 @@ type sectionResults struct {
 }
 
 // The fields we are interested in (not you, snap_yaml_raw)
-var detailFields = getStructFields((*snapDetails)(nil), "snap_yaml_raw")
+var detailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -378,6 +368,7 @@ const (
 	commandsEndpPath    = "api/v1/snaps/names"
 	// v2
 	snapActionEndpPath = "v2/snaps/refresh"
+	snapInfoEndpPath   = "v2/snaps/info"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -456,14 +447,9 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
-// hasStoreAuth returns true if given user has store macaroons setup
-func hasStoreAuth(user *auth.UserState) bool {
-	return user != nil && user.StoreMacaroon != ""
-}
-
 // authAvailable returns true if there is a user and/or device session setup
 func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		return true, nil
 	} else {
 		var device *auth.DeviceState
@@ -874,7 +860,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	}
 
 	// only set user authentication if user logged in to the store
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		authenticateUser(req, user)
 	}
 
@@ -1569,6 +1555,19 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+	reqOptions := requestOptions{
+		Method:       "GET",
+		URL:          storeURL,
+		ExtraHeaders: map[string]string{},
+	}
+	if cdnHeader != "" {
+		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+
+	return &reqOptions
+}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1584,14 +1583,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	var finalErr error
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := &requestOptions{
-			Method:       "GET",
-			URL:          storeURL,
-			ExtraHeaders: make(map[string]string),
-		}
-		if cdnHeader != "" {
-			reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
-		}
+		reqOptions := downloadOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -2092,6 +2084,15 @@ type SnapAction struct {
 	Epoch    *snap.Epoch
 }
 
+func isValidAction(action string) bool {
+	switch action {
+	case "download", "install", "refresh":
+		return true
+	default:
+		return false
+	}
+}
+
 type snapActionJSON struct {
 	Action           string      `json:"action"`
 	InstanceKey      string      `json:"instance-key"`
@@ -2130,7 +2131,7 @@ type snapActionResultList struct {
 	} `json:"error-list"`
 }
 
-var snapActionFields = getStructFields((*storeSnap)(nil))
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
@@ -2213,9 +2214,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	installNum := 0
+	downloadNum := 0
 	installKeys := make(map[string]bool, len(actions))
+	downloadKeys := make(map[string]bool, len(actions))
 	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
+		if !isValidAction(a.Action) {
+			return nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
+		}
+
 		var ignoreValidation *bool
 		if a.Flags&SnapActionIgnoreValidation != 0 {
 			var t = true
@@ -2226,10 +2233,19 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := a.SnapID
-		if a.Action == "install" {
-			installNum++
-			instanceKey = fmt.Sprintf("install-%d", installNum)
-			installKeys[instanceKey] = true
+		if a.Action == "install" || a.Action == "download" {
+			if !a.Revision.Unset() {
+				a.Channel = ""
+			}
+			if a.Action == "install" {
+				installNum++
+				instanceKey = fmt.Sprintf("install-%d", installNum)
+				installKeys[instanceKey] = true
+			} else {
+				downloadNum++
+				instanceKey = fmt.Sprintf("download-%d", downloadNum)
+				downloadKeys[instanceKey] = true
+			}
 		}
 
 		aJSON := &snapActionJSON{
@@ -2286,6 +2302,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
+	downloadErrors := make(map[string]error)
 	var otherErrors []error
 
 	var snaps []*snap.Info
@@ -2294,6 +2311,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			if installKeys[res.InstanceKey] {
 				if res.Name != "" {
 					installErrors[res.Name] = translateSnapActionError("install", res.Error.Code, res.Error.Message)
+					continue
+				}
+			} else if downloadKeys[res.InstanceKey] {
+				if res.Name != "" {
+					downloadErrors[res.Name] = translateSnapActionError("download", res.Error.Code, res.Error.Message)
 					continue
 				}
 			} else {
@@ -2328,7 +2350,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		otherErrors = append(otherErrors, translateSnapActionError("-", errObj.Code, errObj.Message))
 	}
 
-	if len(refreshErrors)+len(installErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
+	if len(refreshErrors)+len(installErrors)+len(downloadErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
 		// normalize empty maps
 		if len(refreshErrors) == 0 {
 			refreshErrors = nil
@@ -2336,13 +2358,112 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
+		if len(downloadErrors) == 0 {
+			downloadErrors = nil
+		}
 		return snaps, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
+			Download:  downloadErrors,
 			Other:     otherErrors,
 		}
 	}
 
 	return snaps, nil
+}
+
+// abbreviated info structs just for the download info
+type storeInfoChannelAbbrev struct {
+	Download storeSnapDownload `json:"download"`
+}
+
+type storeInfoAbbrev struct {
+	// discard anything beyond the first entry
+	ChannelMap [1]storeInfoChannelAbbrev `json:"channel-map"`
+}
+
+var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
+
+func (s *Store) snapConnCheck() ([]string, error) {
+	var hosts []string
+	// NOTE: "core" is possibly the only snap that's sure to be in all stores
+	//       when we drop "core" in the move to snapd/core18/etc, change this
+	infoURL := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
+		// we only want the download URL
+		"fields": {"download"},
+		// we only need *one* (but can't filter by channel ... yet)
+		"architecture": {s.architecture},
+	})
+	hosts = append(hosts, infoURL.Host)
+
+	var result storeInfoAbbrev
+	resp, err := httputil.RetryRequest(infoURL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{
+			Method:   "GET",
+			URL:      infoURL,
+			APILevel: apiV2Endps,
+		}, nil)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, &result, nil)
+	}, connCheckStrategy)
+
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	dlURLraw := result.ChannelMap[0].Download.URL
+	dlURL, err := url.ParseRequestURI(dlURLraw)
+	if err != nil {
+		return hosts, err
+	}
+	hosts = append(hosts, dlURL.Host)
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return hosts, err
+	}
+
+	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions.Method = "HEAD" // not actually a download
+
+	// TODO: We need the HEAD here so that we get redirected to the
+	//       right CDN machine. Consider just doing a "net.Dial"
+	//       after the redirect here. Suggested in
+	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
+	resp, err = httputil.RetryRequest(dlURLraw, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}, func(resp *http.Response) error {
+		// account for redirect
+		hosts[len(hosts)-1] = resp.Request.URL.Host
+		return nil
+	}, connCheckStrategy)
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return hosts, errUnexpectedConnCheckResponse
+	}
+
+	return hosts, nil
+}
+
+func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
+	status = make(map[string]bool)
+
+	checkers := []func() ([]string, error){
+		s.snapConnCheck,
+	}
+
+	for _, checker := range checkers {
+		hosts, err := checker()
+		for _, host := range hosts {
+			status[host] = (err == nil)
+		}
+	}
+
+	return status, nil
 }

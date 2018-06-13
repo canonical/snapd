@@ -1,0 +1,14 @@
+name: test-snapd-appstreamid
+version: 1.1
+architectures: ["all"]
+summary: Snap for testing snapd AppStream ID support
+
+apps:
+  foo:
+   command: bin/run
+   common-id: io.snapcraft.test-snapd-appstreamid.foo
+  bar:
+   command: bin/run
+   common-id: io.snapcraft.test-snapd-appstreamid.bar
+  baz:
+   command: bin/run

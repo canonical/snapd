@@ -27,17 +27,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Plug represents the potential of a given snap to connect to a slot.
-type Plug struct {
-	*snap.PlugInfo
-	Connections []SlotRef `json:"connections,omitempty"`
-}
-
-// Ref returns reference to a plug
-func (plug *Plug) Ref() PlugRef {
-	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
-}
-
 // Sanitize plug with a given snapd interface.
 func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
@@ -60,17 +49,6 @@ type PlugRef struct {
 // String returns the "snap:plug" representation of a plug reference.
 func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
-}
-
-// Slot represents a capacity offered by a snap.
-type Slot struct {
-	*snap.SlotInfo
-	Connections []PlugRef `json:"connections,omitempty"`
-}
-
-// Ref returns reference to a slot
-func (slot *Slot) Ref() SlotRef {
-	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
 // Sanitize slot with a given snapd interface.
@@ -133,22 +111,22 @@ func (conn *ConnRef) ID() string {
 }
 
 // ParseConnRef parses an ID string
-func ParseConnRef(id string) (ConnRef, error) {
+func ParseConnRef(id string) (*ConnRef, error) {
 	var conn ConnRef
 	parts := strings.SplitN(id, " ", 2)
 	if len(parts) != 2 {
-		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
 	plugParts := strings.Split(parts[0], ":")
 	slotParts := strings.Split(parts[1], ":")
 	if len(plugParts) != 2 || len(slotParts) != 2 {
-		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
 	conn.PlugRef.Snap = plugParts[0]
 	conn.PlugRef.Name = plugParts[1]
 	conn.SlotRef.Snap = slotParts[0]
 	conn.SlotRef.Name = slotParts[1]
-	return conn, nil
+	return &conn, nil
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -162,7 +140,7 @@ type Interface interface {
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
-	AutoConnect(plug *Plug, slot *Slot) bool
+	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
 }
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.

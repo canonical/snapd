@@ -106,6 +106,8 @@ type apiBaseSuite struct {
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
 
+	connectivityResult map[string]bool
+
 	restoreSanitize func()
 }
 
@@ -151,6 +153,10 @@ func (s *apiBaseSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*st
 func (s *apiBaseSuite) ReadyToBuy(user *auth.UserState) error {
 	s.user = user
 	return s.err
+}
+
+func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
+	return s.connectivityResult, s.err
 }
 
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
@@ -500,11 +506,15 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 description: description
 summary: summary
 license: GPL-3.0
+base: base18
 apps:
   cmd:
     command: some.cmd
   cmd2:
     command: other.cmd
+  cmd3:
+    command: other.cmd
+    common-id: org.foo.cmd
   svc1:
     command: somed1
     daemon: simple
@@ -591,11 +601,13 @@ UnitFileState=potatoes
 			Status:           "active",
 			Icon:             "/v2/icons/foo/icon",
 			Type:             string(snap.TypeApp),
+			Base:             "base18",
 			Private:          false,
 			DevMode:          false,
 			JailMode:         false,
 			Confinement:      string(snap.StrictConfinement),
 			TryMode:          false,
+			MountedFrom:      filepath.Join(dirs.SnapBlobDir, "foo_10.snap"),
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",
@@ -603,6 +615,10 @@ UnitFileState=potatoes
 				}, {
 					// no desktop file
 					Snap: "foo", Name: "cmd2",
+				}, {
+					// has AppStream ID
+					Snap: "foo", Name: "cmd3",
+					CommonID: "org.foo.cmd",
 				}, {
 					// services
 					Snap: "foo", Name: "svc1",
@@ -619,17 +635,17 @@ UnitFileState=potatoes
 					Daemon:  "oneshot",
 					Enabled: true,
 					Active:  true,
-				},
-				{
+				}, {
 					Snap: "foo", Name: "svc4",
 					Daemon:  "notify",
 					Enabled: false,
 					Active:  false,
 				},
 			},
-			Broken:  "",
-			Contact: "",
-			License: "GPL-3.0",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
 		},
 		Meta: meta,
 	}
@@ -680,6 +696,28 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 404)
 	c.Check(rsp.Result, check.NotNil)
+}
+
+func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
+
+	info := snap.Info{SideInfo: snap.SideInfo{RealName: "hello", Revision: snap.R(1)}}
+	snapst := snapstate.SnapState{}
+	mountFile := info.MountFile()
+	about := aboutSnap{info: &info, snapst: &snapst}
+
+	// if not a 'try', then MountedFrom is just MountFile()
+	c.Check(mapLocal(about).MountedFrom, check.Equals, mountFile)
+
+	// if it's a try, then MountedFrom resolves the symlink
+	// (note it doesn't matter, here, whether the target of the link exists)
+	snapst.TryMode = true
+	c.Assert(os.Symlink("/xyzzy", mountFile), check.IsNil)
+	c.Check(mapLocal(about).MountedFrom, check.Equals, "/xyzzy")
+
+	// if the readlink fails, it's unset
+	c.Assert(os.Remove(mountFile), check.IsNil)
+	c.Check(mapLocal(about).MountedFrom, check.Equals, "")
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -740,6 +778,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
@@ -766,7 +806,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
-		"confinement": "partial",
+		"confinement":      "partial",
+		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -791,6 +832,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	// set the legacy refresh schedule
 	st := d.overlord.State()
@@ -800,6 +843,13 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	tr.Set("core", "refresh.timer", "")
 	tr.Commit()
 	st.Unlock()
+
+	// add a test security backend
+	err := d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
 
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
@@ -827,6 +877,10 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
 		"confinement": "partial",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1617,6 +1671,28 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestFindCommonID(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "store",
+		},
+		Publisher: "foo",
+		CommonIDs: []string{"org.foo"},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["common-ids"], check.DeepEquals, []interface{}{"org.foo"})
+}
+
 func (s *apiSuite) TestFindOne(c *check.C) {
 	s.daemon(c)
 
@@ -1624,6 +1700,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
+		Base:      "base0",
 		Publisher: "foo",
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
@@ -1643,6 +1720,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["base"], check.Equals, "base0")
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
 	c.Check(m["revision"], check.Equals, "42")
@@ -2604,7 +2682,14 @@ func (s *apiSuite) TestGetConfCoreSystemAlias(c *check.C) {
 
 func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"value": map[string]interface{}{
+			"SnapName": "test-snap",
+			"Key":      "test-key2",
+		},
+		"message": `snap "test-snap" has no "test-key2" configuration option`,
+		"kind":    "option-not-found",
+	})
 }
 
 func (s *apiSuite) TestGetRootDocument(c *check.C) {
@@ -2687,7 +2772,7 @@ version: 1
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text, err := json.Marshal(map[string]interface{}{"proxy.ftp": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -2715,12 +2800,14 @@ version: 1
 
 	st.Lock()
 	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
 	tr := config.NewTransaction(st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
 	var value string
-	tr.Get("core", "key", &value)
+	tr.Get("core", "proxy.ftp", &value)
 	c.Assert(value, check.Equals, "value")
 
 }
@@ -3503,11 +3590,12 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3836,6 +3924,54 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
+func (s *apiSuite) TestConnectCoreSystemAlias(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	d := s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &interfaceAction{
+		Action: "connect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "system", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 1)
+	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "core", Name: "slot"}}})
+}
+
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
@@ -3845,11 +3981,12 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -4038,6 +4175,60 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"status-code": 400.0,
 		"type":        "error",
 	})
+}
+
+func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	d := s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
+	}
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &interfaceAction{
+		Action: "disconnect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "system", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
@@ -5946,6 +6137,48 @@ func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
+}
+
+func (s *postDebugSuite) TestPostDebugConnectivityHappy(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "connectivity"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	s.connectivityResult = map[string]bool{
+		"good.host.com":         true,
+		"another.good.host.com": true,
+	}
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+		Connectivity: true,
+		Unreachable:  []string(nil),
+	})
+}
+
+func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "connectivity"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	s.connectivityResult = map[string]bool{
+		"good.host.com": true,
+		"bad.host.com":  false,
+	}
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+		Connectivity: false,
+		Unreachable:  []string{"bad.host.com"},
+	})
 }
 
 type appSuite struct {

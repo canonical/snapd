@@ -1,0 +1,30 @@
+summary: Verify AppStream ID integration
+# fedora-*: uses nmap netcat by default (https://nmap.org/ncat/)
+systems: [-fedora-*]
+
+prepare: |
+    snap install jq
+
+restore: |
+    snap remove jq
+
+execute: |
+    echo "Verify that search results contain common-ids"
+    printf 'GET /v2/find?name=test-snapd-appstreamid HTTP/1.0\r\n\r\n' | \
+        nc -U -q 1 /run/snapd.socket| grep '{'| \
+        jq -r ' .result[0]["common-ids"] | sort | join (",")' | \
+        MATCH 'io.snapcraft.test-snapd-appstreamid.bar,io.snapcraft.test-snapd-appstreamid.foo'
+
+    snap install --edge test-snapd-appstreamid
+
+    echo "Verify that installed snap info contains common-ids"
+    printf 'GET /v2/snaps/test-snapd-appstreamid HTTP/1.0\r\n\r\n' | \
+        nc -U -q 1 /run/snapd.socket| grep '{'| \
+        jq -r ' .result["common-ids"] | sort | join(",")' | \
+        MATCH 'io.snapcraft.test-snapd-appstreamid.bar,io.snapcraft.test-snapd-appstreamid.foo'
+
+    echo "Verify that apps have their common-id set"
+    printf 'GET /v2/apps?names=test-snapd-appstreamid HTTP/1.0\r\n\r\n' | \
+        nc -U -q 1 /run/snapd.socket| grep '{'| \
+        jq -r ' .result | sort_by(.name) | [.[]."common-id"] | join(",")' | \
+        MATCH 'io.snapcraft.test-snapd-appstreamid.bar,,io.snapcraft.test-snapd-appstreamid.foo'
