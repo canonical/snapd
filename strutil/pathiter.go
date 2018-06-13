@@ -43,6 +43,7 @@ import (
 type PathIterator struct {
 	path        string
 	left, right int
+	depth       int
 }
 
 // NewPathIterator returns an iterator for traversing the given path.
@@ -84,6 +85,14 @@ func (iter *PathIterator) CurrentBase() string {
 	return iter.path[:iter.left]
 }
 
+// Depth returns the directory depth of the current path.
+//
+// This is equal to the number of traversed directories, including that of the
+// root directory.
+func (iter *PathIterator) Depth() int {
+	return iter.depth
+}
+
 // Next advances the iterator to the next name, returning true if one is found.
 //
 // If this method returns false then no change is made and all helper methods
@@ -117,5 +126,6 @@ func (iter *PathIterator) Next() bool {
 	} else {
 		iter.right = len(iter.path)
 	}
+	iter.depth++
 	return true
 }
