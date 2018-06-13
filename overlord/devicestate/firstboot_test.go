@@ -288,9 +288,11 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	err = os.Rename(mockSnapFile, targetFile)
 	c.Assert(err, IsNil)
 
+	snapID := (snapName + "-snap-" + strings.Repeat("id", 20))[:32]
+
 	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-id":      snapName + "-snap-id",
+		"snap-id":      snapID,
 		"publisher-id": developerID,
 		"snap-name":    snapName,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
@@ -303,7 +305,7 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	revA, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
-		"snap-id":       snapName + "-snap-id",
+		"snap-id":       snapID,
 		"developer-id":  developerID,
 		"snap-revision": revision.String(),
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
@@ -343,13 +345,13 @@ volumes:
 	if withConfigure {
 		gadgetYaml += `
 defaults:
-    foo-snap-id:
+    foo-snap-idididididididididididi:
        foo-cfg: foo.
-    core-snap-id:
+    core-snap-ididididididididididid:
        core-cfg: core_cfg_defl
-    pc-kernel-snap-id:
+    pc-kernel-snap-ididididididididi:
        pc-kernel-cfg: pc-kernel_cfg_defl
-    pc-snap-id:
+    pc-snap-idididididididididididid:
        pc-cfg: pc_cfg_defl
 `
 	}
@@ -498,7 +500,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
-	c.Assert(info.SnapID, Equals, "foo-snap-id")
+	c.Assert(info.SnapID, Equals, "foo-snap-idididididididididididi")
 	c.Assert(info.Revision, Equals, snap.R(128))
 	c.Assert(info.Contact, Equals, "mailto:some.guy@example.com")
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
@@ -679,7 +681,7 @@ snaps:
 	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
-	c.Check(info.SnapID, Equals, "foo-snap-id")
+	c.Check(info.SnapID, Equals, "foo-snap-idididididididididididi")
 	c.Check(info.Revision, Equals, snap.R(128))
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
@@ -688,7 +690,7 @@ snaps:
 	// check bar
 	info, err = snapstate.CurrentInfo(state, "bar")
 	c.Assert(err, IsNil)
-	c.Check(info.SnapID, Equals, "bar-snap-id")
+	c.Check(info.SnapID, Equals, "bar-snap-idididididididididididi")
 	c.Check(info.Revision, Equals, snap.R(65))
 	pubAcct, err = assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
@@ -889,7 +891,7 @@ snaps:
 	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
-	c.Assert(info.SnapID, Equals, "foo-snap-id")
+	c.Assert(info.SnapID, Equals, "foo-snap-idididididididididididi")
 	c.Assert(info.Revision, Equals, snap.R(128))
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
