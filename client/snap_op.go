@@ -39,6 +39,7 @@ type SnapOptions struct {
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
+	Instance         string `json:"instance,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -204,8 +205,13 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 		return "", fmt.Errorf("cannot open: %q", path)
 	}
 
+	instanceName := ""
+	if options != nil {
+		instanceName = options.Instance
+	}
 	action := actionData{
 		Action:      "install",
+		Name:        instanceName,
 		SnapPath:    path,
 		SnapOptions: options,
 	}
