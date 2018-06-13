@@ -218,8 +218,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	ts := tsAll[len(tsAll)-1]
-	markSeeded.WaitAll(ts)
-	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
+	gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
+	gadgetConnect.WaitAll(ts)
+	markSeeded.WaitFor(gadgetConnect)
+	tsAll = append(tsAll, state.NewTaskSet(gadgetConnect, markSeeded))
 
 	return tsAll, nil
 }

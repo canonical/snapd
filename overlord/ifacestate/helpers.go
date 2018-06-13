@@ -526,3 +526,17 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 
 	return infos, nil
 }
+
+func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {
+	if snapID == "system" {
+		return snap.DropNick(snapID), nil
+	}
+	decl, err := assertstate.SnapDeclaration(st, snapID)
+	if asserts.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return decl.SnapName(), nil
+}

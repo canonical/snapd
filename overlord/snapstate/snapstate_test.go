@@ -9951,3 +9951,28 @@ func (s *canDisableSuite) TestCanDisable(c *C) {
 		c.Check(snapstate.CanDisable(info), Equals, tt.canDisable)
 	}
 }
+
+func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.GadgetConnections(s.state)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	s.prepareGadget(c, `
+connections:
+  - plug: snap1idididididididididididididi:plug
+    slot: snap2idididididididididididididi:slot
+`)
+
+	conns, err := snapstate.GadgetConnections(s.state)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []snap.GadgetConnection{
+		{Plug: snap.GadgetConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: snap.GadgetConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
+}
