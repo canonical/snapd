@@ -2390,8 +2390,10 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	// NOTE: "core" is possibly the only snap that's sure to be in all stores
 	//       when we drop "core" in the move to snapd/core18/etc, change this
 	infoURL := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
-		"fields":       {"download"},
-		"architecture": {"amd64"},
+		// we only want the download URL
+		"fields": {"download"},
+		// we only need *one* (but can't filter by channel ... yet)
+		"architecture": {s.architecture},
 	})
 	hosts = append(hosts, infoURL.Host)
 

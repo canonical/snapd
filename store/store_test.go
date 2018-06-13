@@ -7083,7 +7083,7 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 		switch r.URL.Path {
 		case "/v2/snaps/info/core":
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Query().Encode(), DeepEquals, "architecture=amd64&fields=download")
+			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.UbuntuArchitecture()}})
 			u, err := url.Parse("/download/core")
 			c.Assert(err, IsNil)
 			io.WriteString(w, fmt.Sprintf(`{"channel-map": [{"download": {"url": %q}}]}`, mockServerURL.ResolveReference(u).String()))
