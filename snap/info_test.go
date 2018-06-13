@@ -478,6 +478,25 @@ apps:
 	})
 }
 
+func (s *infoSuite) TestHookTakesGlobalEnv(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+hooks:
+ foo:
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Hooks["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"global-k=global-v",
+	})
+}
+
 func (s *infoSuite) TestSplitSnapApp(c *C) {
 	for _, t := range []struct {
 		in  string
@@ -934,6 +953,69 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
 
+func (s *infoSuite) TestDottedPathSlot(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+
+	slot := &snap.SlotInfo{Attrs: attrs}
+	c.Assert(slot, NotNil)
+
+	v, ok := slot.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+
+	v, ok = slot.Lookup("nested")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
+
+	_, ok = slot.Lookup("x")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("..")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("nested.foo.x")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("nested.x")
+	c.Assert(ok, Equals, false)
+}
+
+func (s *infoSuite) TestDottedPathPlug(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+
+	plug := &snap.PlugInfo{Attrs: attrs}
+	c.Assert(plug, NotNil)
+
+	v, ok := plug.Lookup("nested")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
+
+	v, ok = plug.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+
+	_, ok = plug.Lookup("x")
+	c.Assert(ok, Equals, false)
+
+	_, ok = plug.Lookup("..")
+	c.Assert(ok, Equals, false)
+
+	_, ok = plug.Lookup("nested.foo.x")
+	c.Assert(ok, Equals, false)
+}
+
 func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	dirs.SetRootDir("")
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
@@ -981,4 +1063,14 @@ func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
 	} {
 		c.Check(snap.StopModeType(t.stopMode).KillSignal(), Equals, t.killSig)
 	}
+}
+
+func (s *infoSuite) TestNickname(c *C) {
+	c.Check(snap.UseNick("core"), Equals, "system")
+	c.Check(snap.UseNick("system"), Equals, "system")
+	c.Check(snap.UseNick("foo"), Equals, "foo")
+
+	c.Check(snap.DropNick("core"), Equals, "core")
+	c.Check(snap.DropNick("system"), Equals, "core")
+	c.Check(snap.DropNick("foo"), Equals, "foo")
 }

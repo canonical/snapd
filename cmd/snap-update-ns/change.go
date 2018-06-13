@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,6 +45,13 @@ const (
 	// Remount when needed
 )
 
+var (
+	// ErrIgnoredMissingMount is returned when a mount entry has
+	// been marked with x-snapd.ignore-missing, and the mount
+	// source or target do not exist.
+	ErrIgnoredMissingMount = errors.New("mount source or target are missing")
+)
+
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
 	Entry  osutil.MountEntry
@@ -59,6 +67,12 @@ func (c Change) String() string {
 var changePerform func(*Change, *Secure) ([]*Change, error)
 
 func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
+	// If we've been asked to create a missing path, and the mount
+	// entry uses the ignore-missing option, return an error.
+	if c.Entry.XSnapdIgnoreMissing() {
+		return nil, ErrIgnoredMissingMount
+	}
+
 	var err error
 	var changes []*Change
 
@@ -73,7 +87,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	// create the parent directory and then the final element relative to it.
 	// The traversed space may be writable so we just try to create things
 	// first.
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	kind := c.Entry.XSnapdKind()
 
 	// TODO: re-factor this, if possible, with inspection and preemptive
 	// creation after the current release ships. This should be possible but
@@ -84,12 +98,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	case "file":
 		err = sec.MkfileAll(path, mode, uid, gid)
 	case "symlink":
-		target, _ := c.Entry.OptStr("x-snapd.symlink")
-		if target == "" {
-			err = fmt.Errorf("cannot create symlink with empty target")
-		} else {
-			err = sec.MksymlinkAll(path, mode, uid, gid, target)
-		}
+		err = sec.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
@@ -102,8 +111,6 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 			// performed the hole poking and thus additional changes must be nil.
 			_, err = c.createPath(path, false, sec)
 		}
-	} else if err != nil {
-		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
 }
@@ -111,7 +118,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 	var changes []*Change
 
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	kind := c.Entry.XSnapdKind()
 	path := c.Entry.Dir
 
 	// We use lstat to ensure that we don't follow a symlink in case one was
@@ -151,15 +158,17 @@ func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 	return changes, err
 }
 
-func (c *Change) ensureSource(sec *Secure) error {
+func (c *Change) ensureSource(sec *Secure) ([]*Change, error) {
+	var changes []*Change
+
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
 	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
-		return nil
+		return nil, nil
 	}
 
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	kind := c.Entry.XSnapdKind()
 	path := c.Entry.Name
 	fi, err := osLstat(path)
 
@@ -178,17 +187,31 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false, sec)
+		// NOTE: This createPath is using pokeHoles, to make read-only places
+		// writable, but only for layouts and not for other (typically content
+		// sharing) mount entries.
+		//
+		// This is done because the changes made with pokeHoles=true are only
+		// visible in this current mount namespace and are not generally
+		// visible from other snaps because they inhabit different namespaces.
+		//
+		// In other words, changes made here are only observable by the single
+		// snap they apply to. As such they are useless for content sharing but
+		// very much useful to layouts.
+		pokeHoles := c.Entry.XSnapdOrigin() == "layout"
+		changes, err = c.createPath(path, pokeHoles, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
 	}
-	return err
+
+	return changes, err
 }
 
 // changePerformImpl is the real implementation of Change.Perform
 func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 	if c.Action == Mount {
+		var changesSource, changesTarget []*Change
 		// We may be asked to bind mount a file, bind mount a directory, mount
 		// a filesystem over a directory, or create a symlink (which is abusing
 		// the "mount" concept slightly). That actual operation is performed in
@@ -197,7 +220,10 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// As a result of this ensure call we may need to make the medium writable
 		// and that's why we may return more changes as a result of performing this
 		// one.
-		changes, err = c.ensureTarget(sec)
+		changesTarget, err = c.ensureTarget(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
+		changes = append(changes, changesTarget...)
 		if err != nil {
 			return changes, err
 		}
@@ -208,14 +234,17 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// This property holds as long as we don't interact with locations that
 		// are under the control of regular (non-snap) processes that are not
 		// suspended and may be racing with us.
-		err = c.ensureSource(sec)
+		changesSource, err = c.ensureSource(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
+		changes = append(changes, changesSource...)
 		if err != nil {
 			return changes, err
 		}
 	}
 
 	// Perform the underlying mount / unmount / unlink call.
-	err = c.lowLevelPerform()
+	err = c.lowLevelPerform(sec)
 	return changes, err
 }
 
@@ -234,29 +263,34 @@ func (c *Change) Perform(sec *Secure) ([]*Change, error) {
 }
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
-func (c *Change) lowLevelPerform() error {
+func (c *Change) lowLevelPerform(sec *Secure) error {
 	var err error
 	switch c.Action {
 	case Mount:
-		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
-			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			// Use Secure.BindMount for bind mounts
+			if flags&syscall.MS_BIND == syscall.MS_BIND {
+				err = sec.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+			} else {
+				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			}
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
 		return err
 	case Unmount:
-		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
 			flags := umountNoFollow
-			if c.Entry.OptBool("x-snapd.detach") {
+			if c.Entry.XSnapdDetach() {
 				flags |= syscall.MNT_DETACH
 			}
 			err = sysUnmount(c.Entry.Dir, flags)

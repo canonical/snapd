@@ -38,14 +38,14 @@ type TestInterface struct {
 	InterfaceName       string
 	InterfaceStaticInfo interfaces.StaticInfo
 	// AutoConnectCallback is the callback invoked inside AutoConnect
-	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
+	AutoConnectCallback func(*snap.PlugInfo, *snap.SlotInfo) bool
 	// BeforePreparePlugCallback is the callback invoked inside BeforePreparePlug()
 	BeforePreparePlugCallback func(plug *snap.PlugInfo) error
 	// BeforePrepareSlotCallback is the callback invoked inside BeforePrepareSlot()
 	BeforePrepareSlotCallback func(slot *snap.SlotInfo) error
 
-	ValidatePlugCallback func(plug *interfaces.Plug, attrs map[string]interface{}) error
-	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
+	BeforeConnectPlugCallback func(plug *interfaces.ConnectedPlug) error
+	BeforeConnectSlotCallback func(slot *interfaces.ConnectedSlot) error
 
 	// Support for interacting with the test backend.
 
@@ -134,16 +134,16 @@ func (t *TestInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
-func (t *TestInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	if t.ValidatePlugCallback != nil {
-		return t.ValidatePlugCallback(plug, attrs)
+func (t *TestInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
+	if t.BeforeConnectPlugCallback != nil {
+		return t.BeforeConnectPlugCallback(plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	if t.ValidateSlotCallback != nil {
-		return t.ValidateSlotCallback(slot, attrs)
+func (t *TestInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
+	if t.BeforeConnectSlotCallback != nil {
+		return t.BeforeConnectSlotCallback(slot)
 	}
 	return nil
 }
@@ -151,7 +151,7 @@ func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]int
 // AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate.
-func (t *TestInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (t *TestInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	if t.AutoConnectCallback != nil {
 		return t.AutoConnectCallback(plug, slot)
 	}

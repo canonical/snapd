@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,11 +21,20 @@ package configcore
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/timeutil"
 )
+
+func init() {
+	supportedConfigurations["core.refresh.hold"] = true
+	supportedConfigurations["core.refresh.schedule"] = true
+	supportedConfigurations["core.refresh.timer"] = true
+	supportedConfigurations["core.refresh.metered"] = true
+	supportedConfigurations["core.refresh.retain"] = true
+}
 
 func validateRefreshSchedule(tr Conf) error {
 	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
@@ -40,6 +49,16 @@ func validateRefreshSchedule(tr Conf) error {
 		}
 	}
 
+	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
+	if err != nil {
+		return err
+	}
+	if refreshRetainStr != "" {
+		if n, err := strconv.ParseUint(refreshRetainStr, 10, 8); err != nil || (n < 2 || n > 20) {
+			return fmt.Errorf("retain must be a number between 2 and 20, not %q", refreshRetainStr)
+		}
+	}
+
 	refreshHoldStr, err := coreCfg(tr, "refresh.hold")
 	if err != nil {
 		return err
@@ -48,6 +67,17 @@ func validateRefreshSchedule(tr Conf) error {
 		if _, err := time.Parse(time.RFC3339, refreshHoldStr); err != nil {
 			return fmt.Errorf("refresh.hold cannot be parsed: %v", err)
 		}
+	}
+
+	refreshOnMeteredStr, err := coreCfg(tr, "refresh.metered")
+	if err != nil {
+		return err
+	}
+	switch refreshOnMeteredStr {
+	case "", "hold":
+		// noop
+	default:
+		return fmt.Errorf("refresh.metered value %q is invalid", refreshOnMeteredStr)
 	}
 
 	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")

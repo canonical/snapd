@@ -193,7 +193,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 		case 1:
 			c.Check(r.Method, Equals, "POST")
 			c.Check(r.URL.Path, Matches, identifier)
-			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
+			fmt.Fprintf(w, "xxxxx-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 		default:
 			c.Fatalf("expected one request, got %d", n+1)
 		}
@@ -215,10 +215,19 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 1)
 
-	// run again, verify identifier is unchanged
+	// run again with the *same* dupSig and verify that it won't send
+	// that again
+	id, err = errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", map[string]string{
+		"Channel": "beta",
+	})
+	c.Check(err, IsNil)
+	c.Check(id, Equals, "already-reported")
+	c.Check(n, Equals, 1)
+
+	// run again with different data, verify identifier is unchanged
 	id, err = errtracker.Report("some-other-snap", "failed to do more stuff", "[failed to do more stuff]", nil)
 	c.Check(err, IsNil)
-	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
+	c.Check(id, Equals, "xxxxx-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 2)
 }
 
@@ -491,4 +500,45 @@ func (s *ErrtrackerTestSuite) TestEnviron(c *C) {
 		"SHELL=/bin/sh",
 		"XDG_RUNTIME_DIR=<set>",
 	})
+}
+
+func (s *ErrtrackerTestSuite) TestReportsDB(c *C) {
+	db, err := errtracker.NewReportsDB(filepath.Join(s.tmpdir, "foo.db"))
+	c.Assert(err, IsNil)
+
+	c.Check(db.AlreadyReported("some-dup-sig"), Equals, false)
+
+	err = db.MarkReported("some-dup-sig")
+	c.Check(err, IsNil)
+
+	c.Check(db.AlreadyReported("some-dup-sig"), Equals, true)
+	c.Check(db.AlreadyReported("other-dup-sig"), Equals, false)
+}
+
+func (s *ErrtrackerTestSuite) TestReportsDBCleanup(c *C) {
+	db, err := errtracker.NewReportsDB(filepath.Join(s.tmpdir, "foo.db"))
+	c.Assert(err, IsNil)
+
+	errtracker.SetReportDBCleanupTime(db, 1*time.Millisecond)
+
+	err = db.MarkReported("some-dup-sig")
+	c.Check(err, IsNil)
+
+	time.Sleep(10 * time.Millisecond)
+	err = db.MarkReported("other-dup-sig")
+	c.Check(err, IsNil)
+
+	// this one got cleaned out
+	c.Check(db.AlreadyReported("some-dup-sig"), Equals, false)
+	// this one is still fresh
+	c.Check(db.AlreadyReported("other-dup-sig"), Equals, true)
+}
+
+func (s *ErrtrackerTestSuite) TestReportsDBnilDoesNotCrash(c *C) {
+	db, err := errtracker.NewReportsDB("/proc/1/environ")
+	c.Assert(err, NotNil)
+	c.Check(db, IsNil)
+
+	c.Check(db.AlreadyReported("dupSig"), Equals, false)
+	c.Check(db.MarkReported("dupSig"), ErrorMatches, "cannot mark error report as reported with an uninitialized reports database")
 }

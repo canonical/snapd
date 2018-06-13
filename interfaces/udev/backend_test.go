@@ -99,6 +99,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -127,6 +128,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -167,6 +169,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 	}
 }
@@ -189,6 +192,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -218,6 +222,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -241,6 +246,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -268,6 +274,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -385,6 +392,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -412,4 +420,11 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 		c.Check(len(s.udevadmCmd.Calls()), Equals, 0)
 		s.RemoveSnap(c, snapInfo)
 	}
+}
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"device-cgroup-v1",
+		"tagging",
+	})
 }

@@ -702,6 +702,12 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/lost\+found" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/media", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/media" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/snap", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/snap" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/lib/snapd" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd/hostfs", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/lib/snapd/hostfs" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
@@ -1143,6 +1149,61 @@ apps:
 	}
 }
 
+func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: 12s
+`)
+	fooNotADaemon := []byte(`
+apps:
+  foo:
+    watchdog-timeout: 12s
+`)
+
+	fooNegative := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: -12s
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo not a service",
+		desc: fooNotADaemon,
+		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
+	}, {
+		name: "negative timeout",
+		desc: fooNegative,
+		err:  `cannot use a negative watchdog-timeout in application "foo"`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
 func (s *YamlSuite) TestValidateAppTimer(c *C) {
 	meta := []byte(`
 name: foo
@@ -1218,4 +1279,46 @@ base: bar
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+}
+
+func (s *ValidateSuite) TestValidateCommonIDs(c *C) {
+	meta := `
+name: foo
+version: 1.0
+`
+	good := meta + `
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.bar
+  baz:
+`
+	bad := meta + `
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.foo
+  baz:
+`
+	for i, tc := range []struct {
+		meta string
+		err  string
+	}{
+		{good, ""},
+		{bad, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`},
+	} {
+		c.Logf("tc #%v", i)
+		info, err := InfoFromSnapYaml([]byte(tc.meta))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, NotNil)
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
 }

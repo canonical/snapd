@@ -29,6 +29,9 @@ import (
 var (
 	AddImplicitSlots          = addImplicitSlots
 	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
+	CheckConnectConflicts     = checkConnectConflicts
+	FindSymmetricAutoconnect  = findSymmetricAutoconnect
+	ConnectPriv               = connect
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
@@ -39,6 +42,12 @@ func AddForeignTaskHandlers(m *InterfaceManager) {
 		return errors.New("error out")
 	}
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
+}
+
+func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
+	old := removeStaleConnections
+	removeStaleConnections = f
+	return func() { removeStaleConnections = old }
 }
 
 func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {

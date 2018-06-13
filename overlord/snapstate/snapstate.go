@@ -46,8 +46,7 @@ import (
 
 // control flags for doInstall
 const (
-	maybeCore = 1 << iota
-	skipConfigure
+	skipConfigure = 1 << iota
 )
 
 // control flags for "Configure()"
@@ -56,13 +55,6 @@ const (
 	TrackHookError
 	UseConfigDefaults
 )
-
-func needsMaybeCore(typ snap.Type) int {
-	if typ == snap.TypeOS {
-		return maybeCore
-	}
-	return 0
-}
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.Name() == "system" {
@@ -181,14 +173,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(linkSnap)
 	prev = linkSnap
 
-	// security: phase 2, no-op unless core
-	if flags&maybeCore != 0 {
-		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
-		setupSecurityPhase2.Set("core-phase-2", true)
-		addTask(setupSecurityPhase2)
-		prev = setupSecurityPhase2
-	}
-
 	// auto-connections
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
 	addTask(autoConnect)
@@ -223,6 +207,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+		var retain int
+		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
+			retain = 3
+		}
+		retain-- //  we're adding one
+
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -254,7 +244,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
-		for i := 0; i <= currentIndex-2; i++ {
+		for i := 0; i <= currentIndex-retain; i++ {
 			si := seq[i]
 			if boot.InUse(snapsup.Name(), si.Revision) {
 				continue
@@ -283,9 +273,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		confFlags |= UseConfigDefaults
 	}
 
-	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
-	configSet.WaitAll(ts)
-	ts.AddAll(configSet)
+	// we do not support configuration for bases or the "snapd" snap yet
+	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
+		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
+		configSet.WaitAll(ts)
+		ts.AddAll(configSet)
+	}
 
 	return ts, nil
 }
@@ -554,7 +547,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
-	instFlags := maybeCore
+	var instFlags int
 	if flags.SkipConfigure {
 		// extract it as a doInstall flag, this is not passed
 		// into SnapSetup
@@ -582,6 +575,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    flags.ForSnapSetup(),
+		Type:     info.Type,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -631,9 +625,10 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
+		Type:         info.Type,
 	}
 
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -781,14 +776,17 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 
 		snapsup := &SnapSetup{
+			Base:         update.Base,
+			Prereq:       defaultContentPlugProviders(st, update),
 			Channel:      channel,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
+			Type:         update.Type,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
+		ts, err := doInstall(st, snapst, snapsup, 0)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -1521,10 +1519,6 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
-	typ, err := snapst.Type()
-	if err != nil {
-		return nil, err
-	}
 	flags.Revert = true
 	// TODO: make flags be per revision to avoid this logic (that
 	//       leaves corner cases all over the place)
@@ -1543,7 +1537,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
 	}
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(typ))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1583,7 +1577,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-		}, maybeCore)
+			Type:         newInfo.Type,
+		}, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1837,7 +1832,9 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
-// ConfigDefaults returns the configuration defaults for the snap specified in the gadget. If gadget is absent or the snap has no snap-id it returns ErrNoState.
+// ConfigDefaults returns the configuration defaults for the snap specified in
+// the gadget. If gadget is absent or the snap has no snap-id it returns
+// ErrNoState.
 func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
@@ -1849,14 +1846,34 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
+	core, err := CoreInfo(st)
+	if err != nil {
+		return nil, err
+	}
+	isCoreDefaults := core.Name() == snapName
+
 	si := snapst.CurrentSideInfo()
-	if si.SnapID == "" {
+	// core snaps can be addressed even without a snap-id via the special
+	// "system" value in the config; first-boot always configures the core
+	// snap with UseConfigDefaults
+	if si.SnapID == "" && !isCoreDefaults {
 		return nil, state.ErrNoState
 	}
 
 	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 	if err != nil {
 		return nil, err
+	}
+
+	// we support setting core defaults via "system"
+	if isCoreDefaults {
+		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
+			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
+			}
+
+			return defaults, nil
+		}
 	}
 
 	defaults, ok := gadgetInfo.Defaults[si.SnapID]

@@ -86,6 +86,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// core on classic is special
+	//
+	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && release.OnClassic {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
@@ -167,4 +169,9 @@ func addContent(securityTag string, snippet string, content map[string]*osutil.F
 
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns list of features supported by snapd for dbus communication.
+func (b *Backend) SandboxFeatures() []string {
+	return []string{"mediated-bus-access"}
 }

@@ -53,4 +53,17 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
  * ensure that "/snap" is mounted shared. See LP:#1668659
  */
 void sc_ensure_shared_snap_mount(void);
+
+/**
+ * Set up user mounts, private to this process.
+ *
+ * If any user mounts have been configured for this process, this does
+ * the following:
+ * - create a new mount namespace
+ * - reconfigure all existing mounts to slave mode
+ * - perform all user mounts
+ */
+void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *snap_name);
+
 #endif

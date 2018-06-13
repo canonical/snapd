@@ -36,6 +36,8 @@ func (client *Client) SetConf(snapName string, patch map[string]interface{}) (ch
 }
 
 // Conf asks for a snap's current configuration.
+//
+// Note that the configuration may include json.Numbers.
 func (client *Client) Conf(snapName string, keys []string) (configuration map[string]interface{}, err error) {
 	// Prepare query
 	query := url.Values{}
