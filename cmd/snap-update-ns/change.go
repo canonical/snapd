@@ -98,12 +98,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	case "file":
 		err = sec.MkfileAll(path, mode, uid, gid)
 	case "symlink":
-		target := c.Entry.XSnapdSymlink()
-		if target == "" {
-			err = fmt.Errorf("cannot create symlink with empty target")
-		} else {
-			err = sec.MksymlinkAll(path, mode, uid, gid, target)
-		}
+		err = sec.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
@@ -116,8 +111,6 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 			// performed the hole poking and thus additional changes must be nil.
 			_, err = c.createPath(path, false, sec)
 		}
-	} else if err != nil {
-		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
 }

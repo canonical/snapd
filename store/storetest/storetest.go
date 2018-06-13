@@ -88,3 +88,7 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 	panic("fakeStore.WriteCatalogs not expected")
 }
+
+func (Store) ConnectivityCheck() (map[string]bool, error) {
+	panic("ConnectivityCheck not expected")
+}

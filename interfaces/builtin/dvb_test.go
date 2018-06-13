@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,86 +30,81 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type RawUsbInterfaceSuite struct {
+type DvbInterfaceSuite struct {
 	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
+	slotInfo *snap.SlotInfo
 	plug     *interfaces.ConnectedPlug
+	plugInfo *snap.PlugInfo
 }
 
-var _ = Suite(&RawUsbInterfaceSuite{
-	iface: builtin.MustInterface("raw-usb"),
+var _ = Suite(&DvbInterfaceSuite{
+	iface: builtin.MustInterface("dvb"),
 })
 
-const rawusbConsumerYaml = `name: consumer
+const dvbConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [raw-usb]
+  plugs: [dvb]
 `
 
-const rawusbCoreYaml = `name: core
+const dvbCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  raw-usb:
+  dvb:
 `
 
-func (s *RawUsbInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, rawusbConsumerYaml, nil, "raw-usb")
-	s.slot, s.slotInfo = MockConnectedSlot(c, rawusbCoreYaml, nil, "raw-usb")
+func (s *DvbInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, dvbConsumerYaml, nil, "dvb")
+	s.slot, s.slotInfo = MockConnectedSlot(c, dvbCoreYaml, nil, "dvb")
 }
 
-func (s *RawUsbInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "raw-usb")
+func (s *DvbInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "dvb")
 }
 
-func (s *RawUsbInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *DvbInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "raw-usb",
-		Interface: "raw-usb",
+		Name:      "dvb",
+		Interface: "dvb",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"raw-usb slots are reserved for the core snap")
+		"dvb slots are reserved for the core snap")
 }
 
-func (s *RawUsbInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *DvbInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *RawUsbInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *DvbInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/bus/usb/devices/`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/dvb/adapter[0-9]*/* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/udev/data/c212:[0-9]* r,")
 }
 
-func (s *RawUsbInterfaceSuite) TestUDevSpec(c *C) {
+func (s *DvbInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 3)
-	c.Assert(spec.Snippets(), testutil.Contains, `# raw-usb
-SUBSYSTEM=="usb", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# raw-usb
-SUBSYSTEM=="tty", ENV{ID_BUS}=="usb", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# dvb
+SUBSYSTEM=="dvb", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
-func (s *RawUsbInterfaceSuite) TestStaticInfo(c *C) {
+func (s *DvbInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows raw access to all USB devices`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "raw-usb")
+	c.Assert(si.Summary, Equals, `allows access to all DVB (Digital Video Broadcasting) devices and APIs`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "dvb")
 }
 
-func (s *RawUsbInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
-}
-
-func (s *RawUsbInterfaceSuite) TestInterfaces(c *C) {
+func (s *DvbInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
