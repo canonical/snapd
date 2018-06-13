@@ -7086,7 +7086,12 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.UbuntuArchitecture()}})
 			u, err := url.Parse("/download/core")
 			c.Assert(err, IsNil)
-			io.WriteString(w, fmt.Sprintf(`{"channel-map": [{"download": {"url": %q}}]}`, mockServerURL.ResolveReference(u).String()))
+			io.WriteString(w,
+				fmt.Sprintf(`{"channel-map": [{"download": {"url": %q}}, {"download": {"url": %q}}, {"download": {"url": %q}}]}`,
+					mockServerURL.ResolveReference(u).String(),
+					mockServerURL.String()+"/bogus1/",
+					mockServerURL.String()+"/bogus2/",
+				))
 		case "/download/core":
 			c.Check(r.Method, Equals, "HEAD")
 			w.WriteHeader(200)
