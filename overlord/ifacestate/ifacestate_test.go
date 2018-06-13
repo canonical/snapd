@@ -346,16 +346,16 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t), IsNil)
+	c.Assert(ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true), IsNil)
 
-	ts, err := ifacestate.ConnectPriv(s.state, t, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", true)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 	var auto bool
 	connectTask.Get("auto", &auto)
-	c.Assert(auto, Equals, auto)
+	c.Assert(auto, Equals, true)
 }
 
 func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *state.Task) error {
@@ -385,7 +385,7 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
+	return ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true)
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
