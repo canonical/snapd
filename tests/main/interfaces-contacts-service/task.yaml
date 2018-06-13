@@ -7,9 +7,10 @@ systems:
     - -ubuntu-14.04-*
 
 environment:
-    XDG_CONFIG_HOME: $(pwd)/config
-    XDG_DATA_HOME: $(pwd)/share
-    XDG_CACHE_HOME: $(pwd)/cache
+    XDG: $(pwd)/xdg
+    XDG_CONFIG_HOME: $XDG/config
+    XDG_DATA_HOME: $XDG/share
+    XDG_CACHE_HOME: $XDG/cache
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -21,7 +22,17 @@ prepare: |
 restore: |
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
-    rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+    # Retry until the xdg directory can be removed successfully
+    # The retry is needed because sporadically the data inside is locked and
+    # it is needed more time until the we can remove it.
+    for i in $(seq 3); do
+        if rm -rf "$XDG"; then
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "Directory $XDG could not be deleted"
+    exit 1
 
 execute: |
     echo "Setting up D-Bus session bus"
