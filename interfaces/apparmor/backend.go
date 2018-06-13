@@ -287,6 +287,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec.(*Specification).AddSnapLayout(snapInfo)
 
 	// core on classic is special
+	//
+	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
@@ -296,6 +298,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// confused too easy, especially at rollbacks, so we delete the cache.
 	// See LP:#1460152 and
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
+	//
+	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {

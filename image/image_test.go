@@ -50,7 +50,7 @@ import (
 
 type emptyStore struct{}
 
-func (s *emptyStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *emptyStore) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
 	return nil, fmt.Errorf("cannot find snap")
 }
 
@@ -172,11 +172,19 @@ func (s *imageSuite) TearDownTest(c *C) {
 }
 
 // interface for the store
-func (s *imageSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	if info, ok := s.storeSnapInfo[spec.Name]; ok {
-		return info, nil
+func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, _ *auth.UserState, _ *store.RefreshOptions) ([]*snap.Info, error) {
+	if len(actions) != 1 {
+		return nil, fmt.Errorf("expected 1 action, got %d", len(actions))
 	}
-	return nil, fmt.Errorf("no %q in the fake store", spec.Name)
+
+	if actions[0].Action != "download" {
+		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
+	}
+
+	if info, ok := s.storeSnapInfo[actions[0].Name]; ok {
+		return []*snap.Info{info}, nil
+	}
+	return nil, fmt.Errorf("no %q in the fake store", actions[0].Name)
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {

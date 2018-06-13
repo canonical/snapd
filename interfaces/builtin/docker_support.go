@@ -60,6 +60,11 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/runc/       rw,
 /{,var/}run/runc/**     mrwklix,
 
+# Socket for docker-container-shim
+unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
+
+/{,var/}run/mount/utab r,
+
 # Wide read access to /proc, but somewhat limited writes for now
 @{PROC}/ r,
 @{PROC}/** r,
