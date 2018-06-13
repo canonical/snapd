@@ -19,4 +19,9 @@ execute: |
     echo "Check that snap-repair can be run"
     "${LIBEXECDIR}"/snapd/snap-repair run
 
-    
+debug: |
+    date
+    systemctl list-timers --all
+    ls -l /lib/systemd/system/snapd* || true
+    systemctl show snapd.snap-repair.timer
+    journalctl -u snapd.snap-repair.timer -u snapd.snap-repair.service
