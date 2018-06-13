@@ -38,7 +38,6 @@ var (
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -63,6 +62,7 @@ type SystemCalls interface {
 	Openat(dirfd int, path string, flags int, mode uint32) (fd int, err error)
 	Unmount(target string, flags int) error
 	Fstat(fd int, buf *syscall.Stat_t) error
+	Fstatfs(fd int, buf *syscall.Statfs_t) error
 }
 
 // MockSystemCalls replaces real system calls with those of the argument.
@@ -82,6 +82,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysSymlinkat := sysSymlinkat
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
+	oldFstatfs := sysFstatfs
 	oldSysFchdir := sysFchdir
 	oldSysLstat := sysLstat
 
@@ -100,6 +101,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysSymlinkat = sc.Symlinkat
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
+	sysFstatfs = sc.Fstatfs
 	sysFchdir = sc.Fchdir
 	sysLstat = sc.SysLstat
 
@@ -119,6 +121,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysSymlinkat = oldSysSymlinkat
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
+		sysFstatfs = oldFstatfs
 		sysFchdir = oldSysFchdir
 		sysLstat = oldSysLstat
 	}

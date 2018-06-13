@@ -58,9 +58,10 @@ type SnapManager struct {
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	// FIXME: rename to RequestedChannel to convey the meaning better
-	Channel string `json:"channel,omitempty"`
-	UserID  int    `json:"user-id,omitempty"`
-	Base    string `json:"base,omitempty"`
+	Channel string    `json:"channel,omitempty"`
+	UserID  int       `json:"user-id,omitempty"`
+	Base    string    `json:"base,omitempty"`
+	Type    snap.Type `json:"type,omitempty"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
