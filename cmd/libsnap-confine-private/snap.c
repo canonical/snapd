@@ -169,7 +169,7 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_drop_instance_name(const char *name, char *snap_name,
+void sc_snap_drop_instance_key(const char *name, char *snap_name,
 				size_t snap_name_size)
 {
 	sc_snap_split_instance_name(name, snap_name, snap_name_size, NULL, 0);
