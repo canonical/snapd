@@ -61,7 +61,7 @@ func updateCurrentSymlinks(info *snap.Info) error {
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.Revision.Unset() {
-		return fmt.Errorf("cannot link snap %q with unset revision", info.Name())
+		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	if err := generateWrappers(info); err != nil {
@@ -74,7 +74,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 		if model.Base() != "" {
 			bootBase = model.Base()
 		}
-		switch info.Name() {
+		switch info.InstanceName() {
 		case model.Kernel(), bootBase:
 			if err := boot.SetNextBoot(info); err != nil {
 				return err
@@ -116,17 +116,17 @@ func generateWrappers(s *snap.Info) error {
 func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
-		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
+		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
 	}
 
 	err2 := wrappers.RemoveSnapServices(s, meter)
 	if err2 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.Name(), err2)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err2)
 	}
 
 	err3 := wrappers.RemoveSnapDesktopFiles(s)
 	if err3 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
 	}
 
 	return firstErr(err1, err2, err3)

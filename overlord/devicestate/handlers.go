@@ -360,7 +360,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
 		}
-		gadgetName = gadgetInfo.Name()
+		gadgetName = gadgetInfo.InstanceName()
 
 		tr = config.NewTransaction(t.State())
 		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)

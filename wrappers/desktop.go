@@ -120,7 +120,7 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 		}
 	}
 
-	logger.Noticef("cannot use line %q for desktop file %q (snap %s)", line, desktopFile, s.Name())
+	logger.Noticef("cannot use line %q for desktop file %q (snap %s)", line, desktopFile, s.InstanceName())
 	// The Exec= line in the desktop file is invalid. Instead of failing
 	// hard we rewrite the Exec= line. The convention is that the desktop
 	// file has the same name as the application we can use this fact here.
@@ -214,7 +214,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 			return err
 		}
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.InstanceName(), filepath.Base(df)))
 		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
@@ -232,7 +232,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
+	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.InstanceName()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {
 		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)

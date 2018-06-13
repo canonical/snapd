@@ -218,7 +218,8 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	}
 
 	return &essentialInfo{
-		Name:        info.Name(),
+		// TODO parallel-install: use of proper instance/store name
+		Name:        info.InstanceName(),
 		SnapID:      snapID,
 		DeveloperID: develID,
 		DevelName:   devel,
@@ -329,7 +330,8 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		snaps[info.Name()] = fn
+		// TODO parallel-install: use of proper instance/store name
+		snaps[info.InstanceName()] = fn
 	}
 
 	return snaps, err

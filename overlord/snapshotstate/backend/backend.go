@@ -161,7 +161,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	snapshot := &client.Snapshot{
 		SetID:    id,
-		Snap:     si.Name(),
+		Snap:     si.InstanceName(),
 		Revision: si.Revision,
 		Version:  si.Version,
 		Time:     time.Now(),
