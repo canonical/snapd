@@ -48,6 +48,7 @@ type snapOpTestServer struct {
 	total     int
 	channel   string
 	rebooting bool
+	snap      string
 }
 
 var _ = check.Suite(&SnapOpSuite{})
@@ -74,11 +75,11 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "foo"}}}`)
+		fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "%s"}}}\n`, t.snap)
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar"}, "revision":42, "channel":"%s"}]}\n`, t.channel)
+		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar"}, "revision":42, "channel":"%s"}]}\n`, t.snap, t.channel)
 	default:
 		t.c.Fatalf("expected to get %d requests, now on %d", t.total, t.n+1)
 	}
@@ -106,6 +107,7 @@ func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.srv = snapOpTestServer{
 		c:     c,
 		total: 4,
+		snap:  "foo",
 	}
 }
 
@@ -456,6 +458,51 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["name"], check.DeepEquals, []string{"foo_bar"})
+		c.Check(form.Value["devmode"], check.IsNil)
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	// instance is named foo_bar
+	s.srv.snap = "foo_bar"
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath, "--instance", "foo_bar"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapSuite) TestInstallWithInstanceNoPath(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"install", "--instance", "foo_bar", "some-snap"})
+	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing from store")
+}
+
+func (s *SnapSuite) TestInstallManyWithInstance(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"install", "--instance", "foo_bar", "some-snap-1", "some-snap-2"})
+	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing multiple snaps")
 }
 
 func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
