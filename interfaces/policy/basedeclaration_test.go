@@ -863,6 +863,13 @@ revision: 0
 `)
 }
 
+func (s *baseDeclSuite) TestDoesNotPanic(c *C) {
+	// In case there are any issues in the actual interfaces we'd get a panic
+	// on snapd startup. This test prevents this from happing unnoticed.
+	_, err := policy.ComposeBaseDeclaration(builtin.Interfaces())
+	c.Assert(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {
 	const plugYaml = `name: plug-snap
 version: 0
