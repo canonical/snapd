@@ -7081,12 +7081,17 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/snaps/details/core":
+		case "/v2/snaps/info/core":
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Query().Encode(), DeepEquals, "fields=anon_download_url")
+			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.UbuntuArchitecture()}})
 			u, err := url.Parse("/download/core")
 			c.Assert(err, IsNil)
-			io.WriteString(w, fmt.Sprintf(`{"anon_download_url": %q}`, mockServerURL.ResolveReference(u).String()))
+			io.WriteString(w,
+				fmt.Sprintf(`{"channel-map": [{"download": {"url": %q}}, {"download": {"url": %q}}, {"download": {"url": %q}}]}`,
+					mockServerURL.ResolveReference(u).String(),
+					mockServerURL.String()+"/bogus1/",
+					mockServerURL.String()+"/bogus2/",
+				))
 		case "/download/core":
 			c.Check(r.Method, Equals, "HEAD")
 			w.WriteHeader(200)
@@ -7111,8 +7116,8 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 		mockServerURL.Host: true,
 	})
 	c.Check(seenPaths, DeepEquals, map[string]int{
-		"/api/v1/snaps/details/core": 1,
-		"/download/core":             1,
+		"/v2/snaps/info/core": 1,
+		"/download/core":      1,
 	})
 }
 
@@ -7121,7 +7126,7 @@ func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/snaps/details/core":
+		case "/v2/snaps/info/core":
 			w.WriteHeader(500)
 		default:
 			c.Fatalf("unexpected request: %s", r.URL.String())
@@ -7145,6 +7150,6 @@ func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
 	})
 	// three because retries
 	c.Check(seenPaths, DeepEquals, map[string]int{
-		"/api/v1/snaps/details/core": 3,
+		"/v2/snaps/info/core": 3,
 	})
 }
