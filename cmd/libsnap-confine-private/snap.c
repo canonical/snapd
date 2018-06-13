@@ -180,14 +180,14 @@ void sc_snap_split_instance_name(const char *name, char *snap_name,
 				 size_t instance_key_size)
 {
 	if (name == NULL) {
-		die("name not provided");
+		die("internal error: cannot split snap name when snap name is unset");
 	}
 	if (snap_name == NULL && instance_key == NULL) {
-		die("snap name and instance key are unset");
+		die("internal error: cannot split instance name when both snap name and instance key are unset");
 	}
 
 	const char *pos = strchr(name, '_');
-	const char *instance_key_start = NULL;
+	const char *instance_key_start = "";
 	size_t snap_name_len = 0;
 	size_t instance_key_len = 0;
 	if (pos == NULL) {
@@ -195,7 +195,7 @@ void sc_snap_split_instance_name(const char *name, char *snap_name,
 	} else {
 		snap_name_len = pos - name;
 		instance_key_start = pos + 1;
-		instance_key_len = strlen(name) - snap_name_len - 1;
+		instance_key_len = strlen(instance_key_start);
 	}
 
 	if (snap_name != NULL) {
