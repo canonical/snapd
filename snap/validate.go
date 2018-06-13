@@ -37,6 +37,9 @@ import (
 // Regular expressions describing correct identifiers.
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
+// The fixed length of valid snap IDs.
+const validSnapIDLength = 32
+
 // almostValidName is part of snap and socket name validation.
 //   the full regexp we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is
 //   O(2ⁿ) on the length of the string in python. An equivalent regexp that
@@ -690,7 +693,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
-	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media"} {
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap"} {
 		// We use the mountedTree constraint as this has the right semantics.
 		if mountedTree(path).IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q in an off-limits area", layout.Path)

@@ -163,3 +163,28 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
 	})
 }
+
+func (s *specSuite) TestSpecificationUberclash(c *C) {
+	// When everything clashes for access to /foo, what happens?
+	const uberclashYaml = `name: uberclash
+version: 0
+layout:
+  /foo:
+    type: tmpfs
+`
+	snapInfo := snaptest.MockInfo(c, uberclashYaml, &snap.SideInfo{Revision: snap.R(42)})
+	entry := osutil.MountEntry{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"}
+	s.spec.AddMountEntry(entry)
+	s.spec.AddUserMountEntry(entry)
+	s.spec.AddSnapLayout(snapInfo)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
+		// This is the non-layout entry, it was renamed to "foo-2"
+		{Dir: "/foo-2", Type: "tmpfs", Name: "tmpfs"},
+	})
+	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
+		// This is the user entry, it was _not_ renamed and it would clash with
+		// /foo but there is no way to request things like that for now.
+		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"},
+	})
+}
