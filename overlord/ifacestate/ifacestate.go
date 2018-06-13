@@ -136,12 +136,12 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	const notAuto = false
-	if err := checkConnectConflicts(st, plugSnap, slotSnap, notAuto); err != nil {
+	const auto = false
+	if err := checkConnectConflicts(st, plugSnap, slotSnap, auto); err != nil {
 		return nil, err
 	}
 
-	return connect(st, plugSnap, plugName, slotSnap, slotName, notAuto)
+	return connect(st, plugSnap, plugName, slotSnap, slotName, auto)
 }
 
 func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, auto bool) (*state.TaskSet, error) {
