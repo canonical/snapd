@@ -118,7 +118,7 @@ type: gadget
 `
 	var mockGadgetYaml = []byte(`
 defaults:
-  test-snap-id:
+  test-snap-ididididididididididid:
       bar: baz
       num: 1.305
 
@@ -151,7 +151,7 @@ hooks:
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-id"},
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-ididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -187,7 +187,7 @@ type: gadget
 `
 	var mockGadgetYaml = []byte(`
 defaults:
-  test-snap-id:
+  test-snap-ididididididididididid:
       bar: baz
       num: 1.305
 
@@ -213,7 +213,7 @@ volumes:
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-id"},
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-ididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",

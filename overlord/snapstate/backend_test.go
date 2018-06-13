@@ -163,7 +163,7 @@ func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 
 	typ := snap.TypeApp
 	switch spec.Name {
-	case "core", "some-core":
+	case "core", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
 	case "some-base":
 		typ = snap.TypeBase

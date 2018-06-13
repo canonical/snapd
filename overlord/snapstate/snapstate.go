@@ -26,7 +26,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"time"
 
 	"golang.org/x/net/context"
 
@@ -47,8 +46,7 @@ import (
 
 // control flags for doInstall
 const (
-	maybeCore = 1 << iota
-	skipConfigure
+	skipConfigure = 1 << iota
 )
 
 // control flags for "Configure()"
@@ -57,13 +55,6 @@ const (
 	TrackHookError
 	UseConfigDefaults
 )
-
-func needsMaybeCore(typ snap.Type) int {
-	if typ == snap.TypeOS {
-		return maybeCore
-	}
-	return 0
-}
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.Name() == "system" {
@@ -182,14 +173,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(linkSnap)
 	prev = linkSnap
 
-	// security: phase 2, no-op unless core
-	if flags&maybeCore != 0 {
-		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
-		setupSecurityPhase2.Set("core-phase-2", true)
-		addTask(setupSecurityPhase2)
-		prev = setupSecurityPhase2
-	}
-
 	// auto-connections
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
 	addTask(autoConnect)
@@ -291,8 +274,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// we do not support configuration for bases or the "snapd" snap yet
-	// TODO: we don't need maybeCore anymore we can look at
-	//      snapsup.Type now
 	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
 		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
 		configSet.WaitAll(ts)
@@ -476,39 +457,6 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
-// GuardCoreSetupProfilesPhase2 decides for a setup-profiles task that
-// is a phase 2 security setup for core whether to proceed, wait
-// (via Retry) or there is nothing to do. Helper for ifacestate.
-func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (proceed bool, err error) {
-	// phase 2 setup-profiles
-	if snapInfo.Type != snap.TypeOS {
-		// not the core snap, nothing to do
-		return false, nil
-	}
-	if ok, _ := task.State().Restarting(); ok {
-		// don't continue until we are in the restarted snapd
-		task.Logf("Waiting for restart...")
-		return false, &state.Retry{}
-	}
-	// if not on classic check there was no rollback
-	if !release.OnClassic {
-		// TODO: double check that we really rebooted
-		// otherwise this could be just a spurious restart
-		// of snapd
-		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
-		if err == ErrBootNameAndRevisionAgain {
-			return false, &state.Retry{After: 5 * time.Second}
-		}
-		if err != nil {
-			return false, err
-		}
-		if snapsup.Name() != name || snapInfo.Revision != rev {
-			return false, fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
-		}
-	}
-	return true, nil
-}
-
 func contentAttr(attrer interfaces.Attrer) string {
 	var s string
 	err := attrer.Attr("content", &s)
@@ -599,7 +547,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
-	instFlags := maybeCore
+	var instFlags int
 	if flags.SkipConfigure {
 		// extract it as a doInstall flag, this is not passed
 		// into SnapSetup
@@ -680,7 +628,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Type:         info.Type,
 	}
 
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -838,7 +786,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			Type:         update.Type,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
+		ts, err := doInstall(st, snapst, snapsup, 0)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -1571,10 +1519,6 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
-	typ, err := snapst.Type()
-	if err != nil {
-		return nil, err
-	}
 	flags.Revert = true
 	// TODO: make flags be per revision to avoid this logic (that
 	//       leaves corner cases all over the place)
@@ -1593,7 +1537,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
 	}
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(typ))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1633,7 +1577,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-		}, maybeCore)
+			Type:         newInfo.Type,
+		}, 0)
 		if err != nil {
 			return nil, err
 		}
