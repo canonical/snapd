@@ -604,6 +604,11 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
 
 const coreYaml = `name: core
 version: 1
+type: os
+`
+
+const snapdYaml = `name: snapd
+version: 1
 `
 
 func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreInfo *snap.Info) {
@@ -640,6 +645,41 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 
 	// Compute the profile and see if it matches.
 	dir, glob, content, err := apparmor.SnapConfineFromCoreProfile(coreInfo)
+	c.Assert(err, IsNil)
+	c.Assert(dir, Equals, expectedProfileDir)
+	c.Assert(glob, Equals, expectedProfileGlob)
+	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
+		expectedProfileName: {
+			Content: []byte(expectedProfileText),
+			Mode:    0644,
+		},
+	})
+}
+
+func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	dirs.SetRootDir(s.RootDir)
+
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+
+	// We expect to see the same profile, just anchored at a different directory.
+	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
+	expectedProfileName := strings.Replace(filepath.Join("/special/", snapdInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
+	expectedProfileGlob := strings.Replace(expectedProfileName, "."+snapdInfo.Revision.String()+".", ".*.", -1)
+	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
+%s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, snapdInfo.MountDir())
+
+	c.Assert(expectedProfileName, testutil.Contains, snapdInfo.Revision.String())
+
+	// Compute the profile and see if it matches.
+	dir, glob, content, err := apparmor.SnapConfineFromCoreProfile(snapdInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)

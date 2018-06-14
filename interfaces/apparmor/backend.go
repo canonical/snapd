@@ -198,6 +198,13 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
 	// /snap/core/111/usr/lib/snapd/snap-confine -> snap.core.111.usr.lib.snapd.snap-confine
 	patchedProfileName := strings.Replace(snapConfineInCore[1:], "/", ".", -1)
+	// we need to add a uniqe prefix on core18, otherwise we generate
+	// something like snap.snapd.56.usr.lib.snapd.snap-confine which
+	// will collide with the regular snapd snap profile glob
+	if !release.OnClassic {
+		patchedProfileName = "special." + patchedProfileName
+	}
+
 	// snap.core.111.usr.lib.snapd.snap-confine -> snap.core.*.usr.lib.snapd.snap-confine
 	patchedProfileGlob := strings.Replace(patchedProfileName, "."+coreInfo.Revision.String()+".", ".*.", 1)
 
@@ -208,7 +215,16 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 			Mode:    0644,
 		},
 	}
-	return dirs.SystemApparmorDir, patchedProfileGlob, content, nil
+
+	// on classic we use the system apparmor dir /etc/apparmod.
+	// but
+	if release.OnClassic {
+		dir = dirs.SystemApparmorDir
+	} else {
+		dir = dirs.SnapAppArmorDir
+	}
+
+	return dir, patchedProfileGlob, content, nil
 }
 
 // setupSnapConfineReexec will setup apparmor profiles on a classic
@@ -294,6 +310,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
+
+	// Deal with the "snapd" snap - we do the setup slightly differently
+	// here because this will run both on classic and on Ubuntu Core 18
+	// systems but /etc/apparmor.d is not writable on core18 systems
+	if snapName == "snapd" && release.AppArmorLevel() != release.NoAppArmor {
+		if err := setupSnapConfineReexec(snapInfo); err != nil {
+			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+		}
+	}
+
 	// core on core devices is also special, the apparmor cache gets
 	// confused too easy, especially at rollbacks, so we delete the cache.
 	// See LP:#1460152 and
