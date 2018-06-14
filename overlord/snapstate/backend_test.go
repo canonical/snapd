@@ -138,10 +138,6 @@ func (f *fakeStore) pokeStateLock() {
 }
 
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	if !spec.AnyChannel || spec.Channel != "" || !spec.Revision.Unset() {
-		panic("snapstate expected to use SnapInfo with SnapSpec.AnyChannel:true")
-	}
-
 	f.pokeStateLock()
 
 	sspec := snapSpec{

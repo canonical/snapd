@@ -2280,8 +2280,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2360,8 +2359,7 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2391,8 +2389,7 @@ func (s *storeTestSuite) TestInfo500(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	_, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, NotNil)
@@ -2426,8 +2423,7 @@ func (s *storeTestSuite) TestInfo500once(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2465,8 +2461,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2542,8 +2537,7 @@ func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2573,8 +2567,7 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2606,8 +2599,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2638,8 +2630,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2668,8 +2659,7 @@ func (s *storeTestSuite) TestInfoOopses(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	_, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world": got unexpected HTTP status code 5.. via GET to "http://\S+" \[OOPS-[[:xdigit:]]*\]`)
@@ -2712,8 +2702,7 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 
 	// the actual test
 	spec := SnapSpec{
-		Name:       "no-such-pkg",
-		AnyChannel: true,
+		Name: "no-such-pkg",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, NotNil)
@@ -3625,8 +3614,7 @@ func (s *storeTestSuite) TestSuggestedCurrency(c *C) {
 
 	// we should soon have a suggested currency
 	spec := SnapSpec{
-		Name:       "hello-world",
-		AnyChannel: true,
+		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -4100,8 +4088,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 
 		// Find the snap first
 		spec := SnapSpec{
-			Name:       "hello-world",
-			AnyChannel: true,
+			Name: "hello-world",
 		}
 		snap, err := sto.SnapInfo(spec, s.user)
 		c.Assert(snap, NotNil)
