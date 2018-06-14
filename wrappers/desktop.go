@@ -232,6 +232,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
+	// TODO parallel-install: verify use of instance names here
 	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.InstanceName()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {

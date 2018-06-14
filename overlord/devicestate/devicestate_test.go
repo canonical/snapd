@@ -2134,7 +2134,7 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series": "16",
-		// TODO parallel-install: use of proper instance/store name
+		// TODO parallel-install: use of proper store name
 		"snap-name":    info.InstanceName(),
 		"snap-id":      info.SideInfo.SnapID,
 		"publisher-id": "canonical",

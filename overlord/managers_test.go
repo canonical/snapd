@@ -449,7 +449,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
-		// TODO parallel-install: use of proper instance/store name
+		// TODO parallel-install: use of store name
 		"snap-id":       fakeSnapID(info.InstanceName()),
 		"snap-sha3-384": snapDigest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -643,7 +643,7 @@ func (ms *mgrsSuite) serveSnap(snapPath, revno string) {
 	if err != nil {
 		panic(err)
 	}
-	// TODO parallel-install: use of proper instance/store name
+	// TODO parallel-install: use of store name
 	name := info.InstanceName()
 	ms.serveIDtoName[fakeSnapID(name)] = name
 	ms.serveSnapPath[name] = snapPath
