@@ -140,7 +140,12 @@ func (f *fakeStore) pokeStateLock() {
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	info, err := f.snapInfo(spec, user)
+	sspec := snapSpec{
+		Name:     spec.Name,
+		Channel:  spec.Channel,
+		Revision: spec.Revision,
+	}
+	info, err := f.snapInfo(sspec, user)
 
 	userID := 0
 	if user != nil {
@@ -151,7 +156,13 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	return info, err
 }
 
-func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+type snapSpec struct {
+	Name     string
+	Channel  string
+	Revision snap.Revision
+}
+
+func (f *fakeStore) snapInfo(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		spec.Revision = snap.R(11)
 		if spec.Channel == "channel-for-7" {
@@ -360,12 +371,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		}
 
 		if a.Action == "install" {
-			spec := store.SnapSpec{
+			sspec := snapSpec{
 				Name:     a.Name,
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.snapInfo(spec, user)
+			info, err := f.snapInfo(sspec, user)
 			if err != nil {
 				installErrors[a.Name] = err
 				continue
