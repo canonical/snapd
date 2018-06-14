@@ -1027,26 +1027,10 @@ func mustBuy(paid bool, bought bool) bool {
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
 	Name string
-
-	// XXX only left because a lot of the test logic in overlord/snapstate
-	//     uses this. I'll rewrite them in a separate PR. Nothing else
-	//     should be using it (and in particular nothing calling SnapInfo!)
-	Channel    string
-	Revision   snap.Revision
-	AnyChannel bool
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	if snapSpec.Channel != "" {
-		return nil, fmt.Errorf("internal error: Channel specified to SnapInfo")
-	}
-	if !snapSpec.Revision.Unset() {
-		return nil, fmt.Errorf("internal error: Revision specified to SnapInfo")
-	}
-	if !snapSpec.AnyChannel {
-		return nil, fmt.Errorf("internal error: AnyChannel not specified to SnapInfo")
-	}
 	query := url.Values{}
 	query.Set("fields", strings.Join(s.infoFields, ","))
 	query.Set("architecture", s.architecture)
