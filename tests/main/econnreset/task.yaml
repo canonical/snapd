@@ -11,6 +11,7 @@ backends: [-autopkgtest]
 
 execute: |
     echo "Downloading a large snap in the background"
+    rm -f test-snapd-huge_*
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
