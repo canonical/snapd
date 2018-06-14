@@ -2591,9 +2591,12 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
-	// we only allow "get" from regular users in snapctl
-	if uid != 0 && snapctlOptions.Args[0] != "get" {
-		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
+	// we only allow "get" and -h/--help from regular users in snapctl
+	if uid != 0 {
+		arg := snapctlOptions.Args[0]
+		if arg != "get" && arg != "-h" && arg != "--help" {
+			return Forbidden("cannot use %q with uid %d, try with sudo", arg, uid)
+		}
 	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
