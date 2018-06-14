@@ -41,7 +41,7 @@ var _ = Suite(&uDevSuite{})
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{})
+	err := udev.ReloadRules(nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -61,7 +61,7 @@ if [ "$1" = "control" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{})
+	err := udev.ReloadRules(nil)
 	c.Assert(err.Error(), Equals, ""+
 		"cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
@@ -79,7 +79,7 @@ if [ "$1" = "trigger" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{})
+	err := udev.ReloadRules(nil)
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+

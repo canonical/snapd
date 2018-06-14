@@ -182,7 +182,7 @@ func (spec *Specification) TriggerSubsystem(subsystem string) {
 }
 
 func (spec *Specification) TriggeredSubsystems() []string {
-	if spec.udevadmSubsystemTriggers == nil {
+	if len(spec.udevadmSubsystemTriggers) == 0 {
 		return nil
 	}
 	c := make([]string, len(spec.udevadmSubsystemTriggers))

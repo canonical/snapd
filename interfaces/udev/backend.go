@@ -147,8 +147,7 @@ func (b *Backend) Remove(snapName string) error {
 	// FIXME: somehow detect the interfaces that were disconnected and set
 	// subsystemTriggers appropriately. ATM, it is always going to be empty
 	// on disconnect.
-	subsystemTriggers := []string{}
-	return ReloadRules(subsystemTriggers)
+	return ReloadRules(nil)
 }
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content []string) {
