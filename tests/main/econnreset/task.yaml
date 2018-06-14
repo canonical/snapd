@@ -1,4 +1,5 @@
 summary: Ensure that ECONNRESET is handled
+
 restore: |
     echo "Remove the firewall rule again"
     iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
@@ -8,6 +9,11 @@ restore: |
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
+
+debug: |
+    cat snap-download.log || true
+    ps -ef
+    ls -al
 
 execute: |
     echo "Downloading a large snap in the background"
