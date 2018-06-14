@@ -111,7 +111,10 @@ type storeInfo struct {
 
 func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 	if len(si.ChannelMap) == 0 {
-		return nil, fmt.Errorf("internal error: store info missing channel map")
+		// if a snap has no released revisions, it _could_ be returned
+		// (currently no, but spec is purposely ambiguous)
+		// we treat it as a 'not found' for now at least
+		return nil, ErrSnapNotFound
 	}
 
 	thisOne := si.ChannelMap[0]
