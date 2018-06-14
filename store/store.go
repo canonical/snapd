@@ -1393,6 +1393,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+		if err != nil {
+			logger.Debugf("download of %q failed: %#v", url, err)
+		}
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
@@ -1419,6 +1422,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			return err
 		}
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+		if err != nil {
+			logger.Debugf("download of %q failed: %#v", url, err)
+		}
 	}
 
 	if err != nil {
