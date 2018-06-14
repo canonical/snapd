@@ -138,17 +138,6 @@ func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
 
-// MimicPath returns the path of the directory where a mimic ought to be constructed.
-func (e *ReadOnlyFsError) MimicPath() string {
-	return e.Path
-}
-
-// MimicRequiredError describes errors that require construction of a writable mimic.
-type MimicRequiredError interface {
-	Error() string
-	MimicPath() string
-}
-
 // Secure is a helper for making filesystem operations free from certain kinds of attacks.
 type Secure struct{}
 
