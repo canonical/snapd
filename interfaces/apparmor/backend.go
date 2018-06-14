@@ -176,16 +176,17 @@ func (b *Backend) Initialize() error {
 	return nil
 }
 
-// snapConfineFromCoreProfile returns the apparmor profile for snap-confine in the given core snap.
-func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content map[string]*osutil.FileState, err error) {
+// snapConfineFromSnapProfile returns the apparmor profile for
+// snap-confine in the given core/snapd snap.
+func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[string]*osutil.FileState, err error) {
 	// Find the vanilla apparmor profile for snap-confine as present in the given core snap.
 
 	// We must test the ".real" suffix first, this is a workaround for
 	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
-	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	vanillaProfilePath := filepath.Join(info.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	vanillaProfileText, err := ioutil.ReadFile(vanillaProfilePath)
 	if os.IsNotExist(err) {
-		vanillaProfilePath = filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine")
+		vanillaProfilePath = filepath.Join(info.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine")
 		vanillaProfileText, err = ioutil.ReadFile(vanillaProfilePath)
 	}
 	if err != nil {
@@ -193,20 +194,20 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 	}
 
 	// Replace the path to vanilla snap-confine with the path to the mounted snap-confine from core.
-	snapConfineInCore := filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")
+	snapConfineInCore := filepath.Join(info.MountDir(), "usr/lib/snapd/snap-confine")
 	patchedProfileText := bytes.Replace(
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
-	// /snap/core/111/usr/lib/snapd/snap-confine -> snap.core.111.usr.lib.snapd.snap-confine
-	patchedProfileName := strings.Replace(snapConfineInCore[1:], "/", ".", -1)
-	// we need to add a uniqe prefix on core18, otherwise we generate
-	// something like snap.snapd.56.usr.lib.snapd.snap-confine which
-	// will collide with the regular snapd snap profile glob
-	if !release.OnClassic {
-		patchedProfileName = "special." + patchedProfileName
-	}
 
-	// snap.core.111.usr.lib.snapd.snap-confine -> snap.core.*.usr.lib.snapd.snap-confine
-	patchedProfileGlob := strings.Replace(patchedProfileName, "."+coreInfo.Revision.String()+".", ".*.", 1)
+	// We need to add a uniqe prefix that can never collide with a
+	// snap on the system. Using "snap-confine.*" is similar to
+	// "snap-update-ns.*" that is already used there
+	//
+	// So
+	//             /snap/core/111/usr/lib/snapd/snap-confine
+	// becomes
+	// snap-confine.snap.core.111.usr.lib.snapd.snap-confine
+	patchedProfileName := "snap-confine." + strings.Replace(snapConfineInCore[1:], "/", ".", -1)
+	patchedProfileGlob := strings.Replace(patchedProfileName, "."+info.Revision.String()+".", ".*.", 1)
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
 	content = map[string]*osutil.FileState{
@@ -216,30 +217,22 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 		},
 	}
 
-	// on classic we use the system apparmor dir /etc/apparmod.
-	// but
-	if release.OnClassic {
-		dir = dirs.SystemApparmorDir
-	} else {
-		dir = dirs.SnapAppArmorDir
-	}
-
-	return dir, patchedProfileGlob, content, nil
+	return dirs.SnapAppArmorDir, patchedProfileGlob, content, nil
 }
 
-// setupSnapConfineReexec will setup apparmor profiles on a classic
-// system on the hosts /etc/apparmor.d directory. This is needed for
-// running snap-confine from the core snap.
+// setupSnapConfineReexec will setup apparmor profiles on the hosts
+// /var/lib/snapd/apparmor/profiles directory. This is needed for
+// running snap-confine from the core or snapd snap.
 //
 // Additionally it will cleanup stale apparmor profiles it created.
-func setupSnapConfineReexec(coreInfo *snap.Info) error {
+func setupSnapConfineReexec(info *snap.Info) error {
 	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
 	if err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
-	dir, glob, content, err := snapConfineFromCoreProfile(coreInfo)
-	cache := dirs.SystemApparmorCacheDir
+	dir, glob, content, err := snapConfineFromSnapProfile(info)
+	cache := dirs.AppArmorCacheDir
 	if err != nil {
 		return fmt.Errorf("cannot compute snap-confine profile: %s", err)
 	}

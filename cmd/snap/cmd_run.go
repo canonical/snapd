@@ -682,16 +682,14 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// if we re-exec, we must run the snap-confine from the core/snapd snap
 	// as well, if they get out of sync, havoc will happen
 	if isReexeced() {
+		// exe is something like /snap/{snapd,core}/123/usr/bin/snap
 		exe, err := osReadlink("/proc/self/exe")
 		if err != nil {
 			return err
 		}
 		// snapBase will be "/snap/{core,snapd}/$rev/" because
-		// the snap binary is always under usr/bin/snap
-		snapBase, err := filepath.Abs(filepath.Join(filepath.Dir(exe), "..", ".."))
-		if err != nil {
-			return err
-		}
+		// the snap binary is always at $root/usr/bin/snap
+		snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
 		// Run snap-confine from the core/snapd snap. That
 		// will work because snap-confine on the core/snapd snap is
 		// mostly statically linked (except libudev and libc)
