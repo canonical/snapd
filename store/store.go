@@ -360,7 +360,6 @@ const (
 	// individual endpoint paths.
 	searchEndpPath      = "api/v1/snaps/search"
 	detailsEndpPath     = "api/v1/snaps/details"
-	bulkEndpPath        = "api/v1/snaps/metadata"
 	ordersEndpPath      = "api/v1/snaps/purchases/orders"
 	buyEndpPath         = "api/v1/snaps/purchases/buy"
 	customersMeEndpPath = "api/v1/snaps/purchases/customers/me"
@@ -1290,11 +1289,6 @@ type currentSnapJSON struct {
 	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
 }
 
-type metadataWrapper struct {
-	Snaps  []*currentSnapJSON `json:"snaps"`
-	Fields []string           `json:"fields"`
-}
-
 func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	// the store gets confused if we send snaps without a snapid
 	// (like local ones)
@@ -1322,119 +1316,6 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		IgnoreValidation: cs.IgnoreValidation,
 		// confinement purposely left empty
 	}
-}
-
-// query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(ctx context.Context, currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
-	if flags == nil {
-		flags = &RefreshOptions{}
-	}
-
-	if len(currentSnaps) == 0 {
-		// nothing to do
-		return nil, nil
-	}
-
-	// build input for the updates endpoint
-	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  currentSnaps,
-		Fields: s.detailFields,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.endpointURL(bulkEndpPath, nil),
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	if useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.addHeader("X-Ubuntu-Delta-Formats", s.deltaFormat)
-	}
-	if flags.RefreshManaged {
-		reqOptions.addHeader("X-Ubuntu-Refresh-Managed", "true")
-	}
-
-	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &updateData, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "query the store for updates")
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return updateData.Payload.Packages, nil
-}
-
-var refreshForCandidates = (*Store).refreshForCandidates
-
-// LookupRefresh returns a snap's store-offered revision information given its refresh candidate.
-func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
-	cur := currentSnap(installed)
-	if cur == nil {
-		return nil, ErrLocalSnap
-	}
-
-	latest, err := refreshForCandidates(s, context.TODO(), []*currentSnapJSON{cur}, user, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(latest) != 1 {
-		return nil, ErrSnapNotFound
-	}
-
-	rsnap := latest[0]
-	if !acceptableUpdate(rsnap, installed) {
-		return nil, ErrNoUpdateAvailable
-	}
-
-	return infoFromRemote(rsnap), nil
-}
-
-// ListRefresh returns the available updates for a list of refresh candidates.
-// NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(ctx context.Context, installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
-	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
-	for _, cs := range installed {
-		cur := currentSnap(cs)
-		if cur == nil {
-			continue
-		}
-		currentSnaps = append(currentSnaps, cur)
-		candidateMap[cs.SnapID] = cs
-	}
-
-	latest, err := s.refreshForCandidates(ctx, currentSnaps, user, flags)
-	if err != nil {
-		return nil, err
-	}
-
-	toRefresh := make([]*snap.Info, 0, len(latest))
-	for _, rsnap := range latest {
-		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
-			continue
-		}
-
-		toRefresh = append(toRefresh, infoFromRemote(rsnap))
-	}
-
-	return toRefresh, nil
-}
-
-func acceptableUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
-	rrev := snap.R(remote.Revision)
-	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
