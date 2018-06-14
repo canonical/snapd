@@ -105,6 +105,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	InfoFields   []string
 	DeltaFormat  string
 
 	// CacheDownloads is the number of downloads that should be cached
@@ -142,6 +143,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	infoFields   []string
 	deltaFormat  string
 	// reused http client
 	client *http.Client
@@ -284,6 +286,8 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
+	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil))
 }
 
 type searchResults struct {
@@ -298,9 +302,6 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
-// The fields we are interested in (not you, snap_yaml_raw)
-var detailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
-
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
 
@@ -310,19 +311,24 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		cfg = &defaultConfig
 	}
 
-	fields := cfg.DetailFields
-	if fields == nil {
-		fields = detailFields
+	detailFields := cfg.DetailFields
+	if detailFields == nil {
+		detailFields = defaultConfig.DetailFields
 	}
 
-	architecture := arch.UbuntuArchitecture()
-	if cfg.Architecture != "" {
-		architecture = cfg.Architecture
+	infoFields := cfg.InfoFields
+	if infoFields == nil {
+		infoFields = defaultConfig.InfoFields
 	}
 
-	series := release.Series
-	if cfg.Series != "" {
-		series = cfg.Series
+	architecture := cfg.Architecture
+	if cfg.Architecture == "" {
+		architecture = arch.UbuntuArchitecture()
+	}
+
+	series := cfg.Series
+	if cfg.Series == "" {
+		series = release.Series
 	}
 
 	deltaFormat := cfg.DeltaFormat
@@ -336,7 +342,8 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
 		fallbackStoreID: cfg.StoreID,
-		detailFields:    fields,
+		detailFields:    detailFields,
+		infoFields:      infoFields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 
@@ -359,7 +366,6 @@ const (
 	// one at a time; so it's better to consider that as part of
 	// individual endpoint paths.
 	searchEndpPath      = "api/v1/snaps/search"
-	detailsEndpPath     = "api/v1/snaps/details"
 	ordersEndpPath      = "api/v1/snaps/purchases/orders"
 	buyEndpPath         = "api/v1/snaps/purchases/buy"
 	customersMeEndpPath = "api/v1/snaps/purchases/customers/me"
@@ -379,16 +385,6 @@ func (s *Store) defaultSnapQuery() url.Values {
 	q := url.Values{}
 	if len(s.detailFields) != 0 {
 		q.Set("fields", strings.Join(s.detailFields, ","))
-	}
-	return q
-}
-
-func (s *Store) queryForSnapInfo() url.Values {
-	// like defaultSnapQuery, plus a couple
-	q := url.Values{}
-	if len(s.detailFields) != 0 {
-		fields := append(s.detailFields, "snap_yaml_raw")
-		q.Set("fields", strings.Join(fields, ","))
 	}
 	return q
 }
@@ -1030,44 +1026,39 @@ func mustBuy(paid bool, bought bool) bool {
 
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
-	Name    string
-	Channel string
-	// AnyChannel can be set to query for any revision independent of channel
+	Name string
+
+	// XXX only left because a lot of the test logic in overlord/snapstate
+	//     uses this. I'll rewrite them in a separate PR. Nothing else
+	//     should be using it (and in particular nothing calling SnapInfo!)
+	Channel    string
+	Revision   snap.Revision
 	AnyChannel bool
-	// Revision can be set to query for an exact revision
-	Revision snap.Revision
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := s.queryForSnapInfo()
-
-	channel := snapSpec.Channel
-	var sel string
-	if channel == "" {
-		channel = "stable" // default
-	}
-	if snapSpec.AnyChannel {
-		channel = ""
+	if snapSpec.Channel != "" {
+		return nil, fmt.Errorf("internal error: Channel specified to SnapInfo")
 	}
 	if !snapSpec.Revision.Unset() {
-		query.Set("revision", snapSpec.Revision.String())
-		channel = ""
-		sel = fmt.Sprintf(" at revision %s", snapSpec.Revision)
+		return nil, fmt.Errorf("internal error: Revision specified to SnapInfo")
 	}
-	if channel != "" {
-		sel = fmt.Sprintf(" in channel %q", channel)
+	if !snapSpec.AnyChannel {
+		return nil, fmt.Errorf("internal error: AnyChannel not specified to SnapInfo")
 	}
-	query.Set("channel", channel)
+	query := url.Values{}
+	query.Set("fields", strings.Join(s.infoFields, ","))
+	query.Set("architecture", s.architecture)
 
-	u := s.endpointURL(path.Join(detailsEndpPath, snapSpec.Name), query)
+	u := s.endpointURL(path.Join(snapInfoEndpPath, snapSpec.Name), query)
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+		Method:   "GET",
+		URL:      u,
+		APILevel: apiV2Endps,
 	}
 
-	var remote *snapDetails
+	var remote storeInfo
 	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
@@ -1080,11 +1071,14 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case 404:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
+		msg := fmt.Sprintf("get details for snap %q", snapSpec.Name)
 		return nil, respToError(resp, msg)
 	}
 
-	info := infoFromRemote(remote)
+	info, err := infoFromStoreInfo(&remote)
+	if err != nil {
+		return nil, err
+	}
 
 	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {
