@@ -46,15 +46,7 @@ type autoRefreshStore struct {
 
 	ops []string
 
-	listRefreshErr error
-}
-
-func (r *autoRefreshStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
-	if ctx == nil || !auth.IsEnsureContext(ctx) {
-		panic("Ensure marked context required")
-	}
-	r.ops = append(r.ops, "list-refresh")
-	return nil, r.listRefreshErr
+	err error
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
@@ -70,7 +62,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, r.listRefreshErr
+	return nil, r.err
 }
 
 type autoRefreshTestSuite struct {
@@ -172,7 +164,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
-	s.store.listRefreshErr = fmt.Errorf("random store error")
+	s.store.err = fmt.Errorf("random store error")
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")

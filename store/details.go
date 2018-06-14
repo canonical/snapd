@@ -35,7 +35,6 @@ type snapDetails struct {
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
 	Summary          safejson.String    `json:"summary,omitempty"`
 	Description      safejson.Paragraph `json:"description,omitempty"`
-	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
 	Epoch            snap.Epoch         `json:"epoch"`
@@ -79,16 +78,6 @@ type snapDetails struct {
 type channelMap struct {
 	Track       string                   `json:"track"`
 	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
-}
-
-type snapDeltaDetail struct {
-	FromRevision    int    `json:"from_revision"`
-	ToRevision      int    `json:"to_revision"`
-	Format          string `json:"format"`
-	AnonDownloadURL string `json:"anon_download_url,omitempty"`
-	DownloadURL     string `json:"download_url,omitempty"`
-	Size            int64  `json:"binary_filesize,omitempty"`
-	Sha3_384        string `json:"download_sha3_384,omitempty"`
 }
 
 // channelSnapInfoDetails is the subset of snapDetails we need to get
@@ -139,20 +128,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.License = d.License
 	info.Base = d.Base
 	info.CommonIDs = d.CommonIDs
-
-	deltas := make([]snap.DeltaInfo, len(d.Deltas))
-	for i, d := range d.Deltas {
-		deltas[i] = snap.DeltaInfo{
-			FromRevision:    d.FromRevision,
-			ToRevision:      d.ToRevision,
-			Format:          d.Format,
-			AnonDownloadURL: d.AnonDownloadURL,
-			DownloadURL:     d.DownloadURL,
-			Size:            d.Size,
-			Sha3_384:        d.Sha3_384,
-		}
-	}
-	info.Deltas = deltas
 
 	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
 	for _, url := range d.ScreenshotURLs {
