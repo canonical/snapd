@@ -147,7 +147,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	sspec := snapSpec{
 		Name: spec.Name,
 	}
-	info, err := f.snapInfo(sspec, user)
+	info, err := f.snap(sspec, user)
 
 	userID := 0
 	if user != nil {
@@ -164,7 +164,7 @@ type snapSpec struct {
 	Revision snap.Revision
 }
 
-func (f *fakeStore) snapInfo(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		spec.Revision = snap.R(11)
 		if spec.Channel == "channel-for-7" {
@@ -378,7 +378,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.snapInfo(sspec, user)
+			info, err := f.snap(sspec, user)
 			if err != nil {
 				installErrors[a.Name] = err
 				continue
