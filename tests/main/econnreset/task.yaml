@@ -32,6 +32,9 @@ execute: |
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
         echo "Partial file $partial did not start downloading, test broken"
+        cat snap-download.log || true
+        ps -ef
+        ls -al
         kill -9 "$(pidof snap)"
         exit 1
     fi
