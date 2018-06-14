@@ -253,7 +253,8 @@ type ChannelSnapInfo struct {
 	Size        int64           `json:"size"`
 }
 
-// InstanceName returns the blessed name for the snap.
+// InstanceName returns the blessed name of the snap decorated with instance
+// key, if any.
 func (s *Info) InstanceName() string {
 	if s.RealName != "" {
 		return s.RealName
