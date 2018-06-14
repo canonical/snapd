@@ -1026,6 +1026,17 @@ plugs:
   interface: network
 `
 
+var selfconnectSnapYaml = `
+name: producerconsumer
+version: 1
+slots:
+ slot:
+  interface: test
+plugs:
+ plug:
+  interface: test
+`
+
 // The setup-profiles task will not auto-connect a plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C) {
@@ -2761,6 +2772,47 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, selfconnectSnapYaml)
+	repo := s.manager(c).Repository()
+	c.Assert(repo.Slots("producerconsumer"), HasLen, 1)
+
+	s.state.Lock()
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producerconsumer"},
+	}
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("auto-connect", "...")
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	hooktypes := make(map[string]int)
+	for _, t := range s.state.Tasks() {
+		if t.Kind() == "run-hook" {
+			var hsup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &hsup), IsNil)
+			count := hooktypes[hsup.Hook]
+			hooktypes[hsup.Hook] = count + 1
+		}
+	}
+
+	// verify that every hook was run once
+	for _, ht := range []string{"prepare-plug-plug", "prepare-slot-slot", "connect-slot-slot", "connect-plug-plug"} {
+		c.Assert(hooktypes[ht], Equals, 1)
+	}
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectForDefaultContentProvider(c *C) {
