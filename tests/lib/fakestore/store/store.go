@@ -218,7 +218,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	}
 
 	return &essentialInfo{
-		// TODO parallel-install: use of proper instance/store name
+		// TODO parallel-install: use store name
 		Name:        info.InstanceName(),
 		SnapID:      snapID,
 		DeveloperID: develID,
