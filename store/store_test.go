@@ -2334,6 +2334,58 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(slot.Apps["content-plug"].Command, Equals, "bin/content-plug")
 }
 
+func (s *storeTestSuite) TestInfoBadResponses(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		case 1:
+			// This one should work.
+			// (strictly speaking the channel map item should at least have a "channel" member)
+			io.WriteString(w, `{"channel-map": [{}], "snap": {"name":"hello"}}`)
+		case 2:
+			// "not found" (no channel map)
+			io.WriteString(w, `{"snap":{"name":"hello"}}`)
+		case 3:
+			// "not found" (same)
+			io.WriteString(w, `{"channel-map": [], "snap": {"name":"hello"}}`)
+		case 4:
+			// bad price
+			io.WriteString(w, `{"channel-map": [{}], "snap": {"name":"hello","prices":{"XPD": "Palladium?!?"}}}`)
+		default:
+			c.Errorf("expected at most 4 calls, now on #%d", n)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+		InfoFields:   []string{},
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	info, err := sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "hello")
+
+	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
+	c.Check(err, Equals, ErrSnapNotFound)
+	c.Check(info, IsNil)
+
+	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
+	c.Check(err, Equals, ErrSnapNotFound)
+	c.Check(info, IsNil)
+
+	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
+	c.Check(err, ErrorMatches, `.* invalid syntax`)
+	c.Check(info, IsNil)
+}
+
 func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
