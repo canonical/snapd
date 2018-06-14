@@ -330,7 +330,7 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		// TODO parallel-install: use of proper instance/store name
+		// TODO parallel-install: use store name
 		snaps[info.InstanceName()] = fn
 	}
 

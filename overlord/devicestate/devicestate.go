@@ -185,6 +185,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
+	// TODO parallel-install: use store name
 	if snapInfo.InstanceName() != expectedName {
 		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}
