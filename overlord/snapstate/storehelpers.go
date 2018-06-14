@@ -89,7 +89,8 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 
 	action := &store.SnapAction{
 		Action: "install",
-		Name:   name,
+		// TODO parallel-install: verify use of correct name
+		Name: name,
 		// the desired channel
 		Channel: channel,
 		// the desired revision
@@ -153,6 +154,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
+		// TODO parallel-install: verify use of correct name
 		action.Name = curInfo.InstanceName()
 	}
 
