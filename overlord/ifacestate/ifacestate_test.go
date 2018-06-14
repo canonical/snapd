@@ -3022,7 +3022,7 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	_ = s.manager(c)
+	mgr := s.manager(c)
 
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	producerInfo := s.mockSnap(c, producerYaml)
@@ -3056,7 +3056,8 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 	s.state.Unlock()
 
-	s.settle(c)
+	mgr.Ensure()
+	mgr.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
