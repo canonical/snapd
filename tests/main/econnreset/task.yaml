@@ -5,6 +5,7 @@ restore: |
     iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
 
     rm -f test-snapd-huge_*
+    rm -f snap-download.log
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
