@@ -215,10 +215,10 @@ func isProbablyPresent(path string) bool {
 // bind- mount operations to latch onto. This is why the right list of
 // expressions use * and */, this allows the expressions to capture files and
 // directories at a specific path.
-func chopTree(path string, assumedPrefixDepth int) ([]string, []string, error) {
+func chopTree(path string, assumedPrefixDepth int) (left, right []string, err error) {
 	// NOTE: This implementation works around a bug in apparmor parser:
 	// https://bugs.launchpad.net/apparmor/+bug/1769971
-	var left, right []string
+	//
 	// Due to the nature of apparmor path expressions we need to distinguish
 	// directories and files. The path expression denoting a directory must end
 	// with a trailing slash, that denoting a file must not.
