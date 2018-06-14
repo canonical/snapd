@@ -215,6 +215,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	// TODO parallel-install: verify if snap names are valid store names
 	reqSnaps, err := checkStringList(assert.headers, "required-snaps")
 	if err != nil {
 		return nil, err
