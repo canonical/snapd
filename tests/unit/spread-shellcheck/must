@@ -45,3 +45,4 @@ tests/main/install-errors/task.yaml
 tests/main/install-refresh-private/task.yaml
 tests/main/install-refresh-remove-hooks/task.yaml
 tests/main/appstream-id/task.yaml
+tests/main/interfaces-joystick/task.yaml
