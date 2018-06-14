@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // not available through syscall
@@ -159,7 +160,7 @@ func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) erro
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
 // and O_CLOEXEC flags.
 func (sec *Secure) OpenPath(path string) (int, error) {
-	iter, err := NewPathIterator(path)
+	iter, err := strutil.NewPathIterator(path)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open path: %s", err)
 	}
@@ -207,7 +208,7 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 // for secure variants of mkdir, touch and symlink. None of the traversed
 // directories can be symbolic links.
 func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
-	iter, err := NewPathIterator(base)
+	iter, err := strutil.NewPathIterator(base)
 	if err != nil {
 		// TODO: Reword the error and adjust the tests.
 		return -1, fmt.Errorf("cannot split unclean path %q", base)
@@ -704,99 +705,4 @@ func createWritableMimic(dir, neededBy string, sec *Secure) ([]*Change, error) {
 		return nil, err
 	}
 	return changes, nil
-}
-
-// PathIterator traverses through parts (directories and files) of some
-// path. The filesystem is never consulted, traversal is done purely in memory.
-//
-// The iterator is useful in implementing secure traversal of absolute paths
-// using the common idiom of opening the root directory followed by a chain of
-// openat calls.
-//
-// A simple example on how to use the iterator:
-// ```
-// iter:= NewPathIterator(path)
-// for iter.Next() {
-//    // Use iter.CurrentName() with openat(2) family of functions.
-//    // Use iter.CurrentPath() or iter.CurrentBase() for context.
-// }
-// ```
-type PathIterator struct {
-	path        string
-	left, right int
-}
-
-// NewPathIterator returns an iterator for traversing the given path.
-// The path is passed through filepath.Clean automatically.
-func NewPathIterator(path string) (*PathIterator, error) {
-	cleanPath := filepath.Clean(path)
-	if path != cleanPath {
-		return nil, fmt.Errorf("cannot iterate over unclean path %q", path)
-	}
-	return &PathIterator{path: cleanPath}, nil
-}
-
-// Path returns the path being traversed.
-func (iter *PathIterator) Path() string {
-	return iter.path
-}
-
-// CurrentName returns the name of the current path element.
-// The return value may end with '/'. Use CleanName to avoid that.
-func (iter *PathIterator) CurrentName() string {
-	return iter.path[iter.left:iter.right]
-}
-
-// CurrentCleanName returns the same value as Name with right slash trimmed.
-func (iter *PathIterator) CurrentCleanName() string {
-	if iter.right > 0 && iter.path[iter.right-1:iter.right] == "/" {
-		return iter.path[iter.left : iter.right-1]
-	}
-	return iter.path[iter.left:iter.right]
-}
-
-// CurrentPath returns the prefix of path that was traversed, including the current name.
-func (iter *PathIterator) CurrentPath() string {
-	return iter.path[:iter.right]
-}
-
-// CurrentBase returns the prefix of the path that was traversed, excluding the current name.
-func (iter *PathIterator) CurrentBase() string {
-	return iter.path[:iter.left]
-}
-
-// Next advances the iterator to the next name, returning true if one is found.
-//
-// If this method returns false then no change is made and all helper methods
-// retain their previous return values.
-func (iter *PathIterator) Next() bool {
-	// Initial state
-	// P: "foo/bar"
-	// L:  ^
-	// R:  ^
-	//
-	// Next is called
-	// P: "foo/bar"
-	// L:  ^  |
-	// R:     ^
-	//
-	// Next is called
-	// P: "foo/bar"
-	// L:     ^   |
-	// R:         ^
-
-	// Next is called but returns false
-	// P: "foo/bar"
-	// L:     ^   |
-	// R:         ^
-	if iter.right >= len(iter.path) {
-		return false
-	}
-	iter.left = iter.right
-	if idx := strings.IndexRune(iter.path[iter.right:], '/'); idx != -1 {
-		iter.right += idx + 1
-	} else {
-		iter.right = len(iter.path)
-	}
-	return true
 }
