@@ -2552,6 +2552,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	for k, v := range result.Channels {
 		c.Check(v, DeepEquals, expected[k], Commentf("%q", k))
 	}
+	c.Check(result.Channels, HasLen, len(expected))
 
 	c.Check(snap.Validate(result), IsNil)
 }
@@ -2598,6 +2599,7 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	for k, v := range result.Channels {
 		c.Check(v, DeepEquals, expected[k], Commentf("%q", k))
 	}
+	c.Check(result.Channels, HasLen, len(expected))
 	c.Check(result.Tracks, DeepEquals, []string{"latest", "1.10", "1.6", "1.7", "1.8", "1.9"})
 }
 
