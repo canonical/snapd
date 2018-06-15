@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -63,16 +64,16 @@ func (s *setSuite) SetUpTest(c *C) {
 }
 
 func (s *setSuite) TestInvalidArguments(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set"})
+	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"set"})
 	c.Check(err, ErrorMatches, "set which option.*")
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"})
+	_, _, err = ctlcmd.Run(0, s.mockContext, []string{"set", "foo", "bar"})
 	c.Check(err, ErrorMatches, ".*invalid parameter.*want key=value.*")
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"})
+	_, _, err = ctlcmd.Run(0, s.mockContext, []string{"set", ":foo", "bar=baz"})
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of prepare hooks.*")
 }
 
 func (s *setSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar", "baz=qux"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockContext, []string{"set", "foo=bar", "baz=qux"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -98,8 +99,46 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(value, Equals, "qux")
 }
 
+func (s *getSuite) TestSetRegularUserForbidden(c *C) {
+	state := state.New(nil)
+	state.Lock()
+
+	task := state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+	state.Unlock()
+
+	mockHandler := hooktest.NewMockHandler()
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
+	_, _, err = ctlcmd.Run(1000, mockContext, []string{"set", "test-key1"})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot use "set" with uid 1000, try with sudo`)
+	forbidden, _ := err.(*ctlcmd.ForbiddenCommand)
+	c.Assert(forbidden, NotNil)
+	c.Assert(forbidden.Uid, Equals, uint32(1000))
+	c.Assert(forbidden.Command, Equals, "set")
+}
+
+func (s *getSuite) TestSetHelpRegularUserAllowed(c *C) {
+	state := state.New(nil)
+	state.Lock()
+
+	task := state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+	state.Unlock()
+
+	mockHandler := hooktest.NewMockHandler()
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
+	_, _, err = ctlcmd.Run(1000, mockContext, []string{"set", "-h"})
+	c.Assert(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+}
+
 func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "device-service.url=192.168.0.1:5555"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockContext, []string{"set", "device-service.url=192.168.0.1:5555"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -117,7 +156,7 @@ func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
 }
 
 func (s *setSuite) TestSetNumbers(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -146,7 +185,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key2=test-value3"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockContext, []string{"set", "test-key2=test-value3"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -166,7 +205,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 }
 
 func (s *setSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"set", "foo=bar"})
+	_, _, err := ctlcmd.Run(0, nil, []string{"set", "foo=bar"})
 	c.Check(err, ErrorMatches, ".*cannot set without a context.*")
 }
 
@@ -228,7 +267,7 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "foo=bar"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockPlugHookContext, []string{"set", ":aplug", "foo=bar"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -245,7 +284,7 @@ func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
 }
 
 func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "my.attr1=foo", "my.attr2=bar"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockPlugHookContext, []string{"set", ":aplug", "my.attr1=foo", "my.attr2=bar"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -262,7 +301,7 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 }
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":", "foo=bar"})
+	stdout, stderr, err := ctlcmd.Run(0, s.mockPlugHookContext, []string{"set", ":", "foo=bar"})
 	c.Check(err.Error(), Equals, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -281,7 +320,7 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"})
+	stdout, stderr, err := ctlcmd.Run(0, mockContext, []string{"set", ":aplug", "foo=bar"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")

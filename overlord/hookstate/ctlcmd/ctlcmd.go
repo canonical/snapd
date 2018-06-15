@@ -91,19 +91,44 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 	}
 }
 
+type ForbiddenCommand struct {
+	Uid     uint32
+	Command string
+}
+
+func (f ForbiddenCommand) Error() string {
+	return fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Command, f.Uid)
+}
+
+func (f *ForbiddenCommand) Execute(args []string) error {
+	return f
+}
+
+func (f *ForbiddenCommand) setStdout(w io.Writer)                 {}
+func (f *ForbiddenCommand) setStderr(w io.Writer)                 {}
+func (f *ForbiddenCommand) setContext(context *hookstate.Context) {}
+func (f *ForbiddenCommand) context() *hookstate.Context {
+	return nil
+}
+
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
+func Run(uid uint32, context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
-		cmd := cmdInfo.generator()
-		cmd.setStdout(&stdoutBuffer)
-		cmd.setStderr(&stderrBuffer)
-		cmd.setContext(context)
-
+		var cmd command
+		// commands listed here will be allowed for regular users
+		if uid == 0 || name == "get" {
+			cmd = cmdInfo.generator()
+			cmd.setStdout(&stdoutBuffer)
+			cmd.setStderr(&stderrBuffer)
+			cmd.setContext(context)
+		} else {
+			cmd = &ForbiddenCommand{Uid: uid, Command: name}
+		}
 		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
