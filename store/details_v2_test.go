@@ -281,8 +281,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"BadInterfaces",
 		"Broken",
 		"MustBuy",
-		"Channels", // TODO: support coming later
-		"Tracks",   // TODO: support coming later
+		"Channels", // handled at a different level (see TestInfo)
+		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point

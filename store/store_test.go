@@ -2556,6 +2556,51 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	c.Check(snap.Validate(result), IsNil)
 }
 
+func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
+	// NB this tests more channels, but still only one architecture
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		// following is just a tweaked version of:
+		// http https://api.snapcraft.io/v2/snaps/info/go architecture==amd64 fields==channel Snap-Device-Series:16 | jq -c '.["channel-map"] | .[]'
+		io.WriteString(w, `{"channel-map": [
+{"channel":{"name":"stable",      "risk":"stable", "track":"latest"}},
+{"channel":{"name":"edge",        "risk":"edge",   "track":"latest"}},
+{"channel":{"name":"1.10/stable", "risk":"stable", "track":"1.10"  }},
+{"channel":{"name":"1.6/stable",  "risk":"stable", "track":"1.6"   }},
+{"channel":{"name":"1.7/stable",  "risk":"stable", "track":"1.7"   }},
+{"channel":{"name":"1.8/stable",  "risk":"stable", "track":"1.8"   }},
+{"channel":{"name":"1.9/stable",  "risk":"stable", "track":"1.9"   }}
+]}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	// the actual test
+	result, err := sto.SnapInfo(SnapSpec{Name: "eh"}, nil)
+	c.Assert(err, IsNil)
+	expected := map[string]*snap.ChannelSnapInfo{
+		"latest/stable": {Channel: "stable"},
+		"latest/edge":   {Channel: "edge"},
+		"1.6/stable":    {Channel: "1.6/stable"},
+		"1.7/stable":    {Channel: "1.7/stable"},
+		"1.8/stable":    {Channel: "1.8/stable"},
+		"1.9/stable":    {Channel: "1.9/stable"},
+		"1.10/stable":   {Channel: "1.10/stable"},
+	}
+	for k, v := range result.Channels {
+		c.Check(v, DeepEquals, expected[k], Commentf("%q", k))
+	}
+	c.Check(result.Tracks, DeepEquals, []string{"latest", "1.10", "1.6", "1.7", "1.8", "1.9"})
+}
+
 func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()

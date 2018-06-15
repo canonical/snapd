@@ -118,13 +118,14 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 	}
 
 	thisOne := si.ChannelMap[0]
+	thisSnap := thisOne.storeSnap // copy it as we're about to modify it
 	// here we assume that the ChannelSnapInfo can be populated with data
 	// that's in the channel map and not the outer snap. This is a
 	// reasonable assumption today, but copyNonZeroFrom can easily be
 	// changed to copy to a list if needed.
-	copyNonZeroFrom(&si.Snap, &thisOne.storeSnap)
+	copyNonZeroFrom(&si.Snap, &thisSnap)
 
-	info, err := infoFromStoreSnap(&thisOne.storeSnap)
+	info, err := infoFromStoreSnap(&thisSnap)
 	if err != nil {
 		return nil, err
 	}
