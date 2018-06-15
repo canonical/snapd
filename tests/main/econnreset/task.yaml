@@ -19,15 +19,16 @@ debug: |
 execute: |
     echo "Downloading a large snap in the background"
     rm -f test-snapd-huge_*
-    su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
+    su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
-    for _ in $(seq 40); do
+    echo "starting: $(date)"
+    for _ in $(seq 400); do
         partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1)
         if [ -n "$partial" ] && [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
             break
         fi
-        sleep 1
+        sleep 0.2
     done
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
@@ -36,6 +37,13 @@ execute: |
         ps -ef
         ls -al
         kill -9 "$(pidof snap)"
+        exit 1
+    fi
+
+    if [ "$(find . -name test-snapd-huge_*.snap )" -gt 1 ]; then
+        echo "File fully downloaded before the test could act"
+        echo "Test broken"
+        echo "end: $(date)"
         exit 1
     fi
 
