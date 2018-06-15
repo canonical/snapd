@@ -49,14 +49,6 @@ func (Store) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
 	panic("Store.Find not expected")
 }
 
-func (Store) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
-	panic("Store.LookupRefresh not expected")
-}
-
-func (Store) ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
-	panic("Store.ListRefresh not expected")
-}
-
 func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
 	panic("Store.SnapAction not expected")
 }
@@ -87,4 +79,8 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 
 func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 	panic("fakeStore.WriteCatalogs not expected")
+}
+
+func (Store) ConnectivityCheck() (map[string]bool, error) {
+	panic("ConnectivityCheck not expected")
 }

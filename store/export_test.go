@@ -37,5 +37,3 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }
-
-var GetStructFields = getStructFields

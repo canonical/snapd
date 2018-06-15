@@ -118,4 +118,9 @@ var (
 	JournalError       = journalError
 	ProcCpuinfoMinimal = procCpuinfoMinimal
 	Environ            = environ
+	NewReportsDB       = newReportsDB
 )
+
+func SetReportDBCleanupTime(db *reportsDB, d time.Duration) {
+	db.cleanupTime = d
+}

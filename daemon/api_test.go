@@ -106,14 +106,13 @@ type apiBaseSuite struct {
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
 
+	connectivityResult map[string]bool
+
 	restoreSanitize func()
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
-	if !spec.AnyChannel {
-		return nil, fmt.Errorf("api is expected to set AnyChannel")
-	}
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -151,6 +150,10 @@ func (s *apiBaseSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*st
 func (s *apiBaseSuite) ReadyToBuy(user *auth.UserState) error {
 	s.user = user
 	return s.err
+}
+
+func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
+	return s.connectivityResult, s.err
 }
 
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
@@ -500,6 +503,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 description: description
 summary: summary
 license: GPL-3.0
+base: base18
 apps:
   cmd:
     command: some.cmd
@@ -594,6 +598,7 @@ UnitFileState=potatoes
 			Status:           "active",
 			Icon:             "/v2/icons/foo/icon",
 			Type:             string(snap.TypeApp),
+			Base:             "base18",
 			Private:          false,
 			DevMode:          false,
 			JailMode:         false,
@@ -1692,6 +1697,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
+		Base:      "base0",
 		Publisher: "foo",
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
@@ -1711,6 +1717,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["base"], check.Equals, "base0")
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
 	c.Check(m["revision"], check.Equals, "42")
@@ -6127,6 +6134,48 @@ func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
+}
+
+func (s *postDebugSuite) TestPostDebugConnectivityHappy(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "connectivity"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	s.connectivityResult = map[string]bool{
+		"good.host.com":         true,
+		"another.good.host.com": true,
+	}
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+		Connectivity: true,
+		Unreachable:  []string(nil),
+	})
+}
+
+func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "connectivity"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	s.connectivityResult = map[string]bool{
+		"good.host.com": true,
+		"bad.host.com":  false,
+	}
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+		Connectivity: false,
+		Unreachable:  []string{"bad.host.com"},
+	})
 }
 
 type appSuite struct {

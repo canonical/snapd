@@ -81,42 +81,44 @@ restore: |
     systemctl restart snapd.socket
 
 execute: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     CHANNELS="stable candidate beta edge"
     for CHANNEL in $CHANNELS; do
-        if ! CHANNEL_INFO="$(snap info $SNAP | grep " $CHANNEL: ")"; then
+        # shellcheck disable=SC2153
+        if ! CHANNEL_INFO="$(snap info "$SNAP" | grep " $CHANNEL: ")"; then
             echo "Snap $SNAP not found"
             exit
         fi
-        if echo $CHANNEL_INFO | MATCH "$CHANNEL:.*–"; then
+        if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*–"; then
             continue
         fi
 
-        if echo $CHANNEL_INFO | MATCH "$CHANNEL:.*classic"; then
+        if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*classic"; then
             if is_classic_confinement_supported; then
-                snap install $SNAP --$CHANNEL --classic
+                snap install "$SNAP" "--$CHANNEL" --classic
             else
                 echo "The snap $SNAP requires classic confinement which is not supported yet"
                 exit
             fi
-        elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*jailmode"; then
-            snap install $SNAP --$CHANNEL --jailmode
-        elif echo $CHANNEL_INFO | MATCH "$CHANNEL:.*devmode"; then
-            snap install $SNAP --$CHANNEL --devmode
+        elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*jailmode"; then
+            snap install "$SNAP" "--$CHANNEL" --jailmode
+        elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*devmode"; then
+            snap install "$SNAP" "--$CHANNEL" --devmode
         else
-            snap install $SNAP --$CHANNEL
+            snap install "$SNAP" "--$CHANNEL"
         fi
         break
     done
 
     echo "Check the snap is properly installed"
-    snap list | MATCH $SNAP
+    snap list | MATCH "$SNAP"
 
     echo "Check the snap is properly removed"
-    snap remove $SNAP
+    snap remove "$SNAP"
 
-    if snap list | MATCH $SNAP; then
+    if snap list | MATCH "$SNAP"; then
         echo "Snap $SNAP not removed properly"
         exit 1
     fi

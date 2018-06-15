@@ -57,7 +57,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.32.9
+Version:        2.33
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -352,6 +352,7 @@ fi
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_libexecdir}/snapd/snapd.run-from-snap
 
 %changelog
 

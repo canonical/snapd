@@ -11,16 +11,16 @@ backends: [-autopkgtest]
 
 execute: |
     echo "Downloading a large snap in the background"
+    rm -f test-snapd-huge_*
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
     for _ in $(seq 40); do
-        if partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1); then
-            if [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
-                break
-            fi
+        partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1)
+        if [ -n "$partial" ] && [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
+            break
         fi
-        sleep .5
+        sleep 1
     done
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then

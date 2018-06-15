@@ -281,8 +281,10 @@ prepare_project() {
                 REBOOT
             fi
         fi
-        if [[ "$SPREAD_REBOOT" != 1 ]]; then
-            echo "reboot did not work"
+        # double check we are running the installed kernel
+        # NOTE: arch kernels use ARCH as local version, eg. 4.16.13-2-ARCH
+        if [[ "$(pacman -Qi linux | grep '^Version' | awk '{print $3}')" != "$(uname -r | sed -e 's/-ARCH//')" ]]; then
+            echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
     fi
