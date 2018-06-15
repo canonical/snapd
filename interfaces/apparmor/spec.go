@@ -192,9 +192,9 @@ func isProbablyPresent(path string) bool {
 // access to any file therein, but not deeper.
 //
 // For example, with path: "/foo/bar/froz/baz" and depth 3 the result is:
-// []string{"/", "/foo/", "/foo/bar/"} and []string{"/foo/*", "/foo/bar/*",
-// "/foo/bar/froz/*"}. Coupled with the aforementioned constants this
-// translates to the following apparmor rules:
+// []string{"/", "/foo/", "/foo/bar/"} and []string{"/foo/bar/*",
+// "/foo/bar/*/", "/foo/bar/froz/*", "/foo/bar/froz/*/"}. Coupled with the
+// aforementioned constants this translates to the following apparmor rules:
 //
 //   / r,
 //   /foo/ r,
