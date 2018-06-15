@@ -9,6 +9,12 @@ restore: |
 # with the distro
 backends: [-autopkgtest]
 
+debug: |
+    echo "Partial download status"
+    ls -lh test-snapd-huge_* || true
+    echo "other dir content"
+    ls -lh
+
 execute: |
     echo "Downloading a large snap in the background"
     rm -f test-snapd-huge_*
