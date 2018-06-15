@@ -245,11 +245,11 @@ func chopTree(path string, assumedPrefixDepth int) (left, right []string, err er
 				left = append(left, iter.CurrentPath())
 			}
 		} else {
-			// The right hand side replaces the final component with a "*" and
-			// "*/", meaning any file and any directory, respectively.
+			// The right hand side rules should not allow creation of the root
+			// directory as that itself is meaningless.
 			if iter.Depth() > 1 {
-				// The right hand side rules should not allow creation of the
-				// root directory as that itself is meaningless.
+				// The right hand side replaces the final component with a "*"
+				// and "*/", meaning any file and any directory, respectively.
 				right = append(right, iter.CurrentBase()+"*")
 				right = append(right, iter.CurrentBase()+"*/")
 			}
