@@ -1325,6 +1325,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
 	}
 
@@ -1358,6 +1359,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			os.Remove(w.Name())
 		}
 	}()
+	if resume > 0 {
+		logger.Debugf("Resuming download of %q at %d.", partialPath, resume)
+	} else {
+		logger.Debugf("Starting download of %q.", partialPath)
+	}
 
 	authAvail, err := s.authAvailable(user)
 	if err != nil {
@@ -1391,6 +1397,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
+		logger.Debugf("Truncating and trying again from scratch.")
 		err = w.Truncate(0)
 		if err != nil {
 			return err
