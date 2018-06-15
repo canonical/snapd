@@ -108,6 +108,8 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
+		// TODO parallel-install: adjust valid command checks to account
+		// for instance name
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
 		// check the prefix to allow %flag style args
