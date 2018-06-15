@@ -2591,19 +2591,15 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
-	// we only allow "get" and -h/--help from regular users in snapctl
-	if uid != 0 {
-		arg := snapctlOptions.Args[0]
-		if arg != "get" && arg != "-h" && arg != "--help" {
-			return Forbidden("cannot use %q with uid %d, try with sudo", arg, uid)
-		}
-	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(uid, context, snapctlOptions.Args)
 	if err != nil {
+		if e, ok := err.(*ctlcmd.ForbiddenCommand); ok {
+			return Forbidden(e.Error())
+		}
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {
