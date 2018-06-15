@@ -196,15 +196,15 @@ func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
 	return snaps
 }
 
-func MockModelWithBase(baseName string) func() {
+func MockModelWithBase(baseName string) (restore func()) {
 	return mockModel(baseName)
 }
 
-func MockModel() func() {
+func MockModel() (restore func()) {
 	return mockModel("")
 }
 
-func mockModel(baseName string) func() {
+func mockModel(baseName string) (restore func()) {
 	oldModel := Model
 
 	base := ""
