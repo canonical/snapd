@@ -11,8 +11,6 @@ restore: |
 # with the distro
 backends: [-autopkgtest]
 
-priority: -1
-
 debug: |
     cat snap-download.log || true
     ps -ef
