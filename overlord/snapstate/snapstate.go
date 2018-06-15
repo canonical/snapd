@@ -740,7 +740,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		reportUpdated[snapName] = true
 	}
 
-	// first core, bases, then rest
+	// first snapd, core, bases, then rest
 	sort.Sort(byKind(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
@@ -846,6 +846,14 @@ var kindRevOrder = map[snap.Type]int{
 }
 
 func (bk byKind) Less(i, j int) bool {
+	// snapd is special and sorts first
+	if bk[i].Name() == "snapd" {
+		return true
+	}
+	if bk[j].Name() == "snapd" {
+		return false
+	}
+
 	iRevOrd := kindRevOrder[bk[i].Type]
 	jRevOrd := kindRevOrder[bk[j].Type]
 	return iRevOrd >= jRevOrd
