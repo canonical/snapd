@@ -488,6 +488,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+
+	// When modifying connection state translate the "snapd" snap to the "core"
+	// snap. This allows rollbacks until the epoch system can be used to make
+	// backwards-incompatible changes to the state.
+	if cref.SlotRef.Snap == "snapd" {
+		cref.SlotRef.Snap = "core"
+	}
 	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
