@@ -828,31 +828,32 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 
 	// TODO: once classic uses the snapd snap we need to restart
 	//       here too
-	if release.OnClassic && info.Type == snap.TypeOS {
-		t.Logf("Requested daemon restart.")
-		st.RequestRestart(state.RestartDaemon)
+	if release.OnClassic {
+		if info.Type == snap.TypeOS {
+			t.Logf("Requested daemon restart.")
+			st.RequestRestart(state.RestartDaemon)
+		}
+		return
 	}
 
-	if !release.OnClassic {
-		// On a core system we may need a full reboot if
-		// core/base or the kernel changes.
-		if boot.KernelOsBaseRebootRequired(info) {
-			t.Logf("Requested system restart.")
-			st.RequestRestart(state.RestartSystem)
-			return
-		}
-		// On core systems that use a base snap we need to restart
-		// snapd when the snapd snap changes.
-		model, err := Model(st)
-		if err != nil {
-			logger.Noticef("cannot get model assertion: %v", model)
-			return
-		}
-		if model.Base() != "" && info.Name() == "snapd" {
-			t.Logf("Requested daemon restart (snapd snap).")
-			st.RequestRestart(state.RestartDaemon)
-			return
-		}
+	// On a core system we may need a full reboot if
+	// core/base or the kernel changes.
+	if boot.ChangeRequiresReboot(info) {
+		t.Logf("Requested system restart.")
+		st.RequestRestart(state.RestartSystem)
+		return
+	}
+
+	// On core systems that use a base snap we need to restart
+	// snapd when the snapd snap changes.
+	model, err := Model(st)
+	if err != nil {
+		logger.Noticef("cannot get model assertion: %v", model)
+		return
+	}
+	if model.Base() != "" && info.Name() == "snapd" {
+		t.Logf("Requested daemon restart (snapd snap).")
+		st.RequestRestart(state.RestartDaemon)
 	}
 }
 
