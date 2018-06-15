@@ -304,6 +304,7 @@ debug-each: |
 
     echo "Print tests executed in the current machine"
     if [ -f "$SPREAD_PATH/tests/runs" ]; then
+        echo "Tasks executed on system"
         cat "$SPREAD_PATH/tests/runs"
     fi
 

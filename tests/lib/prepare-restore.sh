@@ -412,7 +412,7 @@ prepare_suite_each() {
         prepare_each_classic
     fi
 
-    echo "$SPREAD_JOB" >> "$SPREAD_PATH/tests/runs"
+    echo -n "$SPREAD_JOB " >> "$SPREAD_PATH/tests/runs"
 }
 
 restore_suite_each() {
