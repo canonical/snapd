@@ -426,6 +426,13 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		task.Set("old-conn", oldconn)
 	}
 
+	// When modifying connection state translate the "snapd" snap to the "core"
+	// snap. This allows rollbacks until the epoch system can be used to make
+	// backwards-incompatible changes to the state.
+	if connRef.SlotRef.Snap == "snapd" {
+		connRef.SlotRef.Snap = "core"
+	}
+
 	conns[connRef.ID()] = connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
