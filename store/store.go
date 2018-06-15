@@ -1397,7 +1397,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
-		logger.Debugf("Truncating an trying again from scratch.")
+		logger.Debugf("Truncating and trying again from scratch.")
 		err = w.Truncate(0)
 		if err != nil {
 			return err
