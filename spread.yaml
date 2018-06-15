@@ -51,7 +51,7 @@ backends:
         location: computeengine/us-east1-b
         systems:
             - ubuntu-14.04-64:
-                workers: 6
+                workers: 1
             - ubuntu-16.04-32:
                 workers: 6
             - ubuntu-16.04-64:
