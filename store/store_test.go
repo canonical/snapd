@@ -1915,6 +1915,7 @@ http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/hel
 on 2016-07-03. Then, by hand:
  * set prices to {"EUR": 0.99, "USD": 1.23}.
  * Screenshot URLS set manually.
+ * Set "private" to true.
 
 on 2017-11-20. Then, by hand:
  * add "snap_yaml_raw" from "test-snapd-content-plug"
@@ -2051,7 +2052,7 @@ const mockSingleOrderJSON = `{
 
 http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids Snap-Device-Series:16 | xsel -b
 
-on 2018-06-13. Then, by hand:
+on 2018-06-13 (note snap-yaml is currently excluded from that list). Then, by hand:
 - set prices to {"EUR": "0.99", "USD": "1.23"},
 - set base in first channel-map entry to "bogus-base",
 - set snap-yaml in first channel-map entry to the one from the 'edge', plus the following pastiche:
@@ -2229,7 +2230,7 @@ const mockInfoJSON = `{
         ],
         "name": "hello-world",
         "prices": {"EUR": "0.99", "USD": "1.23"},
-        "private": false,
+        "private": true,
         "publisher": {
             "display-name": "Canonical",
             "id": "canonical",
@@ -2307,18 +2308,13 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(result.MustBuy, Equals, true)
 	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
 	c.Check(result.Base, Equals, "bogus-base")
-
-	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch.String(), Equals, "0")
-
 	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
-
-	// skip this one until the store supports it
-	// c.Check(result.Private, Equals, true)
+	c.Check(result.Private, Equals, true)
 
 	c.Check(snap.Validate(result), IsNil)
 
-	// validate the plugs/slots
+	// validate the plugs/slots (only here because we faked stuff in the JSON)
 	c.Assert(result.Plugs, HasLen, 1)
 	plug := result.Plugs["shared-content-plug"]
 	c.Check(plug.Name, Equals, "shared-content-plug")

@@ -309,6 +309,13 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 
 // arg must be a pointer to a struct
 func fillStruct(a interface{}, c *C) {
+	if t := reflect.TypeOf(a); t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
+		k := t.Kind()
+		if k == reflect.Ptr {
+			k = t.Elem().Kind()
+		}
+		c.Fatalf("first argument must be expected a pointer to a struct, not %s", k)
+	}
 	va := reflect.ValueOf(a)
 	n := va.Elem().NumField()
 	for i := 0; i < n; i++ {
