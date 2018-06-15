@@ -212,7 +212,7 @@ func isProbablyPresent(path string) bool {
 //
 // The mimic works by mounting a tmpfs over the mimicked directory and then
 // re-creating empty files and directories as mount points for the subsequent
-// bind- mount operations to latch onto. This is why the right list of
+// bind-mount operations to latch onto. This is why the right list of
 // expressions use * and */, this allows the expressions to capture files and
 // directories at a specific path.
 func chopTree(path string, assumedPrefixDepth int) (left, right []string, err error) {
