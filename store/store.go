@@ -287,7 +287,7 @@ func init() {
 		panic(err)
 	}
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
-	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil))
+	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
 }
 
 type searchResults struct {
