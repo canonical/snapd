@@ -1,0 +1,39 @@
+summary: Checks for parallel installation of sideloaded snaps containing services
+
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    path="$(make_snap test-snapd-service)"
+
+    echo "Sideload the regular snap"
+    snap install --dangerous "$path"
+
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    for instance in foo longname; do
+        echo "Sideload same snap as different instance named test-snapd-service_$instance"
+        expected="^test-snapd-service_$instance 1.0 installed\$"
+        snap install --dangerous --instance "test-snapd-service_$instance" "$path" | MATCH "$expected"
+
+        test -d "$SNAP_MOUNT_DIR/test-snapd-service_$instance/x1"
+
+        test -f /etc/systemd/system/snap.test-snapd-service_$instance.test-snapd-service.service
+        test -f /etc/systemd/system/snap.test-snapd-service_$instance.test-snapd-other-service.service
+        systemctl is-active snap.test-snapd-service_$instance.test-snapd-service.service
+        systemctl is-active snap.test-snapd-service_$instance.test-snapd-other-service.service
+    done
+
+    echo "All snaps are listed"
+    snap list | MATCH '^test-snapd-service '
+    snap list | MATCH '^test-snapd-service_foo '
+    snap list | MATCH '^test-snapd-service_longname '
+
+    echo "Removing one instance does not remove other instances' data"
+    snap remove test-snapd-service_foo
+    test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
+    test -f /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service
+
+    snap remove test-snapd-service
+    test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
