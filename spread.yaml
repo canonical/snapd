@@ -300,6 +300,8 @@ debug-each: |
         dmesg --ctime | grep type=1326 || true
         echo '# snap interfaces'
         snap interfaces || true
+        echo '# tasks executed on system'
+        cat "$SPREAD_PATH/tests/runs" || true
     fi
 
 rename:
