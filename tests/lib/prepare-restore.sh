@@ -411,6 +411,7 @@ prepare_suite_each() {
     if is_classic_system; then
         prepare_each_classic
     fi
+    echo -n "$SPREAD_JOB " >> "$SPREAD_PATH/tests/runs"
 }
 
 restore_suite_each() {
