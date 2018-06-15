@@ -426,6 +426,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		task.Set("old-conn", oldconn)
 	}
 
+	remapOutgoingConnRef(st, connRef)
 	conns[connRef.ID()] = connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
@@ -452,14 +453,16 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	cref := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
+	remapIncomingConnRef(st, cref)
 	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
 
 	var snapStates []snapstate.SnapState
-	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
+	for _, snapName := range []string{cref.PlugRef.Snap, cref.SlotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
 			if err == state.ErrNoState {
@@ -472,7 +475,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	err = m.repo.Disconnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 	if err != nil {
 		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 	}
@@ -487,7 +490,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	remapOutgoingConnRef(st, cref)
 	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
@@ -770,7 +773,7 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 
 	// The reloadConnections() just modifies the repository object, it
 	// has no effect on the running system, i.e. no security profiles
-	// on disk are rewriten. This is ok because core/ubuntu-core have
+	// on disk are rewritten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the slot-name encoded.
 	if _, err := m.reloadConnections(oldName); err != nil {
