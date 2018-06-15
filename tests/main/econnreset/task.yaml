@@ -12,45 +12,39 @@ restore: |
 backends: [-autopkgtest]
 
 debug: |
-    cat snap-download.log || true
     ps -ef
     ls -al
-
+    cat snap-download.log || true
 
 execute: |
     echo "Downloading a large snap in the background"
-    rm -f test-snapd-huge_*
     su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
     echo "starting: $(date)"
-    for _ in $(seq 400); do
-        partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1)
+    for _ in $(seq 40); do
+        partial=$(find . -name 'test-snapd-huge_1.snap.partial' | head -1)
         if [ -n "$partial" ] && [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
             break
         fi
-        sleep 0.2
+        sleep 0.5
     done
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
         echo "Partial file $partial did not start downloading, test broken"
-        cat snap-download.log || true
         ps -ef
         ls -al
+        cat snap-download.log || true
         kill -9 "$(pidof snap)"
         exit 1
     fi
 
-    if [ "$(find . -name 'test-snapd-huge_*.snap' )" -gt 1 ]; then
+    if [ -f test-snapd-huge_1.snap ]; then
         echo "File fully downloaded before the test could act"
         echo "Test broken"
-        echo "end: $(date)"
-        exit 1
-    fi
-
-    if [ -n "$(find . -name 'test-snapd-huge_*.snap')" ]; then
-        echo "File fully downloaded before the test could act"
-        echo "Test broken"
+        ps -ef
+        ls -al
+        cat snap-download.log || true
         echo "end: $(date)"
         exit 1
     fi
@@ -59,11 +53,11 @@ execute: |
     iptables -I OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset
 
     echo "Check that we retried"
-    for _ in $(seq 20); do
+    for _ in $(seq 10); do
         if MATCH 'Retrying.*\.snap, attempt 2' < snap-download.log; then
             break
         fi
-        sleep .5
+        sleep 1
     done
     MATCH 'Retrying.*\.snap, attempt 2' < snap-download.log
 
