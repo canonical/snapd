@@ -147,8 +147,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				// TODO parallel-install: use of proper instance/store name
-				RealName: info1.InstanceName(),
+				RealName: info1.StoreName(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
@@ -159,8 +158,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				// TODO parallel-install: use of proper instance/store name
-				RealName: info2.InstanceName(),
+				RealName: info2.StoreName(),
 				Revision: info2.Revision,
 				SnapID:   "other-snap-id",
 			},
