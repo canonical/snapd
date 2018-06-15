@@ -15,12 +15,12 @@ execute: |
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started"
-    for _ in $(seq 40); do
+    for _ in $(seq 80); do
         partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1)
         if [ -n "$partial" ] && [ "$(stat -c%s "$partial")" -gt "$(( 1 ))" ]; then
             break
         fi
-        sleep .5
+        sleep .1
     done
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
@@ -34,13 +34,12 @@ execute: |
 
     echo "Check that we retried"
     for _ in $(seq 20); do
-        # Match either download or assertion fetching retry
-        if MATCH 'Retrying.*, attempt 2' < snap-download.log; then
+        if MATCH 'Retrying.*\.snap, attempt 2' < snap-download.log; then
             break
         fi
         sleep .5
     done
-    MATCH 'Retrying.*, attempt 2' < snap-download.log
+    MATCH 'Retrying.*\.snap, attempt 2' < snap-download.log
 
     # Note that the download will not be successful because of the nature of
     # the netfilter testbed. When snap download retries the next attempt will
