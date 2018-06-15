@@ -260,6 +260,21 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
+		// When re-loading connections, in the presence of the snapd snap
+		// (which then takes over as the host for implicit interfaces),
+		// translate connection state so that stored connections going to the
+		// "core" snap are routed to the "snapd" snap instead.
+		//
+		// This is done in memory only so that the old snapd state can stay
+		// compatible for reverting. This version of snapd will automatically
+		var hasSnapdSnap bool
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(m.state, "snapd", &snapst); err == nil {
+			hasSnapdSnap = true
+		}
+		if connRef.SlotRef.Snap == "core" && hasSnapdSnap {
+			connRef.SlotRef.Snap = "snapd"
+		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
 		if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
