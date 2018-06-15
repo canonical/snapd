@@ -698,8 +698,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:       name,
-		AnyChannel: true,
+		Name: name,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	switch err {
@@ -2494,6 +2493,11 @@ type debugAction struct {
 	Action string `json:"action"`
 }
 
+type ConnectivityStatus struct {
+	Connectivity bool     `json:"connectivity"`
+	Unreachable  []string `json:"unreachable,omitempty"`
+}
+
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a debugAction
 	decoder := json.NewDecoder(r.Body)
@@ -2519,6 +2523,24 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
+	case "connectivity":
+		s := snapstate.Store(st)
+		st.Unlock()
+		checkResult, err := s.ConnectivityCheck()
+		st.Lock()
+		if err != nil {
+			return InternalError("cannot run connectivity check: %v", err)
+		}
+		status := ConnectivityStatus{Connectivity: true}
+		for host, reachable := range checkResult {
+			if !reachable {
+				status.Connectivity = false
+				status.Unreachable = append(status.Unreachable, host)
+			}
+		}
+		sort.Strings(status.Unreachable)
+
+		return SyncResponse(status, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
