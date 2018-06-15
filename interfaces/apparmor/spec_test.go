@@ -313,7 +313,6 @@ func (s *specSuite) TestChopTree(c *C) {
 		// Exhaustive test cases for file paths.
 
 		{p: "/foo/bar/froz", d: 0, // Assume that no directories exist (and '/' does not have 'w')
-			l: []string(nil),
 			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
 		{p: "/foo/bar/froz", d: 1, // Assume that the root directory exists
 			l: []string{"/"},
