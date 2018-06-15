@@ -16,6 +16,7 @@ debug: |
     ps -ef
     ls -al
 
+
 execute: |
     echo "Downloading a large snap in the background"
     rm -f test-snapd-huge_*
@@ -47,6 +48,13 @@ execute: |
         exit 1
     fi
 
+    if [ -n "$(find . -name 'test-snapd-huge_*.snap')" ]; then
+        echo "File fully downloaded before the test could act"
+        echo "Test broken"
+        echo "end: $(date)"
+        exit 1
+    fi
+
     echo "Block the download using iptables"
     iptables -I OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset
 
@@ -62,3 +70,5 @@ execute: |
     # Note that the download will not be successful because of the nature of
     # the netfilter testbed. When snap download retries the next attempt will
     # end up with a "connection refused" error, something we do not retry
+debug: |
+    cat snap-download.log
