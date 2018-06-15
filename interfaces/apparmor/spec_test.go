@@ -335,6 +335,8 @@ func (s *specSuite) TestChopTree(c *C) {
 		// Unclean paths are not allowed.
 		{p: "/foo/../bar", d: 1, e: "cannot chop unclean path: .*"},
 		{p: "/foo//bar", d: 1, e: "cannot chop unclean path: .*"},
+		{p: "foo/../bar", d: 1, e: "cannot chop unclean path: .*"},
+		{p: "foo//bar", d: 1, e: "cannot chop unclean path: .*"},
 
 		// https://twitter.com/thebox193/status/654457902208557056
 		{p: "/foo/bar/froz/", d: -1,
