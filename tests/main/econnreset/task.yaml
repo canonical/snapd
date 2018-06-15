@@ -40,7 +40,7 @@ execute: |
         exit 1
     fi
 
-    if [ "$(find . -name test-snapd-huge_*.snap )" -gt 1 ]; then
+    if [ "$(find . -name 'test-snapd-huge_*.snap' )" -gt 1 ]; then
         echo "File fully downloaded before the test could act"
         echo "Test broken"
         echo "end: $(date)"
