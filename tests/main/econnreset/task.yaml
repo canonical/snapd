@@ -18,7 +18,7 @@ debug: |
 execute: |
     echo "Downloading a large snap in the background"
     rm -f test-snapd-huge_*
-    su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
+    su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
     echo "starting: $(date)"
@@ -58,3 +58,5 @@ execute: |
     # Note that the download will not be successful because of the nature of
     # the netfilter testbed. When snap download retries the next attempt will
     # end up with a "connection refused" error, something we do not retry
+debug: |
+    cat snap-download.log
