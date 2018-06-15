@@ -162,6 +162,7 @@ func (s *getSuite) TestGetRegularUser(c *C) {
 
 	mockHandler := hooktest.NewMockHandler()
 	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
 	stdout, stderr, err := ctlcmd.Run(1000, mockContext, []string{"get", "test-key1"})
 	c.Assert(err, IsNil)
 	c.Assert(string(stdout), Equals, "test-value1\n")
