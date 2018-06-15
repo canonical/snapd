@@ -203,9 +203,9 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	// "snap-update-ns.*" that is already used there
 	//
 	// So
-	//             /snap/core/111/usr/lib/snapd/snap-confine
+	//   /snap/core/111/usr/lib/snapd/snap-confine
 	// becomes
-	// snap-confine.snap.core.111.usr.lib.snapd.snap-confine
+	//   snap-confine.snap.core.111.usr.lib.snapd.snap-confine
 	patchedProfileName := "snap-confine." + strings.Replace(snapConfineInCore[1:], "/", ".", -1)
 	patchedProfileGlob := strings.Replace(patchedProfileName, "."+info.Revision.String()+".", ".*.", 1)
 
@@ -220,7 +220,7 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	return dirs.SnapAppArmorDir, patchedProfileGlob, content, nil
 }
 
-// setupSnapConfineReexec will setup apparmor profiles on the hosts
+// setupSnapConfineReexec will setup apparmor profiles inside the host's
 // /var/lib/snapd/apparmor/profiles directory. This is needed for
 // running snap-confine from the core or snapd snap.
 //
