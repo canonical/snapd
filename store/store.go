@@ -1461,6 +1461,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	var finalErr error
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		logger.Debugf("download - Starting attempt cicle %s", attempt)
 		reqOptions := downloadOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
@@ -1468,6 +1469,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		h := crypto.SHA3_384.New()
 
 		if resume > 0 {
+			logger.Debugf("download - Resuming")
 			reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 			// seed the sha3 with the already local file
 			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
@@ -1493,12 +1495,14 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {
+				logger.Debugf("download - Should retry error")
 				continue
 			}
 			break
 		}
 
 		if httputil.ShouldRetryHttpResponse(attempt, resp) {
+			logger.Debugf("download - Should retry http response")
 			resp.Body.Close()
 			continue
 		}
@@ -1507,14 +1511,17 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		switch resp.StatusCode {
 		case 200, 206: // OK, Partial Content
+			logger.Debugf("download - status code 200-206")
 		case 402: // Payment Required
-
+			logger.Debugf("download - status code 402")
 			return fmt.Errorf("please buy %s before installing it.", name)
 		default:
+			logger.Debugf("download - status code default")
 			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
 
 		if pbar == nil {
+			logger.Debugf("download - progress bar nil")
 			pbar = progress.Null
 		}
 		pbar.Start(name, float64(resp.ContentLength))
@@ -1524,9 +1531,11 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {
 				// error while downloading should resume
+				logger.Debugf("download - error while downloading should resume")
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
 				if seekerr == nil {
+					logger.Debugf("download - seekerr nil")
 					continue
 				}
 				// if seek failed, then don't retry end return the original error
@@ -1540,8 +1549,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if sha3_384 != "" && sha3_384 != actualSha3 {
+			logger.Debugf("download - hash error")
 			finalErr = HashError{name, actualSha3, sha3_384}
 		}
+		logger.Debugf("download - finished, breaking")
 		break
 	}
 	return finalErr
