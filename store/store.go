@@ -1468,6 +1468,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		h := crypto.SHA3_384.New()
 
+		logger.Debugf("download - check 1")
 		if resume > 0 {
 			logger.Debugf("download - Resuming")
 			reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
@@ -1484,15 +1485,18 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			}
 		}
 
+		logger.Debugf("download - check 2")
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
 		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(nil), reqOptions, user)
 
+		logger.Debugf("download - check 3")
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
+		logger.Debugf("download - check 4")
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {
 				logger.Debugf("download - Should retry error")
@@ -1501,14 +1505,17 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			break
 		}
 
+		logger.Debugf("download - check 5")
 		if httputil.ShouldRetryHttpResponse(attempt, resp) {
 			logger.Debugf("download - Should retry http response")
 			resp.Body.Close()
 			continue
 		}
 
+		logger.Debugf("download - check 6")
 		defer resp.Body.Close()
 
+		logger.Debugf("download - check 7")
 		switch resp.StatusCode {
 		case 200, 206: // OK, Partial Content
 			logger.Debugf("download - status code 200-206")
@@ -1520,14 +1527,17 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
 
+		logger.Debugf("download - check 8")
 		if pbar == nil {
 			logger.Debugf("download - progress bar nil")
 			pbar = progress.Null
 		}
+		logger.Debugf("download - check 9")
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
+		logger.Debugf("download - check 10")
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {
 				// error while downloading should resume
@@ -1543,10 +1553,12 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			break
 		}
 
+		logger.Debugf("download - check 11")
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 
+		logger.Debugf("download - check 12")
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if sha3_384 != "" && sha3_384 != actualSha3 {
 			logger.Debugf("download - hash error")
