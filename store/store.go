@@ -1375,8 +1375,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		url = downloadInfo.DownloadURL
 	}
 
+	logger.Debugf("using url %q: ", url)
+
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+		logger.Debugf("download finished")
 		if err != nil {
 			logger.Debugf("download of %q failed: %#v", url, err)
 		}
@@ -1407,6 +1410,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			return err
 		}
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+		logger.Debugf("download finished in second retry")
 		if err != nil {
 			logger.Debugf("download of %q failed: %#v", url, err)
 		}
@@ -1418,6 +1422,8 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 	if err := os.Rename(w.Name(), targetPath); err != nil {
 		return err
+	} else {
+		logger.Debugf("Remane done")
 	}
 
 	if err := w.Sync(); err != nil {
