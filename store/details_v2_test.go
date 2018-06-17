@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -280,8 +281,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"BadInterfaces",
 		"Broken",
 		"MustBuy",
-		"Channels", // TODO: support coming later
-		"Tracks",   // TODO: support coming later
+		"Channels", // handled at a different level (see TestInfo)
+		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
@@ -304,4 +305,91 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	}
 	x := reflect.ValueOf(info).Elem()
 	checker("", x)
+}
+
+// arg must be a pointer to a struct
+func fillStruct(a interface{}, c *C) {
+	if t := reflect.TypeOf(a); t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
+		k := t.Kind()
+		if k == reflect.Ptr {
+			k = t.Elem().Kind()
+		}
+		c.Fatalf("first argument must be expected a pointer to a struct, not %s", k)
+	}
+	va := reflect.ValueOf(a)
+	n := va.Elem().NumField()
+	for i := 0; i < n; i++ {
+		field := va.Elem().Field(i)
+		var x interface{}
+		switch field.Interface().(type) {
+		case string:
+			x = "foo"
+		case []string:
+			x = []string{"foo"}
+		case safejson.String:
+			var s safejson.String
+			c.Assert(json.Unmarshal([]byte(`"foo"`), &s), IsNil)
+			x = s
+		case safejson.Paragraph:
+			var p safejson.Paragraph
+			c.Assert(json.Unmarshal([]byte(`"foo"`), &p), IsNil)
+			x = p
+		case storeSnapDownload:
+			x = storeSnapDownload{
+				URL:      "http://example.com/foo",
+				Size:     42,
+				Sha3_384: "foo",
+			}
+		case snap.Epoch:
+			x = *snap.E("1")
+		case map[string]string:
+			x = map[string]string{"foo": "bar"}
+		case bool:
+			x = true
+		case storeAccount:
+			x = storeAccount{
+				ID:          "foo-id",
+				Username:    "foo",
+				DisplayName: "Foo Bar",
+			}
+		case int:
+			x = 42
+		case snap.Type:
+			x = snap.Type("invalid")
+		case []storeSnapMedia:
+			x = []storeSnapMedia{{
+				Type: "potato",
+				URL:  "http://example.com/foo.pot",
+			}}
+		default:
+			c.Fatalf("unhandled field type %T", field.Interface())
+		}
+		field.Set(reflect.ValueOf(x))
+	}
+}
+
+func (s *detailsV2Suite) TestCopyNonZero(c *C) {
+	// a is a storeSnap with everything non-zero
+	a := storeSnap{}
+	fillStruct(&a, c)
+	// b is all zeros
+	b := storeSnap{}
+
+	aCopy := a
+	bCopy := b
+
+	// sanity check
+	c.Check(a, DeepEquals, aCopy)
+	c.Check(b, DeepEquals, bCopy)
+	c.Check(a, Not(DeepEquals), b)
+
+	// copying from b to a does nothing:
+	copyNonZeroFrom(&b, &a)
+	c.Check(a, DeepEquals, aCopy)
+	c.Check(b, DeepEquals, bCopy)
+
+	// copying from a to b does its thing:
+	copyNonZeroFrom(&a, &b)
+	c.Check(a, DeepEquals, b)
+	c.Check(b, Not(DeepEquals), bCopy)
 }
