@@ -35,7 +35,7 @@ execute: |
         ps -ef
         ls -al
         cat snap-download.log || true
-        kill -9 "$(pidof snap)"
+        kill -9 $(ps aux | grep '[s]nap download' | awk '{print $2}')
         exit 1
     fi
 
