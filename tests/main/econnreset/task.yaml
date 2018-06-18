@@ -37,7 +37,7 @@ execute: |
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
         echo "Partial file $partial did not start downloading, test broken"
-        ps -ef
+        kill -9 "$(pgrep -f 'snap download')" || true
         ls -al
         cat snap-download.log || true
         kill -9 "$(pgrep -f 'snap download')" || true
