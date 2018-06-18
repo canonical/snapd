@@ -1078,6 +1078,68 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
+// The setup-profiles/remove-profiles tasks will store/remove snap revision
+// in/from the state.
+func (s *interfaceManagerSuite) TestSnapSecurityWithRevision(c *C) {
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Initialize the manager. This registers the two snaps.
+	s.manager(c)
+
+	// Run the setup-profiles task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snapInfo.Revision)
+
+	s.state.Unlock()
+
+	// Run the remove-security task and let it finish.
+	change = s.addRemoveSnapSecurityChange(c, snapInfo.Name())
+	s.settle(c)
+
+	s.state.Lock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	err = ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snap.R(0))
+
+	// Set up discard-conns
+	// Remove the snaps so that discard-conns doesn't complain about snaps still installed
+	snapstate.Set(s.state, "snap", nil)
+
+	s.state.Unlock()
+
+	change = s.addDiscardConnsChange(c, snapInfo.Name())
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	err = ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
 // The setup-profiles task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	// Add an OS snap.
@@ -2243,6 +2305,12 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 1)
 	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{snapInfo.Name()})
+
+	// Ensure the snap revision of security profiles is unset.
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snap.R(0))
 }
 
 // Test that setup-snap-security gets undone correctly when a snap is refreshed
@@ -2284,6 +2352,13 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+
+	// Ensure the snap revision used for security profiles is the same as
+	// the snap we had in the state.
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snapInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
@@ -2908,5 +2983,73 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 		"snap0": snap.R(10),
 		"snap1": snap.R(1),
 		"snap3": snap.R(3),
+	})
+}
+
+func (s *interfaceManagerSuite) TestGet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Get the state of the snap "hello", it should not be there yet.
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "hello", &snapifst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// Manually make state that describes the "bye" snap.
+	repoSt := map[string]ifacestate.SnapInterfaceState{
+		"bye": {Revision: snap.R(13)},
+	}
+	s.state.Set("snap-interfaces", &repoSt)
+
+	// Get the state of the snap "hello" again, it should not be there, still.
+	err = ifacestate.Get(s.state, "hello", &snapifst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// Manually make state that describes the "hello" snap.
+	repoSt = map[string]ifacestate.SnapInterfaceState{
+		"hello": {Revision: snap.R(42)},
+	}
+	s.state.Set("snap-interfaces", &repoSt)
+
+	// Get the state of the snap "hello" again, it should work now.
+	err = ifacestate.Get(s.state, "hello", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snap.R(42))
+}
+
+func (s *interfaceManagerSuite) TestSet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Set the state of the snap "hello", it should just work.
+	ifacestate.Set(s.state, "hello", &ifacestate.SnapInterfaceState{Revision: snap.R(42)})
+
+	// It should be saved into the repository state
+	var repoSt map[string]interface{}
+	err := s.state.Get("snap-interfaces", &repoSt)
+	c.Assert(err, IsNil)
+	c.Assert(repoSt, DeepEquals, map[string]interface{}{
+		"hello": map[string]interface{}{"revision": "42"},
+	})
+
+	// Set the state of the snap "bye", it should not clobber that of "hello".
+	ifacestate.Set(s.state, "bye", &ifacestate.SnapInterfaceState{Revision: snap.R(13)})
+
+	repoSt = nil
+	err = s.state.Get("snap-interfaces", &repoSt)
+	c.Assert(err, IsNil)
+	c.Assert(repoSt, DeepEquals, map[string]interface{}{
+		"hello": map[string]interface{}{"revision": "42"},
+		"bye":   map[string]interface{}{"revision": "13"},
+	})
+
+	// Set the state of the snap "hello" to nil, this should remove it.
+	ifacestate.Set(s.state, "hello", nil)
+
+	repoSt = nil
+	err = s.state.Get("snap-interfaces", &repoSt)
+	c.Assert(err, IsNil)
+	c.Assert(repoSt, DeepEquals, map[string]interface{}{
+		"bye": map[string]interface{}{"revision": "13"},
 	})
 }
