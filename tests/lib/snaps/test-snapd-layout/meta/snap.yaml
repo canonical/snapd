@@ -28,5 +28,5 @@ layout:
   /var/spool/rsyslog/demo:
     bind: $SNAP_DATA/var/spool/rsyslog/demo
   # Layout can refer to non-existing source path.
-  /bin/very-weird-place:
-    bind: $SNAP/bin-very-weird-place
+  /bin/very/weird/place:
+    bind: $SNAP/bin/very/weird/place
