@@ -137,8 +137,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	// TODO parallel-install: consider whether parallel installs should be
-	// allowed when building an image
+	// TODO parallel-install: parallel installs should be blocked for now
 
 	local, err := localSnaps(tsto, opts)
 	if err != nil {

@@ -1569,7 +1569,6 @@ out:
 			return BadRequest("cannot read snap file: %v", err)
 		}
 		snapName = info.InstanceName()
-		// TODO parallel-install: use proper name
 		sideInfo = &snap.SideInfo{RealName: snapName}
 	}
 
@@ -1578,6 +1577,7 @@ out:
 		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
 
+	// TODO parallel-install: pass instance key if needed
 	tset, err := snapstateInstallPath(st, sideInfo, tempPath, "", flags)
 	if err != nil {
 		return InternalError("cannot install snap file: %v", err)
