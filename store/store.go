@@ -1459,6 +1459,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		logger.Debugf("download - Starting attempt cicle %s", attempt)
@@ -1533,7 +1534,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			pbar = progress.Null
 		}
 		logger.Debugf("download - check 9")
-		pbar.Start(name, float64(resp.ContentLength))
+		dlSize = float64(resp.ContentLength)
+		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
@@ -1566,6 +1568,20 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		logger.Debugf("download - finished, breaking")
 		break
+	}
+	if finalErr == nil {
+		// not using quantity.FormatFoo as this is just for debug
+		dt := time.Since(startTime)
+		r := dlSize / dt.Seconds()
+		var p rune
+		for _, p = range " kMGTPEZY" {
+			if r < 1000 {
+				break
+			}
+			r /= 1000
+		}
+
+		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
 }
