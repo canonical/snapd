@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Specification assists in collecting apparmor entries associated with an interface.
@@ -171,6 +172,92 @@ func isProbablyWritable(path string) bool {
 // file-system tree.
 func isProbablyPresent(path string) bool {
 	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
+}
+
+// chopTree takes a path and depth and returns two lists of apparmor path expressions.
+//
+// The returned lists of expressions are referred to as left and right.
+//
+// The left list describes directories at depth up to and including
+// assumedPrefixDepth and can be used to grant read permission to them (by
+// appending the string "r, " to each element). This corresponds to an
+// assumption about those directories being present in the system and being
+// just traversed. Note that depth is defined as the number of directories
+// traversed, including the root directory.
+//
+// The right list describes the remaining directories and the leaf entry
+// (either file or directory) and is somewhat subtle. At each depth level the
+// expression describes all the files and directories at that level. Coupled
+// with the string "rw ," it can be used to create a rule that allows write
+// access to any file therein, but not deeper.
+//
+// For example, with path: "/foo/bar/froz/baz" and depth 3 the result is:
+// []string{"/", "/foo/", "/foo/bar/"} and []string{"/foo/bar/*",
+// "/foo/bar/*/", "/foo/bar/froz/*", "/foo/bar/froz/*/"}. Coupled with the
+// aforementioned constants this translates to the following apparmor rules:
+//
+//   / r,
+//   /foo/ r,
+//   /foo/bar/ r,
+//
+//   /foo/bar/* rw,
+//   /foo/bar/*/ rw,
+//   /foo/bar/froz/* rw,
+//   /foo/bar/froz/*/ rw,
+//
+// Those rules are useful for constructing the apparmor profile for a writable
+// mimic that needs to be present in a specific directory (e.g. in
+// /foo/bar/froz/baz) assuming that part of that directory already exists (e.g.
+// /foo/bar/) but may need to be created earlier (e.g. in /foo/bar/froz).
+//
+// The mimic works by mounting a tmpfs over the mimicked directory and then
+// re-creating empty files and directories as mount points for the subsequent
+// bind-mount operations to latch onto. This is why the right list of
+// expressions use * and */, this allows the expressions to capture files and
+// directories at a specific path.
+func chopTree(path string, assumedPrefixDepth int) (left, right []string, err error) {
+	// NOTE: This implementation works around a bug in apparmor parser:
+	// https://bugs.launchpad.net/apparmor/+bug/1769971
+	//
+	// Due to the nature of apparmor path expressions we need to distinguish
+	// directories and files. The path expression denoting a directory must end
+	// with a trailing slash, that denoting a file must not.
+	//
+	// The iterator requires golang-clean paths which never have a trailing
+	// slash. We want to allow clean paths with an optional trailing slash.
+	isDir := strings.HasSuffix(path, "/")
+	cleanPath := filepath.Clean(path)
+	if (isDir && cleanPath+"/" != path) || (!isDir && cleanPath != path) {
+		return nil, nil, fmt.Errorf("cannot chop unclean path: %q", path)
+	}
+
+	// Iterate over the path and construct left and right.
+	iter, _ := strutil.NewPathIterator(cleanPath)
+	for iter.Next() {
+		if iter.Depth() <= assumedPrefixDepth {
+			// The left hand side is the part that is assumed to exist.
+			// We mostly enumerate those directories as-is except for the final
+			// entry that we re-create the trailing slash if the original path
+			// was a "directory" path.
+			if iter.CurrentPath() == iter.Path() && isDir {
+				left = append(left, iter.CurrentPath()+"/")
+			} else {
+				left = append(left, iter.CurrentPath())
+			}
+		} else {
+			// The right hand side rules should not allow creation of the root
+			// directory as that itself is meaningless.
+			if iter.Depth() > 1 {
+				// The right hand side replaces the final component with a "*"
+				// and "*/", meaning any file and any directory, respectively.
+				right = append(right, iter.CurrentBase()+"*")
+				right = append(right, iter.CurrentBase()+"*/")
+			}
+		}
+	}
+	// Note, for completeness we could append the full path but that is
+	// guaranteed to be captured by one of the two expressions above.
+	return left, right, nil
 }
 
 // WritableFileProfile writes a profile for snap-update-ns for making given file writable.
