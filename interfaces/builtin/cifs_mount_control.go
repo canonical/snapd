@@ -54,7 +54,10 @@ umount fstype=cifs @{HOMEDIRS}/*/snap/@{SNAP_NAME}/common/{,**/},
 umount fstype=cifs /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
 umount fstype=cifs /var/snap/@{SNAP_NAME}/common/{,**/},
 
-/run/mount/utab rw,
+# Don't log violations for this file, see discussion here:
+#  - https://github.com/snapcore/snapd/pull/5340#issuecomment-398071797
+#  - https://forum.snapcraft.io/t/namespace-awareness-of-run-mount-utab-and-libmount/5987
+deny /run/mount/utab rw,
 `
 
 func init() {
