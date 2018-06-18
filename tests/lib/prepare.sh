@@ -355,7 +355,7 @@ EOF
         # - built debs
         # - golang archive files and built packages dir
         # - govendor .cache directory and the binary,
-        rsync -avv -C \
+        rsync -a -C \
               --exclude '*.a' \
               --exclude '*.deb' \
               --exclude /gopath/.cache/ \
@@ -613,7 +613,7 @@ setup_reflash_magic_core18() {
         # - built debs
         # - golang archive files and built packages dir
         # - govendor .cache directory and the binary,
-        rsync -avv -C \
+        rsync -a -C \
               --exclude '*.a' \
               --exclude '*.deb' \
               --exclude /gopath/.cache/ \
