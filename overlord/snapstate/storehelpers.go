@@ -111,7 +111,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 	//       here.
 	if channel != "" && err == store.ErrRevisionNotAvailable {
 		st.Unlock()
-		_, err1 := theStore.SnapInfo(store.SnapSpec{Name: name, AnyChannel: true}, user)
+		_, err1 := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
 		st.Lock()
 		if err1 != nil {
 			return nil, store.ErrSnapNotFound

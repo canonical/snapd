@@ -9,23 +9,39 @@ restore: |
 # with the distro
 backends: [-autopkgtest]
 
+debug: |
+    echo "Partial download status"
+    ls -lh test-snapd-huge_* || true
+    echo "other dir content"
+    ls -lh
+    echo "download log:"
+    cat snap-download.log
+
 execute: |
     echo "Downloading a large snap in the background"
-    su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
+    rm -f test-snapd-huge_*
+    su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
     echo "Wait until the download started and downloaded more than 1 MB"
-    for _ in $(seq 40); do
-        if partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1); then
-            if [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
-                break
-            fi
+    echo "starting: $(date)"
+    for _ in $(seq 400); do
+        partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1)
+        if [ -n "$partial" ] && [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
+            break
         fi
-        sleep 1
+        sleep 0.1
     done
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
         echo "Partial file $partial did not start downloading, test broken"
         kill -9 "$(pidof snap)"
+        exit 1
+    fi
+
+    if [ -n "$(find . -name 'test-snapd-huge_*.snap')" ]; then
+        echo "File fully downloaded before the test could act"
+        echo "Test broken"
+        echo "end: $(date)"
         exit 1
     fi
 
@@ -39,6 +55,14 @@ execute: |
         fi
         sleep .5
     done
+
+    if [ -n "$(find . -name 'test-snapd-huge_*.snap')" ]; then
+        echo "File fully downloaded even after iptables was applied"
+        echo "Test broken"
+        echo "end: $(date)"
+        exit 1
+    fi
+
     MATCH 'Retrying.*\.snap, attempt 2' < snap-download.log
 
     # Note that the download will not be successful because of the nature of
