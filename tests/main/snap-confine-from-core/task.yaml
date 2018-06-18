@@ -50,23 +50,23 @@ execute: |
     fi
 
     echo "Ensure snapd generates the right apparmor profile on restart"
-    PROFILES="$(find /etc/apparmor.d/ -maxdepth 1 -name "snap.core.*.snap-confine")"
+    PROFILES="$(find /var/lib/snapd/apparmor/profiles/ -maxdepth 1 -name "snap-confine.*")"
     if [ -z "$PROFILES" ]; then
         echo "cannot find apparmor profiles for snap-confine from core"
         echo "test broken"
-        ls -al /etc/apparmor.d
+        ls -al /var/lib/snapd/apparmor/profiles
         exit 1
     fi
 
     echo "Force system-key change"
     systemd_stop_units snapd.service snapd.socket
     printf '{"version":1}' > /var/lib/snapd/system-key
-    rm -f /etc/apparmor.d/snap.core.*.snap-confine
+    rm -f /var/lib/snapd/apparmor/profiles/snap-confine.*
     systemctl start snapd.service snapd.socket
     wait_for_service snapd.service
 
     echo "Ensure this also re-generates the snap-confine from core profile"
-    PROFILES="$(find /etc/apparmor.d/ -maxdepth 1 -name "snap.core.*.snap-confine")"
+    PROFILES="$(find /var/lib/snapd/apparmor/profiles/ -maxdepth 1 -name "snap-confine.*")"
     if [ -z "$PROFILES" ]; then
         echo "apparmor profiles for snap-confine from core were not re-generated"
         echo "test broken"
