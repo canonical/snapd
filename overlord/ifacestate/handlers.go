@@ -642,7 +642,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 
 		const auto = true
-		if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
+		if err := checkConnectConflicts(st, "", plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.Name(), slot.Snap.Name())
 				return err // will retry
@@ -691,7 +691,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			}
 
 			const auto = true
-			if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
+			if err := checkConnectConflicts(st, "", plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
 				if _, retry := err.(*state.Retry); retry {
 					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.Name(), slot.Snap.Name())
 					return err // will retry
@@ -741,15 +741,8 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		ignore, err := findSymmetricInstallTask(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap, task)
-		if err != nil {
-			return err
-		}
-		if ignore {
-			continue
-		}
 		const auto = true
-		if err := checkConnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap, auto); err != nil {
+		if err := checkConnectConflicts(st, snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap, auto); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("disconnect-interfaces task for snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				return err // will retry
@@ -764,7 +757,7 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		if err != nil {
 			break
 		}
-		ts, err := DisconnectHooks(st, conn, task)
+		ts, err := disconnect(st, conn)
 		if err != nil {
 			return err
 		}
