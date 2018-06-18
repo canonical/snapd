@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -631,8 +630,8 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	s.writeVanillaSnapConfineProfile(c, coreInfo)
 	// We expect to see the same profile, just anchored at a different directory.
 	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
-	expectedProfileName := "snap-confine." + strings.Replace(filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
-	expectedProfileGlob := strings.Replace(expectedProfileName, "."+coreInfo.Revision.String()+".", ".*.", -1)
+	expectedProfileName := "snap-confine.core.111"
+	expectedProfileGlob := "snap-confine.core.*"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -666,8 +665,8 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 
 	// We expect to see the same profile, just anchored at a different directory.
 	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
-	expectedProfileName := strings.Replace("snap-confine."+filepath.Join(snapdInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
-	expectedProfileGlob := strings.Replace(expectedProfileName, "."+snapdInfo.Revision.String()+".", ".*.", -1)
+	expectedProfileName := "snap-confine.snapd.222"
+	expectedProfileGlob := "snap-confine.snapd.*"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -700,7 +699,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
 	s.writeVanillaSnapConfineProfile(c, coreInfo)
 
-	canaryName := strings.Replace("snap-confine"+filepath.Join(dirs.SnapMountDir, "/core/2718/usr/lib/snapd/snap-confine"), "/", ".", -1)
+	canaryName := "snap-confine.core.2718"
 	canary := filepath.Join(dirs.SnapAppArmorDir, canaryName)
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
 	c.Assert(err, IsNil)
@@ -732,7 +731,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	newAA, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(newAA, HasLen, 1)
-	c.Check(newAA[0], Matches, `.*/var/lib/snapd/apparmor/profiles/.*.snap.core.111.usr.lib.snapd.snap-confine`)
+	c.Check(newAA[0], Matches, `.*/var/lib/snapd/apparmor/profiles/snap-confine.core.111`)
 
 	// This is the key, rewriting "/usr/lib/snapd/snap-confine
 	c.Check(newAA[0], testutil.FileContains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
