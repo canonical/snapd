@@ -2368,7 +2368,7 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 
 	info, err := sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.Name(), Equals, "hello")
+	c.Check(info.InstanceName(), Equals, "hello")
 
 	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
 	c.Check(err, Equals, ErrSnapNotFound)
