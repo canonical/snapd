@@ -31,6 +31,10 @@
 enum {
 	/** The name of the snap is not valid. */
 	SC_SNAP_INVALID_NAME = 1,
+	/** The instance key of the snap is not valid. */
+	SC_SNAP_INVALID_INSTANCE_KEY = 2,
+	/** The instance of the snap is not valid. */
+	SC_SNAP_INVALID_INSTANCE_NAME = 3,
 };
 
 /**
@@ -43,6 +47,31 @@ enum {
  * error pointer the function will die on any error.
  **/
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
+
+/**
+ * Validate the given instance key.
+ *
+ * Valid instance key cannot be NULL and must match a regular expression
+ * describing the strict naming requirements. Please refer to snapd source code
+ * for details.
+ *
+ * The error protocol is observed so if the caller doesn't provide an outgoing
+ * error pointer the function will die on any error.
+ **/
+void sc_instance_key_validate(const char *instance_key,
+			      struct sc_error **errorp);
+
+/**
+ * Validate the given snap instance name.
+ *
+ * Valid instance name must be composed of a valid snap name and a valid
+ * instance key.
+ *
+ * The error protocol is observed so if the caller doesn't provide an outgoing
+ * error pointer the function will die on any error.
+ **/
+void sc_instance_name_validate(const char *instance_name,
+			       struct sc_error **errorp);
 
 /**
  * Validate security tag against strict naming requirements and snap name.
