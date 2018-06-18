@@ -14,8 +14,8 @@ start_new_journalctl_log(){
     else
         echo "$cursor" > "$JOURNALCTL_CURSOR_FILE"
     fi
-
-    test_id="test-$RANDOM"
+    echo "New test starts here - $SPREAD_JOB" | systemd-cat
+    test_id="test-${RANDOM}${RANDOM}"
     echo "$test_id" | systemd-cat
     for _ in $(seq 20); do
         if get_journalctl_log | grep -q "$test_id"; then
@@ -23,7 +23,7 @@ start_new_journalctl_log(){
         fi
         sleep 0.5
     done
-    echo "Test is not found in journalctl, exiting..."
+    echo "Test id not found in journalctl, exiting..."
     exit 1
 }
 
