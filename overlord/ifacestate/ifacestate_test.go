@@ -316,7 +316,7 @@ func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnapOnLink(c *C) {
 	s.testDisconnectConflicts(c, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
+func (s *interfaceManagerSuite) TestConnectConflictRetry(c *C) {
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -331,14 +331,14 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 	chg.AddTask(t)
 
 	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `task should be retried`)
 
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
 		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
 	}
 	_, err = ifacestate.Disconnect(s.state, conn)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDifferentSnap(c *C) {
@@ -369,7 +369,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true), IsNil)
+	c.Assert(ifacestate.CheckConnectConflicts(s.state, "", "consumer", "producer", true), IsNil)
 
 	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", true)
 	c.Assert(err, IsNil)
@@ -408,7 +408,7 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true)
+	return ifacestate.CheckConnectConflicts(s.state, "", "consumer", "producer", true)
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
@@ -484,7 +484,6 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnConnectWithAutoFlag(c *
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
-	// FIXME: flesh this test out once individual connect conflict check is fleshed out
 	s.state.Lock()
 	task := s.state.NewTask("connect", "")
 	task.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
@@ -493,7 +492,7 @@ func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
 	s.state.Unlock()
 
 	err := s.createAutoconnectChange(c, task)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -3063,7 +3062,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	defer s.state.Unlock()
 
 	ht := t.HaltTasks()
-	c.Assert(ht, HasLen, 2)
+	c.Assert(ht, HasLen, 3)
 
 	var expectedHooks = []struct{ snap, hook string }{
 		{snap: "producer", hook: "disconnect-slot-slot"},
@@ -3098,7 +3097,7 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	producerInfo := s.mockSnap(c, producerYaml)
 
-	sup := &snapstate.SnapSetup{
+	supprod := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "producer"},
 	}
@@ -3114,12 +3113,12 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}, nil, nil, nil)
 
-	sup = &snapstate.SnapSetup{
+	sup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer"},
 	}
 
-	chg2 := s.state.NewChange("install", "")
+	chg2 := s.state.NewChange("remove", "")
 	t2 := s.state.NewTask("disconnect-interfaces", "")
 	t2.Set("snap-setup", sup)
 	chg2.AddTask(t2)
@@ -3127,8 +3126,8 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	// create conflicting task
 	chg1 := s.state.NewChange("conflicting change", "")
 	t1 := s.state.NewTask(conflictingKind, "")
+	t1.Set("snap-setup", supprod)
 	chg1.AddTask(t1)
-	t1.Set("snap-setup", sup)
 	t3 := s.state.NewTask("other", "")
 	t1.WaitFor(t3)
 	chg1.AddTask(t3)
@@ -3144,10 +3143,6 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 
 	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*disconnect-interfaces task for snap "consumer" will be retried because of "consumer" - "producer" conflict`)
 	c.Assert(t2.Status(), Equals, state.DoingStatus)
-}
-
-func (s *interfaceManagerSuite) TestDisconnectInterfacesRetryUnlink(c *C) {
-	s.testDisconnectInterfacesRetry(c, "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestDisconnectInterfacesRetryLink(c *C) {
