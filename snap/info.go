@@ -260,7 +260,7 @@ func (s *Info) InstanceName() string {
 	return s.StoreName()
 }
 
-// StoreName returns the name of the snap without the instance key.
+// StoreName returns the global blessed name of the snap.
 func (s *Info) StoreName() string {
 	if s.RealName != "" {
 		return s.RealName
