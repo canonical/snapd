@@ -1,6 +1,9 @@
 summary: Ensure that ECONNRESET is handled
 
 restore: |
+    echo "Stop the snap download command"
+    kill -9 "$(pgrep -f 'snap download')" || true
+
     echo "Remove the firewall rule again"
     iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
 
@@ -22,7 +25,7 @@ execute: |
 
     echo "Wait until the download started and downloaded more than 1 MB"
     echo "starting: $(date)"
-    for _ in $(seq 40); do
+    for _ in $(seq 120); do
         partial=$(find . -name 'test-snapd-huge_1.snap.partial' | head -1)
         if [ -n "$partial" ] && [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
             break
@@ -35,7 +38,7 @@ execute: |
         ps -ef
         ls -al
         cat snap-download.log || true
-        kill -9 $(ps aux | grep '[s]nap download' | awk '{print $2}')
+        kill -9 "$(pgrep -f 'snap download')" || true
         exit 1
     fi
 
@@ -46,6 +49,7 @@ execute: |
         ls -al
         cat snap-download.log || true
         echo "end: $(date)"
+        kill -9 "$(pgrep -f 'snap download')" || true
         exit 1
     fi
 
