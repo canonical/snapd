@@ -1046,7 +1046,7 @@ snaps:
 	c.Check(conns, HasLen, 1)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"foo:network-control core:network-control": map[string]interface{}{
-			"interface": "network-control", "auto": true,
+			"interface": "network-control", "auto": true, "by-gadget": true,
 		},
 	})
 

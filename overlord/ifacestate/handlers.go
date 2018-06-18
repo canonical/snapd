@@ -390,6 +390,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var policyChecker interfaces.PolicyFunc
 
+	// manual connections and connections by the gadget obey the
+	// policy "connection" rules, other auto-connections obey the
+	// "auto-connection" rules
 	if autoConnect && !byGadget {
 		autochecker, err := newAutoConnectChecker(st)
 		if err != nil {
@@ -430,6 +433,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		StaticSlotAttrs:  conn.Slot.StaticAttrs(),
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
+		ByGadget:         byGadget,
 	}
 	setConns(st, conns)
 

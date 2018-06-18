@@ -315,6 +315,7 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
+	ByGadget  bool   `json:"by-gadget,omitempty"`
 	Interface string `json:"interface,omitempty"`
 	// Undesired tracks connections that were manually disconnected after being auto-connected,
 	// so that they are not automatically reconnected again in the future.
