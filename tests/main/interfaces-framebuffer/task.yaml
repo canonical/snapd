@@ -8,11 +8,11 @@ details: |
     The test also checks the interface connection and disconnection works properly.
 
 prepare: |
-    snap try $TESTSLIB/snaps/test-snapd-framebuffer
+    snap try "$TESTSLIB"/snaps/test-snapd-framebuffer
 
 execute: |
     echo "The plug is not connected by default"
-    snap interfaces -i framebuffer | MATCH "\- +test-snapd-framebuffer:framebuffer"
+    snap interfaces -i framebuffer | MATCH '\- +test-snapd-framebuffer:framebuffer'
 
     if [ ! -e /dev/fb0 ]; then
         echo "Framebuffer not available on /dev/fb0"
@@ -22,11 +22,11 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-framebuffer:framebuffer
 
-    echo "Then the snap is able to write in the framebuffer
+    echo "Then the snap is able to write in the framebuffer"
     test-snapd-framebuffer.write "123"
     MATCH "123" < /dev/fb0
 
-    echo "Then the snap is able to read from the framebuffer
+    echo "Then the snap is able to read from the framebuffer"
     test-snapd-framebuffer.read
 
     if [ "$(snap debug confinement)" = partial ] ; then
@@ -37,7 +37,7 @@ execute: |
     snap disconnect test-snapd-framebuffer:framebuffer
 
     echo "Then the snap is not able to access the framebuffer"
-    if test-snapd-framebuffer.write "123" 2>${PWD}/call.error; then
+    if test-snapd-framebuffer.write "123" 2>"${PWD}"/call.error; then
         echo "Expected permission error trying to write the framebuffer"
         exit 1
     fi

@@ -18,6 +18,7 @@ prepare: |
     echo "Ensure an empty state so that installing test-snapd-content-plug"
     echo "will pull in test-snapd-content-slot *and* core"
 
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service
@@ -34,7 +35,7 @@ execute: |
     snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
 
     echo "And fstab files are created"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
 
     echo "And we can use the shared content"
     test-snapd-content-plug.content-plug | grep "Some shared content"
@@ -46,10 +47,10 @@ execute: |
     snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
 
     echo "Then the fstab files are removed"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -eq 0 ]
 
     echo "When the plug is reconnected"
     snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
 
     echo "Then the fstab files are recreated"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
