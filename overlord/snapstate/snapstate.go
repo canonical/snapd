@@ -78,8 +78,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 
-	// TODO parallel-install: block parallel installation of core, kernel
-	// and gadget snaps
+	// TODO parallel-install: block parallel installation of core, kernel,
+	// gadget and snapd snaps
 
 	if err := CheckChangeConflict(st, snapsup.Name(), nil, snapst); err != nil {
 		return nil, err
