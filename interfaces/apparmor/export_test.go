@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	SnapConfineFromCoreProfile = snapConfineFromCoreProfile
+	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
 	ProfileGlobs               = profileGlobs
 	NsProfile                  = nsProfile
 )

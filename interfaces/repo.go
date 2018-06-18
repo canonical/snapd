@@ -81,6 +81,19 @@ func (r *Repository) AddInterface(i Interface) error {
 	return nil
 }
 
+// AllInterfaces returns all the interfaces added to the repository, ordered by name.
+func (r *Repository) AllInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.ifaces))
+	for _, iface := range r.ifaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
+}
+
 // InfoOptions describes options for Info.
 //
 // Names: return just this subset if non-empty.
