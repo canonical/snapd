@@ -17,14 +17,14 @@ execute: |
     mkdir -p /var/cache/fontconfig
     echo "Cache file" > /var/cache/fontconfig/cache.txt
 
-    mkdir -p $HOME/.fonts
-    echo "User font 1" > $HOME/.fonts/user-font1.txt
+    mkdir -p "$HOME"/.fonts
+    echo "User font 1" > "$HOME"/.fonts/user-font1.txt
 
-    mkdir -p $HOME/.local/share/fonts
-    echo "User font 2" > $HOME/.local/share/fonts/user-font2.txt
+    mkdir -p "$HOME"/.local/share/fonts
+    echo "User font 2" > "$HOME"/.local/share/fonts/user-font2.txt
 
     echo "Install the test-snapd-desktop snap"
-    snap try $TESTSLIB/snaps/test-snapd-desktop
+    snap try "$TESTSLIB"/snaps/test-snapd-desktop
 
     echo "The plug is connected by default"
     snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
@@ -39,7 +39,7 @@ execute: |
     test-snapd-desktop.check-files /var/cache/fontconfig/cache.txt | MATCH "Cache file"
 
     echo "Checking access to host ~/.fonts"
-    test-snapd-desktop.check-files $HOME/.fonts/user-font1.txt | MATCH "User font 1"
+    test-snapd-desktop.check-files "$HOME"/.fonts/user-font1.txt | MATCH "User font 1"
 
     echo "Checking access to host ~/.local/share/fonts"
-    test-snapd-desktop.check-files $HOME/.local/share/fonts/user-font2.txt | MATCH "User font 2"
+    test-snapd-desktop.check-files "$HOME"/.local/share/fonts/user-font2.txt | MATCH "User font 2"
