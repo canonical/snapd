@@ -638,6 +638,9 @@ setup_reflash_magic_core18() {
         cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
 
+        # FIXME: for GCE - why not automatic?
+        echo "virtio_net" >> /mnt/system-data/etc/modules
+
         # build the user database - this is complicated because:
         # - spread on linode wants to login as "root"
         # - "root" login on the stock core snap is disabled
