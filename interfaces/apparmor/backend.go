@@ -205,9 +205,9 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	// So
 	//   /snap/core/111/usr/lib/snapd/snap-confine
 	// becomes
-	//   snap-confine.snap.core.111.usr.lib.snapd.snap-confine
-	patchedProfileName := "snap-confine." + strings.Replace(snapConfineInCore[1:], "/", ".", -1)
-	patchedProfileGlob := strings.Replace(patchedProfileName, "."+info.Revision.String()+".", ".*.", 1)
+	//   snap-confine.core.111
+	patchedProfileName := fmt.Sprintf("snap-confine.%s.%s", info.Name(), info.Revision)
+	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.Name())
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
 	content = map[string]*osutil.FileState{
