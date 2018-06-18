@@ -851,7 +851,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return
 	}
-	if model.Base() != "" && info.Name() == "snapd" {
+	if model.Base() != "" && info.InstanceName() == "snapd" {
 		t.Logf("Requested daemon restart (snapd snap).")
 		st.RequestRestart(state.RestartDaemon)
 	}
