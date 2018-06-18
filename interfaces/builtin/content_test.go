@@ -569,6 +569,8 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[0], Equals, profile0)
+
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
   mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
   umount /var/snap/consumer/common/import/write-data/,
@@ -582,6 +584,8 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[1], Equals, profile1)
+
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
   mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
   remount options=(bind, ro) /var/snap/consumer/common/import/read-common/,
@@ -596,6 +600,8 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[2], Equals, profile2)
+
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
   mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
   remount options=(bind, ro) /var/snap/consumer/common/import/read-data/,
@@ -610,6 +616,8 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[3], Equals, profile3)
+
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
   mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
   remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
@@ -635,10 +643,6 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS[1], Equals, profile1)
-	c.Assert(updateNS[2], Equals, profile2)
-	c.Assert(updateNS[3], Equals, profile3)
 	c.Assert(updateNS[4], Equals, profile4)
 	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3, profile4})
 }

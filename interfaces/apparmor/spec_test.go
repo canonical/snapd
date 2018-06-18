@@ -179,6 +179,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 			"# Layout path: /var/tmp\n/var/tmp{,/**} mrwklix,",
 		},
 	})
+	updateNS := s.spec.UpdateNS()
 
 	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
   mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
@@ -210,6 +211,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
 `
+	c.Assert(updateNS[0], Equals, profile0)
+
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
   mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
   umount /usr/foo/,
@@ -242,6 +245,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
 `
+	c.Assert(updateNS[1], Equals, profile1)
+
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
   /var/cache/mylink rw,
   # Writable mimic /var/cache
@@ -258,6 +263,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
 `
+	c.Assert(updateNS[2], Equals, profile2)
+
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
   mount fstype=tmpfs tmpfs -> /var/tmp/,
   umount /var/tmp/,
@@ -273,10 +280,6 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
 `
-	updateNS := s.spec.UpdateNS()
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS[1], Equals, profile1)
-	c.Assert(updateNS[2], Equals, profile2)
 	c.Assert(updateNS[3], Equals, profile3)
 	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
 }
