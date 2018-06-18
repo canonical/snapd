@@ -18,7 +18,7 @@ start_new_journalctl_log(){
     test_id="test-$RANDOM"
     echo "$test_id" | systemd-cat
     for _ in $(seq 20); do
-        if [ get_journalctl_log | grep -q "$test_id" ]; then
+        if get_journalctl_log | grep -q "$test_id"; then
             return
         fi
         sleep 0.5
