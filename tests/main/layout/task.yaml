@@ -35,7 +35,7 @@ execute: |
         test-snapd-layout.sh -c "test -d /var/lib/demo"
         test-snapd-layout.sh -c "test -d /var/cache/demo"
         test-snapd-layout.sh -c "test -d /opt/demo"
-        test-snapd-layout.sh -c "test -d /bin/very-weird-place"
+        test-snapd-layout.sh -c "test -d /bin/very/weird/place"
         # Ideally we'd perform this test but the rsyslog directory has mode 700 and user mode 108:4
         # test-snapd-layout.sh -c "test -d /var/spool/rsyslog/demo"
 
@@ -78,6 +78,6 @@ execute: |
         test-snapd-layout.sh -c "test -r /opt/demo/file"
 
         echo "layout locations in dynamically created SNAP directories are writable"
-        test-snapd-layout.sh -c 'test -w $SNAP/bin-very-weird-place'
-        test-snapd-layout.sh -c 'test -w /bin/very-weird-place'
+        test-snapd-layout.sh -c 'test -w $SNAP/bin/very/weird/place'
+        test-snapd-layout.sh -c 'test -w /bin/very/weird/place'
     done
