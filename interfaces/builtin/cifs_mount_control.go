@@ -44,14 +44,14 @@ const cifsMountControlConnectedPlugAppArmor = `
 capability sys_admin,
 
 # Allow mounts to our snap-specific writable directories
-mount fstype=cifs ** -> /home/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=cifs ** -> @{HOMEDIRS}/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=cifs ** -> @{HOMEDIRS}/*/snap/@{SNAP_NAME}/common/{,**/},
 mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
-mount fstype=cifs ** -> /home/*/snap/@{SNAP_NAME}/common/{,**/},
 mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/common/{,**/},
 
-umount fstype=cifs /home/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
+umount fstype=cifs @{HOMEDIRS}/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
+umount fstype=cifs @{HOMEDIRS}/*/snap/@{SNAP_NAME}/common/{,**/},
 umount fstype=cifs /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
-umount fstype=cifs /home/*/snap/@{SNAP_NAME}/common/{,**/},
 umount fstype=cifs /var/snap/@{SNAP_NAME}/common/{,**/},
 
 /run/mount/utab rw,

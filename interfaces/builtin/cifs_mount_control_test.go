@@ -104,10 +104,6 @@ func (s *CifsMountControlInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "cifs-mount-control")
 }
 
-func (s *CifsMountControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
-}
-
 func (s *CifsMountControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
