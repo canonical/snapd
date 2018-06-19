@@ -391,7 +391,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Publisher: &client.StoreAccount{
 			ID:          remoteSnap.PublisherID,
 			Username:    remoteSnap.Publisher,
-			DisplayName: "", // FIXME
+			DisplayName: remoteSnap.PublisherDisplayName,
 		},
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
