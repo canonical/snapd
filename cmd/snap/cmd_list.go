@@ -128,9 +128,9 @@ func listSnaps(names []string, all bool) error {
 
 	for _, snap := range snaps {
 		// Aid parsing of the output by not leaving the field empty.
-		publisher := snap.Publisher
-		if publisher == "" {
-			publisher = "-"
+		publisher := "-"
+		if snap.Publisher != nil {
+			publisher = snap.Publisher.Username
 		}
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
 		line := []string{
