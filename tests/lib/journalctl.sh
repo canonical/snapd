@@ -21,6 +21,7 @@ start_new_journalctl_log(){
     if get_journalctl_log | grep -q "$test_id"; then
         return
     fi
+    get_journalctl_log
     echo "Test id not found in journalctl, exiting..."
     exit 1
 }
