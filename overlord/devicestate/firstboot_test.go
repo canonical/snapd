@@ -1163,6 +1163,15 @@ snaps:
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
+
+	// at this point snapd is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	state.MockRestarting(st, state.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// verify

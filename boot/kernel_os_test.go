@@ -178,7 +178,7 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 		"snap_mode":     "try",
 	})
 
-	c.Check(boot.KernelOsBaseRebootRequired(info), Equals, true)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
 }
 
 func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
@@ -198,7 +198,7 @@ func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
 		"snap_mode":     "try",
 	})
 
-	c.Check(boot.KernelOsBaseRebootRequired(info), Equals, true)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
@@ -220,11 +220,11 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 
 	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
 	s.bootloader.BootVars["snap_try_kernel"] = "krnl_42.snap"
-	c.Check(boot.KernelOsBaseRebootRequired(info), Equals, true)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
 
 	// simulate good boot
 	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
-	c.Check(boot.KernelOsBaseRebootRequired(info), Equals, false)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, false)
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
