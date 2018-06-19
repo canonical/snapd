@@ -27,9 +27,9 @@ prepare: |
 
 restore: |
     rm -f ./*.error
-    if lsmod | MATCH "$MODULE" && test ! -f module_present; then
+    if lsmod | MATCH "$MODULE" && [ ! -f module_present ]; then
         rmmod "$MODULE"
-    elif [ -f module_present ]; then
+    elif [ -f module_present ] && ! lsmod | MATCH "$MODULE" ; then
         insmod "$MODULE_PATH"
     fi
     rm -f module_present
