@@ -240,6 +240,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.License = d.License
 	info.PublisherID = d.Publisher.ID
 	info.Publisher = d.Publisher.Username
+	info.PublisherDisplayName = d.Publisher.DisplayName
 	info.DownloadURL = d.Download.URL
 	info.Size = d.Download.Size
 	info.Sha3_384 = d.Download.Sha3_384

@@ -183,8 +183,10 @@ type Info struct {
 	Prices  map[string]float64
 	MustBuy bool
 
-	PublisherID string
-	Publisher   string
+	// Publisher's ID, username, and display-name
+	PublisherID          string
+	Publisher            string
+	PublisherDisplayName string
 
 	Screenshots []ScreenshotInfo
 

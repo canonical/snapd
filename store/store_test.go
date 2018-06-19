@@ -2290,6 +2290,8 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(result.Revision, Equals, snap.R(27))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Publisher, Equals, "canonical")
+	c.Check(result.PublisherID, Equals, "canonical")
+	c.Check(result.PublisherDisplayName, Equals, "Canonical")
 	c.Check(result.Version, Equals, "6.3")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(result.Size, Equals, int64(20480))
@@ -2805,7 +2807,7 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 }
 
 /* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
 Add base and prices.
 */
 const MockSearchJSON = `{
@@ -2825,6 +2827,7 @@ const MockSearchJSON = `{
                 "content": "application",
                 "description": "This is a simple hello world example.",
                 "developer_id": "canonical",
+                "developer_name": "Canonical",
                 "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
                 "download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
                 "epoch": "0",
@@ -3159,6 +3162,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Check(snp.SnapID, Equals, helloWorldSnapID)
 	c.Check(snp.Publisher, Equals, "canonical")
 	c.Check(snp.PublisherID, Equals, "canonical")
+	c.Check(snp.PublisherDisplayName, Equals, "Canonical")
 	c.Check(snp.Version, Equals, "6.3")
 	c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(snp.Size, Equals, int64(20480))
