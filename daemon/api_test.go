@@ -113,9 +113,6 @@ type apiBaseSuite struct {
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
-	if !spec.AnyChannel {
-		return nil, fmt.Errorf("api is expected to set AnyChannel")
-	}
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}

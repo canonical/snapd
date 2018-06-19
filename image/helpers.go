@@ -221,6 +221,8 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 		targetDir = pwd
 	}
 
+	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
+
 	actions := []*store.SnapAction{{
 		Action:   "download",
 		Name:     name,
@@ -248,6 +250,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 			logger.Debugf("not downloading, using existing file %s", targetFn)
 			return targetFn, snap, nil
 		}
+		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
 	pb := progress.MakeProgressBar()
