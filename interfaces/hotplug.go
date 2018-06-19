@@ -20,14 +20,20 @@
 package interfaces
 
 import (
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
 type HotplugDeviceInfo struct {
-	object string
-	Data   map[string]string
+	object       string
+	Data         map[string]string
+	idVendor     string
+	idProduct    string
+	product      string
+	manufacturer string
+	serial       string
 }
 
 func NewHotplugDeviceInfo(obj string, env map[string]string) *HotplugDeviceInfo {
@@ -36,8 +42,6 @@ func NewHotplugDeviceInfo(obj string, env map[string]string) *HotplugDeviceInfo 
 		Data:   env,
 	}
 }
-
-// TODO: implement methods that traverse device path under /sys and fetch vendor/product id and serial
 
 func (h *HotplugDeviceInfo) Object() string {
 	return h.object
@@ -59,10 +63,41 @@ func (h *HotplugDeviceInfo) Major() string {
 	return h.Data["MAJOR"]
 }
 
-func (h *HotplugDeviceInfo) Name() string {
+func (h *HotplugDeviceInfo) DeviceName() string {
 	return h.Data["DEVNAME"]
 }
 
-func (h *HotplugDeviceInfo) Type() string {
+func (h *HotplugDeviceInfo) DeviceType() string {
 	return h.Data["DEVTYPE"]
+}
+
+func (h *HotplugDeviceInfo) IdVendor() string {
+	return h.readOnceMaybe("idVendor", &h.idVendor)
+}
+
+func (h *HotplugDeviceInfo) IdProduct() string {
+	return h.readOnceMaybe("idProduct", &h.idProduct)
+}
+
+func (h *HotplugDeviceInfo) Product() string {
+	return h.readOnceMaybe("product", &h.product)
+}
+
+func (h *HotplugDeviceInfo) Manufacturer() string {
+	return h.readOnceMaybe("manufacturer", &h.manufacturer)
+}
+
+func (h *HotplugDeviceInfo) Serial() string {
+	return h.readOnceMaybe("serial", &h.serial)
+}
+
+func (h *HotplugDeviceInfo) readOnceMaybe(fileName string, out *string) string {
+	if *out == "" {
+		data, err := ioutil.ReadFile(filepath.Join(h.Path(), fileName))
+		if err != nil {
+			return ""
+		}
+		*out = string(data)
+	}
+	return *out
 }
