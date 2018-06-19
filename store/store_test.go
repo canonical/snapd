@@ -3161,7 +3161,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
-	c.Check(snp.Name(), Equals, "hello-world")
+	c.Check(snp.InstanceName(), Equals, "hello-world")
 	c.Check(snp.Architectures, DeepEquals, []string{"all"})
 	c.Check(snp.Revision, Equals, snap.R(27))
 	c.Check(snp.SnapID, Equals, helloWorldSnapID)
