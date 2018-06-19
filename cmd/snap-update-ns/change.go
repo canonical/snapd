@@ -66,6 +66,18 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change, *Secure) ([]*Change, error)
 
+// mimicRequired provides information if an error warrants a writable mimic.
+//
+// The returned path is the location where a mimic should be constructed.
+func mimicRequired(err error) (needsMimic bool, path string) {
+	switch err.(type) {
+	case *ReadOnlyFsError:
+		rofsErr := err.(*ReadOnlyFsError)
+		return true, rofsErr.Path
+	}
+	return false, ""
+}
+
 func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
 	// If we've been asked to create a missing path, and the mount
 	// entry uses the ignore-missing option, return an error.
@@ -100,12 +112,12 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	case "symlink":
 		err = sec.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
 	}
-	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
-		// If the writing failed because the underlying file-system is read-only
-		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path, path, sec)
+	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
+		// If the error can be recovered by using a writable mimic
+		// then construct one and try again.
+		changes, err = createWritableMimic(mimicPath, path, sec)
 		if err != nil {
-			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+			err = fmt.Errorf("cannot create writable mimic over %q: %s", mimicPath, err)
 		} else {
 			// Try once again. Note that we care *just* about the error. We have already
 			// performed the hole poking and thus additional changes must be nil.
