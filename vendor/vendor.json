@@ -69,14 +69,14 @@
 		{
 			"checksumSHA1": "NlLiv7ig8RkjQlgujLWX7ZpiDt0=",
 			"path": "github.com/pilebones/go-udev/crawler",
-			"revision": "755612deb48653de2c0f7c2d61f85b3ef874eb59",
-			"revisionTime": "2018-06-12T10:57:00Z"
+			"revision": "f14144fe2440e96690386604f88699cdb4fbeec2",
+			"revisionTime": "2018-06-12T11:07:54Z"
 		},
 		{
 			"checksumSHA1": "MK3mFz0ZlbVhH45GsZaP/uBtVU8=",
 			"path": "github.com/pilebones/go-udev/netlink",
-			"revision": "755612deb48653de2c0f7c2d61f85b3ef874eb59",
-			"revisionTime": "2018-06-12T10:57:00Z"
+			"revision": "f14144fe2440e96690386604f88699cdb4fbeec2",
+			"revisionTime": "2018-06-12T11:07:54Z"
 		},
 		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
