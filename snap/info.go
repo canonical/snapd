@@ -756,15 +756,12 @@ func (app *AppInfo) ServiceFile() string {
 
 // Env returns the app specific environment overrides
 func (app *AppInfo) Env() []string {
-	env := []string{}
 	appEnv := app.Snap.Environment.Copy()
 	for _, k := range app.Environment.Keys() {
 		appEnv.Set(k, app.Environment.Get(k))
 	}
-	for _, k := range appEnv.Keys() {
-		env = append(env, fmt.Sprintf("%s=%s", k, appEnv.Get(k)))
-	}
-	return env
+
+	return envFromMap(appEnv)
 }
 
 // IsService returns whether app represents a daemon/service.
@@ -782,11 +779,15 @@ func (hook *HookInfo) SecurityTag() string {
 
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
+	return envFromMap(hook.Snap.Environment.Copy())
+}
+
+func envFromMap(envMap *strutil.OrderedMap) []string {
 	env := []string{}
-	hookEnv := hook.Snap.Environment.Copy()
-	for _, k := range hookEnv.Keys() {
-		env = append(env, fmt.Sprintf("%s=%s\n", k, hookEnv.Get(k)))
+	for _, k := range envMap.Keys() {
+		env = append(env, fmt.Sprintf("%s=%s", k, envMap.Get(k)))
 	}
+
 	return env
 }
 

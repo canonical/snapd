@@ -679,13 +679,21 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 
 func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
-	// if we re-exec, we must run the snap-confine from the core snap
+	// if we re-exec, we must run the snap-confine from the core/snapd snap
 	// as well, if they get out of sync, havoc will happen
 	if isReexeced() {
-		// run snap-confine from the core snap. that will work because
-		// snap-confine on the core snap is mostly statically linked
-		// (except libudev and libc)
-		snapConfine = filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, "snap-confine")
+		// exe is something like /snap/{snapd,core}/123/usr/bin/snap
+		exe, err := osReadlink("/proc/self/exe")
+		if err != nil {
+			return err
+		}
+		// snapBase will be "/snap/{core,snapd}/$rev/" because
+		// the snap binary is always at $root/usr/bin/snap
+		snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
+		// Run snap-confine from the core/snapd snap. That
+		// will work because snap-confine on the core/snapd snap is
+		// mostly statically linked (except libudev and libc)
+		snapConfine = filepath.Join(snapBase, dirs.CoreLibExecDir, "snap-confine")
 	}
 
 	if !osutil.FileExists(snapConfine) {
@@ -693,7 +701,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
 			return nil
 		}
-		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
+		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
 	if err := createUserDataDirs(info); err != nil {

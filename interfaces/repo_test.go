@@ -146,6 +146,25 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
 }
 
+// Tests for Repository.AllInterfaces()
+
+func (s *RepositorySuite) TestAllInterfaces(c *C) {
+	c.Assert(s.emptyRepo.AllInterfaces(), HasLen, 0)
+	c.Assert(s.testRepo.AllInterfaces(), DeepEquals, []Interface{s.iface})
+
+	// Add three interfaces in some non-sorted order.
+	i1 := &ifacetest.TestInterface{InterfaceName: "i1"}
+	i2 := &ifacetest.TestInterface{InterfaceName: "i2"}
+	i3 := &ifacetest.TestInterface{InterfaceName: "i3"}
+	c.Assert(s.emptyRepo.AddInterface(i3), IsNil)
+	c.Assert(s.emptyRepo.AddInterface(i1), IsNil)
+	c.Assert(s.emptyRepo.AddInterface(i2), IsNil)
+
+	// The result is always sorted.
+	c.Assert(s.emptyRepo.AllInterfaces(), DeepEquals, []Interface{i1, i2, i3})
+
+}
+
 func (s *RepositorySuite) TestAddBackend(c *C) {
 	backend := &ifacetest.TestSecurityBackend{BackendName: "test"}
 	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)

@@ -34,6 +34,21 @@ case $CMD in
             echo "cannot run without the prefix for the snapd snap"
             exit 1
         fi
+        echo "Add the bind mount unit of the snapd tooling"
+        cat >/run/systemd/system/usr-lib-snapd.mount <<EOF
+[Unit]
+Description=Make the snapd snap tooling available for the system
+Before=snapd.service
+
+[Mount]
+What=$PREFIX/usr/lib/snapd
+Where=/usr/lib/snapd
+Type=none
+Options=bind
+
+[Install]
+RequiredBy=snapd.service
+EOF
         # use existing snapd.service as a template and modify so that the
         # right prefix is used
         for u in $UNITS $ENABLE_UNITS; do
@@ -41,6 +56,9 @@ case $CMD in
         done
         # and now use systemd to start it
         systemctl daemon-reload
+
+        echo "Ensure tooling is available"
+        systemctl start usr-lib-snapd.mount
         # some units only need to get enabled
         for unit in $ENABLE_UNITS; do
             if ! systemctl is-enabled $unit; then
@@ -59,6 +77,8 @@ case $CMD in
             systemctl stop "$unit" || true
             rm -f /run/systemd/system/"$unit"
         done
+        echo "Stop bind mount unit"
+        systemctl stop usr-lib-snapd.mount || true
         systemctl daemon-reload
         ;;
     *)

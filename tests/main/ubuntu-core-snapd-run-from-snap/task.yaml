@@ -20,7 +20,7 @@ restore: |
     umount /snap/snapd/current/usr/lib/snapd || true
     # and ensure snapd is working (needed in restore)
     systemctl daemon-reload
-    systemctl start snapd.service snapd.socket
+    systemctl start snapd.service snapd.socket snapd.snap-repair.timer
 
 execute: |
     echo "Run the manage script (from the snap)"

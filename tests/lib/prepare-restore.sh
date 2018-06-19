@@ -281,8 +281,10 @@ prepare_project() {
                 REBOOT
             fi
         fi
-        if [[ "$SPREAD_REBOOT" != 1 ]]; then
-            echo "reboot did not work"
+        # double check we are running the installed kernel
+        # NOTE: arch kernels use ARCH as local version, eg. 4.16.13-2-ARCH
+        if [[ "$(pacman -Qi linux | grep '^Version' | awk '{print $3}')" != "$(uname -r | sed -e 's/-ARCH//')" ]]; then
+            echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
     fi
@@ -409,6 +411,9 @@ prepare_suite_each() {
     if is_classic_system; then
         prepare_each_classic
     fi
+    #shellcheck source=tests/lib/state.sh
+    . "$TESTSLIB"/state.sh
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
 }
 
 restore_suite_each() {
