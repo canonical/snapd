@@ -1,6 +1,9 @@
 #!/bin/bash
 
-JOURNALCTL_CURSOR_FILE="${SPREAD_PATH}"/journalctl_cursor
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
+JOURNALCTL_CURSOR_FILE="$RUNTIME_STATE_PATH"/journalctl_cursor
 
 get_last_journalctl_cursor(){
     journalctl --output=export -n1 | grep --binary-files=text -o '__CURSOR=.*' | sed -e 's/^__CURSOR=//'
@@ -12,7 +15,7 @@ start_new_journalctl_log(){
         echo "Empty journalctl cursor, exiting..."
         exit 1
     else
-        echo "$cursor" > "$JOURNALCTL_CURSOR_FILE"
+        echo "$cursor" >> "$JOURNALCTL_CURSOR_FILE"
     fi
 
     echo "New test starts here - $SPREAD_JOB" | systemd-cat
@@ -21,13 +24,13 @@ start_new_journalctl_log(){
     if get_journalctl_log | grep -q "$test_id"; then
         return
     fi
-    get_journalctl_log
     echo "Test id not found in journalctl, exiting..."
+    cat "$JOURNALCTL_CURSOR_FILE"
     exit 1
 }
 
 get_journalctl_log(){
-    cursor=$(cat "$JOURNALCTL_CURSOR_FILE")
+    cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
