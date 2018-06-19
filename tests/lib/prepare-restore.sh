@@ -235,6 +235,9 @@ prepare_project() {
         exit 1
     fi
 
+    # Prepare the state directories for execution
+    prepare_state
+
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then

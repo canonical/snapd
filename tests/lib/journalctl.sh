@@ -15,6 +15,7 @@ start_new_journalctl_log(){
         echo "Empty journalctl cursor, exiting..."
         exit 1
     else
+        echo "$SPREAD_JOB " >> "$JOURNALCTL_CURSOR_FILE"
         echo "$cursor" >> "$JOURNALCTL_CURSOR_FILE"
     fi
 

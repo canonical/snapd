@@ -17,9 +17,11 @@ delete_snapd_state() {
     rm -rf "$SNAPD_STATE_PATH"
 }
 
-save_snapd_state() {
+prepare_state() {
     mkdir -p "$SNAPD_STATE_PATH" "$RUNTIME_STATE_PATH"
-    touch "$RUNTIME_STATE_PATH"/runs
+}
+
+save_snapd_state() {
     if is_core_system; then
         boot_path="$(get_boot_path)"
         test -n "$boot_path" || return 1
