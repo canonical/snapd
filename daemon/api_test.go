@@ -595,16 +595,21 @@ UnitFileState=potatoes
 			Summary:          "summary",
 			Description:      "description",
 			Developer:        "bar",
-			Status:           "active",
-			Icon:             "/v2/icons/foo/icon",
-			Type:             string(snap.TypeApp),
-			Base:             "base18",
-			Private:          false,
-			DevMode:          false,
-			JailMode:         false,
-			Confinement:      string(snap.StrictConfinement),
-			TryMode:          false,
-			MountedFrom:      filepath.Join(dirs.SnapBlobDir, "foo_10.snap"),
+			Publisher: &client.StoreAccount{
+				ID:          "bar-id",
+				Username:    "bar",
+				DisplayName: "Bar",
+			},
+			Status:      "active",
+			Icon:        "/v2/icons/foo/icon",
+			Type:        string(snap.TypeApp),
+			Base:        "base18",
+			Private:     false,
+			DevMode:     false,
+			JailMode:    false,
+			Confinement: string(snap.StrictConfinement),
+			TryMode:     false,
+			MountedFrom: filepath.Join(dirs.SnapBlobDir, "foo_10.snap"),
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",
@@ -1699,6 +1704,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		},
 		Base:      "base0",
 		Publisher: "foo",
+		PublisherID: "foo-id",
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
 				Revision: snap.R(42),
@@ -1718,6 +1724,11 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["base"], check.Equals, "base0")
+	c.Check(snaps[0]["publisher"], check.DeepEquals, map[string]interface{}{
+		"id": "foo-id",
+		"username": "foo",
+		"display-name": "", // XXX
+	})
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
 	c.Check(m["revision"], check.Equals, "42")

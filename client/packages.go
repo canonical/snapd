@@ -30,6 +30,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// StoreAccount holds information about a store account.
+type StoreAccount struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display-name"`
+}
+
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
 	ID               string        `json:"id"`
@@ -41,6 +48,7 @@ type Snap struct {
 	InstalledSize    int64         `json:"installed-size,omitempty"`
 	InstallDate      time.Time     `json:"install-date,omitempty"`
 	Name             string        `json:"name"`
+	Publisher        *StoreAccount `json:"publisher,omitempty"`
 	Developer        string        `json:"developer"`
 	Status           string        `json:"status"`
 	Type             string        `json:"type"`
