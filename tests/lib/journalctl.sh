@@ -14,15 +14,13 @@ start_new_journalctl_log(){
     else
         echo "$cursor" > "$JOURNALCTL_CURSOR_FILE"
     fi
+
     echo "New test starts here - $SPREAD_JOB" | systemd-cat
     test_id="test-${RANDOM}${RANDOM}"
     echo "$test_id" | systemd-cat
-    for _ in $(seq 20); do
-        if get_journalctl_log | grep -q "$test_id"; then
-            return
-        fi
-        sleep 0.5
-    done
+    if get_journalctl_log | grep -q "$test_id"; then
+        return
+    fi
     echo "Test id not found in journalctl, exiting..."
     exit 1
 }
