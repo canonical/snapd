@@ -20,8 +20,10 @@ execute: |
     snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
 
     echo "Then the snap is able to desktop files and directories"
-    test-snapd-desktop.check-files "$files"
-    test-snapd-desktop.check-dirs "$dirs"
+    # shellcheck disable=SC2086
+    test-snapd-desktop.check-files $files
+    # shellcheck disable=SC2086
+    test-snapd-desktop.check-dirs $dirs
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
