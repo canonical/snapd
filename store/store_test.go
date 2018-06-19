@@ -2813,51 +2813,53 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 }
 
 /* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Clicense%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
-Screenshot URLS set manually.
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
+Add base and prices.
 */
 const MockSearchJSON = `{
     "_embedded": {
         "clickindex:package": [
             {
-                "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25.snap",
+                "anon_download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
                 "architecture": [
                     "all"
                 ],
+                "base": "bare-base",
                 "binary_filesize": 20480,
-                "channel": "edge",
+                "channel": "stable",
                 "common_ids": [],
+                "confinement": "strict",
+                "contact": "mailto:snappy-devel@lists.ubuntu.com",
                 "content": "application",
                 "description": "This is a simple hello world example.",
-                "download_sha512": "4bf23ce93efa1f32f0aeae7ec92564b7b0f9f8253a0bd39b2741219c1be119bb676c21208c6845ccf995e6aabe791d3f28a733ebcbbc3171bb23f67981f4068e",
-                "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25.snap",
-                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-                "last_updated": "2016-04-19T19:50:50.435291Z",
-                "license": "GPL-3.0",
+                "developer_id": "canonical",
+                "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
+                "download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
+                "epoch": "0",
+                "icon_url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+                "last_updated": "2016-07-12T16:37:23.960632+00:00",
+                "license": "MIT",
                 "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {"EUR": 2.99, "USD": 3.49},
+                "private": false,
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
-                "revision": 25,
-                "screenshot_urls": ["https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/screenshot.png"],
+                "revision": 27,
+                "screenshot_urls": [
+                    "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                ],
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
-                "summary": "Hello world example",
-                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+                "summary": "The 'hello-world' of snaps",
+                "support_url": "",
                 "title": "Hello World",
-                "version": "6.0"
+                "version": "6.3"
             }
         ]
     },
     "_links": {
-        "first": {
-            "href": "https://api.snapcraft.io/api/v1/snaps/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Clicense%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        },
-        "last": {
-            "href": "https://api.snapcraft.io/api/v1/snaps/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Clicense%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        },
         "self": {
-            "href": "https://api.snapcraft.io/api/v1/snaps/search?q=hello&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Clicense%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
+            "href": "http://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello"
         }
     }
 }
@@ -3106,6 +3108,88 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 		"potato":  `[{"snap":"bar","version":"2.0"}]`,
 		"meh":     `[{"snap":"bar","version":"2.0"},{"snap":"foo","version":"1.0"}]`,
 	})
+}
+
+func (s *storeTestSuite) TestFind(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", searchPath)
+		query := r.URL.Query()
+
+		q := query.Get("q")
+		c.Check(q, Equals, "hello")
+
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		// no store ID by default
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
+
+		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
+
+		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
+
+		w.Header().Set("X-Suggested-Currency", "GBP")
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+
+		io.WriteString(w, MockSearchJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+		DetailFields: []string{"abc", "def"},
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	snaps, err := sto.Find(&Search{Query: "hello"}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	snp := snaps[0]
+	c.Check(snp.Name(), Equals, "hello-world")
+	c.Check(snp.Architectures, DeepEquals, []string{"all"})
+	c.Check(snp.Revision, Equals, snap.R(27))
+	c.Check(snp.SnapID, Equals, helloWorldSnapID)
+	c.Check(snp.Publisher, Equals, "canonical")
+	c.Check(snp.PublisherID, Equals, "canonical")
+	c.Check(snp.Version, Equals, "6.3")
+	c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
+	c.Check(snp.Size, Equals, int64(20480))
+	c.Check(snp.Channel, Equals, "stable")
+	c.Check(snp.Description(), Equals, "This is a simple hello world example.")
+	c.Check(snp.Summary(), Equals, "The 'hello-world' of snaps")
+	c.Check(snp.Title(), Equals, "Hello World")
+	c.Check(snp.License, Equals, "MIT")
+	c.Assert(snp.Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
+	c.Assert(snp.Paid, Equals, true)
+	c.Assert(snp.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+		{
+			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+		},
+	})
+	c.Check(snp.MustBuy, Equals, true)
+	c.Check(snp.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(snp.Base, Equals, "bare-base")
+
+	// Make sure the epoch (currently not sent by the store) defaults to "0"
+	c.Check(snp.Epoch.String(), Equals, "0")
+
+	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
 }
 
 func (s *storeTestSuite) TestFindPrivate(c *C) {
