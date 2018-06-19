@@ -1702,8 +1702,8 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Base:      "base0",
-		Publisher: "foo",
+		Base:        "base0",
+		Publisher:   "foo",
 		PublisherID: "foo-id",
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
@@ -1725,8 +1725,8 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	c.Check(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["base"], check.Equals, "base0")
 	c.Check(snaps[0]["publisher"], check.DeepEquals, map[string]interface{}{
-		"id": "foo-id",
-		"username": "foo",
+		"id":           "foo-id",
+		"username":     "foo",
 		"display-name": "", // XXX
 	})
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
