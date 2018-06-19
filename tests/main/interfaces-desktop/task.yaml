@@ -34,7 +34,7 @@ execute: |
 
     echo "Then the snap is not able to access the desktop files"
     for file in $files; do
-        if test-snapd-desktop.check-files "$file" 2>"${PWD}"/call.error; then
+        if test-snapd-desktop.check-files "$file" 2> call.error; then
             echo "Expected permission error calling desktop with disconnected plug"
             exit 1
         fi
@@ -43,7 +43,7 @@ execute: |
 
     echo "Then the snap is not able to access the desktop dirs"
     for dir in $dirs; do
-        if test-snapd-desktop.check-dirs "$dir" 2>"${PWD}"/call.error; then
+        if test-snapd-desktop.check-dirs "$dir" 2> call.error; then
             echo "Expected permission error calling desktop with disconnected plug"
             exit 1
         fi

@@ -42,7 +42,7 @@ execute: |
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
-        if test-snapd-fuse-consumer.create -f "$MOUNT_POINT" 2>"${PWD}"/fuse.error; then
+        if test-snapd-fuse-consumer.create -f "$MOUNT_POINT" 2> fuse.error; then
             echo "Expected permission error creating fuse filesystem with disconnected plug"
             exit 1
         fi

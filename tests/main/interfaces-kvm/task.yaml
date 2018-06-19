@@ -40,7 +40,7 @@ execute: |
     snap disconnect test-snapd-kvm:kvm
 
     echo "Then the snap is not able to read the kvm device"
-    if test-snapd-kvm.sh -c "cat /dev/kvm" 2>"${PWD}"/call.error; then
+    if test-snapd-kvm.sh -c "cat /dev/kvm" 2> call.error; then
         echo "Expected permission error accessing to kvm device"
         exit 1
     fi

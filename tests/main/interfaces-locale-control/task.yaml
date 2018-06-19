@@ -90,7 +90,7 @@ execute: |
         snap disconnect locale-control-consumer:locale-control
 
         echo "Then the snap is not able to read the locale configuration"
-        if locale-control-consumer.set LANG mysecondlang 2>"${PWD}"/locale-write.error; then
+        if locale-control-consumer.set LANG mysecondlang 2> locale-write.error; then
             echo "Expected permission error accessing locale configuration with disconnected plug"
             exit 1
         fi

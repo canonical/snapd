@@ -37,7 +37,7 @@ execute: |
     snap disconnect test-snapd-framebuffer:framebuffer
 
     echo "Then the snap is not able to access the framebuffer"
-    if test-snapd-framebuffer.write "123" 2>"${PWD}"/call.error; then
+    if test-snapd-framebuffer.write "123" 2> call.error; then
         echo "Expected permission error trying to write the framebuffer"
         exit 1
     fi

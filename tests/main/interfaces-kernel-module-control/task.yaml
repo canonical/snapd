@@ -102,7 +102,7 @@ execute: |
     lsmod | MATCH -v "$MODULE"
     insmod "$MODULE_PATH"
     lsmod | MATCH "$MODULE"
-    if test-snapd-kernel-module-consumer.rmmod "$MODULE" 2>"${PWD}"/remove.error; then
+    if test-snapd-kernel-module-consumer.rmmod "$MODULE" 2> remove.error; then
         echo "Expected permission error removing module with disconnected plug"
         exit 1
     fi

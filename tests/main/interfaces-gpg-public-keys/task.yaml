@@ -51,7 +51,7 @@ execute: |
     fi
 
     echo "And then the snap is not able to write the trust.db file"
-    if test-snapd-gpg-public-keys.sh -c "sed -i 's/ / /g' $TRUSTDB" 2>"${PWD}"/call.error; then
+    if test-snapd-gpg-public-keys.sh -c "sed -i 's/ / /g' $TRUSTDB" 2> call.error; then
         echo "Expected permission error accessing to trust db"
         exit 1
     fi
@@ -61,7 +61,7 @@ execute: |
     snap disconnect test-snapd-gpg-public-keys:gpg-public-keys
 
     echo "Then the snap is not able to read gpg keys"
-    if test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS" 2>"${PWD}"/call.error; then
+    if test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS" 2> call.error; then
         echo "Expected permission error accessing to gpg keys"
         exit 1
     fi
