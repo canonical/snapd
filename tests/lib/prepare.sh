@@ -636,10 +636,10 @@ setup_reflash_magic_core18() {
         # modify sshd so that we can connect as root
         mkdir -p /mnt/system-data/etc/ssh
         cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
-        sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
-
-        # FIXME: for GCE - why not automatic?
-        echo "virtio_net" >> /mnt/system-data/etc/modules
+        # core18 is different here than core16
+        sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
+        # ensure the setting is correct
+        grep '^PermitRootLogin yes' /mnt/system-data/etc/ssh/sshd_config
 
         # build the user database - this is complicated because:
         # - spread on linode wants to login as "root"
