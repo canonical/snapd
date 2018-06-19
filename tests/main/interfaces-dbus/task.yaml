@@ -51,7 +51,7 @@ execute: |
     fi
 
     echo "And the consumer is not able to access the provided method"
-    if test-snapd-dbus-consumer.dbus-consumer 2>"${PWD}"/call.error; then
+    if test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
         echo "Expected permission error calling dbus method with disconnected plug"
         exit 1
     fi
