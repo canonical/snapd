@@ -4,13 +4,16 @@ summary: Ensure the "snap snap-uri-handler" command works
 # xdg-open on the host system.
 systems: [-ubuntu-core-*]
 
+# xdg-open doesn't seem to check desktop files if it doesn't think it
+# has a display.
+environment:
+    DISPLAY: :placeholder
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_install_package xdg-utils
-    if [ ! -f /usr/bin/zenity ]; then
-        touch /usr/bin/zenity
-    fi
+    touch /usr/bin/zenity
 
 restore: |
     umount -f /usr/bin/zenity || :
@@ -25,7 +28,9 @@ execute: |
     fi
     MATCH "GNOME Software required" < errors.log
 
-    # Now with gnome-software installed
+    echo "Now with gnome-software installed"
     snap try "$TESTSLIB"/snaps/gnome-software
-
     snap snap-uri-handler snap://package | MATCH "Open URI: snap://package"
+
+    echo "The same should work with xdg-open"
+    xdg-open snap://package | MATCH "Open URI: snap://package"
