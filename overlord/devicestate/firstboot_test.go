@@ -510,6 +510,14 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	_, err = snapstate.CurrentInfo(state, "pc")
 	c.Assert(err, IsNil)
 
+	// ensure requied flag is set on all essential snaps
+	var snapst snapstate.SnapState
+	for _, reqName := range []string{"core", "pc-kernel", "pc"} {
+		err = snapstate.Get(state, reqName, &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+	}
+
 	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
@@ -520,7 +528,6 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(pubAcct.AccountID(), Equals, "developerid")
 
-	var snapst snapstate.SnapState
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.DevMode, Equals, true)
@@ -1191,6 +1198,14 @@ snaps:
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(state, "pc")
 	c.Check(err, IsNil)
+
+	// ensure requied flag is set on all essential snaps
+	var snapst snapstate.SnapState
+	for _, reqName := range []string{"snapd", "core18", "pc-kernel", "pc"} {
+		err = snapstate.Get(state, reqName, &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+	}
 
 	// and ensure state is now considered seeded
 	var seeded bool
