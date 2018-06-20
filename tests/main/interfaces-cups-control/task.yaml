@@ -50,7 +50,7 @@ debug: |
 
 execute: |
     echo "Then the plug is disconnected by default"
-    snap interfaces -i cups-control | MATCH '^\- +test-snapd-cups-control-consumer:cups-control'
+    snap interfaces -i cups-control | MATCH '^- +test-snapd-cups-control-consumer:cups-control'
 
     echo "When the plug is connected"
     snap connect test-snapd-cups-control-consumer:cups-control
@@ -58,7 +58,7 @@ execute: |
     echo "Then the snap command is able to print files"
     echo "Hello World" > "$TEST_FILE"
     test-snapd-cups-control-consumer.lpr "$TEST_FILE"
-    while ! test -e "$HOME"/PDF/*.pdf; do sleep 1; done
+    while "$(find "$HOME"/PDF -name '*.pdf' | wc -l)" -lt 1 ; do sleep 1; done
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
