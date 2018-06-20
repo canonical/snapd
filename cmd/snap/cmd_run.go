@@ -698,7 +698,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
-			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
 			return nil
 		}
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))

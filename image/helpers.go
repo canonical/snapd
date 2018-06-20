@@ -306,7 +306,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 	}
 
 	// cross checks
-	if err := snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db); err != nil {
+	if err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, size, &info.SideInfo, db); err != nil {
 		return nil, err
 	}
 
@@ -315,7 +315,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 		"snap-id": info.SnapID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.Name(), err)
+		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.InstanceName(), err)
 	}
 	return a.(*asserts.SnapDeclaration), nil
 }
