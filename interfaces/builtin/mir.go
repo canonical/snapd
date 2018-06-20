@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (c) 2016-2017 Canonical Ltd
+ * Copyright (c) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -139,6 +139,7 @@ func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slo
 }
 
 func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.TriggerSubsystem("input")
 	spec.TagDevice(`KERNEL=="tty[0-9]*"`)
 	spec.TagDevice(`KERNEL=="mice"`)
 	spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
