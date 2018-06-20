@@ -401,7 +401,7 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		publisher := "-"
+		publisher := "–" // that's an en dash (so yaml is happy)
 		if both.Publisher != nil {
 			publisher = both.Publisher.Username
 		}
