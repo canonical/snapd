@@ -2188,7 +2188,8 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
 	c.Check(result.Revision, Equals, snap.R(27))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
@@ -2270,7 +2271,7 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 
 	info, err := sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.Name(), Equals, "hello")
+	c.Check(info.InstanceName(), Equals, "hello")
 
 	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
 	c.Check(err, Equals, ErrSnapNotFound)
@@ -2314,7 +2315,8 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Channel, Equals, "stable")
 }
@@ -2378,7 +2380,8 @@ func (s *storeTestSuite) TestInfo500once(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Assert(n, Equals, 2)
 }
 
@@ -2417,7 +2420,8 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 	expected := map[string]*snap.ChannelSnapInfo{
 		"latest/stable": {
 			Revision:    snap.R(27),
@@ -2539,7 +2543,8 @@ func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
@@ -2569,7 +2574,8 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
@@ -2601,7 +2607,8 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
@@ -2632,7 +2639,8 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	}
 	result, err := sto.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Check(result.InstanceName(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestInfoOopses(c *C) {
@@ -3056,7 +3064,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
-	c.Check(snp.Name(), Equals, "hello-world")
+	c.Check(snp.InstanceName(), Equals, "hello-world")
 	c.Check(snp.Architectures, DeepEquals, []string{"all"})
 	c.Check(snp.Revision, Equals, snap.R(27))
 	c.Check(snp.SnapID, Equals, helloWorldSnapID)
@@ -4602,7 +4610,8 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -4970,7 +4979,8 @@ func (s *storeTestSuite) TestSnapActionRetryOnEOF(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
@@ -5057,7 +5067,8 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -5138,7 +5149,8 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 }
@@ -5233,7 +5245,8 @@ func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -5324,7 +5337,8 @@ func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -5410,7 +5424,8 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 	}, nil, &RefreshOptions{RefreshManaged: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -5501,7 +5516,8 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 		}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -5599,7 +5615,8 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 		}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(28))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -6188,7 +6205,8 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 	}, s.user, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// TODO parallel-install: use of proper instance/store name
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Check(refreshSessionRequested, Equals, true)
 	c.Check(n, Equals, 2)

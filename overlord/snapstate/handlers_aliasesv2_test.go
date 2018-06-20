@@ -34,7 +34,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliases(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -89,7 +89,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesFirstInstall(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -139,7 +139,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliases(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -200,7 +200,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -256,7 +256,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -353,7 +353,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesFirstInstallUnaliased(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -404,7 +404,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesFirstInstallUnaliased(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -938,7 +938,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliases(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -1011,7 +1011,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliases(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -1101,7 +1101,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesFromEmpty(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -1176,7 +1176,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesPending(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -1235,7 +1235,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesPending(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -1300,7 +1300,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -1354,7 +1354,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
