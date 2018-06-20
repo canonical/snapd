@@ -24,7 +24,9 @@ prepare: |
 
     EOF
     echo "Wait for the service to be listening, limited to the task kill-timeout"
-    while ! ss -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    # shellcheck source=tests/lib/network.sh
+    . $TESTSLIB/network.sh
+    wait_listen_port "$PORT"
 
 restore: |
     rm -f request.txt
