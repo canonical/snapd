@@ -53,7 +53,7 @@ restore: |
 
 execute: |
     echo "Then the plug is disconnected by default"
-    snap interfaces -i firewall-control | MATCH '^\- +firewall-control-consumer:firewall-control'
+    snap interfaces -i firewall-control | MATCH '^- +firewall-control-consumer:firewall-control'
 
     echo "When the plug is connected"
     snap connect firewall-control-consumer:firewall-control

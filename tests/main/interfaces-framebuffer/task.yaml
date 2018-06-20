@@ -15,7 +15,7 @@ prepare: |
 
 execute: |
     echo "The plug is not connected by default"
-    snap interfaces -i framebuffer | MATCH '\- +test-snapd-framebuffer:framebuffer'
+    snap interfaces -i framebuffer | MATCH '^- +test-snapd-framebuffer:framebuffer'
 
     if [ ! -e /dev/fb0 ]; then
         echo "Framebuffer not available on /dev/fb0"

@@ -21,7 +21,7 @@ prepare: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i log-observe | MATCH "\\- +$SNAP_NAME:$PLUG"
+    snap interfaces -i log-observe | MATCH "^- +$SNAP_NAME:$PLUG"
 
     echo "When the plug is connected"
     snap connect "$SNAP_NAME:$PLUG"

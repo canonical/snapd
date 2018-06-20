@@ -42,7 +42,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i libvirt | MATCH '\- +test-snapd-libvirt-consumer:libvirt'
+    snap interfaces -i libvirt | MATCH '^- +test-snapd-libvirt-consumer:libvirt'
 
     echo "When the plug is connected"
     snap connect test-snapd-libvirt-consumer:libvirt

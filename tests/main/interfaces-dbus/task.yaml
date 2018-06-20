@@ -44,7 +44,7 @@ execute: |
     done
 
     echo "And plug is disconnected by default"
-    snap interfaces -i dbus | MATCH '^\- +test-snapd-dbus-consumer:dbus-test'
+    snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-test'
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0

@@ -45,7 +45,7 @@ execute: |
     fi
 
     echo "The plug is disconnected by default"
-    snap interfaces -i kernel-module-control | MATCH '\- +test-snapd-kernel-module-consumer:kernel-module-control'
+    snap interfaces -i kernel-module-control | MATCH '^- +test-snapd-kernel-module-consumer:kernel-module-control'
 
     echo "When the plug is connected"
     snap connect test-snapd-kernel-module-consumer:kernel-module-control

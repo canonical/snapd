@@ -21,7 +21,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i hardware-observe | MATCH '\- +hardware-observe-consumer:hardware-observe'
+    snap interfaces -i hardware-observe | MATCH '^- +hardware-observe-consumer:hardware-observe'
 
     echo "When the plug is connected"
     snap connect hardware-observe-consumer:hardware-observe

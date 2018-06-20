@@ -25,7 +25,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i hardware-random-observe | MATCH '\- +test-snapd-hardware-random-observe:hardware-random-observe'
+    snap interfaces -i hardware-random-observe | MATCH '^- +test-snapd-hardware-random-observe:hardware-random-observe'
 
     echo "When the plug is connected"
     snap connect test-snapd-hardware-random-observe:hardware-random-observe

@@ -34,7 +34,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i gpg-keys | MATCH '\- +test-snapd-gpg-keys:gpg-keys'
+    snap interfaces -i gpg-keys | MATCH '^- +test-snapd-gpg-keys:gpg-keys'
 
     echo "When the interface is connected"
     snap connect test-snapd-gpg-keys:gpg-keys
