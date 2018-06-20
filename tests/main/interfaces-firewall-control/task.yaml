@@ -33,7 +33,7 @@ prepare: |
     . "$TESTSLIB/systemd.sh"
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    while ! ss -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 
     echo "And we store a basic HTTP request"
     cat > $REQUEST_FILE <<EOF

@@ -21,7 +21,7 @@ prepare: |
     install_local $SNAP_NAME
 
     echo "Given the snap's service is listening"
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    while ! ss -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 
     echo "Given we store a basic HTTP request"
     cat > $REQUEST_FILE <<EOF
