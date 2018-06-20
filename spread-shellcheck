@@ -30,9 +30,6 @@ NO_FAIL = os.getenv('NO_FAIL', None)
 D = os.getenv('D', None)
 # set to non-empty to enable verbose logging
 V = os.getenv('V', None)
-# file with list of test file that must successfully validate, one file per
-# line
-MUST_PASS = os.getenv('MUST_PASS', None)
 # file with list of files that can fail validation
 CAN_FAIL = os.getenv('CAN_FAIL', None)
 
@@ -49,9 +46,6 @@ def parse_arguments():
                         default=False, help='ignore all errors ')
     parser.add_argument('-v', '--verbose', action='store_true',
                         default=False, help='verbose logging')
-    parser.add_argument('--must-pass', default=None,
-                        help=('file with list of files that are required '
-                              'to be valid (regardless of --no-errors flag)'))
     parser.add_argument('--can-fail', default=None,
                         help=('file with list of files that are can fail '
                               'validation'))
@@ -197,16 +191,6 @@ def main(opts):
             failures.merge(sf)
 
     if failures:
-        if opts.must_pass:
-            musts = loadfilelist(opts.must_pass)
-
-            failed = failures.intersection(musts)
-            if failed:
-                logging.error(('validation failed for the following '
-                               'required files:\n%s'),
-                              '\n'.join([' - ' + f for f in sorted(failed)]))
-                raise SystemExit(1)
-
         if opts.can_fail:
             can_fail = loadfilelist(opts.can_fail)
 
@@ -237,9 +221,6 @@ if __name__ == '__main__':
     else:
         lvl = logging.INFO
     logging.basicConfig(level=lvl)
-
-    if MUST_PASS:
-        opts.must_pass = MUST_PASS
 
     if CAN_FAIL:
         opts.can_fail = CAN_FAIL
