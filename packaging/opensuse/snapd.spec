@@ -197,7 +197,7 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefi
 %goinstall
 # TODO: instead of removing it move this to a dedicated golang package
 rm -rf %{buildroot}%{_libdir}/go
-# Move snapd, snap-exec, snap-seccomp and snap-update-ns into %{_libexecdir}/snapd
+# Move snapd, snap-exec, snap-seccomp and snap-update-ns into {_libexecdir}/snapd
 install -m 755 -d %{buildroot}%{_libexecdir}/snapd
 mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
 mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
