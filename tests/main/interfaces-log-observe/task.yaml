@@ -33,7 +33,7 @@ execute: |
     snap connect "$SNAP_NAME:$PLUG"
 
     echo "Then the snap is able to access the system logs"
-    log-observe-consumer | grep -Pqz 'ok\n'
+    log-observe-consumer | MATCH 'ok$'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
