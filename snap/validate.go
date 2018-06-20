@@ -213,7 +213,8 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
-	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
+	// TODO parallel-install: use of proper instance/store name, discuss socket activation in parallel install world
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.InstanceName())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
 	}
@@ -258,11 +259,12 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
-	name := info.Name()
+	name := info.InstanceName()
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 
+	// TODO parallel-install: use of proper instance/store name, validate instance key
 	if err := ValidateName(name); err != nil {
 		return err
 	}
@@ -315,7 +317,7 @@ func Validate(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type == TypeOS || info.Type == TypeBase {
 		if info.Base != "" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
 		}
 	}
 

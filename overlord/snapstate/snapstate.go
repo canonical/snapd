@@ -78,6 +78,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 
+	// TODO parallel-install: block parallel installation of core, kernel,
+	// gadget and snapd snaps
+
 	if err := CheckChangeConflict(st, snapsup.Name(), nil, snapst); err != nil {
 		return nil, err
 	}
@@ -757,14 +760,14 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
 			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
 		}
 		if err := validateFeatureFlags(st, update); err != nil {
 			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
@@ -790,7 +793,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
-				logger.Noticef("cannot refresh snap %q: %v", update.Name(), err)
+				logger.Noticef("cannot refresh snap %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
@@ -804,7 +807,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core
-			prereqs[update.Name()] = ts
+			prereqs[update.InstanceName()] = ts
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
@@ -815,7 +818,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			}
 		}
 
-		scheduleUpdate(update.Name(), ts)
+		scheduleUpdate(update.InstanceName(), ts)
 		tasksets = append(tasksets, ts)
 	}
 
@@ -934,7 +937,7 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, info := range updates {
-		updating[info.Name()] = true
+		updating[info.InstanceName()] = true
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
@@ -1293,7 +1296,7 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	//
 	// Once the ubuntu-core -> core transition has landed for some
 	// time we can remove the two lines below.
-	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
+	if si.InstanceName() == "ubuntu-core" && si.Type == snap.TypeOS {
 		return true
 	}
 
@@ -1306,7 +1309,7 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
 	// never remove anything that is used for booting
-	if boot.InUse(si.Name(), si.Revision) {
+	if boot.InUse(si.InstanceName(), si.Revision) {
 		return false
 	}
 
@@ -1834,13 +1837,13 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	// some systems have two cores: ubuntu-core/core
 	// we always return "core" in this case
 	if len(res) == 2 {
-		if res[0].Name() == defaultCoreSnapName && res[1].Name() == "ubuntu-core" {
+		if res[0].InstanceName() == defaultCoreSnapName && res[1].InstanceName() == "ubuntu-core" {
 			return res[0], nil
 		}
-		if res[0].Name() == "ubuntu-core" && res[1].Name() == defaultCoreSnapName {
+		if res[0].InstanceName() == "ubuntu-core" && res[1].InstanceName() == defaultCoreSnapName {
 			return res[1], nil
 		}
-		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
+		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].InstanceName(), res[1].InstanceName())
 	}
 
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
@@ -1864,7 +1867,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	if err != nil {
 		return nil, err
 	}
-	isCoreDefaults := core.Name() == snapName
+	isCoreDefaults := core.InstanceName() == snapName
 
 	si := snapst.CurrentSideInfo()
 	// core snaps can be addressed even without a snap-id via the special

@@ -285,7 +285,7 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := plug.Snap.Name()
+	snapName := plug.Snap.InstanceName()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateName(snapName); err != nil {
@@ -380,7 +380,7 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := slot.Snap.Name()
+	snapName := slot.Snap.InstanceName()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateName(snapName); err != nil {
@@ -624,12 +624,12 @@ func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs ma
 	if policyCheck != nil {
 		if i, ok := iface.(plugValidator); ok {
 			if err := i.BeforeConnectPlug(cplug); err != nil {
-				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.InstanceName(), err)
 			}
 		}
 		if i, ok := iface.(slotValidator); ok {
 			if err := i.BeforeConnectSlot(cslot); err != nil {
-				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.InstanceName(), err)
 			}
 		}
 
@@ -913,7 +913,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
@@ -1003,7 +1003,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 	result := make([]string, 0, len(seen))
 	for info := range seen {
-		result = append(result, info.Name())
+		result = append(result, info.InstanceName())
 	}
 	sort.Strings(result)
 	return result, nil
