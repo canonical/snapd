@@ -255,8 +255,8 @@ ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.refresh
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -m 755 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 755 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 # move snapd-generator
 install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
 mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/

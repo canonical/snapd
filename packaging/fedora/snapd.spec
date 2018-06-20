@@ -507,8 +507,8 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 
 # Install bash completion for "snap"
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -m 755 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 755 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 
 # Install snap-confine
 pushd ./cmd
