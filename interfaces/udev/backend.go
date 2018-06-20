@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,6 +69,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %s", snapName, err)
 	}
 	content := b.deriveContent(spec.(*Specification), snapInfo)
+	subsystemTriggers := spec.(*Specification).TriggeredSubsystems()
 
 	dir := dirs.SnapUdevRulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -84,7 +85,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		} else if err == nil {
-			return ReloadRules()
+			// FIXME: somehow detect the interfaces that were
+			// disconnected and set subsystemTriggers appropriately.
+			// ATM, it is always going to be empty on disconnect.
+			return ReloadRules(subsystemTriggers)
 		}
 		return nil
 	}
@@ -118,7 +122,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return err
 	}
 
-	return ReloadRules()
+	// FIXME: somehow detect the interfaces that were disconnected and set
+	// subsystemTriggers appropriately. ATM, it is always going to be empty
+	// on disconnect.
+	return ReloadRules(subsystemTriggers)
 }
 
 // Remove removes udev rules specific to a given snap.
@@ -136,7 +143,11 @@ func (b *Backend) Remove(snapName string) error {
 	} else if err != nil {
 		return err
 	}
-	return ReloadRules()
+
+	// FIXME: somehow detect the interfaces that were disconnected and set
+	// subsystemTriggers appropriately. ATM, it is always going to be empty
+	// on disconnect.
+	return ReloadRules(nil)
 }
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content []string) {
