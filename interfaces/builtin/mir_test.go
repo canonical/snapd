@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -159,6 +159,7 @@ KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_mir-server_mir", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`)
+	c.Assert(udevSpec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 
 func (s *MirInterfaceSuite) TestInterfaces(c *C) {
