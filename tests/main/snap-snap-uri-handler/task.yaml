@@ -32,5 +32,11 @@ execute: |
     snap try "$TESTSLIB"/snaps/gnome-software
     snap snap-uri-handler snap://package | MATCH "Open URI: snap://package"
 
-    echo "The same should work with xdg-open"
-    xdg-open snap://package | MATCH "Open URI: snap://package"
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        # Ubuntu 14.04 ships with an ancient xdg-open shell script
+        # that doesn't look up scheme handlers.  Other xdg-mime
+        # implementations on the system (e.g. GLib) should be fine
+        # though.
+        echo "The same should work with xdg-open"
+        xdg-open snap://package | MATCH "Open URI: snap://package"
+    fi
