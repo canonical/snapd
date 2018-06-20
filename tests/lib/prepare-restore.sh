@@ -411,6 +411,9 @@ prepare_suite_each() {
     if is_classic_system; then
         prepare_each_classic
     fi
+    #shellcheck source=tests/lib/state.sh
+    . "$TESTSLIB"/state.sh
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
 }
 
 restore_suite_each() {

@@ -63,7 +63,7 @@ type localInfos struct {
 
 func (li *localInfos) Name(pathOrName string) string {
 	if info := li.pathToInfo[pathOrName]; info != nil {
-		return info.Name()
+		return info.InstanceName()
 	}
 	return pathOrName
 }
@@ -101,7 +101,7 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			}
 			// local snap gets local revision
 			info.Revision = snap.R(-1)
-			nameToPath[info.Name()] = snapName
+			nameToPath[info.InstanceName()] = snapName
 			local[snapName] = info
 
 			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
@@ -136,6 +136,8 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
+
+	// TODO parallel-install: parallel installs should be blocked for now
 
 	local, err := localSnaps(tsto, opts)
 	if err != nil {
@@ -399,7 +401,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 		// set seed.yaml
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
-			Name:    info.Name(),
+			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: info.Channel,
 			File:    filepath.Base(fn),
