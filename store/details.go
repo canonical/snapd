@@ -68,24 +68,6 @@ type snapDetails struct {
 	CommonIDs []string `json:"common_ids,omitempty"`
 }
 
-// channelMap contains
-type channelMap struct {
-	Track       string                   `json:"track"`
-	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
-}
-
-// channelSnapInfoDetails is the subset of snapDetails we need to get
-// information about the snaps in the various channels
-type channelSnapInfoDetails struct {
-	Revision     int        `json:"revision"` // store revisions are ints starting at 1
-	Confinement  string     `json:"confinement"`
-	Version      string     `json:"version"`
-	Channel      string     `json:"channel"`
-	Epoch        snap.Epoch `json:"epoch"`
-	DownloadSize int64      `json:"binary_filesize"`
-	Info         string     `json:"info"`
-}
-
 func infoFromRemote(d *snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures

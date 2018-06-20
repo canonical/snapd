@@ -38,8 +38,8 @@ import (
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
-	// Name returns the name of the snap.
-	Name() string
+	// InstanceName returns the name of the snap.
+	InstanceName() string
 
 	// MountDir returns the base directory of the snap.
 	MountDir() string
@@ -255,8 +255,15 @@ type ChannelSnapInfo struct {
 	Size        int64           `json:"size"`
 }
 
-// Name returns the blessed name for the snap.
-func (s *Info) Name() string {
+// InstanceName returns the blessed name of the snap decorated with instance
+// key, if any.
+func (s *Info) InstanceName() string {
+	// TODO parallel-install: include instance key
+	return s.StoreName()
+}
+
+// StoreName returns the global blessed name of the snap.
+func (s *Info) StoreName() string {
 	if s.RealName != "" {
 		return s.RealName
 	}
@@ -289,12 +296,12 @@ func (s *Info) Description() string {
 
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
-	return MountDir(s.Name(), s.Revision)
+	return MountDir(s.InstanceName(), s.Revision)
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return MountFile(s.Name(), s.Revision)
+	return MountFile(s.InstanceName(), s.Revision)
 }
 
 // HooksDir returns the directory containing the snap's hooks.
@@ -304,42 +311,42 @@ func (s *Info) HooksDir() string {
 
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Revision.String())
+	return filepath.Join(dirs.SnapDataDir, s.InstanceName(), s.Revision.String())
 }
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), s.Revision.String())
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.InstanceName(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), "common")
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.InstanceName(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.Name(), "common")
+	return filepath.Join(dirs.SnapDataDir, s.InstanceName(), "common")
 }
 
 // DataHomeDir returns the per user data directory of the snap.
 func (s *Info) DataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.Revision.String())
+	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 func (s *Info) CommonDataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
+	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), "common")
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
 func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
-	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
+	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.InstanceName()))
 }
 
 // XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
 func (s *Info) XdgRuntimeDirs() string {
-	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
+	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.InstanceName()))
 }
 
 // NeedsDevMode returns whether the snap needs devmode.
@@ -374,7 +381,8 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			return filepath.Join(dirs.CoreSnapMountDir, s.Name(), s.Revision.String())
+			// TODO parallel-install: use of proper instance/store name
+			return filepath.Join(dirs.CoreSnapMountDir, s.InstanceName(), s.Revision.String())
 		case "SNAP_DATA":
 			return s.DataDir()
 		case "SNAP_COMMON":
@@ -408,7 +416,7 @@ func BadInterfacesSummary(snapInfo *Info) string {
 		inverted[reason] = append(inverted[reason], name)
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.Name())
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.InstanceName())
 	reasons := make([]string, 0, len(inverted))
 	for reason := range inverted {
 		reasons = append(reasons, reason)
@@ -513,7 +521,7 @@ func getAttribute(snapName string, ifaceName string, attrs map[string]interface{
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
-	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
+	return getAttribute(plug.Snap.InstanceName(), plug.Interface, plug.Attrs, key, val)
 }
 
 func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
@@ -535,11 +543,11 @@ func (plug *PlugInfo) SecurityTags() []string {
 
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
-	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+	return fmt.Sprintf("%s:%s", plug.Snap.InstanceName(), plug.Name)
 }
 
 func (slot *SlotInfo) Attr(key string, val interface{}) error {
-	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
+	return getAttribute(slot.Snap.InstanceName(), slot.Interface, slot.Attrs, key, val)
 }
 
 func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
@@ -561,7 +569,7 @@ func (slot *SlotInfo) SecurityTags() []string {
 
 // String returns the representation of the slot as snap:slot string.
 func (slot *SlotInfo) String() string {
-	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
+	return fmt.Sprintf("%s:%s", slot.Snap.InstanceName(), slot.Name)
 }
 
 // SlotInfo provides information about a slot.
@@ -687,7 +695,7 @@ func (timer *TimerInfo) File() string {
 }
 
 func (app *AppInfo) String() string {
-	return JoinSnapApp(app.Snap.Name(), app.Name)
+	return JoinSnapApp(app.Snap.InstanceName(), app.Name)
 }
 
 // SecurityTag returns application-specific security tag.
@@ -695,32 +703,33 @@ func (app *AppInfo) String() string {
 // Security tags are used by various security subsystems as "profile names" and
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
-	return AppSecurityTag(app.Snap.Name(), app.Name)
+	return AppSecurityTag(app.Snap.InstanceName(), app.Name)
 }
 
 // DesktopFile returns the path to the installed optional desktop file for the application.
 func (app *AppInfo) DesktopFile() string {
-	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.InstanceName(), app.Name))
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
 func (app *AppInfo) WrapperPath() string {
-	return filepath.Join(dirs.SnapBinariesDir, JoinSnapApp(app.Snap.Name(), app.Name))
+	return filepath.Join(dirs.SnapBinariesDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
 }
 
 // CompleterPath returns the path to the completer snippet for the app binary.
 func (app *AppInfo) CompleterPath() string {
-	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.Name(), app.Name))
+	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	if app.Name == app.Snap.Name() {
+	// TODO parallel-install: use of proper instance/store name
+	if app.Name == app.Snap.InstanceName() {
 		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
 	}
-	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), app.Name)
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
@@ -776,7 +785,7 @@ func (app *AppInfo) IsService() bool {
 // Security tags are used by various security subsystems as "profile names" and
 // sometimes also as a part of the file name.
 func (hook *HookInfo) SecurityTag() string {
-	return HookSecurityTag(hook.Snap.Name(), hook.Name)
+	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
 // Env returns the hook-specific environment overrides
