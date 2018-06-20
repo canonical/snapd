@@ -42,8 +42,8 @@ type cmdSnapUriHandler struct {
 
 func init() {
 	addCommand("snap-uri-handler",
-		"Handle a snap:// URI",
-		"The snap-uri-handler command installs the gnome-software snap and then invokes it.",
+		i18n.G("Handle a snap:// URI"),
+		i18n.G("The snap-uri-handler command installs the gnome-software snap and then invokes it."),
 		func() flags.Commander {
 			return &cmdSnapUriHandler{}
 		}, nil, nil)
@@ -60,7 +60,7 @@ func (x *cmdSnapUriHandler) ensureGnomeSoftwareInstalled(cli *client.Client) err
 		return err
 	}
 	answeredYes := dialog.YesNo(
-		i18n.G("Install GNOME Software?"),
+		i18n.G("Install snap-aware GNOME Software snap?"),
 		i18n.G("GNOME Software is required to open snaps from a web browser."),
 		&ui.DialogOptions{
 			Timeout: 5 * time.Minute,
