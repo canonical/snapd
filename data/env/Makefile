@@ -20,6 +20,14 @@ ENVD := /etc/profile.d
 	sed   < $< > $@ \
 		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
 
+# When processing snapd.sh.in remove the /bin/sh shebang as this file is meant
+# to be sourced, not executed, and the presence of that line causes rpmlint
+# validation warnings.
+snapd.sh: snapd.sh.in
+	sed   < $< \
+		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g | \
+		tail -n +3 > $@
+
 GENERATED = snapd.sh
 
 
