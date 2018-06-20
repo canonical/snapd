@@ -390,6 +390,7 @@ fi
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_prefix}/lib/systemd/system-generators/snapd-generator
 %{_mandir}/man1/snap.1.*
+%{_datadir}/applications/snap-uri-handler.desktop
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
