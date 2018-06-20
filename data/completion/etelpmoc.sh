@@ -91,6 +91,10 @@ compgen() {
             o)
                 _compopts["$OPTARG"]=1
                 ;;
+            *)
+                # Do nothing, explicitly. This silences shellcheck's detector
+                # of unhandled command line options.
+                ;;
         esac
     done
     builtin compgen "$@"
