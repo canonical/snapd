@@ -92,10 +92,6 @@ func (x *cmdSnapUriHandler) Execute([]string) error {
 		return err
 	}
 
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	argv := []string{exe, "run", "gnome-software", x.Positional.Uri}
-	return syscall.Exec(exe, argv, os.Environ())
+	argv := []string{"snap", "run", "gnome-software", x.Positional.Uri}
+	return syscall.Exec("/proc/self/exe", argv, os.Environ())
 }

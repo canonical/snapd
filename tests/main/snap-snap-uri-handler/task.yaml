@@ -1,0 +1,31 @@
+summary: Ensure the "snap snap-uri-handler" command works
+
+# We don't run on ubuntu-core, since we are testing the behaviour of
+# xdg-open on the host system.
+systems: [-ubuntu-core-*]
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_package xdg-utils
+    if [ ! -f /usr/bin/zenity ]; then
+        touch /usr/bin/zenity
+    fi
+
+restore: |
+    umount -f /usr/bin/zenity || :
+
+execute: |
+    echo "URI Handler fails if gnome-software is not installed and user refuses to install it"
+    mount --bind /bin/false /usr/bin/zenity
+    if snap snap-uri-handler snap://package 2>errors.log; then
+        cat errors.log >&2
+        echo "Expected URI handler to fail"
+        exit 1
+    fi
+    MATCH "GNOME Software required" < errors.log
+
+    # Now with gnome-software installed
+    snap try "$TESTSLIB"/snaps/gnome-software
+
+    snap snap-uri-handler snap://package | MATCH "Open URI: snap://package"
