@@ -14,6 +14,8 @@ set -eux
 . "$TESTSLIB/spread-funcs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
 
 
 disable_kernel_rate_limiting() {
@@ -30,7 +32,7 @@ ensure_jq() {
         return
     fi
 
-    if snap list | grep core18; then
+    if is_core18_system; then
         snap install --devmode jq-core18
         snap alias jq-core18.jq jq
     else
@@ -274,13 +276,11 @@ setup_reflash_magic() {
 
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-18-* ]]; then
+    if is_core18_system; then
+        snap install "--${SNAPD_CHANNEL}" snapd
         core_name="core18"
     fi
     snap install "--${CORE_CHANNEL}" "$core_name"
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-18-* ]]; then
-        snap install "--${SNAPD_CHANNEL}" snapd
-    fi
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -297,7 +297,7 @@ setup_reflash_magic() {
     cp /usr/bin/snap "$IMAGE_HOME"
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-18-* ]]; then
+    if is_core18_system; then
         # modify the snapd snap so that it has our snapd
         UNPACKD="/tmp/snapd-snap"
         unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/snapd_*.snap
@@ -327,22 +327,19 @@ setup_reflash_magic() {
         # have snap use the fakestore for assertions (but nothing else)
         export SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
         # -----------------------8<----------------------------
-    elif [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+    else
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
         UNPACKD="/tmp/core-snap"
         unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/core_*.snap
-            
-        # FIXME: netplan workaround
-        mkdir -p "$UNPACKD/etc/netplan"
 
         # FIXME: install would be better but we don't have dpkg on
         #        the image
-        # unpack our freshly build snapd into the new core snap
+        # unpack our freshly build snapd into the new snapd snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACKD"
         # ensure any new timer units are available
         cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACKD/etc/systemd/system/timers.target.wants"
-        
+
         # add gpio and iio slots
         cat >> "$UNPACKD/meta/snap.yaml" <<-EOF
 slots:
@@ -354,17 +351,17 @@ slots:
         interface: iio
         path: /dev/iio:device0
 EOF
-        
+
         # build new core snap for the image
         snap pack "$UNPACKD" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
-        
+
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         IMAGE=all-snap-amd64.img
     fi
-    
+
     EXTRA_FUNDAMENTAL=
     IMAGE_CHANNEL=edge
     if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
@@ -381,13 +378,10 @@ EOF
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshyl build snapd
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-18-* ]]; then
+    if is_core18_system; then
         extra_snap="$IMAGE_HOME"/snapd_*.snap
-    elif [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        extra_snap="$IMAGE_HOME"/core_*.snap
     else
-        echo "unknown spread system"
-        exit 1
+        extra_snap="$IMAGE_HOME"/core_*.snap
     fi
 
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
@@ -400,13 +394,10 @@ EOF
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
     # FIXME: hardcoded mapper location, parse from kpartx
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-18-* ]]; then
+    if is_core18_system; then
         mount /dev/mapper/loop4p3 /mnt
-    elif [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        mount /dev/mapper/loop2p3 /mnt
     else
-        echo "unknown spread system"
-        exit 1
+        mount /dev/mapper/loop2p3 /mnt
     fi
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
@@ -423,7 +414,7 @@ EOF
           /home/gopath /mnt/user-data/
         
     # now modify the image
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-18-* ]]; then
+    if is_core18_system; then
         UNPACKD="/tmp/core18-snap"
         unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/core18_*.snap
     fi
@@ -580,7 +571,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+    if is_core18_system; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -591,7 +582,7 @@ prepare_ubuntu_core() {
     echo "Ensure rsync is available"
     if ! which rsync; then
         rsync_snap="test-snapd-rsync"
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+        if is_core18_system; then
             rsync_snap="test-snapd-rsync-core18"
         fi
         snap install --devmode "$rsync_snap"
