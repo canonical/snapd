@@ -251,6 +251,9 @@ rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 install -d %{buildroot}%{_sbindir}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.refresh
+%if %{with apparmor}
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
+%endif
 # Install the "info" data file with snapd version
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
@@ -294,6 +297,9 @@ fi
 %service_del_postun %{systemd_services_list}
 
 %files
+%if %{with apparmor}
+%config %{_sysconfdir}/apparmor.d
+%endif
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
@@ -332,6 +338,9 @@ fi
 %{_bindir}/snapctl
 %{_sbindir}/rcsnapd
 %{_sbindir}/rcsnapd.refresh
+%if %{with apparmor}
+%{_sbindir}/rcsnapd.apparmor
+%endif
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-update-ns
@@ -353,6 +362,9 @@ fi
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %{_libexecdir}/snapd/snapd.run-from-snap
+%if %{with apparmor}
+%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
+%endif
 
 %changelog
 
