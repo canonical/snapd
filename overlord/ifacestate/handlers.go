@@ -103,7 +103,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	addImplicitSlots(snapInfo)
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -146,7 +146,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		affectedSet[name] = true
 	}
 	// The principal snap was already handled above.
-	delete(affectedSet, snapInfo.Name())
+	delete(affectedSet, snapInfo.InstanceName())
 	affectedSnaps := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
 		affectedSnaps = append(affectedSnaps, name)
@@ -611,9 +611,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		// go with those from the new core snap.
 		if len(candidates) == 2 {
 			switch {
-			case candidates[0].Snap.Name() == "ubuntu-core" && candidates[1].Snap.Name() == "core":
+			case candidates[0].Snap.InstanceName() == "ubuntu-core" && candidates[1].Snap.InstanceName() == "core":
 				candidates = candidates[1:2]
-			case candidates[1].Snap.Name() == "ubuntu-core" && candidates[0].Snap.Name() == "core":
+			case candidates[1].Snap.InstanceName() == "ubuntu-core" && candidates[0].Snap.InstanceName() == "core":
 				candidates = candidates[0:1]
 			}
 		}
@@ -634,7 +634,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ignore, err := findSymmetricAutoconnect(st, plug.Snap.Name(), slot.Snap.Name(), task)
+		ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
 		if err != nil {
 			return err
 		}
@@ -644,9 +644,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 
 		const auto = true
-		if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
+		if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.Name(), slot.Snap.Name())
+				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
 				return err // will retry
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
@@ -664,7 +664,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			// make sure slot is the only viable
 			// connection for plug, same check as if we were
 			// considering auto-connections from plug
-			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
+			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
 
 			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
 				crefs := make([]string, len(candSlots))
@@ -686,7 +686,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 
-			ignore, err := findSymmetricAutoconnect(st, plug.Snap.Name(), slot.Snap.Name(), task)
+			ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
 			if err != nil {
 				return err
 			}
@@ -696,9 +696,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			}
 
 			const auto = true
-			if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
+			if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
 				if _, retry := err.(*state.Retry); retry {
-					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.Name(), slot.Snap.Name())
+					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
 					return err // will retry
 				}
 				return fmt.Errorf("auto-connect conflict check failed: %s", err)
