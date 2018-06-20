@@ -10,6 +10,9 @@ execute: |
     echo "Ensure snap wait for seeding works"
     snap wait system seed.loaded
 
+    echo "Ensure snapd.seeded.service is active"
+    systemctl status snapd.seeded.service | MATCH "SUCCESS"
+
     echo "Ensure snap wait for arbitrary stuff works"
     # set to a false value
     snap set basic-hooks foo=0
