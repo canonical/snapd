@@ -20,11 +20,24 @@
 package ifacestate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
-func (m *InterfaceManager) HotplugDeviceAdded(deviceInfo *interfaces.HotplugDeviceInfo) {
-	// TODO
+func (m *InterfaceManager) HotplugDeviceAdded(devinfo *interfaces.HotplugDeviceInfo) {
+	deviceKey := fmt.Sprintf("%s:%s:%s", devinfo.IdVendor(), devinfo.IdProduct(), devinfo.Serial())
+	for _, iface := range m.repo.AllInterfaces() {
+		if hotplugHandler, ok := iface.(interfaces.HotplugDeviceHandler); ok {
+			spec, err := interfaces.NewHotplugSpec(deviceKey)
+			if err != nil {
+				// TODO: log
+			}
+			if hotplugHandler.HotplugDeviceAdd(devinfo, spec) != nil {
+				continue
+			}
+		}
+	}
 }
 
 func (m *InterfaceManager) HotplugDeviceRemoved(deviceInfo *interfaces.HotplugDeviceInfo) {

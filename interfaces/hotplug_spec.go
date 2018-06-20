@@ -19,7 +19,35 @@
 
 package interfaces
 
-type HotplugSpec struct{}
+import (
+	"fmt"
+)
+
+type HotplugSpec struct {
+	deviceKey string
+}
+
+func NewHotplugSpec(deviceKey string) (*HotplugSpec, error) {
+	if deviceKey == "" {
+		return nil, fmt.Errorf("invalid device key %q", deviceKey)
+	}
+	return &HotplugSpec{
+		deviceKey: deviceKey,
+	}, nil
+}
+
+// SetDeviceKey can be used by interfaces to set custom device key.
+func (h *HotplugSpec) SetDeviceKey(deviceKey string) error {
+	if deviceKey == "" {
+		return fmt.Errorf("invalid device key %q", deviceKey)
+	}
+	h.deviceKey = deviceKey
+	return nil
+}
+
+func (h *HotplugSpec) AddSlot(name, label string, attrs map[string]interface{}) {
+	// TODO
+}
 
 // HotplugDeviceHandler can be implemented by Interfaces that need to create slots in response to hotplug events
 type HotplugDeviceHandler interface {
