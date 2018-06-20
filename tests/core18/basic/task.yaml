@@ -1,4 +1,4 @@
-summary: Check basic core18 ssystem functionality
+summary: Check basic core18 system functionality
 
 execute: |
     echo "Check that the system snaps are there"
@@ -12,6 +12,6 @@ execute: |
     echo "Ensure that the system is fully seeded"
     snap changes | MATCH "Done.*Initialize system state"
 
-    echo "Check that the minimal test-snapd-busybox-static works"
-    snap install test-snapd-busybox-static
-    test-snapd-busybox-static.busybox-static echo hello | MATCH hello
+    echo "Check that snapd tools for core18 works"
+    snap install test-snapd-tools-core18
+    test-snapd-tools-core18.echo hello | MATCH hello
