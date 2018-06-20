@@ -30,7 +30,7 @@ prepare: |
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    while ! ss -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 
 restore: |
     . "$TESTSLIB/systemd.sh"
@@ -55,14 +55,14 @@ execute: |
     snap connect network-control-consumer:network-control
 
     echo "Then the snap command can query network status information"
-    network-control-consumer.cmd netstat -lnt | MATCH "0.0.0.0:$PORT.*?LISTEN"
+    network-control-consumer.cmd ss -lnt | MATCH "0.0.0.0:$PORT.*?LISTEN"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect network-control-consumer:network-control
 
         echo "Then the snap command can not query network status information"
-        if network-control-consumer.cmd netstat -lnt 2>net-query.output; then
+        if network-control-consumer.cmd ss -lnt 2>net-query.output; then
             echo "Expected error caling command with disconnected plug"
             exit 1
         fi

@@ -71,14 +71,14 @@ setup_fake_store(){
 
     echo "Wait until fake store is ready"
     for _ in $(seq 15); do
-        if netstat -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
+        if ss -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
             return 0
         fi
         sleep 1
     done
 
     echo "fakestore service not started properly"
-    netstat -ntlp | grep "127.0.0.1:11028" || true
+    ss -ntlp | grep "127.0.0.1:11028" || true
     get_journalctl_log -u fakestore || true
     systemctl status fakestore || true
     exit 1
