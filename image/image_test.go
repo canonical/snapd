@@ -338,7 +338,7 @@ func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
 	c.Assert(err, IsNil)
 
 	if !rev.Unset() {
-		info.SnapID = info.Name() + "-Id"
+		info.SnapID = info.InstanceName() + "-Id"
 		info.Revision = rev
 	}
 	return info
@@ -568,7 +568,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 		c.Check(osutil.FileExists(p), Equals, true)
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
-			Name:       info.Name(),
+			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: unasserted,
@@ -761,7 +761,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 		c.Check(osutil.FileExists(p), Equals, true)
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
-			Name:       info.Name(),
+			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: unasserted,
@@ -949,7 +949,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 		c.Check(osutil.FileExists(p), Equals, true, Commentf("cannot find %s", p))
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
-			Name:       info.Name(),
+			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: false,
