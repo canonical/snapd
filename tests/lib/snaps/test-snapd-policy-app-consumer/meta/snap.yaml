@@ -41,6 +41,9 @@ apps:
   camera:
     command: bin/run
     plugs: [ camera ]
+  cifs-mount-control:
+    command: bin/run
+    plugs: [ cifs-mount-control ]
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
