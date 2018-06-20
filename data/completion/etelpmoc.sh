@@ -209,4 +209,4 @@ fi
 echo "${!_compopts[@]}"
 echo "$_bounce"
 echo ""
-printf "%s\n" "${COMPREPLY[@]}"
+printf "%s\\n" "${COMPREPLY[@]}"
