@@ -124,13 +124,13 @@ func listSnaps(names []string, all bool) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tTracking\tDeveloper\tNotes"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher\tNotes"))
 
 	for _, snap := range snaps {
 		// Aid parsing of the output by not leaving the field empty.
-		dev := snap.Developer
-		if dev == "" {
-			dev = "-"
+		publisher := snap.Publisher
+		if publisher == "" {
+			publisher = "-"
 		}
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
 		line := []string{
@@ -138,7 +138,7 @@ func listSnaps(names []string, all bool) error {
 			snap.Version,
 			snap.Revision.String(),
 			fmtChannel(snap.TrackingChannel),
-			dev,
+			publisher,
 			NotesFromLocal(snap).String(),
 		}
 		fmt.Fprintln(w, strings.Join(line, "\t"))
