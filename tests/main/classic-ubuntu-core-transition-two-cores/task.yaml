@@ -13,7 +13,7 @@ kill-timeout: 5m
 debug: |
     snap changes
     #shellcheck source=tests/lib/changes.sh
-    . $TESTSLIB/changes.sh
+    . "$TESTSLIB"/changes.sh
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
     echo "install a snap"
