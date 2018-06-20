@@ -88,9 +88,11 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	// the "publisher display name" which we cannot use currently
 	// because it is not validated (i.e. the publisher could put
 	// anything in there and mislead the users this way).
-	info.Publisher = d.Developer
-	info.PublisherID = d.DeveloperID
-	info.PublisherDisplayName = d.DeveloperName
+	info.Publisher = snap.StoreAccount{
+		ID:          d.DeveloperID,
+		Username:    d.Developer,
+		DisplayName: d.DeveloperName,
+	}
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize

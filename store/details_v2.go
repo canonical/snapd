@@ -41,7 +41,7 @@ type storeSnap struct {
 	Name          string             `json:"name"`
 	Prices        map[string]string  `json:"prices"` // currency->price,  free: {"USD": "0"}
 	Private       bool               `json:"private"`
-	Publisher     storeAccount       `json:"publisher"`
+	Publisher     snap.StoreAccount  `json:"publisher"`
 	Revision      int                `json:"revision"` // store revisions are ints starting at 1
 	SnapID        string             `json:"snap-id"`
 	SnapYAML      string             `json:"snap-yaml"` // optional
@@ -72,12 +72,6 @@ type storeSnapDelta struct {
 	Source   int    `json:"source"`
 	Target   int    `json:"target"`
 	URL      string `json:"url"`
-}
-
-type storeAccount struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display-name"`
 }
 
 type storeSnapMedia struct {
@@ -238,9 +232,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Base = d.Base
 	info.License = d.License
-	info.PublisherID = d.Publisher.ID
-	info.Publisher = d.Publisher.Username
-	info.PublisherDisplayName = d.Publisher.DisplayName
+	info.Publisher = d.Publisher
 	info.DownloadURL = d.Download.URL
 	info.Size = d.Download.Size
 	info.Sha3_384 = d.Download.Sha3_384

@@ -28,6 +28,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
@@ -144,7 +145,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		License:       "GPL-3.0",
 		Name:          "hello-world",
 		Developer:     "canonical",
-		Publisher: &client.StoreAccount{
+		Publisher: &snap.StoreAccount{
 			ID:          "canonical",
 			Username:    "canonical",
 			DisplayName: "Canonical",
@@ -207,6 +208,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"status": "active",
 			"type": "app",
 			"version": "0.1-8",
+                        "revision": 42,
 			"confinement": "strict",
 			"private": true,
 			"devmode": true,
@@ -234,7 +236,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		License:       "GPL-3.0",
 		Name:          "chatroom",
 		Developer:     "ogra",
-		Publisher: &client.StoreAccount{
+		Publisher: &snap.StoreAccount{
 			ID:          "ogra-id",
 			Username:    "ogra",
 			DisplayName: "Ogra",
@@ -242,6 +244,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Status:      client.StatusActive,
 		Type:        client.TypeApp,
 		Version:     "0.1-8",
+		Revision:    snap.R(42),
 		Confinement: client.StrictConfinement,
 		Private:     true,
 		DevMode:     true,

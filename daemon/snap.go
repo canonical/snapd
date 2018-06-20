@@ -52,7 +52,7 @@ func snapIcon(info *snap.Info) string {
 	return found[0]
 }
 
-func publisherAccount(st *state.State, info *snap.Info) (*client.StoreAccount, error) {
+func publisherAccount(st *state.State, info *snap.Info) (*snap.StoreAccount, error) {
 	if info.SnapID == "" {
 		return nil, nil
 	}
@@ -61,7 +61,7 @@ func publisherAccount(st *state.State, info *snap.Info) (*client.StoreAccount, e
 	if err != nil {
 		return nil, fmt.Errorf("cannot find publisher details: %v", err)
 	}
-	return &client.StoreAccount{
+	return &snap.StoreAccount{
 		ID:          pubAcct.AccountID(),
 		Username:    pubAcct.Username(),
 		DisplayName: pubAcct.DisplayName(),
@@ -71,7 +71,7 @@ func publisherAccount(st *state.State, info *snap.Info) (*client.StoreAccount, e
 type aboutSnap struct {
 	info      *snap.Info
 	snapst    *snapstate.SnapState
-	publisher *client.StoreAccount
+	publisher *snap.StoreAccount
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -123,7 +123,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		}
 		var aboutThis []aboutSnap
 		var info *snap.Info
-		var publisher *client.StoreAccount
+		var publisher *snap.StoreAccount
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
@@ -137,7 +137,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
-				var publisher *client.StoreAccount
+				var publisher *snap.StoreAccount
 				publisher, err = publisherAccount(st, info)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
 			}
@@ -385,14 +385,11 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		}
 	}
 
+	publisher := remoteSnap.Publisher
 	result := &client.Snap{
-		Description: remoteSnap.Description(),
-		Developer:   remoteSnap.Publisher,
-		Publisher: &client.StoreAccount{
-			ID:          remoteSnap.PublisherID,
-			Username:    remoteSnap.Publisher,
-			DisplayName: remoteSnap.PublisherDisplayName,
-		},
+		Description:  remoteSnap.Description(),
+		Developer:    remoteSnap.Publisher.Username,
+		Publisher:    &publisher,
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
 		ID:           remoteSnap.SnapID,

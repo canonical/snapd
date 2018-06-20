@@ -183,10 +183,7 @@ type Info struct {
 	Prices  map[string]float64
 	MustBuy bool
 
-	// Publisher's ID, username, and display-name
-	PublisherID          string
-	Publisher            string
-	PublisherDisplayName string
+	Publisher StoreAccount
 
 	Screenshots []ScreenshotInfo
 
@@ -200,6 +197,14 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+}
+
+// StoreAccount holds information about a store account, for example
+// of snap publisher.
+type StoreAccount struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display-name"`
 }
 
 // Layout describes a single element of the layout section.
