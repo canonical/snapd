@@ -135,9 +135,18 @@ the system:snappy repository.
 cd cmd && autoreconf -i -f
 
 # Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
-CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now -fPIE -pie"
+CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
-LDFLAGS="-pie"
+LDFLAGS=""
+# On openSUSE Leap 15 or more recent build position independent executables.
+# For a helpful guide about the versions and macros used below, please see:
+# https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
+%if (0%{?sle_version} >= 150000 && 0%{?is_opensuse}) || %if 0%{?suse_version} > 1500
+CFLAGS="$CFLAGS -fPIE -fpie"
+CXXFLAGS"$CXXFLAGS -fPIE -pie"
+LDFLAGS="$LDFLAGS -pie"
+%endif
+
 export CFLAGS
 export CXXFLAGS
 export LDFLAGS
