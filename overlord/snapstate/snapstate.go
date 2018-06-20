@@ -1263,7 +1263,7 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
 		return true
@@ -1295,6 +1295,15 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// time we can remove the two lines below.
 	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
 		return true
+	}
+
+	// Allow snap.TypeOS removals if a different base is in use
+	if si.Type == snap.TypeOS {
+		if model, err := Model(st); err == nil {
+			if model.Base() != "" {
+				return true
+			}
+		}
 	}
 
 	// You never want to remove a kernel or OS. Do not remove their
@@ -1360,7 +1369,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, &snapst, removeAll) {
+	if !canRemove(st, info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
