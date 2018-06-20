@@ -56,7 +56,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	// Record all changes to the mount system for this snap.
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
@@ -107,7 +107,7 @@ func addMountProfile(content map[string]*osutil.FileState, fname string, entries
 // deriveContent computes .fstab tables based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
 	content := make(map[string]*osutil.FileState, 2)
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Add the per-snap fstab file.
 	// This file is read by snap-update-ns in the global pass.
 	addMountProfile(content, fmt.Sprintf("snap.%s.fstab", snapName), spec.MountEntries())

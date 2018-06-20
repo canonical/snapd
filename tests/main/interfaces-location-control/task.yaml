@@ -13,7 +13,9 @@ details: |
 systems: [-ubuntu-core-16-*, -ubuntu-*-s390x]
 
 prepare: |
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
     echo "Given a snap declaring a plug on the location-control interface is installed"
     snap install test-snapd-location-control-provider
@@ -24,6 +26,7 @@ prepare: |
 restore: |
     rm -f getprop.error
 
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
 
@@ -35,7 +38,7 @@ execute: |
     snap connect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 
     echo "Then wait until the dbus name is properly reserved"
-    for i in $(seq 10); do
+    for _ in $(seq 10); do
         if test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"; then
             break
         else
@@ -54,7 +57,7 @@ execute: |
     snap disconnect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 
     echo "And the location provider props cannot be accessed"
-    if test-snapd-location-control-provider.consumer Get 2>${PWD}/getprop.error; then
+    if test-snapd-location-control-provider.consumer Get 2>"${PWD}"/getprop.error; then
         echo "Expected permission error trying to get props with disconnected plug"
         exit 1
     fi

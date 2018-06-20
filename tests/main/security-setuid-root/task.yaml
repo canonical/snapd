@@ -16,12 +16,12 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
     echo "Ensure the snap-confine profiles on core are not loaded"
-    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+    for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
         apparmor_parser -R "$p"
     done
 restore: |
     echo "Ensure the snap-confine profiles are restored"
-    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+    for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
         apparmor_parser -r $p
     done
 execute: |
