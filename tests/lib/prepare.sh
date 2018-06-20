@@ -476,14 +476,23 @@ initrd /initrd.img
 EOF
 }
 
-prepare_all_snap() {
+# prepare_ubuntu_core will prepare ubuntu-core 16 and 18
+prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
-        setup_reflash_magic
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            setup_reflash_magic
+        elif [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+            setup_reflash_magic_core18
+        else
+            echo "Running prepare_ubuntu_core on an unknown spread system"
+            echo "$SPREAD_SYSTEM"
+            exit 1
+        fi
         REBOOT
     fi
 
-    # verify after the first reboot that we are now in the all-snap world
+    # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Ensure we are now in an all-snap world"
         if [ -e /var/lib/dpkg/status ]; then
@@ -502,7 +511,7 @@ prepare_all_snap() {
     echo "Ensure fundamental snaps are still present"
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-    for name in "$gadget_name" "$kernel_name" core; do
+    for name in "$gadget_name" "$kernel_name" "$core_name"; do
         if ! snap list "$name"; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -511,10 +520,23 @@ prepare_all_snap() {
         fi
     done
 
+    echo "Ensure the snapd snap is available"
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+        if ! snap list snapd; then
+            echo "snapd snap on core18 is missing"
+            snap list
+            exit 1
+        fi
+    fi
+
     echo "Ensure rsync is available"
     if ! which rsync; then
-        snap install --devmode test-snapd-rsync
-        snap alias test-snapd-rsync.rsync rsync
+        rsync_snap="test-snapd-rsync"
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+            rsync_snap="test-snapd-rsync-core18"
+        fi
+        snap install --devmode "$rsync_snap"
+        snap alias "$rsync_snap".rsync rsync
     fi
 
     disable_refreshes
@@ -739,59 +761,4 @@ linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
-}
-
-prepare_core18() {
-    # we are still a "classic" image, prepare the surgery
-    if [ -e /var/lib/dpkg/status ]; then
-        setup_reflash_magic_core18
-        REBOOT
-    fi
-
-    # verify after the first reboot that we are now in core18 world
-    if [ "$SPREAD_REBOOT" = 1 ]; then
-        echo "Ensure we are now in an all-snap world"
-        if [ -e /var/lib/dpkg/status ]; then
-            echo "Rebooting into all-snap system did not work"
-            exit 1
-        fi
-    fi
-
-    echo "Wait for firstboot change to be ready"
-    while ! snap changes | grep "Done"; do
-        snap changes || true
-        snap change 1 || true
-        sleep 1
-    done
-
-    echo "Ensure fundamental snaps are still present"
-    # shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB/names.sh"
-    for name in "$gadget_name" "$kernel_name" core18 snapd; do
-        if ! snap list "$name"; then
-            echo "Not all fundamental snaps are available, all-snap image not valid"
-            echo "Currently installed snaps"
-            snap list
-            exit 1
-        fi
-    done
-
-
-    echo "Ensure rsync is available (core18 version)"
-    if ! which rsync; then
-        snap install --devmode test-snapd-rsync-core18
-        snap alias test-snapd-rsync-core18.rsync rsync
-    fi
-
-    disable_refreshes
-    setup_systemd_snapd_overrides
-
-    # Snapshot the fresh state (including boot/bootenv)
-    if [ ! -d $SNAPD_STATE_PATH ]; then
-        systemctl stop snapd.service snapd.socket
-        save_snapd_state
-        systemctl start snapd.socket
-    fi
-
-    disable_kernel_rate_limiting
 }
