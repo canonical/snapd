@@ -52,7 +52,7 @@
 %global with_multilib 1
 %endif
 
-%global systemd_services_list snapd.socket snapd.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service %{?with_apparmor:snapd.apparmor.service}
 
 %global snap_mount_dir /snap
 
@@ -250,7 +250,7 @@ rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd
-ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.refresh
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
 # Install the "info" data file with snapd version
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
@@ -331,7 +331,7 @@ fi
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_sbindir}/rcsnapd
-%{_sbindir}/rcsnapd.refresh
+%{_sbindir}/rcsnapd.seeded
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-update-ns
