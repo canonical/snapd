@@ -306,8 +306,8 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
-	plugSnap := conn.Plug.Snap().Name()
-	slotSnap := conn.Slot.Snap().Name()
+	plugSnap := conn.Plug.Snap().InstanceName()
+	slotSnap := conn.Slot.Snap().InstanceName()
 
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
@@ -323,8 +323,8 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 }
 
 func disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
-	plugSnap := conn.Plug.Snap().Name()
-	slotSnap := conn.Slot.Snap().Name()
+	plugSnap := conn.Plug.Snap().InstanceName()
+	slotSnap := conn.Slot.Snap().InstanceName()
 	plugName := conn.Plug.Name()
 	slotName := conn.Slot.Name()
 
@@ -347,8 +347,8 @@ func disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 
 // disconnectHooks returns a set of tasks for running disconnect- hooks for an interface.
 func disconnectHooks(st *state.State, conn *interfaces.Connection, installedSnapTask *state.Task) (*state.TaskSet, error) {
-	plugSnap := conn.Plug.Snap().Name()
-	slotSnap := conn.Slot.Snap().Name()
+	plugSnap := conn.Plug.Snap().InstanceName()
+	slotSnap := conn.Slot.Snap().InstanceName()
 	plugName := conn.Plug.Name()
 	slotName := conn.Slot.Name()
 
@@ -421,7 +421,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 
 	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
 	if err != nil {
-		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.InstanceName(), err)
 	}
 
 	ic := policy.InstallCandidate{
