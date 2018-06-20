@@ -41,7 +41,7 @@ execute: |
 
     if is_core_system; then
         echo "The interface is not connected by default"
-        snap interfaces -i home | MATCH '^\- +home-consumer:home'
+        snap interfaces -i home | MATCH '^- +home-consumer:home'
 
         echo "And the plug can be connected"
         snap connect home-consumer:home

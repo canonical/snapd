@@ -23,7 +23,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i kvm | MATCH '\- +test-snapd-kvm:kvm'
+    snap interfaces -i kvm | MATCH '^- +test-snapd-kvm:kvm'
 
     echo "When the interface is connected"
     snap connect test-snapd-kvm:kvm

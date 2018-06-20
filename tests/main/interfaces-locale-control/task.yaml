@@ -58,7 +58,7 @@ execute: |
     fi
 
     echo "The interface is not connected by default"
-    snap interfaces -i locale-control | MATCH '\- +locale-control-consumer:locale-control'
+    snap interfaces -i locale-control | MATCH '^- +locale-control-consumer:locale-control'
 
     echo "When the plug is connected"
     snap connect locale-control-consumer:locale-control

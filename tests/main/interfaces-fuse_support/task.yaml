@@ -38,7 +38,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i fuse-support | MATCH '\- +test-snapd-fuse-consumer:fuse-support'
+    snap interfaces -i fuse-support | MATCH '^- +test-snapd-fuse-consumer:fuse-support'
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
