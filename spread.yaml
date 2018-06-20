@@ -477,7 +477,7 @@ suites:
                 exit 0
             fi
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
 
@@ -502,17 +502,17 @@ suites:
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
-            . $TESTSLIB/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_classic
         prepare-each: |
             "$TESTSLIB"/reset.sh --reuse-core
             #shellcheck source=tests/lib/prepare.sh
-            . $TESTSLIB/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         restore: |
             "$TESTSLIB"/reset.sh --store
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
             case "$SPREAD_SYSTEM" in

@@ -4,7 +4,7 @@ details: |
     placed into the appropriate hierarchy under the freezer cgroup.
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
 execute: |
     # Start a "sleep" process in the background
