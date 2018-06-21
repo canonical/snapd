@@ -141,9 +141,9 @@ LDFLAGS=""
 # On openSUSE Leap 15 or more recent build position independent executables.
 # For a helpful guide about the versions and macros used below, please see:
 # https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
-%if (0%{?sle_version} >= 150000 && 0%{?is_opensuse}) || %if 0%{?suse_version} > 1500
-CFLAGS="$CFLAGS -fPIE -fpie"
-CXXFLAGS"$CXXFLAGS -fPIE -pie"
+%if 0%{?suse_version} >= 1500
+CFLAGS="$CFLAGS -fPIE"
+CXXFLAGS"$CXXFLAGS -fPIE"
 LDFLAGS="$LDFLAGS -pie"
 %endif
 
