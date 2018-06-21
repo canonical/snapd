@@ -21,6 +21,7 @@ package ifacestate_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -166,6 +168,7 @@ func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
 		"connect",
 		"discard-conns",
 		"disconnect",
+		"gadget-connect",
 		"remove-profiles",
 		"setup-profiles",
 		"transition-ubuntu-core"})
@@ -221,7 +224,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 
 	var autoconnect bool
 	err = task.Get("auto", &autoconnect)
-	c.Assert(err, IsNil)
+	c.Assert(err, Equals, state.ErrNoState)
 	c.Assert(autoconnect, Equals, false)
 
 	// verify initial attributes are present in connect task
@@ -348,7 +351,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	c.Assert(ignore, Equals, false)
 	c.Assert(ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true), IsNil)
 
-	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", true)
+	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", []string{"auto"})
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
@@ -884,6 +887,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
 		Current:  sideInfo.Revision,
+		SnapType: string(snapInfo.Type),
 	})
 	return snapInfo
 }
@@ -2960,5 +2964,276 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 		"snap0": snap.R(10),
 		"snap1": snap.R(1),
 		"snap3": snap.R(3),
+	})
+}
+
+func (s *interfaceManagerSuite) setupGadgetConnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnapDecl(c, "consumer", "publisher1", nil)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnapDecl(c, "producer", "publisher2", nil)
+	s.mockSnap(c, producerYaml)
+
+	gadgetInfo := s.mockSnap(c, `name: gadget
+type: gadget
+`)
+
+	gadgetYaml := []byte(`
+connections:
+   - plug: consumeridididididididididididid:plug
+     slot: produceridididididididididididid:slot
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+}
+
+func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupGadgetConnect(c)
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("gadget-connect", "gadget connections")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 6)
+
+	gotConnect := false
+	for _, t := range tasks {
+		switch t.Kind() {
+		default:
+			c.Fatalf("unexpected task kind: %s", t.Kind())
+		case "gadget-connect":
+		case "run-hook":
+		case "connect":
+			gotConnect = true
+			var autoConnect, byGadget bool
+			err := t.Get("auto", &autoConnect)
+			c.Assert(err, IsNil)
+			err = t.Get("by-gadget", &byGadget)
+			c.Assert(err, IsNil)
+			c.Check(autoConnect, Equals, true)
+			c.Check(byGadget, Equals, true)
+
+			var plug interfaces.PlugRef
+			err = t.Get("plug", &plug)
+			c.Assert(err, IsNil)
+			c.Assert(plug.Snap, Equals, "consumer")
+			c.Assert(plug.Name, Equals, "plug")
+			var slot interfaces.SlotRef
+			err = t.Get("slot", &slot)
+			c.Assert(err, IsNil)
+			c.Assert(slot.Snap, Equals, "producer")
+			c.Assert(slot.Name, Equals, "slot")
+		}
+	}
+
+	c.Assert(gotConnect, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupGadgetConnect(c)
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test", "auto": true,
+		},
+	})
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("gadget-connect", "gadget connections")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status().Ready(), Equals, true)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 1)
+}
+
+func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupGadgetConnect(c)
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	otherChg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	})
+	otherChg.AddTask(t)
+
+	chg := s.state.NewChange("setting-up", "...")
+	t = s.state.NewTask("gadget-connect", "gadget connections")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status().Ready(), Equals, false)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 1)
+
+	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried because of "consumer" - "producer" conflict`)
+}
+
+func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnapDecl(c, "consumer", "publisher1", nil)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnapDecl(c, "producer", "publisher2", nil)
+	s.mockSnap(c, producerYaml)
+
+	mgr := s.manager(c)
+
+	gadgetInfo := s.mockSnap(c, `name: gadget
+type: gadget
+`)
+
+	gadgetYaml := []byte(`
+connections:
+   - plug: consumeridididididididididididid:plug
+     slot: produceridididididididididididid:unknown
+   - plug: unknownididididididididididididi:plug
+     slot: produceridididididididididididid:slot
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("gadget-connect", "gadget connections")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 1)
+
+	logs := t.Log()
+	c.Check(logs, HasLen, 2)
+	c.Check(logs[0], Matches, `.*ignoring missing slot produceridididididididididididid:unknown`)
+	c.Check(logs[1], Matches, `.* ignoring missing plug unknownididididididididididididi:plug`)
+}
+
+func (s *interfaceManagerSuite) TestGadgetConnectHappyPolicyChecks(c *C) {
+	// network-control does not auto-connect so this test also
+	// checks that the right policy checker (for "*-connection"
+	// rules) is used for gadget connections
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.mockSnap(c, coreSnapYaml)
+
+	s.mockSnapDecl(c, "foo", "publisher1", nil)
+	s.mockSnap(c, `name: foo
+version: 1.0
+plugs:
+  network-control:
+`)
+
+	mgr := s.manager(c)
+
+	gadgetInfo := s.mockSnap(c, `name: gadget
+type: gadget
+`)
+
+	gadgetYaml := []byte(`
+connections:
+   - plug: fooididididididididididididididi:network-control
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("gadget-connect", "gadget connections")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 6)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status().Ready(), Equals, true)
+
+	// check connection
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"foo:network-control core:network-control": map[string]interface{}{
+			"interface": "network-control", "auto": true, "by-gadget": true,
+		},
 	})
 }
