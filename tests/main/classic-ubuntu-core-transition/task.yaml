@@ -33,8 +33,8 @@ execute: |
         local url="$1"
         # sadly systemd active means not that its really ready so we wait
         # here for the socket to be available
-        while ! netstat -t -l -n|grep :80; do
-            netstat -l -l -n
+        while ! ss -t -l -n|grep :80; do
+            ss -l -l -n
             sleep 1
         done
         python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
