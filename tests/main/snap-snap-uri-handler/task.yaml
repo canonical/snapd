@@ -16,6 +16,8 @@ prepare: |
     touch /usr/bin/zenity
 
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     umount -f /usr/bin/zenity || :
     distro_purge_package xdg-utils
     distro_auto_remove_packages
@@ -23,6 +25,8 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
 
     echo "URI Handler fails if gnome-software is not installed and user refuses to install it"
     mount --bind /bin/false /usr/bin/zenity
@@ -34,7 +38,7 @@ execute: |
     MATCH "GNOME Software required" < errors.log
 
     echo "Now with gnome-software installed"
-    install_local "$TESTSLIB"/snaps/gnome-software
+    install_local gnome-software
     snap snap-uri-handler snap://package | MATCH "Open URI: snap://package"
 
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
