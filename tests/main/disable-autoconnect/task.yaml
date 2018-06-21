@@ -4,7 +4,7 @@ details: |
     This test ensures that auto-connections are not restored if manually disconnected
     by the user.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/config-versions

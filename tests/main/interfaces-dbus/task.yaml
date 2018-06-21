@@ -11,7 +11,7 @@ details: |
 environment:
     DISPLAY: :0
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
     . "$TESTSLIB/dirs.sh"
