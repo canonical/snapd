@@ -12,11 +12,11 @@ details: |
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-broadcom-asic-control
 
     #shellcheck source=tests/lib/files.sh
-    . $TESTSLIB/files.sh
+    . "$TESTSLIB"/files.sh
     ensure_file_exists_backup_real /dev/linux-user-bde
     ensure_file_exists_backup_real /dev/linux-kernel-bde
     ensure_file_exists_backup_real /dev/linux-bcm-knet
@@ -27,7 +27,7 @@ restore: |
     rm -f call.error
 
     #shellcheck source=tests/lib/files.sh
-    . $TESTSLIB/files.sh
+    . "$TESTSLIB"/files.sh
     clean_file /dev/linux-user-bde
     clean_file /dev/linux-kernel-bde
     clean_file /dev/linux-bcm-knet

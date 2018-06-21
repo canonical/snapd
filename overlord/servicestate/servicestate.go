@@ -79,7 +79,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	names := make([]string, len(appInfos))
 	for i, svc := range appInfos {
 		svcs = append(svcs, svc.ServiceName())
-		snapName := svc.Snap.Name()
+		snapName := svc.Snap.InstanceName()
 		names[i] = snapName + "." + svc.Name
 		if snapName != lastName {
 			snapNames = append(snapNames, snapName)

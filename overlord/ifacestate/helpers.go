@@ -107,7 +107,7 @@ func (m *InterfaceManager) addSnaps() error {
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.Name(), err)
+			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
 	}
 	return nil
@@ -139,7 +139,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 
 	// For each snap:
 	for _, snapInfo := range snaps {
-		snapName := snapInfo.Name()
+		snapName := snapInfo.InstanceName()
 		// Get the state of the snap so we can compute the confinement option
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
@@ -285,7 +285,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
@@ -362,7 +362,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		var err error
 		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
 			return false, nil
 		}
 	}
@@ -372,7 +372,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		var err error
 		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
 			return false, nil
 		}
 	}
@@ -411,7 +411,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		var err error
 		plugDecl, err = assertstate.SnapDeclaration(c.st, plug.Snap().SnapID)
 		if err != nil {
-			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
 		}
 	}
 
@@ -420,7 +420,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		var err error
 		slotDecl, err = assertstate.SnapDeclaration(c.st, slot.Snap().SnapID)
 		if err != nil {
-			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
 		}
 	}
 
@@ -483,7 +483,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 	}
 	seen := make(map[string]bool, len(infos))
 	for _, info := range infos {
-		seen[info.Name()] = true
+		seen[info.InstanceName()] = true
 	}
 	for _, t := range st.Tasks() {
 		if t.Kind() != "link-snap" || t.Status().Ready() {
