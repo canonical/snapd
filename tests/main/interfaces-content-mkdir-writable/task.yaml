@@ -24,14 +24,14 @@ prepare: |
     # Install a pair of snaps that both have two content interfaces as
     # sub-directories of $SNAP_DATA and $SNAP_COMMON.
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-content-advanced-plug
     install_local test-snapd-content-advanced-slot
 
 execute: |
     # Put our internal tools on PATH so that we can call snap-discard-ns easily.
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     PATH=$LIBEXECDIR/snapd:$PATH
 
     # Test that initially there are no mount points on the plug side (because

@@ -111,8 +111,9 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	required := map[string]bool{}
 	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
 	if len(reqSnaps) > 0 {
 		for _, snap := range reqSnaps {
 			required[snap] = true

@@ -78,7 +78,7 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {

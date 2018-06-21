@@ -10,7 +10,8 @@ environment:
     CONFIG: "$HOME/.gnupg/gpg.conf"
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-gpg-public-keys
 
     if [ -d "$KEYSDIR" ]; then
@@ -19,9 +20,9 @@ prepare: |
         mkdir "$KEYSDIR"
     fi
 
-    touch $TRUSTEDKEYS || true
-    touch $TRUSTDB || true
-    touch $CONFIG || true
+    touch "$TRUSTEDKEYS" || true
+    touch "$TRUSTDB" || true
+    touch "$CONFIG" || true
 
 restore: |
     rm -f call.error
@@ -32,7 +33,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i gpg-public-keys | MATCH "\- +test-snapd-gpg-public-keys:gpg-public-keys"
+    snap interfaces -i gpg-public-keys | MATCH '^- +test-snapd-gpg-public-keys:gpg-public-keys'
 
     echo "When the interface is connected"
     snap connect test-snapd-gpg-public-keys:gpg-public-keys
@@ -50,7 +51,7 @@ execute: |
     fi
 
     echo "And then the snap is not able to write the trust.db file"
-    if test-snapd-gpg-public-keys.sh -c "sed -i 's/ / /g' $TRUSTDB" 2>${PWD}/call.error; then
+    if test-snapd-gpg-public-keys.sh -c "sed -i 's/ / /g' $TRUSTDB" 2> call.error; then
         echo "Expected permission error accessing to trust db"
         exit 1
     fi
@@ -60,7 +61,7 @@ execute: |
     snap disconnect test-snapd-gpg-public-keys:gpg-public-keys
 
     echo "Then the snap is not able to read gpg keys"
-    if test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS" 2>${PWD}/call.error; then
+    if test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS" 2> call.error; then
         echo "Expected permission error accessing to gpg keys"
         exit 1
     fi
