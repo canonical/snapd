@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
@@ -46,9 +47,8 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	s.mockEtcEnvironment = filepath.Join(dirs.GlobalRootDir,
-		"/etc/systemd/system.conf.d/10-ubuntu-core-watchdog.conf")
-	err := os.MkdirAll(filepath.Dir(s.mockEtcEnvironment), 0755)
+	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-ubuntu-core-watchdog.conf")
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
 	c.Assert(err, IsNil)
 }
 
@@ -178,4 +178,35 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 	info, err = os.Stat(s.mockEtcEnvironment)
 	c.Assert(err, IsNil)
 	c.Assert(info.ModTime(), Equals, fileModTime)
+}
+
+func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// add canary to ensure we don't touch other files
+	canary := filepath.Join(dirs.SnapSystemdConfDir, "05-canary.conf")
+	err := ioutil.WriteFile(canary, nil, 0644)
+	c.Assert(err, IsNil)
+
+	content := `[Manager]
+RuntimeWatchdogSec=10
+ShutdownWatchdogSec=20
+`
+	err = ioutil.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"watchdog.runtime-timeout":  0,
+			"watchdog.shutdown-timeout": 0,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// ensure the file got deleted
+	c.Check(osutil.FileExists(s.mockEtcEnvironment), Equals, false)
+	// but the canary is still here
+	c.Check(osutil.FileExists(canary), Equals, true)
 }
