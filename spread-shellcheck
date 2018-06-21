@@ -175,7 +175,7 @@ def checkpath(loc):
 def loadfilelist(flistpath):
     flist = set()
     with open(flistpath) as inf:
-        for line in inf.readlines():
+        for line in inf:
             if not line.startswith('#'):
                 flist.add(line.strip())
     return flist
