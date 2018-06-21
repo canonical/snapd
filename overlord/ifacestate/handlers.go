@@ -595,10 +595,12 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	var newconns []*interfaces.ConnRef
+	plugs := m.repo.Plugs(snapName)
+	slots := m.repo.Slots(snapName)
+	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
 
 	// Auto-connect all the plugs
-	for _, plug := range m.repo.Plugs(snapName) {
+	for _, plug := range plugs {
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
@@ -649,10 +651,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
 		}
-		newconns = append(newconns, connRef)
+		newconns[connRef.ID()] = connRef
 	}
 	// Auto-connect all the slots
-	for _, slot := range m.repo.Slots(snapName) {
+	for _, slot := range slots {
 		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
@@ -680,6 +682,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
+			if _, ok := newconns[key]; ok {
+				continue
+			}
 
 			ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
 			if err != nil {
@@ -698,7 +703,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				}
 				return fmt.Errorf("auto-connect conflict check failed: %s", err)
 			}
-			newconns = append(newconns, connRef)
+			newconns[connRef.ID()] = connRef
 		}
 	}
 
