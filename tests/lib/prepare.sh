@@ -277,10 +277,10 @@ setup_reflash_magic() {
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
-        snap install "--${SNAPD_CHANNEL}" snapd
+        snap install "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
     fi
-    snap install "--${CORE_CHANNEL}" "$core_name"
+    snap install "--channel=${CORE_CHANNEL}" "$core_name"
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -299,10 +299,10 @@ setup_reflash_magic() {
 
     if is_core18_system; then
         # modify the snapd snap so that it has our snapd
-        UNPACKD="/tmp/snapd-snap"
-        unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/snapd_*.snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACKD"
-        snap pack "$UNPACKD" "$IMAGE_HOME"
+        UNPACK_DIR="/tmp/snapd-snap"
+        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/snapd_*.snap
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
         
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/core-amd64-18.model" "$IMAGE_HOME/pc.model"
@@ -330,18 +330,18 @@ setup_reflash_magic() {
     else
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
-        UNPACKD="/tmp/core-snap"
-        unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/core_*.snap
+        UNPACK_DIR="/tmp/core-snap"
+        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACKD"
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
         # ensure any new timer units are available
-        cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACKD/etc/systemd/system/timers.target.wants"
+        cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
 
         # add gpio and iio slots
-        cat >> "$UNPACKD/meta/snap.yaml" <<-EOF
+        cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
 slots:
     gpio-pin:
         interface: gpio
@@ -353,7 +353,7 @@ slots:
 EOF
 
         # build new core snap for the image
-        snap pack "$UNPACKD" "$IMAGE_HOME"
+        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
@@ -377,7 +377,7 @@ EOF
     fi
 
     # on core18 we need to use the modified snapd snap and on core16
-    # it is the modified core that contains our freshyl build snapd
+    # it is the modified core that contains our freshly build snapd
     if is_core18_system; then
         extra_snap="$IMAGE_HOME"/snapd_*.snap
     else
@@ -393,11 +393,12 @@ EOF
 
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
-    # FIXME: hardcoded mapper location, parse from kpartx
-    if is_core18_system; then
-        mount /dev/mapper/loop4p3 /mnt
-    else
-        mount /dev/mapper/loop2p3 /mnt
+    # get image grep
+    imgdev=$(losetup |grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
+    if [ -z "$imgdev" ]; then
+        echo "cannot determine loopback device of the image file"
+        losetup
+        exit 1
     fi
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
@@ -415,8 +416,8 @@ EOF
         
     # now modify the image
     if is_core18_system; then
-        UNPACKD="/tmp/core18-snap"
-        unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/core18_*.snap
+        UNPACK_DIR="/tmp/core18-snap"
+        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
     fi
 
     # create test user and ubuntu user inside the writable partition
@@ -429,7 +430,7 @@ EOF
     echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
     # modify sshd so that we can connect as root
     mkdir -p /mnt/system-data/etc/ssh
-    cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
+    cp -a "$UNPACK_DIR"/etc/ssh/* /mnt/system-data/etc/ssh/
     # core18 is different here than core16
     sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
     # ensure the setting is correct
@@ -454,12 +455,12 @@ EOF
     mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
     for f in group gshadow passwd shadow; do
         # the passwd from core without root
-        grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/"$f"
+        grep -v "^root:" "$UNPACK_DIR/etc/$f" > /mnt/system-data/root/test-etc/"$f"
         # append this systems root user so that linode can connect
         grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
         
         # make sure the group is as expected
-        chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/"$f"
+        chgrp --reference "$UNPACK_DIR/etc/$f" /mnt/system-data/root/test-etc/"$f"
         # now bind mount read-only those passwd files on boot
         cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
 [Unit]  
