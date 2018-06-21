@@ -14,5 +14,7 @@ wait_listen_port(){
         sleep 0.5
     done
 
+    # Ensure we really have the listen port, this will fail with an
+    # exit code if the port is not available.
     ss -lnt | grep -Pq "LISTEN.*?:$PORT +.*?\n*"
 }
