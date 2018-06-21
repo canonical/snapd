@@ -1301,6 +1301,9 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// Allow snap.TypeOS removals if a different base is in use
+	//
+	// Note that removal of the boot base itself is prevented
+	// via the snapst.Required flag that is set on firstboot.
 	if si.Type == snap.TypeOS {
 		if model, err := Model(st); err == nil {
 			if model.Base() != "" {
