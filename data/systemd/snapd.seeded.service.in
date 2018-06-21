@@ -1,6 +1,7 @@
 [Unit]
 Description=Wait until snapd is fully seeded
 After=snapd.service snapd.socket
+Requires=snapd.socket
 
 [Service]
 Type=oneshot
