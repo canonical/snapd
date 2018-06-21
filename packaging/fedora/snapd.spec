@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.33
+Version:        2.33.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -724,6 +724,17 @@ fi
 
 
 %changelog
+* Thu Jun 21 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.33.1
+ - many: improve udev trigger on refresh experience
+ - systemd: require snapd.socket in snapd.seeded.service
+ - snap: don't include newline in hook environment
+ - interfaces/apparmor: allow killing snap-update-ns
+ - tests: skip "try" test on s390x
+ - tests: skip security-dev-input-event-denied when /dev/input/by-
+   path/ is missing
+ - tests: skip security-dev-input-event-denied on s390x/arm64
+
 * Fri Jun 08 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.33
  - packaging: use official bolt in the errtracker on fedora
