@@ -144,7 +144,7 @@ func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification,
 	return nil
 }
 
-func (iface *networkStatusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkStatusInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

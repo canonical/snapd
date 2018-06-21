@@ -146,6 +146,7 @@ purge() {
     rm -rf /var/lib/snapd/cookie/*
     rm -rf /var/lib/snapd/cache/*
     rm -f /var/lib/snapd/state.json
+    rm -f /var/lib/snapd/system-key
 
     echo "Removing snapd catalog cache"
     rm -f /var/cache/snapd/*

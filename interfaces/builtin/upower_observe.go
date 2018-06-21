@@ -274,7 +274,7 @@ func (iface *upowerObserveInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 
-func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *upowerObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

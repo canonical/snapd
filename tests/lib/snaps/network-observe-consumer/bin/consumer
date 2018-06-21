@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 def run():
-    subprocess.check_call("netstat -lnt", shell=True)
+    subprocess.check_call("ss -lnt", shell=True)
 
 if __name__ == '__main__':
     sys.exit(run())

@@ -547,6 +547,7 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
@@ -568,7 +569,7 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 		} else {
 			reason = fmt.Sprintf("target application %q is a daemon", target)
 		}
-		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.Name(), reason)
+		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.InstanceName(), reason)
 	}
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
@@ -603,6 +604,7 @@ func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error)
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
@@ -686,6 +688,7 @@ func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: name},
 	}
 

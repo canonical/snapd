@@ -40,7 +40,7 @@ type cmdWait struct {
 
 func init() {
 	addCommand("wait",
-		"Wait for configuration.",
+		"Wait for configuration",
 		"The wait command waits until a configration becomes true.",
 		func() flags.Commander {
 			return &cmdWait{}

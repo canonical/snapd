@@ -89,7 +89,8 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 
 	action := &store.SnapAction{
 		Action: "install",
-		Name:   name,
+		// TODO parallel-install: verify use of correct name
+		Name: name,
 		// the desired channel
 		Channel: channel,
 		// the desired revision
@@ -111,7 +112,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 	//       here.
 	if channel != "" && err == store.ErrRevisionNotAvailable {
 		st.Unlock()
-		_, err1 := theStore.SnapInfo(store.SnapSpec{Name: name, AnyChannel: true}, user)
+		_, err1 := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
 		st.Lock()
 		if err1 != nil {
 			return nil, store.ErrSnapNotFound
@@ -153,7 +154,8 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
-		action.Name = curInfo.Name()
+		// TODO parallel-install: verify use of correct name
+		action.Name = curInfo.InstanceName()
 	}
 
 	theStore := Store(st)
@@ -161,7 +163,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
-	return singleActionResult(curInfo.Name(), action.Action, res, err)
+	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
 }
 
 func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
@@ -248,7 +250,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
-	return singleActionResult(curInfo.Name(), action.Action, res, err)
+	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
 }
 
 func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {

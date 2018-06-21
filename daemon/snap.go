@@ -22,6 +22,7 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -156,8 +157,8 @@ type bySnapApp []*snap.AppInfo
 func (a bySnapApp) Len() int      { return len(a) }
 func (a bySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a bySnapApp) Less(i, j int) bool {
-	iName := a[i].Snap.Name()
-	jName := a[j].Snap.Name()
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
 	if iName == jName {
 		return a[i].Name < a[j].Name
 	}
@@ -220,7 +221,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	found := make(map[string]bool)
 	appInfos := make([]*snap.AppInfo, 0, len(requested))
 	for _, snp := range snaps {
-		snapName := snp.info.Name()
+		snapName := snp.info.InstanceName()
 		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
 		for _, app := range snp.info.Apps {
 			if !opts.service || app.IsService() {
@@ -271,7 +272,7 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	out := make([]client.AppInfo, len(apps))
 	for i, app := range apps {
 		out[i] = client.AppInfo{
-			Snap:     app.Snap.Name(),
+			Snap:     app.Snap.InstanceName(),
 			Name:     app.Name,
 			CommonID: app.CommonID,
 		}
@@ -320,11 +321,12 @@ func mapLocal(about aboutSnap) *client.Snap {
 		ID:               localSnap.SnapID,
 		InstallDate:      localSnap.InstallDate(),
 		InstalledSize:    localSnap.Size,
-		Name:             localSnap.Name(),
+		Name:             localSnap.InstanceName(),
 		Revision:         localSnap.Revision,
 		Status:           status,
 		Summary:          localSnap.Summary(),
 		Type:             string(localSnap.Type),
+		Base:             localSnap.Base,
 		Version:          localSnap.Version,
 		Channel:          localSnap.Channel,
 		TrackingChannel:  snapst.Channel,
@@ -340,6 +342,15 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Title:            localSnap.Title(),
 		License:          localSnap.License,
 		CommonIDs:        localSnap.CommonIDs,
+		MountedFrom:      localSnap.MountFile(),
+	}
+
+	if result.TryMode {
+		// Readlink instead of EvalSymlinks because it's only expected
+		// to be one level, and should still resolve if the target does
+		// not exist (this might help e.g. snapcraft clean up after a
+		// prime dir)
+		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 
 	return result
@@ -371,11 +382,12 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
 		ID:           remoteSnap.SnapID,
-		Name:         remoteSnap.Name(),
+		Name:         remoteSnap.InstanceName(),
 		Revision:     remoteSnap.Revision,
 		Status:       status,
 		Summary:      remoteSnap.Summary(),
 		Type:         string(remoteSnap.Type),
+		Base:         remoteSnap.Base,
 		Version:      remoteSnap.Version,
 		Channel:      remoteSnap.Channel,
 		Private:      remoteSnap.Private,

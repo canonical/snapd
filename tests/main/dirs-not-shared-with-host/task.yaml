@@ -11,7 +11,7 @@ systems:
 prepare: |
     echo "Having installed the test snap"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     # Arch does not use /etc/alternatives
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then

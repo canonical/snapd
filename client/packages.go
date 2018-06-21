@@ -44,6 +44,7 @@ type Snap struct {
 	Developer        string        `json:"developer"`
 	Status           string        `json:"status"`
 	Type             string        `json:"type"`
+	Base             string        `json:"base,omitempty"`
 	Version          string        `json:"version"`
 	Channel          string        `json:"channel"`
 	TrackingChannel  string        `json:"tracking-channel,omitempty"`
@@ -59,6 +60,7 @@ type Snap struct {
 	Contact          string        `json:"contact"`
 	License          string        `json:"license,omitempty"`
 	CommonIDs        []string      `json:"common-ids,omitempty"`
+	MountedFrom      string        `json:"mounted-from,omitempty"`
 
 	Prices      map[string]float64 `json:"prices,omitempty"`
 	Screenshots []Screenshot       `json:"screenshots,omitempty"`

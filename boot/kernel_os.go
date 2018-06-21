@@ -100,14 +100,16 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 	return dir.Sync()
 }
 
-// SetNextBoot will schedule the given OS or kernel snap to be used in
-// the next boot
+// SetNextBoot will schedule the given OS or base or kernel snap to be
+// used in the next boot. For base snaps it up to the caller to select
+// the right bootable base (from the model assertion).
 func SetNextBoot(s *snap.Info) error {
 	if release.OnClassic {
-		return nil
+		return fmt.Errorf("cannot set next boot on classic systems")
 	}
-	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
-		return nil
+
+	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
+		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.StoreName(), s.Type)
 	}
 
 	bootloader, err := partition.FindBootloader()
@@ -117,7 +119,7 @@ func SetNextBoot(s *snap.Info) error {
 
 	var nextBoot, goodBoot string
 	switch s.Type {
-	case snap.TypeOS:
+	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
 	case snap.TypeKernel:
@@ -153,9 +155,10 @@ func SetNextBoot(s *snap.Info) error {
 	})
 }
 
-// KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
-func KernelOrOsRebootRequired(s *snap.Info) bool {
-	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS {
+// ChangeRequiresReboot returns whether a reboot is required to switch
+// to the given OS, base or kernel snap.
+func ChangeRequiresReboot(s *snap.Info) bool {
+	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS && s.Type != snap.TypeBase {
 		return false
 	}
 
@@ -170,7 +173,7 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 	case snap.TypeKernel:
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
-	case snap.TypeOS:
+	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
 	}

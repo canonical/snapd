@@ -165,7 +165,7 @@ func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specif
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity8PimCommonInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

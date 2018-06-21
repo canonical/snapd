@@ -423,7 +423,7 @@ func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification,
 	return nil
 }
 
-func (iface *udisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *udisks2Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

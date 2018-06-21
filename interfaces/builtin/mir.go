@@ -148,7 +148,7 @@ func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 	return nil
 }
 
-func (iface *mirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mirInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 

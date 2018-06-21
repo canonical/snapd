@@ -27,22 +27,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Plug represents the potential of a given snap to connect to a slot.
-type Plug struct {
-	*snap.PlugInfo
-	Connections []SlotRef `json:"connections,omitempty"`
-}
-
-// Ref returns reference to a plug
-func (plug *Plug) Ref() PlugRef {
-	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
-}
-
 // Sanitize plug with a given snapd interface.
 func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
-			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
+			PlugRef{Snap: plugInfo.Snap.InstanceName(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
@@ -62,22 +51,11 @@ func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
-// Slot represents a capacity offered by a snap.
-type Slot struct {
-	*snap.SlotInfo
-	Connections []PlugRef `json:"connections,omitempty"`
-}
-
-// Ref returns reference to a slot
-func (slot *Slot) Ref() SlotRef {
-	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
-}
-
 // Sanitize slot with a given snapd interface.
 func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
-			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
+			SlotRef{Snap: slotInfo.Snap.InstanceName(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
@@ -122,8 +100,8 @@ type ConnRef struct {
 // NewConnRef creates a connection reference for given plug and slot
 func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 	return &ConnRef{
-		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
-		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+		PlugRef: PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name},
 	}
 }
 
@@ -162,7 +140,7 @@ type Interface interface {
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
-	AutoConnect(plug *Plug, slot *Slot) bool
+	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
 }
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
