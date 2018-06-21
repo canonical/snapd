@@ -143,7 +143,7 @@ LDFLAGS=""
 # https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
 %if 0%{?suse_version} >= 1500
 CFLAGS="$CFLAGS -fPIE"
-CXXFLAGS"$CXXFLAGS -fPIE"
+CXXFLAGS="$CXXFLAGS -fPIE"
 LDFLAGS="$LDFLAGS -pie"
 %endif
 
