@@ -218,8 +218,18 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	ts := tsAll[len(tsAll)-1]
+	endTs := state.NewTaskSet()
+	if model.Gadget() != "" {
+		// we have a gadget that could have interface
+		// connection instructions
+		gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
+		gadgetConnect.WaitAll(ts)
+		endTs.AddTask(gadgetConnect)
+		ts = endTs
+	}
 	markSeeded.WaitAll(ts)
-	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
+	endTs.AddTask(markSeeded)
+	tsAll = append(tsAll, endTs)
 
 	return tsAll, nil
 }

@@ -315,6 +315,7 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
+	ByGadget  bool   `json:"by-gadget,omitempty"`
 	Interface string `json:"interface,omitempty"`
 	// Undesired tracks connections that were manually disconnected after being auto-connected,
 	// so that they are not automatically reconnected again in the future.
@@ -525,4 +526,18 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 	}
 
 	return infos, nil
+}
+
+func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {
+	if snapID == "system" {
+		return snap.DropNick(snapID), nil
+	}
+	decl, err := assertstate.SnapDeclaration(st, snapID)
+	if asserts.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return decl.SnapName(), nil
 }
