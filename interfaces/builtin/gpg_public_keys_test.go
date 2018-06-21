@@ -95,8 +95,7 @@ func (s *GpgPublicKeysInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *GpgPublicKeysInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *GpgPublicKeysInterfaceSuite) TestInterfaces(c *C) {

@@ -63,7 +63,7 @@ func snapRulesFilePath(snapName string) string {
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %s", snapName, err)
@@ -76,7 +76,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot create directory for udev rules %q: %s", dir, err)
 	}
 
-	rulesFilePath := snapRulesFilePath(snapInfo.Name())
+	rulesFilePath := snapRulesFilePath(snapInfo.InstanceName())
 
 	if len(content) == 0 {
 		// Make sure that the rules file gets removed when we don't have any

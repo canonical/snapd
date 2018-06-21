@@ -79,8 +79,9 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(1)},
 		},
-		Current: snap.R(1),
-		Active:  true,
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
 	})
 	s.state.Unlock()
 
@@ -155,6 +156,40 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	// core can be configure before being installed
 	_, err = configstate.ConfigureInstalled(s.state, "core", patch, 0)
 	c.Check(err, IsNil)
+}
+
+func (s *tasksetsSuite) TestConfigureDenyBases(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "test-base", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-base", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "base",
+	})
+
+	_, err := configstate.ConfigureInstalled(s.state, "test-base", patch, 0)
+	c.Check(err, ErrorMatches, `cannot configure snap "test-base" because it is of type 'base'`)
+}
+
+func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	_, err := configstate.ConfigureInstalled(s.state, "snapd", patch, 0)
+	c.Check(err, ErrorMatches, `cannot configure the "snapd" snap, please use "system" instead`)
 }
 
 type configcoreHijackSuite struct {

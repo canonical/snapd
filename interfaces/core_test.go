@@ -136,28 +136,12 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
 }
 
-// Plug.Ref works as expected
-func (s *CoreSuite) TestPlugRef(c *C) {
-	plug := &Plug{PlugInfo: &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}}
-	ref := plug.Ref()
-	c.Check(ref.Snap, Equals, "consumer")
-	c.Check(ref.Name, Equals, "plug")
-}
-
 // PlugRef.String works as expected
 func (s *CoreSuite) TestPlugRefString(c *C) {
 	ref := PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(ref.String(), Equals, "snap:plug")
 	refPtr := &PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(refPtr.String(), Equals, "snap:plug")
-}
-
-// Slot.Ref works as expected
-func (s *CoreSuite) TestSlotRef(c *C) {
-	slot := &Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}}
-	ref := slot.Ref()
-	c.Check(ref.Snap, Equals, "producer")
-	c.Check(ref.Name, Equals, "slot")
 }
 
 // SlotRef.String works as expected

@@ -9,6 +9,15 @@ Fri Jun 08 17:13:47 UTC 2018 - mvo@fastmail.fm
 - Update to upstream release 2.33
 
 -------------------------------------------------------------------
+Mon May 28 08:06:53 EDT 2018 - ngompa13@gmail.com
+
+- Refactor to support openSUSE Tumbleweed and Leap 42.3 and 15.0
+- Enable AppArmor support for openSUSE Tumbleweed (post Leap 15.0)
+- Enable support for handling the proprietary nvidia driver
+- Drop ancient spec stuff that was being ignored by RPM anyway
+- Drop spurious find command that didn't do anything...
+
+-------------------------------------------------------------------
 Wed May 16 10:20:08 UTC 2018 - mvo@fastmail.fm
 
 - Update to upstream release 2.32.9

@@ -24,7 +24,7 @@ import (
 	"os/exec"
 )
 
-// ReloadRules runs two commands that reload udev rule database.
+// ReloadRules runs three commands that reload udev rule database.
 //
 // The commands are: udevadm control --reload-rules
 //                   udevadm trigger --subsystem-nomatch=input

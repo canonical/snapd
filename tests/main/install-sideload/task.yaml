@@ -3,7 +3,7 @@ summary: Checks for snap sideload install
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
-        snap pack $TESTSLIB/snaps/$snap
+        snap pack "$TESTSLIB"/snaps/$snap
     done
 
 environment:
@@ -20,50 +20,51 @@ restore: |
 
 execute: |
     echo "Sideloaded snap shows status"
-    expected="(?s)basic 1.0 installed\n\
-    .*"
-    snap install --dangerous ./basic_1.0_all.snap | grep -Pzq "$expected"
+    expected='^basic 1.0 installed$'
+    snap install --dangerous ./basic_1.0_all.snap | MATCH "$expected"
 
     echo "Sideloaded snap with (deprecated) --force-dangerous option"
     snap remove basic
-    snap install --force-dangerous ./basic_1.0_all.snap | grep -Pzq "$expected"
+    snap install --force-dangerous ./basic_1.0_all.snap | MATCH "$expected"
 
     echo "Sideloaded snap executes commands"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Sideload desktop snap"
     snap install --dangerous ./basic-desktop_1.0_all.snap
-    expected="\[Desktop Entry\]\n\
-    Name=Echo\n\
-    Comment=It echos stuff\n\
-    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo\n"
-    cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
+    diff -u <(head -n4 /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop) - <<-EOF
+    	[Desktop Entry]
+    	Name=Echo
+    	Comment=It echos stuff
+    	Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo
+    EOF
 
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
-    ( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
+    ( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | MATCH "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
     expected="test-snapd-devmode 1.0 installed"
-    snap install --devmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
+    snap install --devmode ./test-snapd-devmode_1.0_all.snap | MATCH "$expected"
     expected="^test-snapd-devmode +.* +devmode"
-    snap list | grep -Pq  "$expected"
+    snap list | MATCH  "$expected"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Sideload devmode snap succeeds with --jailmode"
         expected="test-snapd-devmode 1.0 installed"
-        snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | grep -Pq "$expected"
+        snap install --dangerous --jailmode ./test-snapd-devmode_1.0_all.snap | MATCH "$expected"
         expected="^test-snapd-devmode +.* +jailmode"
-        snap list | grep -Pq  "$expected"
+        snap list | MATCH "$expected"
     fi
 
     echo "Sideload devmode snap fails with both --devmode and --jailmode"
     expected="cannot use devmode and jailmode flags together"
-    ( snap install --devmode --jailmode ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
+    ( snap install --devmode --jailmode ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | MATCH "$expected"
 
     echo "Sideload a second time succeeds"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap

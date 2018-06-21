@@ -1,6 +1,7 @@
 # spec file for package snapd
 #
 # Copyright (c) 2017 Zygmunt Krynicki <zygmunt.krynicki@canonical.com>
+# Copyright (c) 2018 Neal Gompa <ngompa13@gmail.com>
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -14,6 +15,22 @@
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
 %bcond_with testkeys
+
+# Enable AppArmor on openSUSE Tumbleweed (post 15.0) or higher
+%if 0%{?suse_version} >= 1550
+%bcond_without apparmor
+%else
+%bcond_with apparmor
+%endif
+
+# Compat macros
+%{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
+
+# This is fixed in SUSE Linux 15
+# Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
+%if 0%{?suse_version} < 1500
+%global _sharedstatedir %{_localstatedir}/lib
+%endif
 
 %global provider        github
 %global provider_tld    com
@@ -30,7 +47,15 @@
 %global with_test_keys 0
 %endif
 
-%define systemd_services_list snapd.socket snapd.service
+# Set if multilib is enabled for supported arches
+%ifarch x86_64 aarch64 %{power64} s390x
+%global with_multilib 1
+%endif
+
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service %{?with_apparmor:snapd.apparmor.service}
+
+%global snap_mount_dir /snap
+
 Name:           snapd
 Version:        2.33.1
 Release:        0
@@ -40,8 +65,9 @@ Group:          System/Packages
 Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
-# TODO: make this enabled only on Leap 42.2+
-# BuildRequires:  ShellCheck
+%if (0%{?sle_version} >= 120200 || 0%{?suse_version} >= 1500) && 0%{?is_opensuse}
+BuildRequires:  ShellCheck
+%endif
 BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
@@ -67,7 +93,7 @@ BuildRequires:  xfsprogs-devel
 BuildRequires:  xz
 
 # Make sure we are on Leap 42.2/SLE 12 SP2 or higher
-%if 0%{?sle_version} >= 120200
+%if 0%{?sle_version} >= 120200 || 0%{?suse_version} >= 1500
 BuildRequires: systemd-rpm-macros
 %endif
 
@@ -79,9 +105,7 @@ Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
 
-%systemd_requires
-
-BuildRoot:      %{_tmppath}/%{name}-%{version}-build
+%{?systemd_requires}
 
 # TODO strip the C executables but don't strip the go executables
 # as that breaks the world in some ways.
@@ -96,13 +120,13 @@ principles. Bundle your dependencies, run in a predictable environment, use
 moder kernel features for setting up the execution environment and security.
 The same binary snap package can be installed and used on many diverse systems
 such as Debian, Fedora and OpenSUSE as well as their multiple derivatives.
-.
+
 This package contains the official build, endorsed by snapd developers. It is
 updated as soon as new upstream releases are made and is designed to live in
 the system:snappy repository.
 
 %prep
-%setup -q -n %{name}-%{version}
+%setup -q
 
 # Set the version that is compiled into the various executables
 ./mkversion.sh %{version}-%{release}
@@ -110,20 +134,32 @@ the system:snappy repository.
 # Generate autotools build system files
 cd cmd && autoreconf -i -f
 
-# Enable hardening; We can't use -pie here as this conflicts with
-# our build of static binaries for snap-confine. Also see
-# https://bugzilla.redhat.com/show_bug.cgi?id=1343892
+# Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
 CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
+LDFLAGS=""
+# On openSUSE Leap 15 or more recent build position independent executables.
+# For a helpful guide about the versions and macros used below, please see:
+# https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
+%if 0%{?suse_version} >= 1500
+CFLAGS="$CFLAGS -fPIE"
+CXXFLAGS="$CXXFLAGS -fPIE"
+LDFLAGS="$LDFLAGS -pie"
+%endif
+
 export CFLAGS
 export CXXFLAGS
+export LDFLAGS
 
-# NOTE: until snapd and snap-confine have the improved communication mechanism
-# we need to disable apparmor as snapd doesn't yet support the version of
-# apparmor kernel available in SUSE and Debian. The generated apparmor profiles
-# cannot be loaded into a vanilla kernel. As a temporary measure we just switch
-# it all off.
-%configure --disable-apparmor --libexecdir=%{_libexecdir}/snapd
+# N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
+# did not support what we needed to be able to turn on basic integration.
+%configure \
+    %{!?with_apparmor:--disable-apparmor} \
+    --libexecdir=%{_libexecdir}/snapd \
+    --enable-nvidia-biarch \
+    %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
+    --with-snap-mount-dir=%{snap_mount_dir} \
+    --enable-merged-usr
 
 %build
 # Build golang executables
@@ -159,81 +195,89 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefi
 %gobuild cmd/snap-seccomp
 
 # Build C executables
-make %{?_smp_mflags} -C cmd
+%make_build -C cmd
 
 %check
 %{gotest} %{import_path}/...
-make %{?_smp_mflags} -C cmd check
+%make_build -C cmd check
 
 %install
 # Install all the go stuff
 %goinstall
 # TODO: instead of removing it move this to a dedicated golang package
-rm -rf %{buildroot}%{_libexecdir}64/go
-rm -rf %{buildroot}%{_libexecdir}/go
-find %{buildroot}
-# Move snapd, snap-exec, snap-seccomp and snap-update-ns into %{_libexecdir}/snapd
+rm -rf %{buildroot}%{_libdir}/go
+# Move snapd, snap-exec, snap-seccomp and snap-update-ns into {_libexecdir}/snapd
 install -m 755 -d %{buildroot}%{_libexecdir}/snapd
-mv %{buildroot}/usr/bin/snapd %{buildroot}%{_libexecdir}/snapd/snapd
-mv %{buildroot}/usr/bin/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
-mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
-mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
-# Install profile.d-based PATH integration for /snap/bin
-#   and XDG_DATA_DIRS for /var/lib/snapd/desktop
-make -C data/env install DESTDIR=%{buildroot}
+mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
+mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
+mv %{buildroot}%{_bindir}/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
+mv %{buildroot}%{_bindir}/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
+
+# Install all systemd and dbus units, and env files
+%make_install -C data BINDIR=%{_bindir} LIBEXECDIR=%{_libexecdir} \
+                      SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+                      SNAP_MOUNT_DIR=%{snap_mount_dir}
 
 # Generate and install man page for snap command
 install -m 755 -d %{buildroot}%{_mandir}/man1
-%{buildroot}/usr/bin/snap help --man >  %{buildroot}%{_mandir}/man1/snap.1
+%{buildroot}%{_bindir}/snap help --man >  %{buildroot}%{_mandir}/man1/snap.1
 
 # TODO: enable gosrc
 # TODO: enable gofilelist
 
 # Install all the C executables
-%{make_install} -C cmd
+%make_install -C cmd
 # Undo special permissions of the void directory
-chmod 755 %{?buildroot}/var/lib/snapd/void
+chmod 755 %{buildroot}%{_sharedstatedir}/snapd/void
 # Remove traces of ubuntu-core-launcher. It is a phased-out executable that is
 # still partially present in the tree but should be removed in the subsequent
 # release.
-rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
+rm -f %{buildroot}%{_bindir}/ubuntu-core-launcher
 # NOTE: we don't want to ship system-shutdown helper, it is just a helper on
 # ubuntu-core systems that exclusively use snaps. It is used during the
 # shutdown process and thus can be left out of the distribution package.
-rm -f %{?buildroot}%{_libexecdir}/snapd/system-shutdown
+rm -f %{buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 
-install -d %buildroot/var/lib/snapd/{lib/gl,lib/gl32,lib/vulkan}
-install -d %buildroot/var/cache/snapd
-install -d %buildroot/snap/bin
+install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/vulkan}
+install -d %{buildroot}%{_localstatedir}/cache/snapd
+install -d %{buildroot}%{snap_mount_dir}/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
-install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/permissions.d/snapd
-install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
-# Install the systemd units
-make -C data install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
+install -m 644 -D packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
+install -m 644 -D packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
+# Remove unwanted systemd units
 for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
-    rm -f %buildroot/%{_unitdir}/$s
+    rm -f %{buildroot}%{_unitdir}/$s
 done
 # Remove snappy core specific scripts
-rm -f %buildroot%{_libexecdir}/snapd/snapd.core-fixup.sh
+rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
-install -d %{buildroot}/usr/sbin
-ln -sf %{_sbindir}/service %{buildroot}/%{_sbindir}/rcsnapd
-ln -sf %{_sbindir}/service %{buildroot}/%{_sbindir}/rcsnapd.refresh
+install -d %{buildroot}%{_sbindir}
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
+%if %{with apparmor}
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
+%endif
 # Install the "info" data file with snapd version
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
-install -m 644 -D data/completion/snap %{buildroot}/usr/share/bash-completion/completions/snap
+install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 # move snapd-generator
-install -m 755 -d %{buildroot}/lib/systemd/system-generators/
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}/lib/systemd/system-generators/
+install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
+mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/
+
+# Don't ship apparmor helper service when AppArmor is not enabled
+%if ! %{with apparmor}
+rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
+rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
+%endif
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -262,59 +306,74 @@ fi
 %service_del_postun %{systemd_services_list}
 
 %files
-%defattr(-,root,root)
+%if %{with apparmor}
+%config %{_sysconfdir}/apparmor.d
+%endif
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
-%dir %attr(0000,root,root) /var/lib/snapd/void
-%dir /snap
-%dir /snap/bin
+%dir %attr(0000,root,root) %{_sharedstatedir}/snapd/void
+%dir %{snap_mount_dir}
+%dir %{snap_mount_dir}/bin
 %dir %{_libexecdir}/snapd
-%dir /var/lib/snapd
-%dir /var/lib/snapd/apparmor
-%dir /var/lib/snapd/apparmor/profiles
-%dir /var/lib/snapd/apparmor/snap-confine
-%dir /var/lib/snapd/assertions
-%dir /var/lib/snapd/desktop
-%dir /var/lib/snapd/desktop/applications
-%dir /var/lib/snapd/device
-%dir /var/lib/snapd/hostfs
-%dir /var/lib/snapd/mount
-%dir /var/lib/snapd/seccomp
-%dir /var/lib/snapd/seccomp/bpf
-%dir /var/lib/snapd/snaps
-%dir /var/lib/snapd/lib
-%dir /var/lib/snapd/lib/gl
-%dir /var/lib/snapd/lib/gl32
-%dir /var/lib/snapd/lib/vulkan
-%dir /var/cache/snapd
+%dir %{_sharedstatedir}/snapd
+%dir %{_sharedstatedir}/snapd/apparmor
+%dir %{_sharedstatedir}/snapd/apparmor/profiles
+%dir %{_sharedstatedir}/snapd/apparmor/snap-confine
+%dir %{_sharedstatedir}/snapd/assertions
+%dir %{_sharedstatedir}/snapd/desktop
+%dir %{_sharedstatedir}/snapd/desktop/applications
+%dir %{_sharedstatedir}/snapd/device
+%dir %{_sharedstatedir}/snapd/hostfs
+%dir %{_sharedstatedir}/snapd/mount
+%dir %{_sharedstatedir}/snapd/seccomp
+%dir %{_sharedstatedir}/snapd/seccomp/bpf
+%dir %{_sharedstatedir}/snapd/snaps
+%dir %{_sharedstatedir}/snapd/lib
+%dir %{_sharedstatedir}/snapd/lib/gl
+%dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/vulkan
+%dir %{_localstatedir}/cache/snapd
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
-%{_mandir}/man1/snap-confine.1.gz
-%{_mandir}/man5/snap-discard-ns.5.gz
+%{_mandir}/man1/snap-confine.1.*
+%{_mandir}/man5/snap-discard-ns.5.*
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
-/usr/bin/snap
-/usr/bin/snapctl
-/usr/sbin/rcsnapd
-/usr/sbin/rcsnapd.refresh
+%if %{with apparmor}
+%{_unitdir}/snapd.apparmor.service
+%endif
+%{_bindir}/snap
+%{_bindir}/snapctl
+%{_sbindir}/rcsnapd
+%{_sbindir}/rcsnapd.seeded
+%if %{with apparmor}
+%{_sbindir}/rcsnapd.apparmor
+%endif
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%if %{with apparmor}
+%{_libexecdir}/snapd/snapd-apparmor
+%endif
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-device-helper
-/usr/share/bash-completion/completions/snap
+%{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
-/lib/systemd/system-generators/snapd-generator
-%{_mandir}/man1/snap.1.gz
-/usr/share/dbus-1/services/io.snapcraft.Launcher.service
-/usr/share/dbus-1/services/io.snapcraft.Settings.service
+%{_prefix}/lib/systemd/system-generators/snapd-generator
+%{_mandir}/man1/snap.1.*
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_libexecdir}/snapd/snapd.run-from-snap
+%if %{with apparmor}
+%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
+%endif
 
 %changelog
 

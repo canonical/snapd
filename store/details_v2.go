@@ -87,6 +87,140 @@ type storeSnapMedia struct {
 	Height int64  `json:"height"`
 }
 
+// storeInfoChannel is the channel description included in info results
+type storeInfoChannel struct {
+	Architecture string `json:"architecture"`
+	Name         string `json:"name"`
+	Risk         string `json:"risk"`
+	Track        string `json:"track"`
+}
+
+// storeInfoChannelSnap is the snap-in-a-channel of which the channel map is made
+type storeInfoChannelSnap struct {
+	storeSnap
+	Channel storeInfoChannel `json:"channel"`
+}
+
+// storeInfo is the result of v2/info calls
+type storeInfo struct {
+	ChannelMap []*storeInfoChannelSnap `json:"channel-map"`
+	Snap       storeSnap               `json:"snap"`
+	Name       string                  `json:"name"`
+	SnapID     string                  `json:"snap-id"`
+}
+
+func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
+	if len(si.ChannelMap) == 0 {
+		// if a snap has no released revisions, it _could_ be returned
+		// (currently no, but spec is purposely ambiguous)
+		// we treat it as a 'not found' for now at least
+		return nil, ErrSnapNotFound
+	}
+
+	thisOne := si.ChannelMap[0]
+	thisSnap := thisOne.storeSnap // copy it as we're about to modify it
+	// here we assume that the ChannelSnapInfo can be populated with data
+	// that's in the channel map and not the outer snap. This is a
+	// reasonable assumption today, but copyNonZeroFrom can easily be
+	// changed to copy to a list if needed.
+	copyNonZeroFrom(&si.Snap, &thisSnap)
+
+	info, err := infoFromStoreSnap(&thisSnap)
+	if err != nil {
+		return nil, err
+	}
+	info.Channel = thisOne.Channel.Name
+	info.Channels = make(map[string]*snap.ChannelSnapInfo, len(si.ChannelMap))
+	seen := make(map[string]bool, len(si.ChannelMap))
+	for _, s := range si.ChannelMap {
+		ch := s.Channel
+		info.Channels[ch.Track+"/"+ch.Risk] = &snap.ChannelSnapInfo{
+			Revision:    snap.R(s.Revision),
+			Confinement: snap.ConfinementType(s.Confinement),
+			Version:     s.Version,
+			Channel:     ch.Name,
+			Epoch:       s.Epoch,
+			Size:        s.Download.Size,
+		}
+		if !seen[ch.Track] {
+			seen[ch.Track] = true
+			info.Tracks = append(info.Tracks, ch.Track)
+		}
+	}
+
+	return info, nil
+}
+
+// copy non-zero fields from src to dst
+func copyNonZeroFrom(src, dst *storeSnap) {
+	if len(src.Architectures) > 0 {
+		dst.Architectures = src.Architectures
+	}
+	if src.Base != "" {
+		dst.Base = src.Base
+	}
+	if src.Confinement != "" {
+		dst.Confinement = src.Confinement
+	}
+	if src.Contact != "" {
+		dst.Contact = src.Contact
+	}
+	if src.CreatedAt != "" {
+		dst.CreatedAt = src.CreatedAt
+	}
+	if src.Description.Clean() != "" {
+		dst.Description = src.Description
+	}
+	if src.Download.URL != "" {
+		dst.Download = src.Download
+	}
+	if src.Epoch.String() != "0" {
+		dst.Epoch = src.Epoch
+	}
+	if src.License != "" {
+		dst.License = src.License
+	}
+	if src.Name != "" {
+		dst.Name = src.Name
+	}
+	if len(src.Prices) > 0 {
+		dst.Prices = src.Prices
+	}
+	if src.Private {
+		dst.Private = src.Private
+	}
+	if src.Publisher.ID != "" {
+		dst.Publisher = src.Publisher
+	}
+	if src.Revision > 0 {
+		dst.Revision = src.Revision
+	}
+	if src.SnapID != "" {
+		dst.SnapID = src.SnapID
+	}
+	if src.SnapYAML != "" {
+		dst.SnapYAML = src.SnapYAML
+	}
+	if src.Summary.Clean() != "" {
+		dst.Summary = src.Summary
+	}
+	if src.Title.Clean() != "" {
+		dst.Title = src.Title
+	}
+	if src.Type != "" {
+		dst.Type = src.Type
+	}
+	if src.Version != "" {
+		dst.Version = src.Version
+	}
+	if len(src.Media) > 0 {
+		dst.Media = src.Media
+	}
+	if len(src.CommonIDs) > 0 {
+		dst.CommonIDs = src.CommonIDs
+	}
+}
+
 func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info := &snap.Info{}
 	info.RealName = d.Name

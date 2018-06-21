@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -510,7 +509,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"###SNIPPETS###\n" +
 		"}\n")
 	defer restoreClassicTemplate()
-	for _, scenario := range combineSnippetsScenarios {
+	for i, scenario := range combineSnippetsScenarios {
 		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if scenario.snippet == "" {
 				return nil
@@ -520,7 +519,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		c.Check(profile, testutil.FileEquals, scenario.content)
+		c.Check(profile, testutil.FileEquals, scenario.content, Commentf("scenario %d: %#v", i, scenario))
 		stat, err := os.Stat(profile)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -528,7 +527,86 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	}
 }
 
+// On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
+// Strict confinement template, along with snippets, are used.
+func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
+	defer restore()
+	restore = release.MockKernelVersion("4.16.10-1-default")
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreClassicTemplate()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("snippet")
+		return nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
+}
+
+// On openSUSE Tumbleweed running older kernel partial apparmor support changes
+// apparmor template to classic.
+func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
+	defer restore()
+	restore = release.MockKernelVersion("4.14")
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreClassicTemplate()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("snippet")
+		return nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
+}
+
 const coreYaml = `name: core
+version: 1
+type: os
+`
+
+const snapdYaml = `name: snapd
 version: 1
 `
 
@@ -551,9 +629,9 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
 	s.writeVanillaSnapConfineProfile(c, coreInfo)
 	// We expect to see the same profile, just anchored at a different directory.
-	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d")
-	expectedProfileName := strings.Replace(filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
-	expectedProfileGlob := strings.Replace(expectedProfileName, "."+coreInfo.Revision.String()+".", ".*.", -1)
+	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
+	expectedProfileName := "snap-confine.core.111"
+	expectedProfileGlob := "snap-confine.core.*"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -565,7 +643,42 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	c.Assert(expectedProfileName, testutil.Contains, coreInfo.Revision.String())
 
 	// Compute the profile and see if it matches.
-	dir, glob, content, err := apparmor.SnapConfineFromCoreProfile(coreInfo)
+	dir, glob, content, err := apparmor.SnapConfineFromSnapProfile(coreInfo)
+	c.Assert(err, IsNil)
+	c.Assert(dir, Equals, expectedProfileDir)
+	c.Assert(glob, Equals, expectedProfileGlob)
+	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
+		expectedProfileName: {
+			Content: []byte(expectedProfileText),
+			Mode:    0644,
+		},
+	})
+}
+
+func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	dirs.SetRootDir(s.RootDir)
+
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+
+	// We expect to see the same profile, just anchored at a different directory.
+	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
+	expectedProfileName := "snap-confine.snapd.222"
+	expectedProfileGlob := "snap-confine.snapd.*"
+	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
+%s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, snapdInfo.MountDir())
+
+	c.Assert(expectedProfileName, testutil.Contains, snapdInfo.Revision.String())
+
+	// Compute the profile and see if it matches.
+	dir, glob, content, err := apparmor.SnapConfineFromSnapProfile(snapdInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
@@ -586,8 +699,8 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
 	s.writeVanillaSnapConfineProfile(c, coreInfo)
 
-	canaryName := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/2718/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
-	canary := filepath.Join(dirs.SystemApparmorDir, canaryName)
+	canaryName := "snap-confine.core.2718"
+	canary := filepath.Join(dirs.SnapAppArmorDir, canaryName)
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(canary, nil, 0644)
@@ -615,10 +728,10 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	// for this snap-confine on core
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
 
-	newAA, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, "*"))
+	newAA, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(newAA, HasLen, 1)
-	c.Check(newAA[0], Matches, `.*/etc/apparmor.d/.*.snap.core.111.usr.lib.snapd.snap-confine`)
+	c.Check(newAA[0], Matches, `.*/var/lib/snapd/apparmor/profiles/snap-confine.core.111`)
 
 	// This is the key, rewriting "/usr/lib/snapd/snap-confine
 	c.Check(newAA[0], testutil.FileContains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
@@ -632,7 +745,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 `, dirs.SnapMountDir))
 
 	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", dirs.SystemApparmorCacheDir), "--quiet", newAA[0]},
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", dirs.AppArmorCacheDir), "--quiet", newAA[0]},
 	})
 
 	// snap-confine directory was created

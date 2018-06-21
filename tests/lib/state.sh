@@ -1,7 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
-SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
+SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state/snapd-state.tar"
+RUNTIME_STATE_PATH="$SPREAD_PATH/tests/runtime-state"
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -13,19 +14,16 @@ SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
 . "$TESTSLIB/systems.sh"
 
 delete_snapd_state() {
-    if is_core_system; then
-        rm -rf "$SNAPD_STATE_PATH"
-    else
-        rm -f "$SNAPD_STATE_FILE"
-    fi
+    rm -rf "$SNAPD_STATE_PATH"
 }
 
 save_snapd_state() {
+    mkdir -p "$SNAPD_STATE_PATH" "$RUNTIME_STATE_PATH"
     if is_core_system; then
         boot_path="$(get_boot_path)"
         test -n "$boot_path" || return 1
 
-        mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/system-units
+        mkdir -p "$SNAPD_STATE_PATH"/system-units
 
         # Copy the state preserving the timestamps
         cp -a /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib

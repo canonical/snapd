@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # shellcheck source=tests/lib/systemd.sh
 . $TESTSLIB/systemd.sh

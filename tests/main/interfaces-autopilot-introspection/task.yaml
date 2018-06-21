@@ -10,39 +10,44 @@ details: |
 systems: [-ubuntu-core-16-*]
 
 prepare: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     echo "Given a snap declaring an autopilot-intrspection plug in installed"
     snap install --edge test-snapd-autopilot-consumer
 
     echo "And the provider dbus loop is started"
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.provider
 
 restore: |
-    rm -f *.error
+    rm -f ./*.error
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     dbus_send(){
         local method="$1"
-        echo $(dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection com.canonical.Autopilot.Introspection.${method})
+        dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection "com.canonical.Autopilot.Introspection.${method}"
     }
 
+    #shellcheck disable=SC2046
     export $(cat dbus.env)
 
     echo "Then the plug is disconnected by default"
-    snap interfaces -i autopilot-introspection | MATCH "^\- +test-snapd-autopilot-consumer:autopilot-introspection"
+    snap interfaces -i autopilot-introspection | MATCH '^\- +test-snapd-autopilot-consumer:autopilot-introspection'
 
     echo "When the plug is connected"
     snap connect test-snapd-autopilot-consumer:autopilot-introspection
 
     echo "Then the dbus name is properly reserved and the snap app version can be introspected"
 
-    for i in $(seq 10); do
+    for _ in $(seq 10); do
         if ! dbus_send GetVersion | MATCH "my-ap-version"; then
             sleep 1
         else
@@ -63,14 +68,14 @@ execute: |
         snap disconnect test-snapd-autopilot-consumer:autopilot-introspection
 
         echo "Then the snap version is not introspectable"
-        if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>${PWD}/getversion.error ; then
+        if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>"${PWD}"/getversion.error ; then
             echo "Expected permission error trying to introspect version with disconnected plug"
             exit 1
         fi
         MATCH "Permission denied" < getversion.error
 
         echo "And the snap state is not introspectable"
-        if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetState 2>${PWD}/getstate.error; then
+        if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetState 2>"${PWD}"/getstate.error; then
             echo "Expected permission error trying to introspect state with disconnected plug"
             exit 1
         fi

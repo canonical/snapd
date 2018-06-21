@@ -412,7 +412,7 @@ var defaultTemplate = `
   # signals)
   signal (receive) peer=snap.*,
 
-  # Allow receiving signals from unconfined world.
+  # Allow receiving signals from unconfined (eg, systemd)
   signal (receive) peer=unconfined,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
