@@ -11,8 +11,7 @@ prepare: |
 execute: |
     testdir=$PWD
     cd "$SPREAD_PATH" || exit 1
-    export PATH="$PATH:$HOME/.local/bin"
-    MUST_PASS="$testdir/must" NO_FAIL=1 ./spread-shellcheck spread.yaml tests
+    CAN_FAIL="$testdir/can-fail" ./spread-shellcheck spread.yaml tests
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
