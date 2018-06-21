@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -152,6 +152,7 @@ func (iface *waylandInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 
 func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
+		spec.TriggerSubsystem("input")
 		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
 		spec.TagDevice(`KERNEL=="mice"`)
 		spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
