@@ -8,7 +8,7 @@ details: |
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-content-mimic-plug
     install_local test-snapd-content-mimic-slot
 

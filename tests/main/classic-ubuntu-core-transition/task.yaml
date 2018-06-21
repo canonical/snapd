@@ -28,7 +28,7 @@ execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     #shellcheck source=tests/lib/systemd.sh
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB"/systemd.sh
     curl() {
         local url="$1"
         # sadly systemd active means not that its really ready so we wait

@@ -445,7 +445,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
-	c.Check(shw.Snap, check.Equals, info.Name())
+	c.Check(shw.Snap, check.Equals, info.InstanceName())
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
@@ -461,7 +461,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	defer shr.Close()
 
 	c.Check(shr.SetID, check.Equals, shID)
-	c.Check(shr.Snap, check.Equals, info.Name())
+	c.Check(shr.Snap, check.Equals, info.InstanceName())
 	c.Check(shr.Version, check.Equals, info.Version)
 	c.Check(shr.Revision, check.Equals, info.Revision)
 	c.Check(shr.Conf, check.DeepEquals, cfg)
