@@ -279,7 +279,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	snapName := info.Name()
+	snapName := info.InstanceName()
 
 	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 	snapFname = filepath.Base(mockSnapFile)
@@ -1159,6 +1159,15 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// at this point snapd is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	state.MockRestarting(st, state.RestartUnset)
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()

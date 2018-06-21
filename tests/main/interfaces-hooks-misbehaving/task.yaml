@@ -1,7 +1,7 @@
 summary: Check that the output of noisy install hook is truncated.
 
 execute: |
-    if snap try $TESTSLIB/snaps/snap-hooks-bad-install; then
+    if snap try "$TESTSLIB"/snaps/snap-hooks-bad-install; then
         echo "Expected snap try to fail"
     fi
     if snap change --last=try|grep "start of noisy output"; then

@@ -20,9 +20,6 @@
 package store
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 )
@@ -49,7 +46,6 @@ type snapDetails struct {
 	Revision       int      `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
 	SnapID         string   `json:"snap_id"`
-	SnapYAML       string   `json:"snap_yaml_raw"`
 	License        string   `json:"license,omitempty"`
 	Base           string   `json:"base,omitempty"`
 
@@ -69,27 +65,7 @@ type snapDetails struct {
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
 
-	ChannelMapList []channelMap `json:"channel_maps_list,omitempty"`
-
 	CommonIDs []string `json:"common_ids,omitempty"`
-}
-
-// channelMap contains
-type channelMap struct {
-	Track       string                   `json:"track"`
-	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
-}
-
-// channelSnapInfoDetails is the subset of snapDetails we need to get
-// information about the snaps in the various channels
-type channelSnapInfoDetails struct {
-	Revision     int        `json:"revision"` // store revisions are ints starting at 1
-	Confinement  string     `json:"confinement"`
-	Version      string     `json:"version"`
-	Channel      string     `json:"channel"`
-	Epoch        snap.Epoch `json:"epoch"`
-	DownloadSize int64      `json:"binary_filesize"`
-	Info         string     `json:"info"`
 }
 
 func infoFromRemote(d *snapDetails) *snap.Info {
@@ -140,53 +116,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	//        the "SupportURL" part of the if
 	if info.Contact == "" {
 		info.Contact = d.SupportURL
-	}
-
-	// fill in the plug/slot data
-	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
-		if info.Plugs == nil {
-			info.Plugs = make(map[string]*snap.PlugInfo)
-		}
-		for k, v := range rawYamlInfo.Plugs {
-			info.Plugs[k] = v
-			info.Plugs[k].Snap = info
-		}
-		if info.Slots == nil {
-			info.Slots = make(map[string]*snap.SlotInfo)
-		}
-		for k, v := range rawYamlInfo.Slots {
-			info.Slots[k] = v
-			info.Slots[k].Snap = info
-		}
-	}
-
-	// fill in the tracks data
-	if len(d.ChannelMapList) > 0 {
-		info.Channels = make(map[string]*snap.ChannelSnapInfo)
-		info.Tracks = make([]string, len(d.ChannelMapList))
-		for i, cm := range d.ChannelMapList {
-			info.Tracks[i] = cm.Track
-			for _, ch := range cm.SnapDetails {
-				// nothing in this channel
-				if ch.Info == "" {
-					continue
-				}
-				var k string
-				if strings.HasPrefix(ch.Channel, cm.Track) {
-					k = ch.Channel
-				} else {
-					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
-				}
-				info.Channels[k] = &snap.ChannelSnapInfo{
-					Revision:    snap.R(ch.Revision),
-					Confinement: snap.ConfinementType(ch.Confinement),
-					Version:     ch.Version,
-					Channel:     ch.Channel,
-					Epoch:       ch.Epoch,
-					Size:        ch.DownloadSize,
-				}
-			}
-		}
 	}
 
 	return info

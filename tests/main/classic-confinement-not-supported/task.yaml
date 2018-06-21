@@ -7,12 +7,12 @@ systems: [ubuntu-core-*, fedora-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
 execute: |
     #shellcheck source=tests/lib/strings.sh
-    . $TESTSLIB/strings.sh
+    . "$TESTSLIB"/strings.sh
 
     echo "Check that classic snaps work only with --classic"
     if snap install --dangerous "${CLASSIC_SNAP}_1.0_all.snap"; then
