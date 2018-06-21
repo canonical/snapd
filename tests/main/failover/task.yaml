@@ -35,13 +35,13 @@ restore: |
 
     # FIXME: remove the unset when we reset properly snap_try_{core,kernel} on rollback
     #shellcheck source=tests/lib/boot.sh
-    . $TESTSLIB/boot.sh
+    . "$TESTSLIB"/boot.sh
     bootenv_unset snap_try_core
     bootenv_unset snap_try_kernel
 
 debug: |
     #shellcheck source=tests/lib/boot.sh
-    . $TESTSLIB/boot.sh
+    . "$TESTSLIB"/boot.sh
     #shellcheck disable=SC2119
     bootenv
     snap list
@@ -65,9 +65,9 @@ execute: |
     }
 
     #shellcheck source=tests/lib/names.sh
-    . $TESTSLIB/names.sh
+    . "$TESTSLIB"/names.sh
     #shellcheck source=tests/lib/boot.sh
-    . $TESTSLIB/boot.sh
+    . "$TESTSLIB"/boot.sh
     if [ "$TARGET_SNAP" = kernel ]; then
         TARGET_SNAP_NAME=$kernel_name
     else

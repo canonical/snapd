@@ -19,7 +19,8 @@ execute: |
     fi
 
     echo "The interface is not connected by default"
-    snap interfaces -i gpio-memory-control | MATCH "\- +test-snapd-gpio-memory-control:gpio-memory-control"
+    #shellcheck disable=SC1117
+    snap interfaces -i gpio-memory-control | MATCH '^- +test-snapd-gpio-memory-control:gpio-memory-control'
 
     echo "When the interface is connected"
     snap connect test-snapd-gpio-memory-control:gpio-memory-control
@@ -35,7 +36,7 @@ execute: |
     snap disconnect test-snapd-gpio-memory-control:gpio-memory-control
 
     echo "Then the snap is not able to access the gpio physical memory"
-    if test-snapd-gpio-memory-control.gpiomem 2>${PWD}/call.error; then
+    if test-snapd-gpio-memory-control.gpiomem 2> call.error; then
         echo "Expected permission error reading the gpio physical memory with disconnected plug"
         exit 1
     fi

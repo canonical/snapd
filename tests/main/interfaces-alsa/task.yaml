@@ -19,7 +19,7 @@ details: |
 prepare: |
     echo "Given a snap declaring a plug on the alsa interface is installed"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_generic_consumer alsa
 
 restore: |
