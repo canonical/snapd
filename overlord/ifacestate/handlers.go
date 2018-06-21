@@ -865,9 +865,9 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 		}
 
 		const auto = true
-		if err := checkConnectConflicts(st, plug.Snap.Name(), slot.Snap.Name(), auto); err != nil {
+		if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				task.Logf("gadget connect will be retried because of %q - %q conflict", plug.Snap.Name(), slot.Snap.Name())
+				task.Logf("gadget connect will be retried because of %q - %q conflict", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 				return err // will retry
 			}
 			return fmt.Errorf("gadget connect conflict check failed: %s", err)
