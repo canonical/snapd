@@ -134,13 +134,22 @@ the system:snappy repository.
 # Generate autotools build system files
 cd cmd && autoreconf -i -f
 
-# Enable hardening; We can't use -pie here as this conflicts with
-# our build of static binaries for snap-confine. Also see
-# https://bugzilla.redhat.com/show_bug.cgi?id=1343892
+# Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
 CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
+LDFLAGS=""
+# On openSUSE Leap 15 or more recent build position independent executables.
+# For a helpful guide about the versions and macros used below, please see:
+# https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
+%if 0%{?suse_version} >= 1500
+CFLAGS="$CFLAGS -fPIE"
+CXXFLAGS"$CXXFLAGS -fPIE"
+LDFLAGS="$LDFLAGS -pie"
+%endif
+
 export CFLAGS
 export CXXFLAGS
+export LDFLAGS
 
 # N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
 # did not support what we needed to be able to turn on basic integration.
