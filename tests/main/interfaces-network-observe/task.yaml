@@ -46,7 +46,7 @@ execute: |
     snap connect network-observe-consumer:network-observe
 
     echo "Then the snap command can query network status information"
-    network-observe-consumer | grep -P "0.0.0.0:$PORT.*?LISTEN"
+    network-observe-consumer | MATCH "LISTEN.*:$PORT"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
