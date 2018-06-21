@@ -111,10 +111,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	var required map[string]bool
 	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
 	if len(reqSnaps) > 0 {
-		required = make(map[string]bool, len(reqSnaps))
 		for _, snap := range reqSnaps {
 			required[snap] = true
 		}
@@ -139,7 +139,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if seedSnap == nil {
 			return fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true})
+		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
 		if err != nil {
 			return err
 		}
