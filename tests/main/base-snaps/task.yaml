@@ -3,7 +3,7 @@ systems: [-opensuse-*]
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Ensure a snap that requires a unavailable base snap can not be installed"
     if install_local test-snapd-requires-base; then

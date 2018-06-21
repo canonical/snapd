@@ -5,6 +5,7 @@ environment:
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     snap install --devmode jq
 
@@ -25,6 +26,7 @@ restore: |
     snap remove basic-iface-hooks-producer
 
 execute: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     remove_markers() {
         rm -f $CONSUMER_DATA/*-plug-*done
@@ -37,8 +39,8 @@ execute: |
         jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-1"]' /var/lib/snapd/state.json | MATCH "producer-value-1"
         jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-2"]' /var/lib/snapd/state.json | MATCH "producer-value-2"
         # dynamic attributes have values created by the hooks, the "-validated" suffix is added by our test interface
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH "plug-changed\(consumer-value\)"
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH "slot-changed\(producer-value\)"
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'plug-changed\(consumer-value\)'
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'slot-changed\(producer-value\)'
     }
 
     check_hooks_were_run(){
