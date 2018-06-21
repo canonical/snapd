@@ -4,7 +4,7 @@ summary: Ensure that the content default-provider download works
 # with (potentially) a different core snap. Running this on core will
 # also trigger a reboot in the middle of the tests because the new
 # core will be applied. So skip the test on core devices.
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 execute: |
     echo "A snap with no default-provider is installed"
