@@ -1,4 +1,4 @@
-#!/bin/sh --this-shebang-is-just-here-to-inform-shellcheck--
+# shellcheck shell=sh
 
 # Expand $PATH to include the directory where snappy applications go.
 snap_bin_path="@SNAP_MOUNT_DIR@/bin"

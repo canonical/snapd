@@ -2,10 +2,10 @@ summary: Check that enable/disable works
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     echo "Install test-snapd-tools and ensure it runs"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     test-snapd-tools.echo Hello|MATCH Hello
     echo "Disable test-snapd-tools and ensure it is listed as disabled"
@@ -41,7 +41,7 @@ execute: |
 
     echo "Ensure the important snaps can not be disabled"
     #shellcheck source=tests/lib/names.sh
-    . $TESTSLIB/names.sh
+    . "$TESTSLIB"/names.sh
     for sn in core $kernel_name $gadget_name; do
         if snap disable "$sn"; then
             echo "It should not be possible to disable $sn"

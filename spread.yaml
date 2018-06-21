@@ -299,6 +299,8 @@ debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
         # shellcheck source=tests/lib/journalctl.sh
         . "$TESTSLIB/journalctl.sh"
+        #shellcheck source=tests/lib/state.sh
+        . "$TESTSLIB/state.sh"
 
         echo '# journal messages for snapd'
         get_journalctl_log -u snapd
@@ -308,6 +310,8 @@ debug-each: |
         dmesg --ctime | grep type=1326 || true
         echo '# snap interfaces'
         snap interfaces || true
+        echo '# tasks executed on system'
+        cat "$RUNTIME_STATE_PATH/runs" || true
     fi
 
 rename:
@@ -496,7 +500,7 @@ suites:
                 exit 0
             fi
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
 
@@ -521,17 +525,17 @@ suites:
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
-            . $TESTSLIB/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_classic
         prepare-each: |
             "$TESTSLIB"/reset.sh --reuse-core
             #shellcheck source=tests/lib/prepare.sh
-            . $TESTSLIB/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         restore: |
             "$TESTSLIB"/reset.sh --store
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
             case "$SPREAD_SYSTEM" in

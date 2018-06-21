@@ -33,7 +33,7 @@ execute: |
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Sideload desktop snap"
     snap install --dangerous ./basic-desktop_1.0_all.snap
