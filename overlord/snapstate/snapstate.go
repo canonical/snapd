@@ -511,20 +511,29 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
-	if len(info.Layout) == 0 {
-		return nil
-	}
-
 	tr := config.NewTransaction(st)
-	var featureFlagLayouts bool
-	if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
-		return err
-	}
-	if featureFlagLayouts {
-		return nil
+
+	if len(info.Layout) > 0 {
+		var featureFlagLayouts bool
+		if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
+			return err
+		}
+		if !featureFlagLayouts {
+			return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+		}
 	}
 
-	return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+	if info.InstanceKey != "" {
+		var featureFlagParallelInstall bool
+		if err := tr.GetMaybe("core", "experimental.parallel-installs", &featureFlagParallelInstall); err != nil {
+			return err
+		}
+		if !featureFlagParallelInstall {
+			return fmt.Errorf("cannot use experimental 'parallel-installs' feature, set option 'experimental.parallel-installs' to true and try again")
+		}
+	}
+
+	return nil
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.
