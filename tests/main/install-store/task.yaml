@@ -1,6 +1,7 @@
 summary: Checks for special cases of snap install from the store
 
-systems: [ubuntu-1*, ubuntu-2*]
+# run on ubuntu-14,16,18,20+ but not on ubuntu-core, fedora etc
+systems: [ubuntu-1*, ubuntu-2*, ubuntu-3*]
 
 environment:
     SNAP_NAME: test-snapd-tools
