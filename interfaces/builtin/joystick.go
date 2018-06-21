@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,6 +18,11 @@
  */
 
 package builtin
+
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/udev"
+)
 
 const joystickSummary = `allows access to joystick devices`
 
@@ -82,8 +87,17 @@ var joystickConnectedPlugUDev = []string{
 	`KERNEL=="full", SUBSYSTEM=="mem"`,
 }
 
+type joystickInterface struct {
+	commonInterface
+}
+
+func (iface *joystickInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.TriggerSubsystem("input/joystick")
+	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
+}
+
 func init() {
-	registerIface(&commonInterface{
+	registerIface(&joystickInterface{commonInterface{
 		name:                  "joystick",
 		summary:               joystickSummary,
 		implicitOnCore:        true,
@@ -92,5 +106,5 @@ func init() {
 		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
 		connectedPlugUDev:     joystickConnectedPlugUDev,
 		reservedForOS:         true,
-	})
+	}})
 }

@@ -206,8 +206,8 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	//   /snap/core/111/usr/lib/snapd/snap-confine
 	// becomes
 	//   snap-confine.core.111
-	patchedProfileName := fmt.Sprintf("snap-confine.%s.%s", info.Name(), info.Revision)
-	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.Name())
+	patchedProfileName := fmt.Sprintf("snap-confine.%s.%s", info.InstanceName(), info.Revision)
+	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.InstanceName())
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
 	content = map[string]*osutil.FileState{
@@ -286,7 +286,7 @@ func profileGlobs(snapName string) []string {
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
@@ -337,7 +337,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	dir := dirs.SnapAppArmorDir
-	globs := profileGlobs(snapInfo.Name())
+	globs := profileGlobs(snapInfo.InstanceName())
 	cache := dirs.AppArmorCacheDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
@@ -416,7 +416,8 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
 		case "###SNAP_NAME###":
-			return snapInfo.Name()
+			// TODO parallel-install: use of proper instance/store name
+			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
 			return snippets
 		}
@@ -424,7 +425,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	})
 
 	// Ensure that the snap-update-ns profile is on disk.
-	profileName := nsProfile(snapInfo.Name())
+	profileName := nsProfile(snapInfo.InstanceName())
 	content[profileName] = &osutil.FileState{
 		Content: []byte(policy),
 		Mode:    0644,
