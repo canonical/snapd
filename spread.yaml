@@ -419,8 +419,6 @@ restore-each: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        # TODO: cleanup tests and enable ubuntu-core-18 everywhere
-        systems: [-ubuntu-core-18-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
