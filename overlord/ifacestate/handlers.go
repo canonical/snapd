@@ -60,7 +60,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		addImplicitSlots(affectedSnapInfo)
+		addImplicitSlots(st, affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
@@ -102,7 +102,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
-	addImplicitSlots(snapInfo)
+	addImplicitSlots(task.State(), snapInfo)
 	snapName := snapInfo.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
