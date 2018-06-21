@@ -1,4 +1,4 @@
-#!/bin/bash
+# shellcheck shell=bash
 #
 #  Copyright (C) 2017 Canonical Ltd
 #
