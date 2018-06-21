@@ -3170,6 +3170,9 @@ volumes:
 }
 
 func (s *interfaceManagerSuite) TestGadgetConnectHappyPolicyChecks(c *C) {
+	// network-control does not auto-connect so this test also
+	// checks that the right policy checker (for "*-connection"
+	// rules) is used for gadget connections
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
