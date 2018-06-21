@@ -138,10 +138,6 @@ func (f *fakeStore) pokeStateLock() {
 }
 
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	if !spec.AnyChannel || spec.Channel != "" || !spec.Revision.Unset() {
-		panic("snapstate expected to use SnapInfo with SnapSpec.AnyChannel:true")
-	}
-
 	f.pokeStateLock()
 
 	sspec := snapSpec{
@@ -616,7 +612,7 @@ apps:
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
 	f.ops = append(f.ops, fakeOp{
 		op:    "cleanup-trash",
-		name:  si.Name(),
+		name:  si.InstanceName(),
 		revno: si.Revision,
 	})
 }

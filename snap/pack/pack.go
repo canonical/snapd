@@ -250,7 +250,7 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	}
 
 	// build the package
-	snapName = fmt.Sprintf("%s_%s_%v.snap", info.Name(), info.Version, debArchitecture(info))
+	snapName = fmt.Sprintf("%s_%s_%v.snap", info.InstanceName(), info.Version, debArchitecture(info))
 
 	if targetDir != "" {
 		snapName = filepath.Join(targetDir, snapName)

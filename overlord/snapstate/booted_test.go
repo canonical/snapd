@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
@@ -84,9 +83,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return nil, nil
-	}
+	snapstate.MockModel()
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
