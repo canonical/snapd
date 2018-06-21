@@ -9779,6 +9779,26 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
 
+func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.Info{
+		InstanceKey: "foo",
+	}
+
+	err := snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `cannot use experimental 'parallel-installs' feature, set option 'experimental.parallel-installs' to true and try again`)
+
+	// enable parallel installs
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-installs", true)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestInjectTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
