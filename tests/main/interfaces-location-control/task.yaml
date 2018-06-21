@@ -10,7 +10,7 @@ details: |
 
 # dbus-launch not supported in ubuntu-core
 # s390x does not support locationd
-systems: [-ubuntu-core-16-*, -ubuntu-*-s390x]
+systems: [-ubuntu-core-*, -ubuntu-*-s390x]
 
 prepare: |
     #shellcheck source=tests/lib/dbus.sh
