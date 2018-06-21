@@ -21,14 +21,12 @@ package configcore
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var watchdogConfigKeys = map[string]bool{
@@ -42,12 +40,10 @@ func init() {
 	supportedConfigurations["core.watchdog.shutdown-timeout"] = true
 }
 
-func watchdogConfEnvironment() string {
-	return filepath.Join(dirs.SnapSystemdConfDir, "10-ubuntu-core-watchdog.conf")
-}
-
 func updateWatchdogConfig(config map[string]uint) error {
-	path := watchdogConfEnvironment()
+	dir := dirs.SnapSystemdConfDir
+	name := "10-ubuntu-core-watchdog.conf"
+	dirContent := make(map[string]*osutil.FileState, 1)
 
 	configStr := []string{}
 	for k, v := range config {
@@ -55,37 +51,19 @@ func updateWatchdogConfig(config map[string]uint) error {
 			configStr = append(configStr, fmt.Sprintf("%s=%d\n", k, v))
 		}
 	}
-	if len(configStr) == 0 {
-		// No config, remove file
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-
-	// We order the variables to have predictable output
-	sort.Strings(configStr)
-	content := "[Manager]\n" + strings.Join(configStr, "")
-
-	// Compare with current file, go on only if different content
-	if cfgFile, err := os.Open(path); err == nil {
-		defer cfgFile.Close()
-
-		current, err := ioutil.ReadAll(cfgFile)
-		if err != nil {
-			return err
-		}
-
-		if content == string(current) {
-			return nil
+	if len(configStr) > 0 {
+		// We order the variables to have predictable output
+		sort.Strings(configStr)
+		content := "[Manager]\n" + strings.Join(configStr, "")
+		dirContent[name] = &osutil.FileState{
+			Content: []byte(content),
+			Mode:    0644,
 		}
 	}
 
-	if err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755); err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(path, []byte(content), 0644)
+	glob := name
+	_, _, err := osutil.EnsureDirState(dir, glob, dirContent)
+	return err
 }
 
 func handleWatchdogConfiguration(tr Conf) error {
