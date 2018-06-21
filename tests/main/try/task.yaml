@@ -1,7 +1,7 @@
 summary: Check that try command works
 
 # s390x does not have /dev/kmsg
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*, -ubuntu-*-s390x]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -ubuntu-*-s390x]
 
 environment:
     PORT: 8081

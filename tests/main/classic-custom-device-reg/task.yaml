@@ -1,7 +1,7 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
 systems:
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # The test fails on Arch right now, disable it temporarily
     - -arch-*
 environment:
