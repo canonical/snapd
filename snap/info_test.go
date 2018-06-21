@@ -1074,3 +1074,45 @@ func (s *infoSuite) TestNickname(c *C) {
 	c.Check(snap.DropNick("system"), Equals, "core")
 	c.Check(snap.DropNick("foo"), Equals, "foo")
 }
+
+func (s *infoSuite) TestInstanceStoreName(c *C) {
+	store, key := snap.SplitInstanceName("foo_bar")
+	c.Check(store, Equals, "foo")
+	c.Check(key, Equals, "bar")
+
+	store, key = snap.SplitInstanceName("foo")
+	c.Check(store, Equals, "foo")
+	c.Check(key, Equals, "")
+
+	store, key = snap.SplitInstanceName("_bar")
+	c.Check(store, Equals, "")
+	c.Check(key, Equals, "bar")
+
+	store, key = snap.SplitInstanceName("foo___bar_bar")
+	c.Check(store, Equals, "foo")
+	c.Check(key, Equals, "__bar_bar")
+
+	store, key = snap.SplitInstanceName("")
+	c.Check(store, Equals, "")
+	c.Check(key, Equals, "")
+
+	c.Check(snap.StoreName("foo_bar"), Equals, "foo")
+	c.Check(snap.StoreName("foo"), Equals, "foo")
+
+	c.Check(snap.InstanceName("foo", "bar"), Equals, "foo_bar")
+	c.Check(snap.InstanceName("foo", ""), Equals, "foo")
+}
+
+func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
+	info := &snap.Info{
+		SuggestedName: "snap-name",
+		InstanceKey:   "foo",
+	}
+
+	c.Check(info.InstanceName(), Equals, "snap-name_foo")
+	c.Check(info.StoreName(), Equals, "snap-name")
+
+	info.InstanceKey = ""
+	c.Check(info.InstanceName(), Equals, "snap-name")
+	c.Check(info.StoreName(), Equals, "snap-name")
+}
