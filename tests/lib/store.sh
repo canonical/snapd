@@ -74,7 +74,9 @@ setup_fake_store(){
     echo "Wait until fake store is ready"
     # shellcheck source=tests/lib/network.sh
     . $TESTSLIB/network.sh
-    wait_listen_port "$PORT"
+    if wait_listen_port "$PORT"; then
+        return 0
+    fi
 
     echo "fakestore service not started properly"
     ss -ntlp | grep "127.0.0.1:$PORT" || true
