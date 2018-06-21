@@ -111,10 +111,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	var required map[string]bool
 	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
 	if len(reqSnaps) > 0 {
-		required = make(map[string]bool, len(reqSnaps))
 		for _, snap := range reqSnaps {
 			required[snap] = true
 		}
@@ -139,7 +139,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if seedSnap == nil {
 			return fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true})
+		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
 		if err != nil {
 			return err
 		}
@@ -218,8 +218,18 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	ts := tsAll[len(tsAll)-1]
+	endTs := state.NewTaskSet()
+	if model.Gadget() != "" {
+		// we have a gadget that could have interface
+		// connection instructions
+		gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
+		gadgetConnect.WaitAll(ts)
+		endTs.AddTask(gadgetConnect)
+		ts = endTs
+	}
 	markSeeded.WaitAll(ts)
-	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
+	endTs.AddTask(markSeeded)
+	tsAll = append(tsAll, endTs)
 
 	return tsAll, nil
 }

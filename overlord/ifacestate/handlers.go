@@ -340,6 +340,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var byGadget bool
+	if err := task.Get("by-gadget", &byGadget); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	conns, err := getConns(st)
 	if err != nil {
@@ -386,7 +390,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var policyChecker interfaces.PolicyFunc
 
-	if autoConnect {
+	// manual connections and connections by the gadget obey the
+	// policy "connection" rules, other auto-connections obey the
+	// "auto-connection" rules
+	if autoConnect && !byGadget {
 		autochecker, err := newAutoConnectChecker(st)
 		if err != nil {
 			return err
@@ -426,6 +433,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		StaticSlotAttrs:  conn.Slot.StaticAttrs(),
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
+		ByGadget:         byGadget,
 	}
 	setConns(st, conns)
 
@@ -709,8 +717,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		const auto = true
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, auto)
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto"})
 		if err != nil {
 			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
@@ -852,4 +859,86 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 	}
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
+}
+
+// doGadgetConnect creates task(s) to follow the interface connection instructions from the gadget.
+func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var conns map[string]connState
+	err := st.Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+
+	gconns, err := snapstate.GadgetConnections(st)
+	if err != nil {
+		return err
+	}
+
+	gconnts := state.NewTaskSet()
+	var newconns []*interfaces.ConnRef
+
+	// consider the gadget connect instructions
+	for _, gconn := range gconns {
+		plugSnapName, err := resolveSnapIDToName(st, gconn.Plug.SnapID)
+		if err != nil {
+			return err
+		}
+		plug := m.repo.Plug(plugSnapName, gconn.Plug.Plug)
+		if plug == nil {
+			task.Logf("gadget connect: ignoring missing plug %s:%s", gconn.Plug.SnapID, gconn.Plug.Plug)
+			continue
+		}
+
+		slotSnapName, err := resolveSnapIDToName(st, gconn.Slot.SnapID)
+		if err != nil {
+			return err
+		}
+		slot := m.repo.Slot(slotSnapName, gconn.Slot.Slot)
+		if slot == nil {
+			task.Logf("gadget connect: ignoring missing slot %s:%s", gconn.Slot.SnapID, gconn.Slot.Slot)
+			continue
+		}
+
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Gadget connection already exist (or has Undesired flag set) so don't clobber it.
+			continue
+		}
+
+		const auto = true
+		if err := checkConnectConflicts(st, "", plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				task.Logf("gadget connect will be retried because of %q - %q conflict", plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				return err // will retry
+			}
+			return fmt.Errorf("gadget connect conflict check failed: %s", err)
+		}
+		newconns = append(newconns, connRef)
+	}
+
+	// Create connect tasks and interface hooks
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-gadget"})
+		if err != nil {
+			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+		}
+		gconnts.AddAll(ts)
+	}
+
+	if len(gconnts.Tasks()) > 0 {
+		snapstate.InjectTasks(task, gconnts)
+
+		st.EnsureBefore(0)
+	}
+
+	task.SetStatus(state.DoneStatus)
+	return nil
 }
