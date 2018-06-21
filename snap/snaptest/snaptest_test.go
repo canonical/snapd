@@ -60,7 +60,7 @@ func (s *snapTestSuite) TearDownTest(c *C) {
 func (s *snapTestSuite) TestMockSnap(c *C) {
 	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is placed on disk
@@ -75,7 +75,7 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
 	snapInfo := snaptest.MockSnapCurrent(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is placed on disk
@@ -89,7 +89,7 @@ func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
 func (s *snapTestSuite) TestMockInfo(c *C) {
 	snapInfo := snaptest.MockInfo(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is *not* placed on disk
@@ -103,7 +103,7 @@ func (s *snapTestSuite) TestMockInfo(c *C) {
 func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 	snapInfo := snaptest.MockInvalidInfo(c, sampleYaml+"\nslots:\n network:\n", &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is *not* placed on disk

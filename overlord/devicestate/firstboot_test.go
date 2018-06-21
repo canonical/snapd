@@ -279,7 +279,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	snapName := info.Name()
+	snapName := info.InstanceName()
 
 	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 	snapFname = filepath.Base(mockSnapFile)

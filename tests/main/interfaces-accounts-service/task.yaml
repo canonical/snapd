@@ -12,7 +12,7 @@ environment:
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
-    . $TESTSLIB/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     echo "Ensure we have a working goa-daemon"
     distro_install_package gnome-online-accounts
     snap install --edge test-snapd-accounts-service
@@ -20,7 +20,7 @@ prepare: |
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
-    . $TESTSLIB/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
     rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
