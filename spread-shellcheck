@@ -201,9 +201,17 @@ def main(opts):
                               '\n'.join([' - ' + f for f in
                                          sorted(unexpected)]))
                 raise SystemExit(1)
-            else:
-                # no unexpected failures
-                return
+
+            did_not_fail = can_fail - failures.intersection(can_fail)
+            if did_not_fail:
+                logging.error(('the following files are whitelisted '
+                               'but validated successfully:\n%s'),
+                              '\n'.join([' - ' + f for f in
+                                         sorted(did_not_fail)]))
+                raise SystemExit(1)
+
+            # no unexpected failures
+            return
 
         logging.error('validation failed for the following files:\n%s',
                       '\n'.join([' - ' + f for f in sorted(failures)]))
