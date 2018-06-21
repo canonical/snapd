@@ -8,7 +8,7 @@ restore: |
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local snap-hooks
 
     echo "Verify configuration value with snap get"
