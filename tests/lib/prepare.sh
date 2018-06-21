@@ -393,12 +393,11 @@ EOF
 
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
-    # get image grep
-    imgdev=$(losetup |grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
-    if [ -z "$imgdev" ]; then
-        echo "cannot determine loopback device of the image file"
-        losetup
-        exit 1
+    # FIXME: hardcoded mapper location, parse from kpartx
+    if is_core18_system; then
+        mount /dev/mapper/loop4p3 /mnt
+    else
+        mount /dev/mapper/loop2p3 /mnt
     fi
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
