@@ -22,7 +22,7 @@ prepare: |
     fi
     echo "Given a snap declaring a plug on gpio is installed"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local gpio-consumer
 
     echo "And a mocked gpio device is in place"
