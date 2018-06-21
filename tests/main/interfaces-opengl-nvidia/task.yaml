@@ -55,9 +55,9 @@ prepare: |
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     install_local test-snapd-policy-app-consumer
 
