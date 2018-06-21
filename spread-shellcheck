@@ -25,13 +25,13 @@ import yaml
 # default shell for shellcheck
 SHELLCHECK_SHELL = os.getenv('SHELLCHECK_SHELL', 'bash')
 # set to non-empty to ignore all errors
-NO_FAIL = os.getenv('NO_FAIL', None)
+NO_FAIL = os.getenv('NO_FAIL')
 # set to non empty to enable 'set -x'
-D = os.getenv('D', None)
+D = os.getenv('D')
 # set to non-empty to enable verbose logging
-V = os.getenv('V', None)
+V = os.getenv('V')
 # file with list of files that can fail validation
-CAN_FAIL = os.getenv('CAN_FAIL', None)
+CAN_FAIL = os.getenv('CAN_FAIL')
 
 # names of sections
 SECTIONS = ['prepare', 'prepare-each', 'restore', 'restore-each',
