@@ -41,7 +41,7 @@ type Snap struct {
 	Icon          string             `json:"icon,omitempty"`
 	InstalledSize int64              `json:"installed-size,omitempty" help:"The installed size in bytes"`
 	InstallDate   time.Time          `json:"install-date,omitempty" help:"The date of installation (or empty)"`
-	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
+	Publisher     *snap.StoreAccount `json:"publisher,omitempty" help:"The publisher of the snap"`
 	// Developer is also the publisher's username for historic reasons.
 	Developer        string        `json:"developer"`
 	Status           string        `json:"status" help:"The active status"`
