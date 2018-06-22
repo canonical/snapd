@@ -815,12 +815,16 @@ func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
 	core := &snap.Info{Type: snap.TypeOS}
 	base := &snap.Info{Type: snap.TypeBase}
 	app := &snap.Info{Type: snap.TypeApp}
+	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
 
 	c.Check(snapstate.ByKindOrder(base, core), DeepEquals, []*snap.Info{core, base})
 	c.Check(snapstate.ByKindOrder(app, core), DeepEquals, []*snap.Info{core, app})
 	c.Check(snapstate.ByKindOrder(app, base), DeepEquals, []*snap.Info{base, app})
 	c.Check(snapstate.ByKindOrder(app, base, core), DeepEquals, []*snap.Info{core, base, app})
 	c.Check(snapstate.ByKindOrder(app, core, base), DeepEquals, []*snap.Info{core, base, app})
+
+	c.Check(snapstate.ByKindOrder(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
+	c.Check(snapstate.ByKindOrder(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
@@ -3821,7 +3825,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	})
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "some-snap":
 			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
@@ -3964,7 +3968,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 	})
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "some-snap":
 			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
@@ -6715,7 +6719,7 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	info, err := snapstate.Info(st, "name1", snap.R(11))
 	c.Assert(err, IsNil)
 
-	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.InstanceName(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(11))
 	c.Check(info.Summary(), Equals, "s11")
 	c.Check(info.Version, Equals, "1.1")
@@ -6734,7 +6738,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 
-	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.InstanceName(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(12))
 	c.Check(info.Summary(), Equals, "s12")
 	c.Check(info.Version, Equals, "1.2")
@@ -6756,7 +6760,7 @@ func (s *snapmgrQuerySuite) TestCurrentInfo(c *C) {
 	info, err := snapstate.CurrentInfo(st, "name1")
 	c.Assert(err, IsNil)
 
-	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.InstanceName(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(12))
 }
 
@@ -6779,7 +6783,7 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 
 	c.Check(infos, HasLen, 1)
 
-	c.Check(infos[0].Name(), Equals, "name1")
+	c.Check(infos[0].InstanceName(), Equals, "name1")
 	c.Check(infos[0].Revision, Equals, snap.R(12))
 	c.Check(infos[0].Summary(), Equals, "s12")
 	c.Check(infos[0].Version, Equals, "1.2")
@@ -6830,7 +6834,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 		info, err := x.getInfo(st)
 		c.Assert(err, IsNil)
 
-		c.Check(info.Name(), Equals, x.snapName)
+		c.Check(info.InstanceName(), Equals, x.snapName)
 		c.Check(info.Revision, Equals, snap.R(2))
 		c.Check(info.Version, Equals, x.snapName)
 		c.Check(info.Type, Equals, x.snapType)
@@ -6890,7 +6894,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 			c.Assert(err, ErrorMatches, t.errMatcher)
 		} else {
 			c.Assert(info, NotNil)
-			c.Check(info.Name(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
+			c.Check(info.InstanceName(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
 			c.Check(info.Type, Equals, snap.TypeOS)
 		}
 	}
@@ -6941,7 +6945,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	info12, err := snap.ReadInfo("name1", snapst.CurrentSideInfo())
 	c.Assert(err, IsNil)
 
-	c.Check(info12.Name(), Equals, "name1")
+	c.Check(info12.InstanceName(), Equals, "name1")
 	c.Check(info12.Revision, Equals, snap.R(12))
 	c.Check(info12.Summary(), Equals, "s12")
 	c.Check(info12.Version, Equals, "1.2")
@@ -6950,7 +6954,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	info11, err := snap.ReadInfo("name1", snapst.Sequence[0])
 	c.Assert(err, IsNil)
 
-	c.Check(info11.Name(), Equals, "name1")
+	c.Check(info11.InstanceName(), Equals, "name1")
 	c.Check(info11.Revision, Equals, snap.R(11))
 	c.Check(info11.Version, Equals, "1.1")
 }
@@ -8587,7 +8591,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "alias-snap":
 			return map[string]string{
 				"alias1": "cmd1",
@@ -8655,7 +8659,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "alias-snap":
 			return map[string]string{
 				"alias1": "cmd1",
@@ -9253,7 +9257,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 		panic("expected to be queried for install of only one snap at a time")
 	}
 	info := snaps[0]
-	switch info.Name() {
+	switch info.InstanceName() {
 	case "snap-content-plug":
 		info.Plugs = map[string]*snap.PlugInfo{
 			"some-plug": {
@@ -9885,9 +9889,22 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	c.Check(hasConfigureTask(ts), Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// but snapd do not for install
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+}
+
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// snapd cannot be installed unless the model uses a base snap
+	restore := snapstate.MockModelWithBase("core18")
+	defer restore()
 
 	// but snapd do not for install
 	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -9950,4 +9967,29 @@ func (s *canDisableSuite) TestCanDisable(c *C) {
 		info := &snap.Info{Type: tt.typ}
 		c.Check(snapstate.CanDisable(info), Equals, tt.canDisable)
 	}
+}
+
+func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.GadgetConnections(s.state)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	s.prepareGadget(c, `
+connections:
+  - plug: snap1idididididididididididididi:plug
+    slot: snap2idididididididididididididi:slot
+`)
+
+	conns, err := snapstate.GadgetConnections(s.state)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []snap.GadgetConnection{
+		{Plug: snap.GadgetConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: snap.GadgetConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
 }

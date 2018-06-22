@@ -1,6 +1,6 @@
 summary: Check that 'current' symlink is created with 'snap run'
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh

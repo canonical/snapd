@@ -1,6 +1,6 @@
 summary: Check that all tasks of a failed installtion are undone
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 restore: |
     . $TESTSLIB/dirs.sh

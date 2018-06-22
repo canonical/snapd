@@ -2,7 +2,7 @@ summary: Ensure that the cups interface works.
 
 # Default cups/cups-pdf configuration on these distributions isn't
 # working yet without further tweaks.
-systems: [-ubuntu-core-16-*, -opensuse-*, -fedora-*, -arch-*]
+systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -arch-*]
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -39,7 +39,7 @@ prepare: |
     fi
 
 restore: |
-    rm -rf $HOME/PDF $TEST_FILE print.error
+    rm -rf "$HOME"/PDF "$TEST_FILE" print.error
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
@@ -50,15 +50,15 @@ debug: |
 
 execute: |
     echo "Then the plug is disconnected by default"
-    snap interfaces -i cups-control | MATCH "^\- +test-snapd-cups-control-consumer:cups-control"
+    snap interfaces -i cups-control | MATCH '^- +test-snapd-cups-control-consumer:cups-control'
 
     echo "When the plug is connected"
     snap connect test-snapd-cups-control-consumer:cups-control
 
     echo "Then the snap command is able to print files"
-    echo "Hello World" > $TEST_FILE
-    test-snapd-cups-control-consumer.lpr $TEST_FILE
-    while ! test -e $HOME/PDF/*.pdf; do sleep 1; done
+    echo "Hello World" > "$TEST_FILE"
+    test-snapd-cups-control-consumer.lpr "$TEST_FILE"
+    while "$(find "$HOME"/PDF -name '*.pdf' | wc -l)" -lt 1 ; do sleep 1; done
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -68,7 +68,7 @@ execute: |
     snap disconnect test-snapd-cups-control-consumer:cups-control
 
     echo "Then the snap command is not able to print files"
-    if test-snapd-cups-control-consumer.lpr $TEST_FILE 2>print.error; then
+    if test-snapd-cups-control-consumer.lpr "$TEST_FILE" 2>print.error; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

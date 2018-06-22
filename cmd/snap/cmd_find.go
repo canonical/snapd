@@ -247,10 +247,9 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	w := tabWriter()
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tPublisher\tNotes\tSummary"))
 	for _, snap := range snaps {
-		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, NotesFromRemote(snap, resInfo), snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Publisher.Username, NotesFromRemote(snap, resInfo), snap.Summary)
 	}
 	w.Flush()
 

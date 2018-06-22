@@ -2,7 +2,7 @@ summary: Ensure that the ubuntu-core -> core transition works with two cores
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -13,7 +13,7 @@ kill-timeout: 5m
 debug: |
     snap changes
     #shellcheck source=tests/lib/changes.sh
-    . $TESTSLIB/changes.sh
+    . "$TESTSLIB"/changes.sh
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
     echo "install a snap"

@@ -1,7 +1,7 @@
 summary: Check different completions
 
 systems:
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
     - -ubuntu-*-ppc64el
 
