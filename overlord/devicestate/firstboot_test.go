@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -279,7 +279,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	snapName := info.Name()
+	snapName := info.InstanceName()
 
 	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 	snapFname = filepath.Base(mockSnapFile)
@@ -315,9 +315,25 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	return snapFname, declA.(*asserts.SnapDeclaration), revA.(*asserts.SnapRevision)
 }
 
-func (s *FirstBootTestSuite) makeCoreSnaps(c *C, withConfigure bool) (coreFname, kernelFname, gadgetFname string) {
+func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
+	// the tasks of the last taskset must be gadget-connect, mark-seeded
+	lastTasks := tsAll[len(tsAll)-1].Tasks()
+	c.Check(lastTasks, HasLen, 2)
+	gadgetConnectTask := lastTasks[0]
+	markSeededTask := lastTasks[1]
+	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
+	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
+	// and the gadget-connect must wait for the other tasks
+	prevTasks := tsAll[len(tsAll)-2].Tasks()
+	otherTask := prevTasks[len(prevTasks)-1]
+	c.Check(gadgetConnectTask.WaitTasks(), testutil.Contains, otherTask)
+	// add the mark-seeded waits for gadget-connects
+	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask})
+}
+
+func (s *FirstBootTestSuite) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
 	files := [][]string{}
-	if withConfigure {
+	if strings.Contains(extraGadgetYaml, "defaults:") {
 		files = [][]string{{"meta/hooks/configure", ""}}
 	}
 
@@ -342,19 +358,7 @@ volumes:
     volume-id:
         bootloader: grub
 `
-	if withConfigure {
-		gadgetYaml += `
-defaults:
-    foo-snap-idididididididididididi:
-       foo-cfg: foo.
-    core-snap-ididididididididididid:
-       core-cfg: core_cfg_defl
-    pc-kernel-snap-ididididididididi:
-       pc-kernel-cfg: pc-kernel_cfg_defl
-    pc-snap-idididididididididididid:
-       pc-cfg: pc_cfg_defl
-`
-	}
+	gadgetYaml += extraGadgetYaml
 
 	// put gadget snap into the SnapBlobDir
 	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
@@ -370,7 +374,7 @@ type: gadget`
 }
 
 func (s *FirstBootTestSuite) makeBecomeOperationalChange(c *C, st *state.State) *state.Change {
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, false)
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
@@ -447,13 +451,7 @@ snaps:
 	tGadget := tsAll[i].Tasks()[0]
 	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
 
-	// the last task of the last taskset must be mark-seeded
-	markSeededTask := tsAll[len(tsAll)-1].Tasks()[0]
-	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-	// and the markSeededTask must wait for the other tasks
-	prevTasks := tsAll[len(tsAll)-2].Tasks()
-	otherTask := prevTasks[len(prevTasks)-1]
-	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
+	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -510,6 +508,14 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	_, err = snapstate.CurrentInfo(state, "pc")
 	c.Assert(err, IsNil)
 
+	// ensure requied flag is set on all essential snaps
+	var snapst snapstate.SnapState
+	for _, reqName := range []string{"core", "pc-kernel", "pc"} {
+		err = snapstate.Get(state, reqName, &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+	}
+
 	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
@@ -520,7 +526,6 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(pubAcct.AccountID(), Equals, "developerid")
 
-	var snapst snapstate.SnapState
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.DevMode, Equals, true)
@@ -612,7 +617,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
 		"snap_kernel": "pc-kernel_1.snap",
 	})
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, false)
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
@@ -770,7 +775,18 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
 		"snap_kernel": "pc-kernel_1.snap",
 	})
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, true)
+	const defaultsYaml = `
+defaults:
+    foo-snap-idididididididididididi:
+       foo-cfg: foo.
+    core-snap-ididididididididididid:
+       core-cfg: core_cfg_defl
+    pc-kernel-snap-ididididididididi:
+       pc-kernel-cfg: pc-kernel_cfg_defl
+    pc-snap-idididididididididididid:
+       pc-cfg: pc_cfg_defl
+`
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, defaultsYaml)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
@@ -824,13 +840,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 
-	// the last task of the last taskset must be mark-seeded
-	markSeededTask := tsAll[len(tsAll)-1].Tasks()[0]
-	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-	// and the markSeededTask must wait for the other tasks
-	prevTasks := tsAll[len(tsAll)-2].Tasks()
-	otherTask := prevTasks[len(prevTasks)-1]
-	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
+	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -919,6 +929,133 @@ snaps:
 	c.Check(val, Equals, "foo.")
 
 	c.Check(configured, DeepEquals, []string{"configcore", "pc-kernel", "pc", "foo"})
+
+	// and ensure state is now considered seeded
+	var seeded bool
+	err = state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+
+	const connectionsYaml = `
+connections:
+  - plug: foo-snap-idididididididididididi:network-control
+`
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, connectionsYaml)
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err := ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	snapYaml := `name: foo
+version: 1.0
+plugs:
+  network-control:
+`
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+
+	declFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-declaration")
+	err = ioutil.WriteFile(declFn, asserts.Encode(fooDecl), 0644)
+	c.Assert(err, IsNil)
+
+	revFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-revision")
+	err = ioutil.WriteFile(revFn, asserts.Encode(fooRev), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil, "foo")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: core
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: foo
+   file: %s
+`, coreFname, kernelFname, gadgetFname, fooFname))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+
+	checkSeedTasks(c, tsAll)
+
+	// now run the change and check the result
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
+
+	// and check the snap got correctly installed
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	state, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	state.Lock()
+	defer state.Unlock()
+
+	// check foo
+	info, err := snapstate.CurrentInfo(state, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(info.SnapID, Equals, "foo-snap-idididididididididididi")
+	c.Assert(info.Revision, Equals, snap.R(128))
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	c.Assert(err, IsNil)
+	c.Check(pubAcct.AccountID(), Equals, "developerid")
+
+	// check connection
+	var conns map[string]interface{}
+	err = state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"foo:network-control core:network-control": map[string]interface{}{
+			"interface": "network-control", "auto": true, "by-gadget": true,
+		},
+	})
 
 	// and ensure state is now considered seeded
 	var seeded bool
@@ -1104,7 +1241,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 		"snap_kernel": "pc-kernel_1.snap",
 	})
 
-	_, kernelFname, gadgetFname := s.makeCoreSnaps(c, false)
+	_, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 	core18Fname, snapdFname := s.makeCore18Snaps(c)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
@@ -1191,6 +1328,14 @@ snaps:
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(state, "pc")
 	c.Check(err, IsNil)
+
+	// ensure requied flag is set on all essential snaps
+	var snapst snapstate.SnapState
+	for _, reqName := range []string{"snapd", "core18", "pc-kernel", "pc"} {
+		err = snapstate.Get(state, reqName, &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+	}
 
 	// and ensure state is now considered seeded
 	var seeded bool

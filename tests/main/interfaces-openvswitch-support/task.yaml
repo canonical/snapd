@@ -6,7 +6,7 @@ details: |
 # ubuntu-core, ubuntu-14 and fedora are skipped due to /run/uuidd/request file does not
 # exist. On those systems different files are being used instead.
 # arch: uses /run/run/uuidd/request, filed a bug report https://bugs.archlinux.org/task/58122
-systems: [-ubuntu-14.04-*,-ubuntu-core-16-*,-fedora-*, -arch-*]
+systems: [-ubuntu-14.04-*,-ubuntu-core-*,-fedora-*, -arch-*]
 
 prepare: |
     snap install test-snapd-openvswitch-support
