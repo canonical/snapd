@@ -1,6 +1,6 @@
 summary: trivial snap with classic confinement runs correctly
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 details: |
     This test checks that a very much trivial "hello-world"-like snap using

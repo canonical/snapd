@@ -815,12 +815,16 @@ func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
 	core := &snap.Info{Type: snap.TypeOS}
 	base := &snap.Info{Type: snap.TypeBase}
 	app := &snap.Info{Type: snap.TypeApp}
+	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
 
 	c.Check(snapstate.ByKindOrder(base, core), DeepEquals, []*snap.Info{core, base})
 	c.Check(snapstate.ByKindOrder(app, core), DeepEquals, []*snap.Info{core, app})
 	c.Check(snapstate.ByKindOrder(app, base), DeepEquals, []*snap.Info{base, app})
 	c.Check(snapstate.ByKindOrder(app, base, core), DeepEquals, []*snap.Info{core, base, app})
 	c.Check(snapstate.ByKindOrder(app, core, base), DeepEquals, []*snap.Info{core, base, app})
+
+	c.Check(snapstate.ByKindOrder(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
+	c.Check(snapstate.ByKindOrder(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
@@ -9885,9 +9889,22 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	c.Check(hasConfigureTask(ts), Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// but snapd do not for install
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+}
+
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// snapd cannot be installed unless the model uses a base snap
+	restore := snapstate.MockModelWithBase("core18")
+	defer restore()
 
 	// but snapd do not for install
 	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})

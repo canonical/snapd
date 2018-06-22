@@ -142,6 +142,11 @@ const mockInfoJSON = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical"
+      },
       "download-size": 65536,
       "icon": "",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
@@ -174,6 +179,11 @@ const mockInfoJSONWithChannels = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical"
+      },
       "download-size": 65536,
       "icon": "",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
@@ -247,6 +257,11 @@ const mockInfoJSONOtherLicense = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical"
+      },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
@@ -273,6 +288,11 @@ const mockInfoJSONNoLicense = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical"
+      },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
