@@ -91,6 +91,12 @@ BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
 BuildRequires:  xz
+%ifarch x86_64
+# This is needed for seccomp tests
+BuildRequires:  glibc-devel-32bit
+BuildRequires:  glibc-devel-static-32bit
+BuildRequires:  gcc-32bit
+%endif
 
 %if %{with apparmor}
 BuildRequires:  apparmor-rpm-macros
