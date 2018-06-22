@@ -4,7 +4,7 @@ summary: Ensure that the ubuntu-core -> core transition works
 # we disable on ppc64el because the downloads are very slow there
 # Fedora, openSUSE and Arch are disabled at the moment as there is something
 # fishy going on and the snapd service gets terminated during the process.
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386, -arch-*]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386, -arch-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -33,8 +33,8 @@ execute: |
         local url="$1"
         # sadly systemd active means not that its really ready so we wait
         # here for the socket to be available
-        while ! netstat -t -l -n|grep :80; do
-            netstat -l -l -n
+        while ! ss -t -l -n|grep :80; do
+            ss -l -l -n
             sleep 1
         done
         python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
