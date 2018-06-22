@@ -6,12 +6,15 @@ Fri Jun 22 15:58:54 UTC 2018 - me@zygoon.pl
 -------------------------------------------------------------------
 Fri Jun 22 14:25:35 UTC 2018 - me@zygoon.pl
 
-- Update to upstream release 2.33.1
 - Sync with snapd upstream packaging
 - Backport support for apparmor on tumbleweed
 - Install polkit files
 - Load snap-confine apparmor profile in post, if apparmor is enabled
 - Adjust badness of polkit-untracked-privlege
+-------------------------------------------------------------------
+Fri Jun 21 17:37:56 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.33.1
 
 -------------------------------------------------------------------
 Fri Jun 08 17:13:47 UTC 2018 - mvo@fastmail.fm

@@ -3,6 +3,9 @@ summary: Ensure that the gpg-public-keys interface works.
 details: |
     The gpg-public-keys interface allows to access gpg binary and public keys.
 
+# no gpg on core18
+systems: [-ubuntu-core-18-*]
+
 environment:
     KEYSDIR: "$HOME/.gnupg"
     TRUSTDB: "$HOME/.gnupg/trustdb.gpg"

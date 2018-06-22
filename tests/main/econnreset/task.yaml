@@ -12,6 +12,9 @@ restore: |
 # with the distro
 backends: [-autopkgtest]
 
+# no iptables on core18 yet
+systems: [-ubuntu-core-18-*]
+
 debug: |
     echo "Partial download status"
     ls -lh test-snapd-huge_* || true
