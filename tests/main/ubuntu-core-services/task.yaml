@@ -1,6 +1,6 @@
 summary: Ensure all services on Core are active
 
-systems: [ubuntu-core-*]
+systems: [ubuntu-core-16-*]
 
 execute: |
     echo "Ensure one-shot services are working"

@@ -1,6 +1,6 @@
 summary: Checks for cli errors installing snaps
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 environment:
     SNAP_NAME: test-snapd-tools
