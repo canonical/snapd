@@ -259,17 +259,17 @@ func showDone(names []string, op string) error {
 		}
 		switch op {
 		case "install":
-			if snap.Developer != "" {
+			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Publisher.Username)
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
 		case "refresh":
-			if snap.Developer != "" {
+			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Publisher.Username)
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
@@ -588,9 +588,9 @@ func (x *cmdRefresh) listRefresh() error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tPublisher\tNotes"))
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, NotesFromRemote(snap, nil))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Publisher.Username, NotesFromRemote(snap, nil))
 	}
 
 	return nil
