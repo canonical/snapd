@@ -7,7 +7,7 @@ details: |
   consistent behaviour across various distributions.
 systems:
     # This test only applies to classic systems
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
 prepare: |
     echo "Having installed the test snap"
     #shellcheck source=tests/lib/snaps.sh

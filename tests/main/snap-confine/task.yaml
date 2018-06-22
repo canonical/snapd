@@ -2,7 +2,7 @@ summary: Test that snap-confine errors in the right way
 
 # the error message can only happen on classic systems
 # our debian image does not have fully working apprmor
-systems: [-ubuntu-core-16-*, -debian-*]
+systems: [-ubuntu-core-*, -debian-*]
 
 prepare: |
     echo "Install test snap"
