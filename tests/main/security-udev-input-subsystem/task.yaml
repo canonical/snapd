@@ -10,9 +10,6 @@ details: |
         access and that plugging mir with another interface (specifically,
         time-control) that trigger the device cgroup also does not.
 
-# In Debian 9, the input devices don't show up in /dev/input/by-path
-systems: [-debian-9-*]
-
 prepare: |
     echo "Given the test-snapd-udev-input-subsystem is installed"
     #shellcheck source=tests/lib/snaps.sh
