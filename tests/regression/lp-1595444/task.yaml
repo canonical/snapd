@@ -6,7 +6,7 @@ details: |
 
 systems:
     # This test only applies to classic systems
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # No confinement (AppArmor, Seccomp) available on these systems
     - -debian-*
     - -fedora-*

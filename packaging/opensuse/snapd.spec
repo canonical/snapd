@@ -57,7 +57,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.33
+Version:        2.33.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -143,7 +143,7 @@ LDFLAGS=""
 # https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
 %if 0%{?suse_version} >= 1500
 CFLAGS="$CFLAGS -fPIE"
-CXXFLAGS"$CXXFLAGS -fPIE"
+CXXFLAGS="$CXXFLAGS -fPIE"
 LDFLAGS="$LDFLAGS -pie"
 %endif
 
