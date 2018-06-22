@@ -66,6 +66,8 @@ execute: |
 
     echo "State file is gone"
     ! test -f /var/lib/snapd/state.json
+    echo "And so is the system key"
+    ! test -f /var/lib/snapd/system-key
 
     echo "Preserved namespaces directory is not mounted"
     ! cat /proc/mounts | MATCH "/run/snapd/ns"

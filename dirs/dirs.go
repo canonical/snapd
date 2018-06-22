@@ -104,6 +104,8 @@ var (
 
 	FreezerCgroupDir string
 	SnapshotsDir     string
+
+	ErrtrackerDbDir string
 )
 
 const (
@@ -261,4 +263,6 @@ func SetRootDir(rootdir string) {
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
+
+	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 }

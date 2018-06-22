@@ -488,6 +488,9 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
 	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")

@@ -32,15 +32,17 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID               string        `json:"id" help:"The unique snap-id"`
-	Name             string        `json:"name" help:"The name of the snap"`
-	Summary          string        `json:"summary" help:"The short summary"`
-	Description      string        `json:"description" help:"The multi-line description"`
-	Title            string        `json:"title,omitempty" help:"A human-readable name that may contain spaces"`
-	DownloadSize     int64         `json:"download-size,omitempty" help:"The download size"`
-	Icon             string        `json:"icon,omitempty"`
-	InstalledSize    int64         `json:"installed-size,omitempty" help:"The installed size in bytes"`
-	InstallDate      time.Time     `json:"install-date,omitempty" help:"The date of installation (or empty)"`
+	ID            string             `json:"id" help:"The unique snap-id"`
+	Name          string             `json:"name" help:"The name of the snap"`
+	Summary       string             `json:"summary" help:"The short summary"`
+	Description   string             `json:"description" help:"The multi-line description"`
+	Title         string             `json:"title,omitempty" help:"A human-readable name that may contain spaces"`
+	DownloadSize  int64              `json:"download-size,omitempty" help:"The download size"`
+	Icon          string             `json:"icon,omitempty"`
+	InstalledSize int64              `json:"installed-size,omitempty" help:"The installed size in bytes"`
+	InstallDate   time.Time          `json:"install-date,omitempty" help:"The date of installation (or empty)"`
+	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
+	// Developer is also the publisher's username for historic reasons.
 	Developer        string        `json:"developer"`
 	Status           string        `json:"status" help:"The active status"`
 	Type             string        `json:"type" help:"The type (e.g. app)"`

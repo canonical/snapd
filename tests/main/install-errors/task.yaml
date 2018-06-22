@@ -1,6 +1,6 @@
 summary: Checks for cli errors installing snaps
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 environment:
     SNAP_NAME: test-snapd-tools
@@ -12,7 +12,7 @@ environment:
 prepare: |
     echo "Given a snap with a failing command is installed"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local "$SNAP_NAME"
 
 execute: |

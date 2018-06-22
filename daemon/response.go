@@ -73,14 +73,8 @@ func (r *resp) transmitMaintenance(kind errorKind, message string) {
 //      these fields inside resp.
 type Meta struct {
 	Sources           []string `json:"sources,omitempty"`
-	Paging            *Paging  `json:"paging,omitempty"`
 	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
 	Change            string   `json:"change,omitempty"`
-}
-
-type Paging struct {
-	Page  int `json:"page"`
-	Pages int `json:"pages"`
 }
 
 type respJSON struct {

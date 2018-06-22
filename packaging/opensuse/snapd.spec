@@ -52,12 +52,12 @@
 %global with_multilib 1
 %endif
 
-%global systemd_services_list snapd.socket snapd.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service %{?with_apparmor:snapd.apparmor.service}
 
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.32.9
+Version:        2.33.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -134,13 +134,22 @@ the system:snappy repository.
 # Generate autotools build system files
 cd cmd && autoreconf -i -f
 
-# Enable hardening; We can't use -pie here as this conflicts with
-# our build of static binaries for snap-confine. Also see
-# https://bugzilla.redhat.com/show_bug.cgi?id=1343892
+# Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
 CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
+LDFLAGS=""
+# On openSUSE Leap 15 or more recent build position independent executables.
+# For a helpful guide about the versions and macros used below, please see:
+# https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
+%if 0%{?suse_version} >= 1500
+CFLAGS="$CFLAGS -fPIE"
+CXXFLAGS="$CXXFLAGS -fPIE"
+LDFLAGS="$LDFLAGS -pie"
+%endif
+
 export CFLAGS
 export CXXFLAGS
+export LDFLAGS
 
 # N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
 # did not support what we needed to be able to turn on basic integration.
@@ -197,7 +206,7 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefi
 %goinstall
 # TODO: instead of removing it move this to a dedicated golang package
 rm -rf %{buildroot}%{_libdir}/go
-# Move snapd, snap-exec, snap-seccomp and snap-update-ns into %{_libexecdir}/snapd
+# Move snapd, snap-exec, snap-seccomp and snap-update-ns into {_libexecdir}/snapd
 install -m 755 -d %{buildroot}%{_libexecdir}/snapd
 mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
 mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
@@ -250,7 +259,10 @@ rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd
-ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.refresh
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
+%if %{with apparmor}
+ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
+%endif
 # Install the "info" data file with snapd version
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
@@ -294,6 +306,9 @@ fi
 %service_del_postun %{systemd_services_list}
 
 %files
+%if %{with apparmor}
+%config %{_sysconfdir}/apparmor.d
+%endif
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
@@ -331,7 +346,10 @@ fi
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_sbindir}/rcsnapd
-%{_sbindir}/rcsnapd.refresh
+%{_sbindir}/rcsnapd.seeded
+%if %{with apparmor}
+%{_sbindir}/rcsnapd.apparmor
+%endif
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-update-ns
@@ -352,6 +370,10 @@ fi
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_libexecdir}/snapd/snapd.run-from-snap
+%if %{with apparmor}
+%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
+%endif
 
 %changelog
 

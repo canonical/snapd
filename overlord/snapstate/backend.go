@@ -36,9 +36,7 @@ import (
 type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
-	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 
-	ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
 	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
 
 	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
@@ -51,6 +49,7 @@ type StoreService interface {
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
+	ConnectivityCheck() (map[string]bool, error)
 }
 
 type managerBackend interface {

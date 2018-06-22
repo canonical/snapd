@@ -42,6 +42,9 @@ files_type(snappy_var_t)
 type snappy_var_lib_t;
 files_type(snappy_var_lib_t)
 
+type snappy_var_cache_t;
+files_type(snappy_var_cache_t)
+
 type snappy_var_run_t;
 files_pid_file(snappy_var_run_t)
 
@@ -142,11 +145,14 @@ systemd_exec_systemctl(snappy_t)
 
 # Allow snapd to mount snaps
 gen_require(` type mount_exec_t; ')
-allow snappy_t mount_exec_t:file { execute execute_no_trans getattr open read };
+allow snappy_t mount_exec_t:file { map execute execute_no_trans getattr open read };
 
 # Allow snapd to execute unsquashfs
 gen_require(` type bin_t; ')
-allow snappy_t bin_t:file { execute execute_no_trans };
+allow snappy_t bin_t:file { map execute execute_no_trans };
+
+# Allow snappy to exec snap-seccomp
+allow snappy_t snappy_exec_t:file { execute_no_trans };
 
 # Allow snapd to get FUSE device attributes
 gen_require(` type fuse_device_t; ')
@@ -161,10 +167,31 @@ manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 # Allow snapd to manage mounts
 gen_require(` type fs_t; type mount_var_run_t; ')
 allow snappy_t fs_t:filesystem { mount unmount };
-allow snappy_t mount_var_run_t:dir search;
-allow snappy_t mount_var_run_t:file { getattr setattr open read write };
+allow snappy_t mount_var_run_t:dir { add_name remove_name write search };
+allow snappy_t mount_var_run_t:file { create getattr setattr open read write rename unlink lock };
+
+gen_require(` type user_tmp_t; ')
+allow snappy_t user_tmp_t:dir { read };
+
+gen_require(` type systemd_unit_file_t; ')
+allow snappy_t systemd_unit_file_t:dir { rmdir };
+
+gen_require(` type fixed_disk_device_t; ')
+allow snappy_t fixed_disk_device_t:blk_file { getattr };
+
+gen_require(` type loop_control_device_t; ')
+allow snappy_t loop_control_device_t:chr_file { getattr };
+
+gen_require(` type usr_t; ')
+allow snappy_t usr_t:dir { write };
+
+gen_require(` type home_root_t; ')
+allow snappy_t home_root_t:dir { read };
 
 # Allow snapd to manage its persistent data
+manage_dirs_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
+manage_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
+manage_lnk_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
 manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
@@ -177,9 +204,12 @@ gen_require(` type tmp_t; ')
 allow snappy_t tmp_t:dir { getattr setattr add_name create read remove_name rmdir write };
 allow snappy_t tmp_t:file { getattr setattr create open unlink write };
 
+# Allow snappy to mmap files in /var/cache
+allow snappy_t snappy_var_cache_t:file { map };
+
 # Allow snapd to use ssh-keygen
 gen_require(` type ssh_keygen_exec_t; ')
-allow snappy_t ssh_keygen_exec_t:file { execute execute_no_trans getattr open read };
+allow snappy_t ssh_keygen_exec_t:file { execute execute_no_trans getattr open read map };
 
 # Allow snapd to access passwd file for lookup
 auth_read_passwd(snappy_t);
@@ -188,6 +218,7 @@ auth_read_passwd(snappy_t);
 # we need to grant snapd access to "unlabeled files"
 gen_require(` type unlabeled_t; ')
 allow snappy_t unlabeled_t:dir { getattr search open read };
+allow snappy_t unlabeled_t:lnk_file { getattr read };
 allow snappy_t unlabeled_t:file { getattr open read };
 
 # Until we can figure out why some things are randomly getting unconfined_t,
