@@ -52,22 +52,26 @@ func snapIcon(info *snap.Info) string {
 	return found[0]
 }
 
-func publisherName(st *state.State, info *snap.Info) (string, error) {
+func publisherAccount(st *state.State, info *snap.Info) (*snap.StoreAccount, error) {
 	if info.SnapID == "" {
-		return "", nil
+		return nil, nil
 	}
 
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	if err != nil {
-		return "", fmt.Errorf("cannot find publisher details: %v", err)
+		return nil, fmt.Errorf("cannot find publisher details: %v", err)
 	}
-	return pubAcct.Username(), nil
+	return &snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+	}, nil
 }
 
 type aboutSnap struct {
 	info      *snap.Info
 	snapst    *snapstate.SnapState
-	publisher string
+	publisher *snap.StoreAccount
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -89,7 +93,7 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	publisher, err := publisherName(st, info)
+	publisher, err := publisherAccount(st, info)
 	if err != nil {
 		return aboutSnap{}, err
 	}
@@ -119,7 +123,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		}
 		var aboutThis []aboutSnap
 		var info *snap.Info
-		var publisher string
+		var publisher *snap.StoreAccount
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
@@ -127,14 +131,14 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 				if err != nil {
 					break
 				}
-				publisher, err = publisherName(st, info)
+				publisher, err = publisherAccount(st, info)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
-				var publisher string
-				publisher, err = publisherName(st, info)
+				var publisher *snap.StoreAccount
+				publisher, err = publisherAccount(st, info)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
 			}
 		}
@@ -314,9 +318,14 @@ func mapLocal(about aboutSnap) *client.Snap {
 
 	// TODO: expose aliases information and state?
 
+	publisherUsername := ""
+	if about.publisher != nil {
+		publisherUsername = about.publisher.Username
+	}
 	result := &client.Snap{
 		Description:      localSnap.Description(),
-		Developer:        about.publisher,
+		Developer:        publisherUsername,
+		Publisher:        about.publisher,
 		Icon:             snapIcon(localSnap),
 		ID:               localSnap.SnapID,
 		InstallDate:      localSnap.InstallDate(),
@@ -376,9 +385,11 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		}
 	}
 
+	publisher := remoteSnap.Publisher
 	result := &client.Snap{
 		Description:  remoteSnap.Description(),
-		Developer:    remoteSnap.Publisher,
+		Developer:    remoteSnap.Publisher.Username,
+		Publisher:    &publisher,
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
 		ID:           remoteSnap.SnapID,

@@ -54,7 +54,6 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 				RealName: actions[0].Name,
 				Revision: snap.R(2),
 			},
-			Publisher:     "foo",
 			Architectures: []string{"all"},
 		}}, nil
 	}
@@ -65,14 +64,12 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 			Revision: snap.R(2),
 			SnapID:   "test-snap-id",
 		},
-		Publisher:     "foo",
 		Architectures: []string{"all"},
 	}, {SideInfo: snap.SideInfo{
 		RealName: "other-snap",
 		Revision: snap.R(2),
 		SnapID:   "other-snap-id",
 	},
-		Publisher:     "foo",
 		Architectures: []string{"all"},
 	}}, nil
 }
