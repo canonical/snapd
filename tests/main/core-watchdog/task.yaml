@@ -1,0 +1,31 @@
+summary: Check that the core.watchdog settings work
+
+systems: [ubuntu-core-*]
+
+environment:
+    WATCHDOG_FILE: /etc/systemd/system.conf.d/10-ubuntu-core-watchdog.conf
+
+restore: |
+    rm -f $WATCHDOG_FILE
+
+prepare: |
+    if [ -f $WATCHDOG_FILE ]; then
+        echo "Watchdog file already present, testbed not clean"
+        exit 1
+    fi
+
+execute: |
+    echo "Ensure snap service watchdog works"
+    snap set core watchdog.runtime-timeout=1m
+    cat $WATCHDOG_FILE | MATCH RuntimeWatchdogSec=60
+    
+    snap set core watchdog.shutdown-timeout=1h
+    cat $WATCHDOG_FILE | MATCH ShutdownWatchdogSec=3600
+
+    echo "Unsetting removes the file"
+    snap set core watchdog.runtime-timeout=0s
+    snap set core watchdog.shutdown-timeout=0s
+    if [ -f $WATCHDOG_FILE ]; then
+        echo "Empty watchdog config should remove config file but did not"
+        exit 1
+    fi
