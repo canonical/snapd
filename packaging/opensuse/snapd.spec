@@ -242,6 +242,7 @@ install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,desktop/applications
 
 install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/vulkan}
 install -d %{buildroot}%{_localstatedir}/cache/snapd
+install -d %{buildroot}%{_datadir}/polkit-1/actions
 install -d %{buildroot}%{snap_mount_dir}/bin
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
@@ -255,6 +256,9 @@ for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repai
 done
 # Remove snappy core specific scripts
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
+
+# Install Polkit configuration
+install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
@@ -337,6 +341,8 @@ fi
 %dir %{_sharedstatedir}/snapd/lib/gl32
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
+%dir %{_datadir}/polkit-1
+%dir %{_datadir}/polkit-1/actions
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.*
 %{_mandir}/man5/snap-discard-ns.5.*
@@ -372,6 +378,7 @@ fi
 %{_mandir}/man1/snap.1.*
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
+%{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %{_libexecdir}/snapd/snapd.run-from-snap
 %if %{with apparmor}
