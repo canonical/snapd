@@ -26,9 +26,22 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // check helpers
+
+func snapIDSnapd(snapID string) bool {
+	var snapIDsSnapd = []string{
+		// production
+		"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+		// staging
+		"todo-staging-snapd-id",
+		// tests
+		"snapd-snap-ididididididididididi",
+	}
+	return strutil.ListContains(snapIDsSnapd, snapID)
+}
 
 func checkSnapType(snap *snap.Info, types []string) error {
 	if len(types) == 0 {
@@ -36,7 +49,7 @@ func checkSnapType(snap *snap.Info, types []string) error {
 	}
 	snapID := snap.SnapID
 	s := string(snap.Type)
-	if s == "os" || snapID == "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4" || snapID == "todo-staging-snapd-id" {
+	if s == "os" || snapIDSnapd(snapID) {
 		// we use "core" in the assertions and we need also to
 		// allow for the "snapd" snap
 		s = "core"
