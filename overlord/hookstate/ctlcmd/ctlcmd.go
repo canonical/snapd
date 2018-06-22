@@ -104,13 +104,6 @@ func (f *ForbiddenCommand) Execute(args []string) error {
 	return f
 }
 
-func (f *ForbiddenCommand) setStdout(w io.Writer)                 {}
-func (f *ForbiddenCommand) setStderr(w io.Writer)                 {}
-func (f *ForbiddenCommand) setContext(context *hookstate.Context) {}
-func (f *ForbiddenCommand) context() *hookstate.Context {
-	return nil
-}
-
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
@@ -119,17 +112,18 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
-		var cmd command
+		var data interface{}
 		// commands listed here will be allowed for regular users
 		if uid == 0 || name == "get" {
-			cmd = cmdInfo.generator()
+			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)
 			cmd.setContext(context)
+			data = cmd
 		} else {
-			cmd = &ForbiddenCommand{Uid: uid, Name: name}
+			data = &ForbiddenCommand{Uid: uid, Name: name}
 		}
-		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
+		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
 		}
