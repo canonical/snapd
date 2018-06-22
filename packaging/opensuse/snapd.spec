@@ -33,7 +33,7 @@
 %endif
 
 # Define the variable for systemd generators, if missing.
-%{!?systemdgeneratordir: %global systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
+%{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 
 %global provider        github
 %global provider_tld    com
