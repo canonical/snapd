@@ -9906,6 +9906,10 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// snapd cannot be installed unless the model uses a base snap
+	restore := snapstate.MockModelWithBase("core18")
+	defer restore()
+
 	// but snapd do not for install
 	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
