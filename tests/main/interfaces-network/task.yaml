@@ -1,6 +1,7 @@
 summary: Ensure network interface works.
 
-systems: [-fedora-*, -opensuse-*]
+# core18 has no "nc"
+systems: [-fedora-*, -opensuse-*, -ubuntu-core-18-*]
 
 details: |
     The network interface allows a snap to access the network as a client.
