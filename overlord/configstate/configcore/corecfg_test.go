@@ -121,7 +121,7 @@ func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 	} {
 		conf := &mockConf{
 			state: r.state,
-			conf: map[string]interface{}{
+			changes: map[string]interface{}{
 				setting: value,
 			},
 		}
@@ -157,4 +157,21 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 
 	err := configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
+}
+
+func (r *runCfgSuite) TestConfigureKnownOption(c *C) {
+	for setting, value := range map[string]interface{}{
+		"experimental.layouts":            true,
+		"experimental.parallel-instances": false,
+	} {
+		conf := &mockConf{
+			state: r.state,
+			changes: map[string]interface{}{
+				setting: value,
+			},
+		}
+
+		err := configcore.Run(conf)
+		c.Check(err, IsNil)
+	}
 }
