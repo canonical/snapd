@@ -514,21 +514,21 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		var featureFlagLayouts bool
-		if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
+		var flag bool
+		if err := tr.GetMaybe("core", "experimental.layouts", &flag); err != nil {
 			return err
 		}
-		if !featureFlagLayouts {
+		if !flag {
 			return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
 		}
 	}
 
 	if info.InstanceKey != "" {
-		var featureFlagParallelInstall bool
-		if err := tr.GetMaybe("core", "experimental.parallel-installs", &featureFlagParallelInstall); err != nil {
+		var flag bool
+		if err := tr.GetMaybe("core", "experimental.parallel-installs", &flag); err != nil {
 			return err
 		}
-		if !featureFlagParallelInstall {
+		if !flag {
 			return fmt.Errorf("cannot use experimental 'parallel-installs' feature, set option 'experimental.parallel-installs' to true and try again")
 		}
 	}
