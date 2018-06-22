@@ -21,6 +21,16 @@ prepare_state() {
     mkdir -p "$SNAPD_STATE_PATH" "$RUNTIME_STATE_PATH"
 }
 
+is_snapd_state_saved() {
+    if is_core_system && [ -d "$SNAPD_STATE_PATH"/snapd-lib ]; then
+        return 0
+    elif is_classic_system && [ -f "$SNAPD_STATE_FILE" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 save_snapd_state() {
     if is_core_system; then
         boot_path="$(get_boot_path)"
