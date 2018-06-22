@@ -309,6 +309,7 @@ case ":$PATH:" in
         ;;
     *)
         echo "Please reboot, logout/login or source /etc/profile to have /snap/bin added to PATH."
+        echo "On a Tumbleweed system you need to run: systemctl enable snapd.apparmor.service"
         ;;
 esac
 
