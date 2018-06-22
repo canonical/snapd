@@ -92,15 +92,15 @@ BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
 BuildRequires:  xz
 
-# Make sure we are on Leap 42.2/SLE 12 SP2 or higher
-%if 0%{?sle_version} >= 120200 || 0%{?suse_version} >= 1500
-BuildRequires: systemd-rpm-macros
+%if %{with apparmor}
+BuildRequires:  apparmor-rpm-macros
 %endif
 
 PreReq:         permissions
 
 Requires(post): permissions
 Requires:       apparmor-parser
+Requires:       apparmor-profiles
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
@@ -287,6 +287,9 @@ rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
+%if %{with apparmor}
+%apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
+%endif
 %service_add_post %{systemd_services_list}
 case ":$PATH:" in
     *:/snap/bin:*)
