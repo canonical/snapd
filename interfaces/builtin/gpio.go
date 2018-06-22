@@ -108,7 +108,7 @@ func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 		return err
 	}
 
-	serviceName := interfaces.InterfaceServiceName(slot.Snap().Name(), fmt.Sprintf("gpio-%d", gpioNum))
+	serviceName := interfaces.InterfaceServiceName(slot.Snap().InstanceName(), fmt.Sprintf("gpio-%d", gpioNum))
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,

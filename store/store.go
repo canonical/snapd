@@ -1325,6 +1325,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
 	}
 
@@ -1358,6 +1359,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			os.Remove(w.Name())
 		}
 	}()
+	if resume > 0 {
+		logger.Debugf("Resuming download of %q at %d.", partialPath, resume)
+	} else {
+		logger.Debugf("Starting download of %q.", partialPath)
+	}
 
 	authAvail, err := s.authAvailable(user)
 	if err != nil {
@@ -1391,6 +1397,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
+		logger.Debugf("Truncating and trying again from scratch.")
 		err = w.Truncate(0)
 		if err != nil {
 			return err
@@ -1446,6 +1453,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := downloadOptions(storeURL, cdnHeader)
@@ -1504,7 +1512,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		if pbar == nil {
 			pbar = progress.Null
 		}
-		pbar.Start(name, float64(resp.ContentLength))
+		dlSize = float64(resp.ContentLength)
+		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
@@ -1530,6 +1539,20 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			finalErr = HashError{name, actualSha3, sha3_384}
 		}
 		break
+	}
+	if finalErr == nil {
+		// not using quantity.FormatFoo as this is just for debug
+		dt := time.Since(startTime)
+		r := dlSize / dt.Seconds()
+		var p rune
+		for _, p = range " kMGTPEZY" {
+			if r < 1000 {
+				break
+			}
+			r /= 1000
+		}
+
+		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
 }
@@ -2113,6 +2136,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 		}
 
+		// TODO parallel-install: use of proper instance/store name
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
 			InstanceKey:      instanceKey,

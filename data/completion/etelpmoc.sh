@@ -1,4 +1,4 @@
-#!/bin/bash
+# shellcheck shell=bash
 #
 #  Copyright (C) 2017 Canonical Ltd
 #
@@ -90,6 +90,10 @@ compgen() {
         case "$opt" in
             o)
                 _compopts["$OPTARG"]=1
+                ;;
+            *)
+                # Do nothing, explicitly. This silences shellcheck's detector
+                # of unhandled command line options.
                 ;;
         esac
     done
@@ -209,4 +213,4 @@ fi
 echo "${!_compopts[@]}"
 echo "$_bounce"
 echo ""
-printf "%s\n" "${COMPREPLY[@]}"
+printf "%s\\n" "${COMPREPLY[@]}"

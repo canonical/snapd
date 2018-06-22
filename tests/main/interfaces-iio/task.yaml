@@ -22,7 +22,8 @@ prepare: |
     echo "iio-0" > /dev/iio:device0
 
     echo "Given a snap declaring a plug on iio is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local iio-consumer
 
     echo "And the iio plug is connected"
@@ -36,13 +37,14 @@ restore: |
     rm -f /dev/iio:device0
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    test "`$SNAP_MOUNT_DIR/bin/iio-consumer.read`" = "iio-0"
+    test "$($SNAP_MOUNT_DIR/bin/iio-consumer.read)" = "iio-0"
 
     $SNAP_MOUNT_DIR/bin/iio-consumer.write "hello"
-    test "`$SNAP_MOUNT_DIR/bin/iio-consumer.read`" = "hello"
+    test "$($SNAP_MOUNT_DIR/bin/iio-consumer.read)" = "hello"
