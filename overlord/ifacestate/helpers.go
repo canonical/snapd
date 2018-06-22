@@ -319,6 +319,7 @@ type connState struct {
 	// Undesired tracks connections that were manually disconnected after being auto-connected,
 	// so that they are not automatically reconnected again in the future.
 	Undesired        bool                   `json:"undesired,omitempty"`
+	HotplugRemoved   bool                   `json:"hotplug-removed,omitempty"`
 	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`

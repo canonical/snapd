@@ -580,6 +580,7 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+	Hotplug   bool
 }
 
 // SocketInfo provides information on application sockets.
