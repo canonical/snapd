@@ -44,10 +44,16 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
 	}
-	if cfg.conf[key] != nil {
+
+	var value interface{}
+	value = cfg.changes[key]
+	if value == nil {
+		value = cfg.conf[key]
+	}
+	if value != nil {
 		v1 := reflect.ValueOf(result)
 		v2 := reflect.Indirect(v1)
-		v2.Set(reflect.ValueOf(cfg.conf[key]))
+		v2.Set(reflect.ValueOf(value))
 	}
 	return cfg.err
 }
@@ -66,7 +72,7 @@ func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 func (cfg *mockConf) Changes() []string {
 	out := make([]string, 0, len(cfg.changes))
 	for k := range cfg.changes {
-		out = append(out, k)
+		out = append(out, "core."+k)
 	}
 	return out
 }
@@ -150,5 +156,5 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 	}
 
 	err := configcore.Run(conf)
-	c.Check(err, ErrorMatches, `cannot set "unknown.option": unsupported system option`)
+	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }
