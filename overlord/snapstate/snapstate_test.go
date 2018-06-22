@@ -9788,11 +9788,11 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	}
 
 	err := snapstate.ValidateFeatureFlags(s.state, info)
-	c.Assert(err, ErrorMatches, `cannot use experimental 'parallel-installs' feature, set option 'experimental.parallel-installs' to true and try again`)
+	c.Assert(err, ErrorMatches, `cannot use experimental 'parallel-instances' feature, set option 'experimental.parallel-instances' to true and try again`)
 
-	// enable parallel installs
+	// enable parallel instances
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-installs", true)
+	tr.Set("core", "experimental.parallel-instances", true)
 	tr.Commit()
 
 	err = snapstate.ValidateFeatureFlags(s.state, info)
