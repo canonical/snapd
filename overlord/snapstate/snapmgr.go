@@ -120,6 +120,10 @@ type SnapState struct {
 
 	// UserID of the user requesting the install
 	UserID int `json:"user-id,omitempty"`
+
+	// InstanceKey is set by the user during installation and differs for
+	// each instance of given snap
+	InstanceKey string `json:"instance-key,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -259,7 +263,15 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(cur.RealName, cur, 0)
+
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
+	info, err := readInfo(name, cur, 0)
+	if err != nil {
+		return nil, err
+	}
+	info.InstanceKey = snapst.InstanceKey
+
+	return info, nil
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
