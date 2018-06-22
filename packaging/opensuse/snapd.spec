@@ -341,6 +341,8 @@ fi
 %dir %{_sharedstatedir}/snapd/lib/gl32
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
+%dir %{_datadir}/dbus-1
+%dir %{_datadir}/dbus-1/services
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
