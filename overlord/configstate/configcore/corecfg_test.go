@@ -110,8 +110,8 @@ var _ = Suite(&runCfgSuite{})
 
 func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 	for setting, value := range map[string]interface{}{
-		"experimental.layouts":           "foo",
-		"experimental.parallel-installs": "foo",
+		"experimental.layouts":            "foo",
+		"experimental.parallel-instances": "foo",
 	} {
 		conf := &mockConf{
 			state: r.state,
@@ -126,7 +126,7 @@ func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 }
 
 func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, setting := range []string{"experimental.layouts", "experimental.parallel-installs"} {
+	for _, setting := range []string{"experimental.layouts", "experimental.parallel-instances"} {
 		for _, t := range []string{"true", "false"} {
 			conf := &mockConf{
 				state: r.state,

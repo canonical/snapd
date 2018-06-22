@@ -525,11 +525,11 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 
 	if info.InstanceKey != "" {
 		var flag bool
-		if err := tr.GetMaybe("core", "experimental.parallel-installs", &flag); err != nil {
+		if err := tr.GetMaybe("core", "experimental.parallel-instances", &flag); err != nil {
 			return err
 		}
 		if !flag {
-			return fmt.Errorf("cannot use experimental 'parallel-installs' feature, set option 'experimental.parallel-installs' to true and try again")
+			return fmt.Errorf("cannot use experimental 'parallel-instances' feature, set option 'experimental.parallel-instances' to true and try again")
 		}
 	}
 

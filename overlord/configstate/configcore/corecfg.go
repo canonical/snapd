@@ -75,7 +75,7 @@ func validateExperimentalSettings(tr Conf) error {
 	if err := validateBoolFlag(tr, "experimental.layouts"); err != nil {
 		return err
 	}
-	if err := validateBoolFlag(tr, "experimental.parallel-installs"); err != nil {
+	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
 		return err
 	}
 	return nil
