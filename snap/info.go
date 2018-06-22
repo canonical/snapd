@@ -999,19 +999,19 @@ func DropNick(nick string) string {
 }
 
 // StoreName splits the instance name and returns the store name of the snap.
-func StoreName(name string) string {
-	return strings.SplitN(name, "_", 2)[0]
+func StoreName(instanceName string) string {
+	return strings.SplitN(instanceName, "_", 2)[0]
 }
 
 // SplitInstanceName splits the instance name and returns the store name and the
 // instance key.
-func SplitInstanceName(name string) (store string, instanceKey string) {
-	split := strings.SplitN(name, "_", 2)
-	store = split[0]
+func SplitInstanceName(instanceName string) (storeName, instanceKey string) {
+	split := strings.SplitN(instanceName, "_", 2)
+	storeName = split[0]
 	if len(split) > 1 {
 		instanceKey = split[1]
 	}
-	return store, instanceKey
+	return storeName, instanceKey
 }
 
 // InstanceName takes the store name and the instance key and returns an instance
