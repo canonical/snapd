@@ -36,7 +36,7 @@ prepare: |
     #shellcheck disable=SC2153
     systemd_create_and_start_unit "$SERVICE_NAME" "$(readlink -f "$SERVICE_FILE")"
     # shellcheck source=tests/lib/network.sh
-    . $TESTSLIB/network.sh
+    . "$TESTSLIB"/network.sh
     wait_listen_port "$PORT"
 
     echo "And we store a basic HTTP request"
