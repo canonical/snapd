@@ -25,14 +25,13 @@ import yaml
 # default shell for shellcheck
 SHELLCHECK_SHELL = os.getenv('SHELLCHECK_SHELL', 'bash')
 # set to non-empty to ignore all errors
-NO_FAIL = os.getenv('NO_FAIL', None)
+NO_FAIL = os.getenv('NO_FAIL')
 # set to non empty to enable 'set -x'
-D = os.getenv('D', None)
+D = os.getenv('D')
 # set to non-empty to enable verbose logging
-V = os.getenv('V', None)
-# file with list of test file that must successfully validate, one file per
-# line
-MUST_PASS = os.getenv('MUST_PASS', None)
+V = os.getenv('V')
+# file with list of files that can fail validation
+CAN_FAIL = os.getenv('CAN_FAIL')
 
 # names of sections
 SECTIONS = ['prepare', 'prepare-each', 'restore', 'restore-each',
@@ -47,9 +46,9 @@ def parse_arguments():
                         default=False, help='ignore all errors ')
     parser.add_argument('-v', '--verbose', action='store_true',
                         default=False, help='verbose logging')
-    parser.add_argument('--must-pass', default=None,
-                        help=('file with list of files that are required '
-                              'to be valid (regardless of --no-errors flag)'))
+    parser.add_argument('--can-fail', default=None,
+                        help=('file with list of files that are can fail '
+                              'validation'))
     parser.add_argument('paths', nargs='+', help='paths to check')
     return parser.parse_args()
 
@@ -87,6 +86,9 @@ class ShellcheckFailures(Exception):
 
     def intersection(self, other):
         return self.failures.intersection(other)
+
+    def difference(self, other):
+        return self.failures.difference(other)
 
     def __iter__(self):
         return iter(self.failures)
@@ -170,13 +172,13 @@ def checkpath(loc):
         raise ShellcheckFailures(failures=failed)
 
 
-def loadmusts(mustpath):
-    musts = set()
-    with open(mustpath) as mf:
-        for line in mf.readlines():
+def loadfilelist(flistpath):
+    flist = set()
+    with open(flistpath) as inf:
+        for line in inf:
             if not line.startswith('#'):
-                musts.add(line.strip())
-    return musts
+                flist.add(line.strip())
+    return flist
 
 
 def main(opts):
@@ -189,15 +191,27 @@ def main(opts):
             failures.merge(sf)
 
     if failures:
-        if opts.must_pass:
-            musts = loadmusts(opts.must_pass)
+        if opts.can_fail:
+            can_fail = loadfilelist(opts.can_fail)
 
-            failed = failures.intersection(musts)
-            if failed:
+            unexpected = failures.difference(can_fail)
+            if unexpected:
                 logging.error(('validation failed for the following '
-                               'required files:\n%s'),
-                              '\n'.join([' - ' + f for f in sorted(failed)]))
+                               'non-whitelisted files:\n%s'),
+                              '\n'.join([' - ' + f for f in
+                                         sorted(unexpected)]))
                 raise SystemExit(1)
+
+            did_not_fail = can_fail - failures.intersection(can_fail)
+            if did_not_fail:
+                logging.error(('the following files are whitelisted '
+                               'but validated successfully:\n%s'),
+                              '\n'.join([' - ' + f for f in
+                                         sorted(did_not_fail)]))
+                raise SystemExit(1)
+
+            # no unexpected failures
+            return
 
         logging.error('validation failed for the following files:\n%s',
                       '\n'.join([' - ' + f for f in sorted(failures)]))
@@ -216,8 +230,8 @@ if __name__ == '__main__':
         lvl = logging.INFO
     logging.basicConfig(level=lvl)
 
-    if MUST_PASS:
-        opts.must_pass = MUST_PASS
+    if CAN_FAIL:
+        opts.can_fail = CAN_FAIL
 
     if NO_FAIL:
         opts.no_errors = True

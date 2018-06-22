@@ -136,7 +136,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 		return false
 	}
 	fmt.Fprintf(w, "path:\t%q\n", path)
-	fmt.Fprintf(w, "name:\t%s\n", info.Name())
+	fmt.Fprintf(w, "name:\t%s\n", info.InstanceName())
 	fmt.Fprintf(w, "summary:\t%s\n", formatSummary(info.Summary()))
 
 	var notes *Notes
