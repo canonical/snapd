@@ -92,12 +92,12 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 }
 
 type ForbiddenCommand struct {
-	Uid     uint32
-	Command string
+	Uid  uint32
+	Name string
 }
 
 func (f ForbiddenCommand) Error() string {
-	return fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Command, f.Uid)
+	return fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)
 }
 
 func (f *ForbiddenCommand) Execute(args []string) error {
@@ -112,7 +112,7 @@ func (f *ForbiddenCommand) context() *hookstate.Context {
 }
 
 // Run runs the requested command.
-func Run(uid uint32, context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
+func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
@@ -127,7 +127,7 @@ func Run(uid uint32, context *hookstate.Context, args []string) (stdout, stderr 
 			cmd.setStderr(&stderrBuffer)
 			cmd.setContext(context)
 		} else {
-			cmd = &ForbiddenCommand{Uid: uid, Command: name}
+			cmd = &ForbiddenCommand{Uid: uid, Name: name}
 		}
 		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		if err != nil {

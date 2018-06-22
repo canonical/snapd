@@ -191,7 +191,7 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 		)
 	})
 	defer restore()
-	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"stop", "test-snap.test-service"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.test-service"}, 0)
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
@@ -203,7 +203,7 @@ func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
 		serviceChangeFuncCalled = true
 	})
 	defer restore()
-	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"stop", "test-snap.fooservice"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "test-snap.fooservice"}, 0)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `unknown service: "test-snap.fooservice"`)
 	c.Assert(serviceChangeFuncCalled, Equals, false)
@@ -216,7 +216,7 @@ func (s *servicectlSuite) TestStopCommandFailsOnOtherSnap(c *C) {
 	})
 	defer restore()
 	// verify that snapctl is not allowed to control services of other snaps (only the one of its hook)
-	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"stop", "other-snap.test-service"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"stop", "other-snap.test-service"}, 0)
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, `unknown service: "other-snap.test-service"`)
 	c.Assert(serviceChangeFuncCalled, Equals, false)
@@ -238,7 +238,7 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 		)
 	})
 	defer restore()
-	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"start", "test-snap.test-service"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"}, 0)
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
@@ -260,7 +260,7 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 		)
 	})
 	defer restore()
-	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"restart", "test-snap.test-service"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap.test-service"}, 0)
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
@@ -281,7 +281,7 @@ func (s *servicectlSuite) TestConflictingChange(c *C) {
 	chg.AddTask(task)
 	s.st.Unlock()
 
-	_, _, err := ctlcmd.Run(0, s.mockContext, []string{"start", "test-snap.test-service"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"}, 0)
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, `snap "test-snap" has "conflicting change" change in progress`)
 }
@@ -310,11 +310,11 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 		c.Assert(err, IsNil)
 
-		_, _, err = ctlcmd.Run(0, context, []string{"stop", "test-snap.test-service"})
+		_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
-		_, _, err = ctlcmd.Run(0, context, []string{"start", "test-snap.test-service"})
+		_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
-		_, _, err = ctlcmd.Run(0, context, []string{"restart", "test-snap.test-service"})
+		_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
 	}
 
@@ -362,11 +362,11 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 		c.Assert(err, IsNil)
 
-		_, _, err = ctlcmd.Run(0, context, []string{"stop", "test-snap.test-service"})
+		_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
-		_, _, err = ctlcmd.Run(0, context, []string{"start", "test-snap.test-service"})
+		_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
-		_, _, err = ctlcmd.Run(0, context, []string{"restart", "test-snap.test-service"})
+		_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
 	}
 
@@ -402,11 +402,11 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	_, _, err = ctlcmd.Run(0, context, []string{"stop", "test-snap.test-service"})
+	_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"}, 0)
 	c.Check(err, IsNil)
-	_, _, err = ctlcmd.Run(0, context, []string{"start", "test-snap.test-service"})
+	_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"}, 0)
 	c.Check(err, IsNil)
-	_, _, err = ctlcmd.Run(0, context, []string{"restart", "test-snap.test-service"})
+	_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"}, 0)
 	c.Check(err, IsNil)
 
 	s.st.Lock()

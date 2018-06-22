@@ -6127,8 +6127,8 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 		return 100, 9999, dirs.SnapSocket, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
-	ctlcmdRun = func(uid uint32, ctx *hookstate.Context, arg []string) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.ForbiddenCommand{Uid: uid, Command: "foo"}
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.ForbiddenCommand{Uid: uid, Name: "foo"}
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
