@@ -759,6 +759,10 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	}
 	for _, slotInfo := range r.slots[snapName] {
 		for plugInfo := range r.slotPlugs[slotInfo] {
+			// self-connection, ignore here as we got it already in the plugs loop above
+			if plugInfo.Snap == slotInfo.Snap {
+				continue
+			}
 			connRef := NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}

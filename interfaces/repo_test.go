@@ -35,6 +35,7 @@ type RepositorySuite struct {
 	testutil.BaseTest
 	iface     Interface
 	plug      *snap.PlugInfo
+	plugSelf  *snap.PlugInfo
 	slot      *snap.SlotInfo
 	coreSnap  *snap.Info
 	emptyRepo *Repository
@@ -78,8 +79,13 @@ slots:
         interface: interface
         label: label
         attr: value
+plugs:
+    self:
+        interface: interface
+        label: label
 `, nil)
 	s.slot = producer.Slots["slot"]
+	s.plugSelf = producer.Plugs["self"]
 	// NOTE: The core snap has a slot so that it shows up in the
 	// repository. The repository doesn't record snaps unless they
 	// have at least one interface.
@@ -1270,6 +1276,21 @@ func (s *RepositorySuite) TestConnections(c *C) {
 	conns, err = s.testRepo.Connections("abc")
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestConnectionsWithSelfConnected(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plugSelf), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plugSelf, s.slot), nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.Connections(s.plugSelf.Snap.InstanceName())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plugSelf, s.slot)})
+
+	conns, err = s.testRepo.Connections(s.slot.Snap.InstanceName())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plugSelf, s.slot)})
 }
 
 // Tests for Repository.DisconnectAll()
