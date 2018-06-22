@@ -140,7 +140,6 @@ tests/main/ubuntu-core-fan/task.yaml
 tests/main/ubuntu-core-gadget-config-defaults/task.yaml
 tests/main/ubuntu-core-reboot/task.yaml
 tests/main/ubuntu-core-services/task.yaml
-tests/main/ubuntu-core-snapd-run-from-snap/task.yaml
 tests/main/ubuntu-core-upgrade/task.yaml
 tests/main/ubuntu-core-writablepaths/task.yaml
 tests/main/unhandled-task/task.yaml
