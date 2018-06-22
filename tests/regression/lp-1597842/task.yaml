@@ -4,7 +4,7 @@ details: |
     directory from the classic distribution. Certain snaps may use that to
     access kernel sources.
 # This test only applies to classic systems
-systems: [-ubuntu-core-16-*, -fedora-*, -arch-*]
+systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 prepare: |
     echo "Having installed the test snap"
     . "$TESTSLIB/snaps.sh"

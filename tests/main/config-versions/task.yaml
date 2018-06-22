@@ -1,6 +1,6 @@
 summary: Check that snap configuration is maintained on per-revision basis.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 details: |
     This test ensures that snap configuration is mainted per snap revision
