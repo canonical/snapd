@@ -1,5 +1,8 @@
 summary: Check remove command errors
 
+# core18: on core18 the "core" snap is removable
+systems: [-ubuntu-core-18-*]
+
 execute: |
     echo "Given a core snap is installed"
     . "$TESTSLIB/snaps.sh"
