@@ -91,17 +91,21 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 	}
 }
 
+type ForbiddenCommandError struct {
+	Message string
+}
+
+func (f ForbiddenCommandError) Error() string {
+	return f.Message
+}
+
 type ForbiddenCommand struct {
 	Uid  uint32
 	Name string
 }
 
-func (f ForbiddenCommand) Error() string {
-	return fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)
-}
-
 func (f *ForbiddenCommand) Execute(args []string) error {
-	return f
+	return &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)}
 }
 
 // Run runs the requested command.
