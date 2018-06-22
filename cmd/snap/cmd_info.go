@@ -401,9 +401,11 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		// TODO: have publisher; use publisher here,
-		// and additionally print developer if publisher != developer
-		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
+		publisher := "–" // that's an en dash (so yaml is happy)
+		if both.Publisher != nil {
+			publisher = both.Publisher.Username
+		}
+		fmt.Fprintf(w, "publisher:\t%s\n", publisher)
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
