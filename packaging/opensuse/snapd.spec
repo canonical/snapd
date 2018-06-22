@@ -32,6 +32,9 @@
 %global _sharedstatedir %{_localstatedir}/lib
 %endif
 
+# Define the variable for systemd generators, if missing.
+%{!?systemdgeneratordir: %global systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
+
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
@@ -347,8 +350,7 @@ fi
 %dir %{_sharedstatedir}/snapd/lib/gl32
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
-# The {_systemdgeneratordir} macro seems to exist only in tumbleweed so it's not used here.
-%dir /usr/lib/systemd/system-generators
+%dir %{_systemdgeneratordir}
 %dir %{_datadir}/dbus-1
 %dir %{_datadir}/dbus-1/services
 %dir %{_datadir}/polkit-1
