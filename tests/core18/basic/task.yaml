@@ -15,3 +15,8 @@ execute: |
     echo "Check that snapd tools for core18 works"
     snap install test-snapd-tools-core18
     test-snapd-tools-core18.echo hello | MATCH hello
+
+    if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
+        echo "No the build-id of snapd is should not be empty."
+        exit 1
+    fi
