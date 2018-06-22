@@ -114,10 +114,8 @@ func (s *getSuite) TestSetRegularUserForbidden(c *C) {
 	_, _, err = ctlcmd.Run(mockContext, []string{"set", "test-key1"}, 1000)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot use "set" with uid 1000, try with sudo`)
-	forbidden, _ := err.(*ctlcmd.ForbiddenCommand)
+	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
-	c.Assert(forbidden.Uid, Equals, uint32(1000))
-	c.Assert(forbidden.Name, Equals, "set")
 }
 
 func (s *getSuite) TestSetHelpRegularUserAllowed(c *C) {
