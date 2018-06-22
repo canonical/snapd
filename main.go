@@ -24,7 +24,7 @@ var (
 func init() {
 	filePath = flag.String("file", "", "Optionnal input file path with matcher-rules (default: no matcher)")
 	monitorMode = flag.Bool("monitor", false, "Enable monitor mode")
-	infoMode = flag.Bool("info", false, "Enable monitor mode")
+	infoMode = flag.Bool("info", false, "Enable crawler mode")
 }
 
 func main() {
@@ -73,7 +73,11 @@ func info(matcher netlink.Matcher) {
 	// Handling message from queue
 	for {
 		select {
-		case device := <-queue:
+		case device, more := <-queue:
+			if !more {
+				log.Printf("Finished processing existing devices\n")
+				return
+			}
 			log.Printf("Detect device at %s with env %v\n", device.KObj, device.Env)
 		case err := <-errors:
 			log.Printf("ERROR: %v", err)
