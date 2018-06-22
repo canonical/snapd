@@ -54,7 +54,8 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 // supportedConfigurations will be filled in by the files (like proxy.go)
 // that handle this configuration.
 var supportedConfigurations = map[string]bool{
-	"core.experimental.layouts": true,
+	"core.experimental.layouts":            true,
+	"core.experimental.parallel-instances": true,
 }
 
 func validateBoolFlag(tr Conf, flag string) error {
