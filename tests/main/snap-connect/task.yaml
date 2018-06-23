@@ -24,14 +24,14 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     snap disconnect home-consumer:home
-    snap tasks --last=disconnect| MATCH "Disconnect .* from core:home"
+    snap tasks --last=disconnect| MATCH "Disconnect .* from (core|snapd):home"
 
     echo "The plug can be connected to a slot on the core snap using abbreviated syntax"
     snap connect home-consumer:home :home
 
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    snap tasks --last=connect| MATCH "Connect home-consumer:home to core:home"
+    snap tasks --last=connect| MATCH "Connect home-consumer:home to (core|snapd):home"
 
     # NOTE: Those only work when installed from the store as otherwise we don't
     # have snap declaration assertion and cannot check if a given connection
