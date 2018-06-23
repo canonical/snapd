@@ -4,11 +4,13 @@ systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
 
 prepare: |
     echo "Given a snap with an avahi-observe interface plug is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_generic_consumer avahi-observe,unity7
 
     echo "And avahi-daemon is installed and configured"
-    . $TESTSLIB/pkgdb.sh
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     distro_install_package avahi-daemon
     sed -i 's/^#enable-dbus=yes/enable-dbus=yes/' /etc/avahi/avahi-daemon.conf
     if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]]; then
@@ -20,20 +22,23 @@ prepare: |
     fi
 
 restore: |
-    rm -f *.error
-    . $TESTSLIB/pkgdb.sh
+    rm -f ./*.error
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     distro_purge_package avahi-daemon
     distro_auto_remove_packages
 
 execute: |
-    avahi_dbus_call="dbus-send --system --print-reply --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetHostName"
+    avahi_dbus_call() {
+        generic-consumer.cmd dbus-send --system --print-reply --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetHostName
+    }
 
     echo "Then the plug is disconnected by default"
-    snap interfaces -i avahi-observe | MATCH "^\- +generic-consumer:avahi-observe"
+    snap interfaces -i avahi-observe | MATCH '^\- +generic-consumer:avahi-observe'
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And the snap is not able to access avahi provided info"
-        if generic-consumer.cmd $avahi_dbus_call 2>avahi.error; then
+        if avahi_dbus_call 2>avahi.error; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
@@ -45,4 +50,4 @@ execute: |
 
     echo "Then the snap is able to access avahi provided info"
     hostname=$(hostname)
-    generic-consumer.cmd $avahi_dbus_call | MATCH "$hostname"
+    avahi_dbus_call | MATCH "$hostname"

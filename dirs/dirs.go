@@ -104,6 +104,8 @@ var (
 
 	FreezerCgroupDir string
 	SnapshotsDir     string
+
+	ErrtrackerDbDir string
 )
 
 const (
@@ -176,7 +178,7 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	if release.DistroLike("fedora", "arch", "manjaro") {
+	if release.DistroLike("fedora", "archlinux", "manjaro") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -261,4 +263,6 @@ func SetRootDir(rootdir string) {
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
+
+	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 }

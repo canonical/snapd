@@ -179,6 +179,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 			"# Layout path: /var/tmp\n/var/tmp{,/**} mrwklix,",
 		},
 	})
+	updateNS := s.spec.UpdateNS()
 
 	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
   mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
@@ -210,6 +211,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
 `
+	c.Assert(updateNS[0], Equals, profile0)
+
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
   mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
   umount /usr/foo/,
@@ -242,6 +245,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
 `
+	c.Assert(updateNS[1], Equals, profile1)
+
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
   /var/cache/mylink rw,
   # Writable mimic /var/cache
@@ -258,6 +263,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
 `
+	c.Assert(updateNS[2], Equals, profile2)
+
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
   mount fstype=tmpfs tmpfs -> /var/tmp/,
   umount /var/tmp/,
@@ -273,10 +280,79 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
 `
-	updateNS := s.spec.UpdateNS()
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS[1], Equals, profile1)
-	c.Assert(updateNS[2], Equals, profile2)
 	c.Assert(updateNS[3], Equals, profile3)
 	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
+}
+
+func (s *specSuite) TestChopTree(c *C) {
+	for _, tc := range []struct {
+		p    string   // path
+		d    int      // depth
+		l, r []string // left and right path expressions
+		e    string   // error pattern, if non-empty
+	}{
+		// Test case from the documentation of the function.
+		{p: "/foo/bar/froz/baz/", d: 3, // Assume first three directories exist
+			l: []string{"/", "/foo/", "/foo/bar/"},
+			// Assume that /foo/bar/froz and beyond may be missing
+			r: []string{"/foo/bar/*", "/foo/bar/*/", "/foo/bar/froz/*", "/foo/bar/froz/*/"}},
+
+		// Exhaustive test cases for directory paths.
+
+		{p: "/foo/bar/froz/", d: 0, // Assume that no directories exist (and '/' does not have 'w')
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 1, // Assume that the root directory exists
+			l: []string{"/"},
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 2, // Assume that /foo/ exists.
+			l: []string{"/", "/foo/"},
+			r: []string{"/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 3, // Assume that /foo/bar/ exists.
+			l: []string{"/", "/foo/", "/foo/bar/"},
+			r: []string{"/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz/", d: 4, // Assume that /foo/bar/froz/ exists.
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz/"}},
+
+		// Exhaustive test cases for file paths.
+
+		{p: "/foo/bar/froz", d: 0, // Assume that no directories exist (and '/' does not have 'w')
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 1, // Assume that the root directory exists
+			l: []string{"/"},
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 2, // Assume that /foo/ exists.
+			l: []string{"/", "/foo/"},
+			r: []string{"/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 3, // Assume that /foo/bar/ exists.
+			l: []string{"/", "/foo/", "/foo/bar/"},
+			r: []string{"/foo/bar/*", "/foo/bar/*/"}},
+		{p: "/foo/bar/froz", d: 4, // Assume that /foo/bar/froz exists.
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz"}},
+
+		// Assumed prefix depth larger than actual path depth is harmless.
+		{p: "/foo/bar/froz/", d: 5,
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz/"}},
+		{p: "/foo/bar/froz", d: 5,
+			l: []string{"/", "/foo/", "/foo/bar/", "/foo/bar/froz"}},
+
+		// Unclean paths are not allowed.
+		{p: "/foo/../bar", d: 1, e: "cannot chop unclean path: .*"},
+		{p: "/foo//bar", d: 1, e: "cannot chop unclean path: .*"},
+		{p: "foo/../bar", d: 1, e: "cannot chop unclean path: .*"},
+		{p: "foo//bar", d: 1, e: "cannot chop unclean path: .*"},
+
+		// https://twitter.com/thebox193/status/654457902208557056
+		{p: "/foo/bar/froz/", d: -1,
+			r: []string{"/*", "/*/", "/foo/*", "/foo/*/", "/foo/bar/*", "/foo/bar/*/"}},
+	} {
+		l, r, err := apparmor.ChopTree(tc.p, tc.d)
+		comment := Commentf("test case: %#v", tc)
+		if tc.e == "" {
+			c.Assert(err, IsNil, comment)
+			c.Assert(l, DeepEquals, tc.l, comment)
+			c.Assert(r, DeepEquals, tc.r, comment)
+		} else {
+			c.Assert(err, ErrorMatches, tc.e, comment)
+		}
+	}
 }

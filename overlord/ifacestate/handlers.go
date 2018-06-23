@@ -84,41 +84,17 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	// We no longer do/need core-phase-2, see
+	//   https://github.com/snapcore/snapd/pull/5301
+	// This code is just here to deal with old state that may still
+	// have the 2nd setup-profiles with this flag set.
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
 		return err
 	}
 	if corePhase2 {
-		// invoke guard logic for core snap security setup
-		// phase 2 implemented by snapstate
-		proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, snapInfo)
-		if err != nil {
-			return err
-		}
-		if !proceed {
-			return nil
-		}
-
-		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
-		// Inject it for core after the 2nd setup-profiles - same placement as done in doInstall.
-		// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
-		var hasAutoConnect bool
-		for _, t := range task.Change().Tasks() {
-			if t.Kind() == "auto-connect" {
-				otherSnapsup, err := snapstate.TaskSnapSetup(t)
-				if err != nil {
-					return err
-				}
-				// Check if this is auto-connect task for same snap
-				if snapsup.Name() == otherSnapsup.Name() {
-					hasAutoConnect = true
-					break
-				}
-			}
-		}
-		if !hasAutoConnect {
-			snapstate.InjectAutoConnect(task, snapsup)
-		}
+		// nothing to do
+		return nil
 	}
 
 	opts := confinementOptions(snapsup.Flags)
@@ -127,7 +103,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	addImplicitSlots(snapInfo)
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -170,7 +146,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		affectedSet[name] = true
 	}
 	// The principal snap was already handled above.
-	delete(affectedSet, snapInfo.Name())
+	delete(affectedSet, snapInfo.InstanceName())
 	affectedSnaps := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
 		affectedSnaps = append(affectedSnaps, name)
@@ -364,6 +340,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var byGadget bool
+	if err := task.Get("by-gadget", &byGadget); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	conns, err := getConns(st)
 	if err != nil {
@@ -410,7 +390,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var policyChecker interfaces.PolicyFunc
 
-	if autoConnect {
+	// manual connections and connections by the gadget obey the
+	// policy "connection" rules, other auto-connections obey the
+	// "auto-connection" rules
+	if autoConnect && !byGadget {
 		autochecker, err := newAutoConnectChecker(st)
 		if err != nil {
 			return err
@@ -450,6 +433,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		StaticSlotAttrs:  conn.Slot.StaticAttrs(),
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
+		ByGadget:         byGadget,
 	}
 	setConns(st, conns)
 
@@ -619,9 +603,12 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	chg := task.Change()
+	plugs := m.repo.Plugs(snapName)
+	slots := m.repo.Slots(snapName)
+	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
+
 	// Auto-connect all the plugs
-	for _, plug := range m.repo.Plugs(snapName) {
+	for _, plug := range plugs {
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
@@ -632,9 +619,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		// go with those from the new core snap.
 		if len(candidates) == 2 {
 			switch {
-			case candidates[0].Snap.Name() == "ubuntu-core" && candidates[1].Snap.Name() == "core":
+			case candidates[0].Snap.InstanceName() == "ubuntu-core" && candidates[1].Snap.InstanceName() == "core":
 				candidates = candidates[1:2]
-			case candidates[1].Snap.Name() == "ubuntu-core" && candidates[0].Snap.Name() == "core":
+			case candidates[1].Snap.InstanceName() == "ubuntu-core" && candidates[0].Snap.InstanceName() == "core":
 				candidates = candidates[0:1]
 			}
 		}
@@ -655,15 +642,27 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
 		if err != nil {
-			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
+			return err
+		}
+
+		if ignore {
 			continue
 		}
-		autots.AddAll(ts)
+
+		const auto = true
+		if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				return err // will retry
+			}
+			return fmt.Errorf("auto-connect conflict check failed: %s", err)
+		}
+		newconns[connRef.ID()] = connRef
 	}
 	// Auto-connect all the slots
-	for _, slot := range m.repo.Slots(snapName) {
+	for _, slot := range slots {
 		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
@@ -673,7 +672,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			// make sure slot is the only viable
 			// connection for plug, same check as if we were
 			// considering auto-connections from plug
-			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
+			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
 
 			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
 				crefs := make([]string, len(candSlots))
@@ -691,20 +690,47 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
-			if err != nil {
-				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
+			if _, ok := newconns[key]; ok {
 				continue
 			}
-			autots.AddAll(ts)
+
+			ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+			if err != nil {
+				return err
+			}
+
+			if ignore {
+				continue
+			}
+
+			const auto = true
+			if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+				if _, retry := err.(*state.Retry); retry {
+					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					return err // will retry
+				}
+				return fmt.Errorf("auto-connect conflict check failed: %s", err)
+			}
+			newconns[connRef.ID()] = connRef
 		}
 	}
 
+	// Create connect tasks and interface hooks
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto"})
+		if err != nil {
+			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+		}
+		autots.AddAll(ts)
+	}
+
+	if len(autots.Tasks()) > 0 {
+		snapstate.InjectTasks(task, autots)
+
+		st.EnsureBefore(0)
+	}
+
 	task.SetStatus(state.DoneStatus)
-
-	snapstate.InjectTasks(task, autots)
-
-	st.EnsureBefore(0)
 	return nil
 }
 
@@ -784,4 +810,86 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 	}
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
+}
+
+// doGadgetConnect creates task(s) to follow the interface connection instructions from the gadget.
+func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var conns map[string]connState
+	err := st.Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+
+	gconns, err := snapstate.GadgetConnections(st)
+	if err != nil {
+		return err
+	}
+
+	gconnts := state.NewTaskSet()
+	var newconns []*interfaces.ConnRef
+
+	// consider the gadget connect instructions
+	for _, gconn := range gconns {
+		plugSnapName, err := resolveSnapIDToName(st, gconn.Plug.SnapID)
+		if err != nil {
+			return err
+		}
+		plug := m.repo.Plug(plugSnapName, gconn.Plug.Plug)
+		if plug == nil {
+			task.Logf("gadget connect: ignoring missing plug %s:%s", gconn.Plug.SnapID, gconn.Plug.Plug)
+			continue
+		}
+
+		slotSnapName, err := resolveSnapIDToName(st, gconn.Slot.SnapID)
+		if err != nil {
+			return err
+		}
+		slot := m.repo.Slot(slotSnapName, gconn.Slot.Slot)
+		if slot == nil {
+			task.Logf("gadget connect: ignoring missing slot %s:%s", gconn.Slot.SnapID, gconn.Slot.Slot)
+			continue
+		}
+
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Gadget connection already exist (or has Undesired flag set) so don't clobber it.
+			continue
+		}
+
+		const auto = true
+		if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				task.Logf("gadget connect will be retried because of %q - %q conflict", plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				return err // will retry
+			}
+			return fmt.Errorf("gadget connect conflict check failed: %s", err)
+		}
+		newconns = append(newconns, connRef)
+	}
+
+	// Create connect tasks and interface hooks
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-gadget"})
+		if err != nil {
+			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+		}
+		gconnts.AddAll(ts)
+	}
+
+	if len(gconnts.Tasks()) > 0 {
+		snapstate.InjectTasks(task, gconnts)
+
+		st.EnsureBefore(0)
+	}
+
+	task.SetStatus(state.DoneStatus)
+	return nil
 }

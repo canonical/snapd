@@ -517,6 +517,60 @@ func (s *lowLevelSuite) TestFstatFailure(c *check.C) {
 	})
 }
 
+func (s *lowLevelSuite) TestFstatfs(c *check.C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, check.IsNil)
+	var buf syscall.Statfs_t
+	c.Assert(func() { s.sys.Fstatfs(fd, &buf) }, check.PanicMatches,
+		`one of InsertFstatfsResult\(\) or InsertFault\(\) for fstatfs 3 <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestFstatfsBadFd(c *check.C) {
+	var buf syscall.Statfs_t
+	err := s.sys.Fstatfs(3, &buf)
+	c.Assert(err, check.ErrorMatches, "attempting to fstatfs with an invalid file descriptor 3")
+	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`fstatfs 3 <ptr>`})
+	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
+		{C: `fstatfs 3 <ptr>`, E: fmt.Errorf("attempting to fstatfs with an invalid file descriptor 3")},
+	})
+}
+
+func (s *lowLevelSuite) TestFstatfsSuccess(c *check.C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: 0x123})
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, check.IsNil)
+	var buf syscall.Statfs_t
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, check.IsNil)
+	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x123})
+	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
+		`open "/foo" 0 0`, // -> 3
+		`fstatfs 3 <ptr>`, // -> Type: 0x123
+	})
+	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
+		{C: `open "/foo" 0 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: 0x123}},
+	})
+}
+
+func (s *lowLevelSuite) TestFstatfsFailure(c *check.C) {
+	s.sys.InsertFault(`fstatfs 3 <ptr>`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, check.IsNil)
+	var buf syscall.Statfs_t
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, check.ErrorMatches, "operation not permitted")
+	c.Assert(buf, check.Equals, syscall.Statfs_t{})
+	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
+		`open "/foo" 0 0`, // -> 3
+		`fstatfs 3 <ptr>`, // -> EPERM
+	})
+	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
+		{C: `open "/foo" 0 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, E: syscall.EPERM},
+	})
+}
+
 func (s *lowLevelSuite) TestReadDir(c *check.C) {
 	c.Assert(func() { s.sys.ReadDir("/foo") }, check.PanicMatches,
 		`one of InsertReadDirResult\(\) or InsertFault\(\) for readdir "/foo" must be used`)

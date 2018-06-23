@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -326,4 +327,55 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		},
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqNothingToDoForBase(c *C) {
+	for _, typ := range []snap.Type{
+		snap.TypeOS,
+		snap.TypeGadget,
+		snap.TypeKernel,
+		snap.TypeBase,
+	} {
+
+		s.state.Lock()
+		t := s.state.NewTask("prerequisites", "test")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: fmt.Sprintf("foo-%s", typ),
+				Revision: snap.R(1),
+			},
+			Type: typ,
+		})
+		s.state.NewChange("dummy", "...").AddTask(t)
+		s.state.Unlock()
+
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+
+		s.state.Lock()
+		c.Assert(s.fakeBackend.ops, HasLen, 0)
+		c.Check(t.Status(), Equals, state.DoneStatus)
+		s.state.Unlock()
+	}
+}
+
+func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(1),
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	s.state.Unlock()
 }

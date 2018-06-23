@@ -29,6 +29,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -139,7 +140,10 @@ func (f *fakeStore) pokeStateLock() {
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	info, err := f.snapInfo(spec, user)
+	sspec := snapSpec{
+		Name: spec.Name,
+	}
+	info, err := f.snap(sspec, user)
 
 	userID := 0
 	if user != nil {
@@ -150,7 +154,13 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	return info, err
 }
 
-func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+type snapSpec struct {
+	Name     string
+	Channel  string
+	Revision snap.Revision
+}
+
+func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		spec.Revision = snap.R(11)
 		if spec.Channel == "channel-for-7" {
@@ -161,8 +171,11 @@ func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
-	if spec.Name == "some-core" {
+	switch spec.Name {
+	case "core", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
+	case "some-base":
+		typ = snap.TypeBase
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -244,6 +257,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeBase
 	case "snap-content-plug-id":
 		name = "snap-content-plug"
+	case "snapd-id":
+		name = "snapd"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -354,12 +369,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		}
 
 		if a.Action == "install" {
-			spec := store.SnapSpec{
+			sspec := snapSpec{
 				Name:     a.Name,
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.snapInfo(spec, user)
+			info, err := f.snap(sspec, user)
 			if err != nil {
 				installErrors[a.Name] = err
 				continue
@@ -597,7 +612,7 @@ apps:
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
 	f.ops = append(f.ops, fakeOp{
 		op:    "cleanup-trash",
-		name:  si.Name(),
+		name:  si.InstanceName(),
 		revno: si.Revision,
 	})
 }
@@ -632,7 +647,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",

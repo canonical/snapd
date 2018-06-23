@@ -10,7 +10,7 @@ systems: [-ubuntu-core-*]
 
 prepare: |
     echo "Given the desktop snap is installed"
-    snap try $TESTSLIB/snaps/test-snapd-desktop
+    snap try "$TESTSLIB"/snaps/test-snapd-desktop
 
 execute: |
     dirs="/var/cache/fontconfig /usr/share/icons /usr/share/pixmaps"
@@ -20,7 +20,9 @@ execute: |
     snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
 
     echo "Then the snap is able to desktop files and directories"
+    # shellcheck disable=SC2086
     test-snapd-desktop.check-files $files
+    # shellcheck disable=SC2086
     test-snapd-desktop.check-dirs $dirs
 
     if [ "$(snap debug confinement)" = partial ] ; then
@@ -32,7 +34,7 @@ execute: |
 
     echo "Then the snap is not able to access the desktop files"
     for file in $files; do
-        if test-snapd-desktop.check-files $file 2>${PWD}/call.error; then
+        if test-snapd-desktop.check-files "$file" 2> call.error; then
             echo "Expected permission error calling desktop with disconnected plug"
             exit 1
         fi
@@ -41,7 +43,7 @@ execute: |
 
     echo "Then the snap is not able to access the desktop dirs"
     for dir in $dirs; do
-        if test-snapd-desktop.check-dirs $dir 2>${PWD}/call.error; then
+        if test-snapd-desktop.check-dirs "$dir" 2> call.error; then
             echo "Expected permission error calling desktop with disconnected plug"
             exit 1
         fi

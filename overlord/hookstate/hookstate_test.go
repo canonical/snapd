@@ -67,6 +67,8 @@ version: 1.0
 hooks:
     configure:
     prepare-device:
+    do-something:
+    undo-something:
 `
 
 var snapYaml1 = `
@@ -85,6 +87,10 @@ hooks:
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	hooktype1 := snap.NewHookType(regexp.MustCompile("^do-something$"))
+	hooktype2 := snap.NewHookType(regexp.MustCompile("^undo-something$"))
+	s.AddCleanup(snap.MockAppendSupportedHookTypes([]*snap.HookType{hooktype1, hooktype2}))
 
 	dirs.SetRootDir(c.MkDir())
 	s.o = overlord.Mock()
@@ -634,6 +640,67 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
 	checkTaskLogContains(c, s.task, `.*Error failed at user request.*`)
+}
+
+func (s *hookManagerSuite) TestHookUndoRunsOnError(c *C) {
+	handler := hooktest.NewMockHandler()
+	undoHandler := hooktest.NewMockHandler()
+
+	s.manager.Register(regexp.MustCompile("^do-something$"), func(context *hookstate.Context) hookstate.Handler {
+		return handler
+	})
+	s.manager.Register(regexp.MustCompile("^undo-something$"), func(context *hookstate.Context) hookstate.Handler {
+		return undoHandler
+	})
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "do-something",
+		Revision: snap.R(1),
+	}
+	undohooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "undo-something",
+		Revision: snap.R(1),
+	}
+
+	// use unknown hook to fail the change
+	failinghooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "unknown-hook",
+		Revision: snap.R(1),
+	}
+
+	initialContext := map[string]interface{}{}
+
+	s.state.Lock()
+	task := hookstate.HookTaskWithUndo(s.state, "test summary", hooksup, undohooksup, initialContext)
+	c.Assert(task, NotNil)
+	failtask := hookstate.HookTask(s.state, "test summary", failinghooksup, initialContext)
+	failtask.WaitFor(task)
+
+	change := s.state.NewChange("kind", "summary")
+	change.AddTask(task)
+	change.AddTask(failtask)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(handler.BeforeCalled, Equals, true)
+	c.Check(handler.DoneCalled, Equals, true)
+	c.Check(handler.ErrorCalled, Equals, false)
+
+	c.Check(undoHandler.BeforeCalled, Equals, true)
+	c.Check(undoHandler.DoneCalled, Equals, true)
+	c.Check(undoHandler.ErrorCalled, Equals, false)
+
+	c.Check(task.Status(), Equals, state.UndoneStatus)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
 }
 
 func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {

@@ -6,19 +6,20 @@ environment:
     PLUG: network
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap with the $PLUG plug is installed"
-    install_local $SNAP_NAME
+    install_local "$SNAP_NAME"
 
 execute: |
-    expected="(?s)Slot +Plug\n\
+    expected="(?s)Slot +Plug\\n\
     :$PLUG .*$SNAP_NAME"
 
     echo "When the interfaces list is restricted by slot"
     echo "Then only the requested slots are shown"
-    snap interfaces -i $PLUG | grep -Pzq "$expected"
+    snap interfaces -i "$PLUG" | grep -Pzq "$expected"
 
     echo "When the interfaces list is restricted by slot and snap"
     echo "Then only the requested slots are shown"
-    snap interfaces -i $PLUG $SNAP_NAME | grep -Pzq "$expected"
+    snap interfaces -i "$PLUG" "$SNAP_NAME" | grep -Pzq "$expected"

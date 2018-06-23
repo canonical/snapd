@@ -5,7 +5,7 @@ details: |
     the host filesystem. While this would never work in an all-snap image it is
     still important to ensure that it works in classic devmode environment.
 # This test only applies to classic systems
-systems: [-ubuntu-core-16-*, -fedora-*, -arch-*]
+systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 prepare: |
     echo "Having installed the test snap in devmode"
     . "$TESTSLIB/snaps.sh"
