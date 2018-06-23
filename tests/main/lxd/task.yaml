@@ -5,7 +5,7 @@ summary: Ensure that lxd works
 #systems: [ubuntu-16*, ubuntu-core-*]
 
 # FIXME LXD has some issue on Google images.
-systems: [ubuntu-16.04-32, ubuntu-core-*]
+systems: [ubuntu-16.04-32, ubuntu-core-16-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -22,7 +22,7 @@ restore: |
         exit
     fi
 
-    lxd.lxc stop my-ubuntu
+    lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
 debug: |

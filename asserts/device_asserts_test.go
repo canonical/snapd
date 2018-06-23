@@ -58,6 +58,7 @@ const (
 		"display-name: Baz 3000\n" +
 		"architecture: amd64\n" +
 		"gadget: brand-gadget\n" +
+		"base: core18\n" +
 		"kernel: baz-linux\n" +
 		"store: brand-store\n" +
 		sysUserAuths +
@@ -101,6 +102,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
+	c.Check(model.Base(), Equals, "core18")
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
@@ -119,6 +121,21 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeBaseIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "base: core18\n", "base: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.Base(), Equals, "")
+
+	encoded = strings.Replace(withTimestamp, "base: core18\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.Base(), Equals, "")
 }
 
 func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
@@ -267,6 +284,7 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"architecture: amd64\n", "architecture:\n  - foo\n", `"architecture" header must be a string`},
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
 		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
+		{"gadget: brand-gadget\n", "base: some-base\n", `cannot specify a base with a classic model`},
 	}
 
 	for _, test := range invalidTests {

@@ -1,7 +1,40 @@
-snapd (2.33~rc1) xenial; urgency=medium
+snapd (2.33.1) xenial; urgency=medium
 
   * New upstream release, LP: #1773118
+    - many: improve udev trigger on refresh experience
+    - systemd: require snapd.socket in snapd.seeded.service
+    - snap: don't include newline in hook environment
+    - interfaces/apparmor: allow killing snap-update-ns
+    - tests: skip "try" test on s390x
+    - tests: skip security-dev-input-event-denied when /dev/input/by-
+      path/ is missing
+    - tests: skip security-dev-input-event-denied on s390x/arm64
 
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 21 Jun 2018 17:37:56 +0200
+
+snapd (2.33) xenial; urgency=medium
+
+  * New upstream release, LP: #1773118
+    - packaging: use official bolt in the errtracker on fedora
+    - many: add `snap debug connectivity` command
+    - interfaces/raw-usb: also allow usb serial devices
+    - errtracker: do not send duplicated reports
+    - selftest: add new selftest package that tests squashfs mounting
+    - tests: backport lxd force stop and econnreset fixes
+    - tests: add test to ensure /dev/input/event* for non-joysticks is
+      denied
+    - interfaces/joystick: support modern evdev joysticks
+    - interfaces: add juju-client-observe
+    - interfaces/hardware-observe: allow access to /etc/sensors* for
+      libsensors
+    - many: holding refresh on metered connections
+    - many: expose AppStream IDs (AKA common ID)
+    - tests: speed up save/restore snapd state for all-snap systems
+      during tests execution
+    - interfaces/apparmor: use helper to load stray profile
+    - tests: ubuntu core abstraction
+    - overlord/snapstate: don't panic in a corner case interaction of
+      cleanup tasks and pruning
     - interfaces/apparmor: add 'mediate_deleted' profile flag for all
       snaps
     - tests: new parameter for the journalctl rate limit
@@ -233,8 +266,6 @@ snapd (2.33~rc1) xenial; urgency=medium
     - tests: fix snap-run tests when snapd is not running
     - overlord/configstate: change how ssh is stopped/started
     - snap: make `snap run` look at the system-key for security profiles
-      (#4882)many: make `snap run` look at the system-key for security
-      profilesWithout it we may have the following scenario:
     - strutil, cmd/snap: drop strutil.WordWrap, first pass at
       replacement
     - tests: adding opensuse-42.3 to google
@@ -315,18 +346,12 @@ snapd (2.33~rc1) xenial; urgency=medium
     - vendor: update github.com/mvo5/libseccomp-golang
     - overlord/snapstate: block install of "system"
     - cmd/snap: "current"→"installed"; "refreshed"→"refresh-date"
-    - many: add the snapd-generator (#4797)* many: add the snapd-
-      generator
+    - many: add the snapd-generator
     - cmd/snap-seccomp: Cancel the atomic file on error, not just Close
     - polkit: ensure error is properly set if dialog is dismissed
     - snap-confine, snap-seccomp: utilize new seccomp logging features
-      (#3998)* snap-confine, snap-seccomp: Default to SECCOMP_RET_ERRNO
     - progress: tweak ansimeter cvvis use to no longer confuse minicom
     - xdgopenproxy: integrate xdg-open implementation into snapctl
-      (#4794)* xdgopenproxy: add a Go implementation of the xdg-open
-      proxy client* xdgopenproxy: add tests* xdgopenproxy: test that
-      passed file descriptor is for expected file* xdgopenproxy: fix
-      copyright years
     - tests: avoid removing preinstalled snaps on core
     - tests: chroot into core to run xdg-open there
     - userd: add an OpenFile method for launching local files with xdg-
@@ -386,7 +411,7 @@ snapd (2.33~rc1) xenial; urgency=medium
       UbuntuStore(Repository)? references
     - store: reorg auth refresh
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 24 May 2018 11:29:36 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 08 Jun 2018 17:13:47 +0200
 
 snapd (2.32.9) xenial; urgency=medium
 

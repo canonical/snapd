@@ -1,0 +1,17 @@
+summary: Check basic core18 system functionality
+
+execute: |
+    echo "Check that the system snaps are there"
+    snap list | MATCH core18
+    snap list | MATCH snapd
+    if snap list | grep '^core +'; then
+        echo "The old core snap is installed but should not"
+        exit 1
+    fi
+
+    echo "Ensure that the system is fully seeded"
+    snap changes | MATCH "Done.*Initialize system state"
+
+    echo "Check that snapd tools for core18 works"
+    snap install test-snapd-tools-core18
+    test-snapd-tools-core18.echo hello | MATCH hello

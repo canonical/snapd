@@ -4,19 +4,19 @@ details: |
     This test ensures that auto-connections are not restored if manually disconnected
     by the user.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
-    snap pack $TESTSLIB/snaps/config-versions
-    snap pack $TESTSLIB/snaps/config-versions-v2
+    snap pack "$TESTSLIB"/snaps/config-versions
+    snap pack "$TESTSLIB"/snaps/config-versions-v2
 
 restore: |
     rm -f config-versions_1.0_all.snap
     rm -f config-versions_2.0_all.snap
 
 execute: |
-    CONNECTED_PATTERN=":home .* config-versions"
-    DISCONNECTED_PATTERN="\- .* config-versions:home"
+    CONNECTED_PATTERN=':home .* config-versions'
+    DISCONNECTED_PATTERN='\- .* config-versions:home'
 
     echo "Install test snap"
     snap install --dangerous config-versions_1.0_all.snap

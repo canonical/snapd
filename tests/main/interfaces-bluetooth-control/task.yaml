@@ -5,16 +5,18 @@ systems: [ubuntu-core-16-arm-64]
 
 prepare: |
     echo "Given a snap declaring a plug on bluetooth-control is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_generic_consumer bluetooth-control
 
 restore: |
-    rm -f *.error version class control
+    rm -f ./*.error version class control
 
 execute: |
     BTDEV="$(find /sys/devices/ -type d -name bluetooth)"
 
     echo "Then the plug is disconnected by default"
+    #shellcheck disable=SC1117
     snap interfaces -i bluetooth-control | MATCH "^\- +generic-consumer:bluetooth-control"
 
     if [ "$(snap debug confinement)" = strict ] ; then
@@ -23,35 +25,36 @@ execute: |
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat btusb.error | MATCH "Permission denied"
+        MATCH "Permission denied" < btusb.error
 
         echo "And the snap is not able to read class"
         if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name 2>${PWD}/btclass.error" test; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat btclass.error | MATCH "Permission denied"
+        MATCH "Permission denied" < btclass.error
 
         echo "And the snap is not able to read dev"
         if su -l -c "/snap/bin/generic-consumer.cmd cat $BTDEV/*/power/control 2>${PWD}/btdev-read.error" test; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
-        cat btdev-read.error | MATCH "Permission denied"
+        MATCH "Permission denied" < btdev-read.error
     fi
 
     echo "When the plug is connected"
     snap connect generic-consumer:bluetooth-control
 
     echo "Then the snap is able to read usb"
+    #shellcheck disable=SC2002
     cat /sys/bus/usb/drivers/btusb/module/version | tee version
     # the next check is disabled because of https://bugs.launchpad.net/snapd/+bug/1698412
-    # [ $(su -l -c "/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version" test) = $(cat version) ]
+    # [ "$(su -l -c '/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version' test)" = "$(cat version)" ]
 
     echo "And the snap is able to read class"
     cat /sys/class/bluetooth/*/name | tee class
-    [ $(su -l -c "/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name" test) = $(cat class) ]
+    [ "$(su -l -c '/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name' test)" = "$(cat class)" ]
 
     echo "And the snap is able to read dev"
-    cat $BTDEV/*/power/control | tee control
-    [ $(su -l -c "/snap/bin/generic-consumer.cmd cat $BTDEV/*/power/control" test) = $(cat control) ]
+    cat "$BTDEV"/*/power/control | tee control
+    [ "$(su -l -c '/snap/bin/generic-consumer.cmd cat '"$BTDEV"'/*/power/control' test)'" = "$(cat control)" ]

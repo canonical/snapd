@@ -1,7 +1,7 @@
 summary: Test that snapd reexecs itself into core
 
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
 
 restore: |
     . $TESTSLIB/dirs.sh
