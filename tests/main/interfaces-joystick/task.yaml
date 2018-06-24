@@ -4,10 +4,13 @@ details: |
     The joystick interface allows reading and writing to joystick devices.
 
 prepare: |
+    # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-joystick
 
+    # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
+
     # Create device files which are going to be used so simulate a real device and input data
     # In case the device already exists, it is going to be backed up
     # Devices used following documentaion:
@@ -20,7 +23,9 @@ prepare: |
 restore: |
     rm -f call.error
 
+    # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
+
     # Delete the created device files and restore backed up files
     clean_file /dev/input/js31
     clean_file /run/udev/data/c13:31
@@ -44,7 +49,7 @@ execute: |
 
     echo "Then the snap is able to read the supported event reports for the input device"
     capabilities="$(find /sys/devices/ -type d -name capabilities | grep -E "/sys/devices/.*/input[0-9].*/capabilities" | head -n1)"
-    if [ ! -z $capabilities ]; then
+    if [ ! -z "$capabilities" ]; then
         test-snapd-joystick.sh -c "ls "$capabilities""
     fi
 
