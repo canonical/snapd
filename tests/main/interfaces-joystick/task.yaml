@@ -13,7 +13,7 @@ prepare: |
 
     # Create device files which are going to be used so simulate a real device and input data
     # In case the device already exists, it is going to be backed up
-    # Devices used following documentaion:
+    # Devices used following documentation:
     # the https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt#L408
     ensure_file_exists_backup_real /dev/input/js31
     ensure_file_exists_backup_real /run/udev/data/c13:31
