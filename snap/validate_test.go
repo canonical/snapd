@@ -135,13 +135,20 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"a--a",
 		"a-",
 		"a ", " a", "a a",
-		// bad instance name
-		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
-		"_", "foo__bar",
+		"_",
 	}
 	for _, name := range invalidNames {
 		err := ValidateInstanceName(name)
-		c.Assert(err, ErrorMatches, `invalid snap (name|instance key): ".*"`)
+		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
+	}
+	invalidInstanceKeys := []string{
+		// the snap names are valid, but instance keys are not
+		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
+		"foo__bar",
+	}
+	for _, name := range invalidInstanceKeys {
+		err := ValidateInstanceName(name)
+		c.Assert(err, ErrorMatches, `invalid snap instance key: ".*"`)
 	}
 
 }
