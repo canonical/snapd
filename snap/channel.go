@@ -128,7 +128,14 @@ func riskLevel(risk string) int {
 	return -1
 }
 
-// Match returns a representation of which fields among architecture,track,risk match between c and c1 store channels, risk is matched taking channel inheritance into account and considering c requested. Results can be:
+// StoreChannelMatch represents on which fields two channels are matching.
+type StoreChannelMatch struct {
+	Architecture bool
+	Track        bool
+	Risk         bool
+}
+
+// String returns the string represantion of the match, results can be:
 //  "architecture:track:risk"
 //  "architecture:track"
 //  "architecture:risk"
@@ -137,18 +144,28 @@ func riskLevel(risk string) int {
 //  "track"
 //  "risk"
 //  ""
-func (c *StoreChannel) Match(c1 *StoreChannel) string {
+func (cm StoreChannelMatch) String() string {
 	matching := []string{}
-	if c.Architecture == c1.Architecture {
+	if cm.Architecture {
 		matching = append(matching, "architecture")
 	}
-	if c.Track == c1.Track {
+	if cm.Track {
 		matching = append(matching, "track")
 	}
-	requestedRiskLevel := riskLevel(c.Risk)
-	rl1 := riskLevel(c1.Risk)
-	if requestedRiskLevel >= rl1 {
+	if cm.Risk {
 		matching = append(matching, "risk")
 	}
 	return strings.Join(matching, ":")
+
+}
+
+// Match returns a StoreChannelMatch of which fields among architecture,track,risk match between c and c1 store channels, risk is matched taking channel inheritance into account and considering c the requested channel.
+func (c *StoreChannel) Match(c1 *StoreChannel) StoreChannelMatch {
+	requestedRiskLevel := riskLevel(c.Risk)
+	rl1 := riskLevel(c1.Risk)
+	return StoreChannelMatch{
+		Architecture: c.Architecture == c1.Architecture,
+		Track:        c.Track == c1.Track,
+		Risk:         requestedRiskLevel >= rl1,
+	}
 }

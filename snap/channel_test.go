@@ -204,6 +204,6 @@ func (s *storeChannelSuite) TestMatch(c *C) {
 		c1, err := snap.ParseStoreChannel(t.c1, c1Arch)
 		c.Assert(err, IsNil)
 
-		c.Check(req.Match(&c1), Equals, t.res)
+		c.Check(req.Match(&c1).String(), Equals, t.res)
 	}
 }
