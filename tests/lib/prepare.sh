@@ -277,7 +277,7 @@ setup_reflash_magic() {
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
-        snap install "--channel=${SNAPD_CHANNEL}" snapd
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
     fi
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
@@ -300,7 +300,7 @@ setup_reflash_magic() {
     if is_core18_system; then
         # modify the snapd snap so that it has our snapd
         UNPACK_DIR="/tmp/snapd-snap"
-        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/snapd_*.snap
+        unsquashfs -d "$UNPACK_DIR" snapd_*.snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
         
@@ -395,7 +395,7 @@ EOF
     kpartx -avs "$IMAGE_HOME/$IMAGE"
     # FIXME: hardcoded mapper location, parse from kpartx
     if is_core18_system; then
-        mount /dev/mapper/loop4p3 /mnt
+        mount /dev/mapper/loop3p3 /mnt
     else
         mount /dev/mapper/loop2p3 /mnt
     fi

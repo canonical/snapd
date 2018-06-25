@@ -60,6 +60,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.Name() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
+	if snapsup.Name() == "snapd" {
+		model, err := Model(st)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if model == nil || model.Base() == "" {
+			return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+		}
+	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
 	}
