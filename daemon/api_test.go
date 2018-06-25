@@ -602,16 +602,21 @@ UnitFileState=potatoes
 			Summary:          "summary",
 			Description:      "description",
 			Developer:        "bar",
-			Status:           "active",
-			Icon:             "/v2/icons/foo/icon",
-			Type:             string(snap.TypeApp),
-			Base:             "base18",
-			Private:          false,
-			DevMode:          false,
-			JailMode:         false,
-			Confinement:      string(snap.StrictConfinement),
-			TryMode:          false,
-			MountedFrom:      filepath.Join(dirs.SnapBlobDir, "foo_10.snap"),
+			Publisher: &snap.StoreAccount{
+				ID:          "bar-id",
+				Username:    "bar",
+				DisplayName: "Bar",
+			},
+			Status:      "active",
+			Icon:        "/v2/icons/foo/icon",
+			Type:        string(snap.TypeApp),
+			Base:        "base18",
+			Private:     false,
+			DevMode:     false,
+			JailMode:    false,
+			Confinement: string(snap.StrictConfinement),
+			TryMode:     false,
+			MountedFrom: filepath.Join(dirs.SnapBlobDir, "foo_10.snap"),
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",
@@ -1492,7 +1497,11 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1546,7 +1555,11 @@ func (s *apiSuite) TestFind(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 
 	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
@@ -1576,7 +1589,11 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
@@ -1600,7 +1617,11 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 
 	s.mockSnap(c, "name: store\nversion: 1.0")
@@ -1682,7 +1703,11 @@ func (s *apiSuite) TestFindCommonID(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 		CommonIDs: []string{"org.foo"},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
@@ -1704,8 +1729,12 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Base:      "base0",
-		Publisher: "foo",
+		Base: "base0",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
 				Revision: snap.R(42),
@@ -1725,6 +1754,11 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["base"], check.Equals, "base0")
+	c.Check(snaps[0]["publisher"], check.DeepEquals, map[string]interface{}{
+		"id":           "foo-id",
+		"username":     "foo",
+		"display-name": "Foo",
+	})
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
 	c.Check(m["revision"], check.Equals, "42")
@@ -1781,7 +1815,11 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "banana",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 
 	req, err := http.NewRequest("GET", "/v2/find?q=banana&channel=stable", nil)
@@ -1821,7 +1859,11 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "test-screenshot",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 
 	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
@@ -1854,7 +1896,11 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1940,7 +1986,11 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "remote",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1980,7 +2030,11 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "remote",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1999,7 +2053,11 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "remote",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
 

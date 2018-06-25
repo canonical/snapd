@@ -141,10 +141,10 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 		return nil, err
 	}
 
-	return connect(st, plugSnap, plugName, slotSnap, slotName, auto)
+	return connect(st, plugSnap, plugName, slotSnap, slotName, nil)
 }
 
-func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, auto bool) (*state.TaskSet, error) {
+func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, flags []string) (*state.TaskSet, error) {
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
@@ -194,7 +194,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, aut
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.Set("auto", auto)
+	for _, flag := range flags {
+		connectInterface.Set(flag, true)
+	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.

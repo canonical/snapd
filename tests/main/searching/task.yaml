@@ -12,7 +12,7 @@ restore: |
 
 execute: |
     echo "List all featured snaps"
-    expected="(?s).*Name +Version +Developer +Notes +Summary *\n\
+    expected="(?s).*Name +Version +Publisher +Notes +Summary *\n\
     (.*?\n)?\
     .*"
     snap find > featured.txt
@@ -38,7 +38,7 @@ execute: |
     echo "Exact matches"
     for snapName in test-snapd-tools test-snapd-python-webserver
     do
-        expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+        expected="(?s)Name +Version +Publisher +Notes +Summary *\n\
     (.*?\n)?\
     $snapName +.*? *\n\
     .*"
@@ -46,7 +46,7 @@ execute: |
     done
 
     echo "Partial terms work too"
-    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+    expected="(?s)Name +Version +Publisher +Notes +Summary *\n\
     (.*?\n)?\
     test-snapd-tools +.*? *\n\
     .*"
