@@ -62,7 +62,7 @@ func (h *HotplugSpec) Slots() []SlotSpec {
 
 // HotplugDeviceHandler can be implemented by interfaces that need to create slots in response to hotplug events
 type HotplugDeviceHandler interface {
-	HotplugDeviceAdd(di *HotplugDeviceInfo, spec *HotplugSpec) error
+	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *HotplugSpec) error
 }
 
 // HotplugDeviceInfo can be implemented by interfaces that need to provide a non-standard device key for hotplug devices
