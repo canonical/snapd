@@ -374,6 +374,7 @@ fi
 %if %{with apparmor}
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
+%{_environmentdir}/990-snapd.conf
 
 %changelog
 
