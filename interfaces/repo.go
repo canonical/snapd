@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -82,7 +83,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	}
 	r.ifaces[interfaceName] = i
 
-	if _, ok := i.(HotplugDeviceHandler); ok {
+	if _, ok := i.(hotplug.HotplugDeviceHandler); ok {
 		r.hotplugIfaces[interfaceName] = i
 	}
 

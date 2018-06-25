@@ -17,7 +17,7 @@
  *
  */
 
-package interfaces
+package hotplug
 
 import (
 	"fmt"
@@ -29,26 +29,26 @@ type SlotSpec struct {
 	Attrs map[string]interface{}
 }
 
-type HotplugSpec struct {
+type Specification struct {
 	deviceKey string
 	slots     []SlotSpec
 }
 
-func NewHotplugSpec(deviceKey string) (*HotplugSpec, error) {
+func NewSpecification(deviceKey string) (*Specification, error) {
 	if deviceKey == "" {
 		return nil, fmt.Errorf("invalid device key %q", deviceKey)
 	}
-	return &HotplugSpec{
+	return &Specification{
 		deviceKey: deviceKey,
 	}, nil
 }
 
-func (h *HotplugSpec) AddSlot(name, label string, attrs map[string]interface{}) {
+func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}) {
 	// FIXME: normalize attributes
 	h.slots = append(h.slots, SlotSpec{Name: name, Label: label, Attrs: attrs})
 }
 
-func (h *HotplugSpec) Slots() []SlotSpec {
+func (h *Specification) Slots() []SlotSpec {
 	slots := make([]SlotSpec, len(h.slots))
 	for _, s := range h.slots {
 		slots = append(slots, SlotSpec{
@@ -62,7 +62,7 @@ func (h *HotplugSpec) Slots() []SlotSpec {
 
 // HotplugDeviceHandler can be implemented by interfaces that need to create slots in response to hotplug events
 type HotplugDeviceHandler interface {
-	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *HotplugSpec) error
+	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
 }
 
 // HotplugDeviceInfo can be implemented by interfaces that need to provide a non-standard device key for hotplug devices

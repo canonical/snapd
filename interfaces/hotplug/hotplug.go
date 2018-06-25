@@ -17,7 +17,7 @@
  *
  */
 
-package interfaces
+package hotplug
 
 import (
 	"io/ioutil"

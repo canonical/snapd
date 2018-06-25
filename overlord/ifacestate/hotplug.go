@@ -23,13 +23,14 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 )
 
-func deviceKey(defaultDeviceKey string, devinfo *interfaces.HotplugDeviceInfo, iface interfaces.Interface) (deviceKey string, err error) {
-	if keyhandler, ok := iface.(interfaces.HotplugDeviceKeyHandler); ok {
+func deviceKey(defaultDeviceKey string, devinfo *hotplug.HotplugDeviceInfo, iface interfaces.Interface) (deviceKey string, err error) {
+	if keyhandler, ok := iface.(hotplug.HotplugDeviceKeyHandler); ok {
 		deviceKey, err = keyhandler.HotplugDeviceKey(devinfo)
 		if err != nil {
 			return "", fmt.Errorf("failed to create device key for interface %q: %s", iface.Name(), err)
@@ -39,7 +40,7 @@ func deviceKey(defaultDeviceKey string, devinfo *interfaces.HotplugDeviceInfo, i
 	return defaultDeviceKey, nil
 }
 
-func (m *InterfaceManager) HotplugDeviceAdded(devinfo *interfaces.HotplugDeviceInfo) {
+func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
 	const coreSnapName = "core"
 	var coreSnapInfo *snap.Info
 
@@ -56,7 +57,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *interfaces.HotplugDeviceI
 
 	// Iterate over all hotplug interfaces
 	for _, iface := range m.repo.AllHotplugInterfaces() {
-		hotplugHandler := iface.(interfaces.HotplugDeviceHandler)
+		hotplugHandler := iface.(hotplug.HotplugDeviceHandler)
 		key, err := deviceKey(defaultDeviceKey, devinfo, iface)
 		if err != nil {
 			logger.Debugf(err.Error())
@@ -65,7 +66,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *interfaces.HotplugDeviceI
 		if key == "" {
 			continue
 		}
-		spec, err := interfaces.NewHotplugSpec(key)
+		spec, err := hotplug.NewSpecification(key)
 		if err != nil {
 			logger.Debugf("Failed to create HotplugSpec for device key %q: %s", key, err)
 			continue
@@ -133,7 +134,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *interfaces.HotplugDeviceI
 	}
 }
 
-func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *interfaces.HotplugDeviceInfo) {
+func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
