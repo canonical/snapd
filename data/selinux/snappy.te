@@ -76,7 +76,7 @@ allow snappy_t init_t:unix_stream_socket connectto;
 # Allow snapd to read file contexts
 gen_require(` type file_context_t; ')
 allow snappy_t file_context_t:dir search;
-allow snappy_t file_context_t:file { getattr open read };
+allow snappy_t file_context_t:file { map getattr open read };
 
 # Allow snapd to read procfs
 gen_require(` type proc_t; ')
@@ -86,8 +86,12 @@ allow snappy_t proc_t:file { getattr open read };
 gen_require(` type sysfs_t; ')
 allow snappy_t sysfs_t:dir read;
 allow snappy_t sysfs_t:file { getattr setattr open read write };
-allow snappy_t sysfs_t:lnk_file read;
+allow snappy_t sysfs_t:lnk_file { getattr read };
 
+
+# This silences a read AVC denial event on the lost+found directory.
+gen_require(` type lost_found_t; ')
+dontaudit snappy_t lost_found_t:dir read;
 
 # Allow snapd to read SSL cert store
 gen_require(` type cert_t; ')
@@ -129,12 +133,13 @@ allow snappy_t dbusd_etc_t:lnk_file { read };
 gen_require(` type udev_rules_t; type udev_exec_t; ')
 allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove_name };
 allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
-allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read };
+allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read map };
 
 # Allow snapd to manipulate udev
 gen_require(` type udev_t; type udev_var_run_t; ')
 allow snappy_t udev_t:unix_stream_socket connectto;
 allow snappy_t udev_var_run_t:file { getattr open read };
+allow snappy_t udev_var_run_t:dir { read };
 allow snappy_t udev_var_run_t:sock_file { getattr open read write };
 
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
