@@ -1,7 +1,6 @@
 summary: Ensure that the network-observe interface works
 
-# core18 has no "nc"
-systems: [-fedora-*, -opensuse-*, -ubuntu-core-18-*]
+systems: [-fedora-*, -opensuse-*]
 
 details: |
     The network-observe interface allows a snap to query the network status information.
