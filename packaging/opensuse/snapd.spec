@@ -25,6 +25,7 @@
 
 # Compat macros
 %{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 
 # This is fixed in SUSE Linux 15
 # Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
