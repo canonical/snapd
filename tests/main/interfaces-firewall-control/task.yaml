@@ -1,7 +1,6 @@
 summary: Ensure that the firewall-control interface works.
 
-# core18 has no "nc"
-systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-core-18-*]
+systems: [-fedora-*, -opensuse-*, -arch-*]
 
 details: |
     The firewall-control interface allows a snap to configure the firewall.
