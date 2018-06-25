@@ -14,6 +14,9 @@ restore: |
 # with the distro
 backends: [-autopkgtest]
 
+# no iptables on core18 yet
+systems: [-ubuntu-core-18-*]
+
 debug: |
     ps -ef
     ls -al

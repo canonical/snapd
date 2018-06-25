@@ -59,7 +59,7 @@ func (info *Info) MarshalJSON() ([]byte, error) {
 	plugs := make([]*plugJSON, 0, len(info.Plugs))
 	for _, plug := range info.Plugs {
 		plugs = append(plugs, &plugJSON{
-			Snap:  plug.Snap.Name(),
+			Snap:  plug.Snap.InstanceName(),
 			Name:  plug.Name,
 			Attrs: plug.Attrs,
 			Label: plug.Label,
@@ -68,7 +68,7 @@ func (info *Info) MarshalJSON() ([]byte, error) {
 	slots := make([]*slotJSON, 0, len(info.Slots))
 	for _, slot := range info.Slots {
 		slots = append(slots, &slotJSON{
-			Snap:  slot.Snap.Name(),
+			Snap:  slot.Snap.InstanceName(),
 			Name:  slot.Name,
 			Attrs: slot.Attrs,
 			Label: slot.Label,

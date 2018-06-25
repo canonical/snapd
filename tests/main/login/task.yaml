@@ -1,7 +1,7 @@
 summary: Checks for snap login
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 
 restore: |
     snap logout || true

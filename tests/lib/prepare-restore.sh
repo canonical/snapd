@@ -34,6 +34,9 @@ set -o pipefail
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
+
 
 ###
 ### Utility functions reused below.
@@ -394,8 +397,8 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-        prepare_all_snap
+    if is_core_system; then
+        prepare_ubuntu_core
     else
         prepare_classic
     fi
@@ -411,8 +414,9 @@ prepare_suite_each() {
     if is_classic_system; then
         prepare_each_classic
     fi
-
-    echo -n "$SPREAD_JOB " >> "$SPREAD_PATH/tests/runs"
+    #shellcheck source=tests/lib/state.sh
+    . "$TESTSLIB"/state.sh
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
 }
 
 restore_suite_each() {

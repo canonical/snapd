@@ -2165,6 +2165,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 		}
 
+		// TODO parallel-install: use of proper instance/store name
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
 			InstanceKey:      instanceKey,

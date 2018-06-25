@@ -17,6 +17,7 @@ environment:
     HIDDEN_READABLE_FILE: "$HOME/.readable"
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap declaring the home plug is installed"
@@ -32,7 +33,7 @@ prepare: |
     echo ok > "$HIDDEN_READABLE_FILE"
 
 restore: |
-    rm -f $READABLE_FILE $WRITABLE_FILE $CREATABLE_FILE $HIDDEN_READABLE_FILE
+    rm -f "$READABLE_FILE" "$WRITABLE_FILE" "$CREATABLE_FILE" "$HIDDEN_READABLE_FILE"
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
@@ -40,7 +41,7 @@ execute: |
 
     if is_core_system; then
         echo "The interface is not connected by default"
-        snap interfaces -i home | MATCH "^\- +home-consumer:home"
+        snap interfaces -i home | MATCH '^- +home-consumer:home'
 
         echo "And the plug can be connected"
         snap connect home-consumer:home
@@ -59,14 +60,14 @@ execute: |
     snap connect home-consumer:home
 
     echo "Then the snap is able to read home files"
-    home-consumer.reader $READABLE_FILE | grep -Pqz ok
+    home-consumer.reader "$READABLE_FILE" | grep -Pqz ok
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect home-consumer:home
 
         echo "Then snap can't read home files"
-        if home-consumer.reader $READABLE_FILE; then
+        if home-consumer.reader "$READABLE_FILE"; then
             echo "Home files shouldn't be readable" && exit 1
         fi
     fi
@@ -76,7 +77,7 @@ execute: |
 
     echo "Then the snap is able to append to home files"
     home-consumer.writer "$WRITABLE_FILE"
-    cat "$WRITABLE_FILE" | grep -Pqz "ok\nok"
+    grep -Pqz 'ok\nok' < "$WRITABLE_FILE"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
@@ -93,7 +94,7 @@ execute: |
 
     echo "Then the snap is able to create home files"
     home-consumer.writer "$CREATABLE_FILE"
-    cat "$CREATABLE_FILE" | grep -Pqz "ok"
+    grep -Pqz "ok" < "$CREATABLE_FILE"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

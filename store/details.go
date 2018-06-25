@@ -58,32 +58,14 @@ type snapDetails struct {
 	Type    snap.Type       `json:"content,omitempty"`
 	Version string          `json:"version"`
 
-	// TODO: have the store return a 'developer_username' for this
-	Developer   string `json:"origin"`
-	DeveloperID string `json:"developer_id"`
+	Developer     string `json:"origin"`
+	DeveloperID   string `json:"developer_id"`
+	DeveloperName string `json:"developer_name"`
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
 
 	CommonIDs []string `json:"common_ids,omitempty"`
-}
-
-// channelMap contains
-type channelMap struct {
-	Track       string                   `json:"track"`
-	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
-}
-
-// channelSnapInfoDetails is the subset of snapDetails we need to get
-// information about the snaps in the various channels
-type channelSnapInfoDetails struct {
-	Revision     int        `json:"revision"` // store revisions are ints starting at 1
-	Confinement  string     `json:"confinement"`
-	Version      string     `json:"version"`
-	Channel      string     `json:"channel"`
-	Epoch        snap.Epoch `json:"epoch"`
-	DownloadSize int64      `json:"binary_filesize"`
-	Info         string     `json:"info"`
 }
 
 func infoFromRemote(d *snapDetails) *snap.Info {
@@ -102,12 +84,15 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	// What the store calls "developer" is actually the publisher
 	// username.
 	//
-	// It also sends "publisher" which is the "publisher display name"
-	// which we cannot use currently because it is not validated
-	// (i.e. the publisher could put anything in there and mislead
-	// the users this way).
-	info.Publisher = d.Developer
-	info.PublisherID = d.DeveloperID
+	// It also sends "publisher" and "developer_name" which are
+	// the "publisher display name" which we cannot use currently
+	// because it is not validated (i.e. the publisher could put
+	// anything in there and mislead the users this way).
+	info.Publisher = snap.StoreAccount{
+		ID:          d.DeveloperID,
+		Username:    d.Developer,
+		DisplayName: d.DeveloperName,
+	}
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
