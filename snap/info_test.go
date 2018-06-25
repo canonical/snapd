@@ -1075,7 +1075,7 @@ func (s *infoSuite) TestNickname(c *C) {
 	c.Check(snap.DropNick("foo"), Equals, "foo")
 }
 
-func (s *infoSuite) TestInstanceStoreName(c *C) {
+func (s *infoSuite) TestSplitInstanceName(c *C) {
 	store, key := snap.SplitInstanceName("foo_bar")
 	c.Check(store, Equals, "foo")
 	c.Check(key, Equals, "bar")
@@ -1083,6 +1083,8 @@ func (s *infoSuite) TestInstanceStoreName(c *C) {
 	store, key = snap.SplitInstanceName("foo")
 	c.Check(store, Equals, "foo")
 	c.Check(key, Equals, "")
+
+	// all following instance names are invalid
 
 	store, key = snap.SplitInstanceName("_bar")
 	c.Check(store, Equals, "")
@@ -1095,7 +1097,9 @@ func (s *infoSuite) TestInstanceStoreName(c *C) {
 	store, key = snap.SplitInstanceName("")
 	c.Check(store, Equals, "")
 	c.Check(key, Equals, "")
+}
 
+func (s *infoSuite) TestInstanceStoreName(c *C) {
 	c.Check(snap.StoreName("foo_bar"), Equals, "foo")
 	c.Check(snap.StoreName("foo"), Equals, "foo")
 
