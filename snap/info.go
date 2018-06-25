@@ -574,13 +574,13 @@ func (slot *SlotInfo) String() string {
 type SlotInfo struct {
 	Snap *Info
 
-	Name      string
-	Interface string
-	Attrs     map[string]interface{}
-	Label     string
-	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
-	Hotplug   bool
+	Name             string
+	Interface        string
+	Attrs            map[string]interface{}
+	Label            string
+	Apps             map[string]*AppInfo
+	Hooks            map[string]*HookInfo
+	HotplugDeviceKey string
 }
 
 // SocketInfo provides information on application sockets.
