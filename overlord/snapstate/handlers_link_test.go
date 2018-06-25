@@ -711,10 +711,10 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	t = chg.Tasks()[4]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "snap1")
+	c.Assert(autoconnectSup.InstanceName(), Equals, "snap1")
 
 	t = chg.Tasks()[5]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "snap2")
+	c.Assert(autoconnectSup.InstanceName(), Equals, "snap2")
 }

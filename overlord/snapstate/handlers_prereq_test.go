@@ -171,7 +171,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		if t.Kind() == "link-snap" {
 			snapsup, err := snapstate.TaskSnapSetup(t)
 			c.Assert(err, IsNil)
-			linkedSnaps = append(linkedSnaps, snapsup.Name())
+			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		}
 	}
 	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
@@ -198,10 +198,10 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 			defer st.Unlock()
 			snapsup, _ := snapstate.TaskSnapSetup(task)
 			var snapst snapstate.SnapState
-			snapstate.Get(st, snapsup.Name(), &snapst)
+			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
 			snapst.Sequence = append(snapst.Sequence, snapsup.SideInfo)
-			snapstate.Set(st, snapsup.Name(), &snapst)
+			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 			return nil
 		},
 		func(*state.Task, *tomb.Tomb) error {

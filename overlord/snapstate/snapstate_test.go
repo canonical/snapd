@@ -882,7 +882,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 				if pre.Kind() == "link-snap" {
 					snapsup, err := snapstate.TaskSnapSetup(pre)
 					c.Assert(err, IsNil)
-					prereqs[snapsup.Name()] = true
+					prereqs[snapsup.InstanceName()] = true
 				}
 			}
 		}
@@ -3890,7 +3890,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				c.Assert(err, IsNil)
 				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
 				c.Assert(err, IsNil)
-				taskAliases[snapsup.Name()] = expectedSet(aliases)
+				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
 			for _, snapName := range scenario.prune {
@@ -4037,7 +4037,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				c.Assert(err, IsNil)
 				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
 				c.Assert(err, IsNil)
-				taskAliases[snapsup.Name()] = expectedSet(aliases)
+				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
 			for _, snapName := range scenario.prune {

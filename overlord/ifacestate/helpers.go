@@ -493,7 +493,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		snapName := snapsup.Name()
+		snapName := snapsup.InstanceName()
 		if seen[snapName] {
 			continue
 		}
@@ -505,7 +505,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				if err != nil {
 					return nil, err
 				}
-				if snapsup1.Name() == snapName {
+				if snapsup1.InstanceName() == snapName {
 					doneProfiles = true
 					break
 				}
