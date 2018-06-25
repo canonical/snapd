@@ -10,9 +10,6 @@ details: |
         access and that plugging mir with another interface (specifically,
         time-control) that trigger the device cgroup also does not.
 
-# In Debian 9, the input devices don't show up in /dev/input/by-path
-systems: [-debian-9-*]
-
 prepare: |
     echo "Given the test-snapd-udev-input-subsystem is installed"
     #shellcheck source=tests/lib/snaps.sh
@@ -23,6 +20,16 @@ restore: |
     rm -f call.error
 
 execute: |
+    if [ ! -d /dev/input/by-path/ ]; then
+        if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+            # ensure the test runs at least on this spread system
+            echo "No /dev/input/by-path but this test cannot be skipped on ubuntu-16.04-64"
+            exit 1
+        fi
+        echo "SKIP: no /dev/input/by-path"
+        exit 0
+    fi
+
     echo "The mir slot and plug are available by default and connected"
     snap interfaces -i mir | MATCH "test-snapd-udev-input-subsystem:mir-slot +test-snapd-udev-input-subsystem:mir-plug"
 
