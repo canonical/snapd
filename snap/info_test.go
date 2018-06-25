@@ -195,6 +195,24 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
 
+func (s *infoSuite) TestReadInfoWithInstance(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "instance summary"}
+
+	snapInfo1 := snaptest.MockSnapInstance(c, "sample_instance", sampleYaml, si)
+
+	snapInfo2, err := snap.ReadInfo("sample_instance", si)
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo2.StoreName(), Equals, "sample")
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
+	c.Check(snapInfo2.Summary(), Equals, "instance summary")
+
+	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+
+	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
 func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42)}
 
@@ -210,6 +228,24 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	snapInfo3, err := snap.ReadCurrentInfo("not-sample")
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
+}
+
+func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42)}
+
+	snapInfo1 := snaptest.MockSnapInstanceCurrent(c, "sample_instance", sampleYaml, si)
+
+	snapInfo2, err := snap.ReadCurrentInfo("sample_instance")
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo2.StoreName(), Equals, "sample")
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
+	c.Check(snapInfo2, DeepEquals, snapInfo1)
+
+	snapInfo3, err := snap.ReadCurrentInfo("sample_other")
+	c.Check(snapInfo3, IsNil)
+	c.Assert(err, ErrorMatches, `cannot find current revision for snap sample_other:.*`)
 }
 
 func (s *infoSuite) TestInstallDate(c *C) {
