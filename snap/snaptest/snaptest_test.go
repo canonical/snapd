@@ -72,6 +72,24 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
 }
 
+func (s *snapTestSuite) TestMockSnapInstance(c *C) {
+	snapInfo := snaptest.MockSnapInstance(c, "sample_instance", sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML and parameters is used
+	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo.StoreName(), Equals, "sample")
+	c.Check(snapInfo.InstanceKey, Equals, "instance")
+
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is placed on disk
+	c.Check(filepath.Join(dirs.SnapMountDir, "sample_instance", "42", "meta", "snap.yaml"),
+		testutil.FileEquals, sampleYaml)
+
+	// More
+	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+}
+
 func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
 	snapInfo := snaptest.MockSnapCurrent(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
@@ -84,6 +102,22 @@ func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
 	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample", "current"))
 	c.Check(err, IsNil)
 	c.Check(link, Equals, filepath.Join(dirs.SnapMountDir, "sample", "42"))
+}
+
+func (s *snapTestSuite) TestMockSnapInstanceCurrent(c *C) {
+	snapInfo := snaptest.MockSnapInstanceCurrent(c, "sample_instance", sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML and parameters is used
+	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo.StoreName(), Equals, "sample")
+	c.Check(snapInfo.InstanceKey, Equals, "instance")
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is placed on disk
+	c.Check(filepath.Join(dirs.SnapMountDir, "sample_instance", "42", "meta", "snap.yaml"),
+		testutil.FileEquals, sampleYaml)
+	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample_instance", "current"))
+	c.Check(err, IsNil)
+	c.Check(link, Equals, filepath.Join(dirs.SnapMountDir, "sample_instance", "42"))
 }
 
 func (s *snapTestSuite) TestMockInfo(c *C) {
