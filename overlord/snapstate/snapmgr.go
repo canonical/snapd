@@ -77,9 +77,17 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+
+	// InstanceKey is set by the user during installation and differs for
+	// each instance of given snap
+	InstanceKey string `json:"instance-key,omitempty"`
 }
 
-func (snapsup *SnapSetup) Name() string {
+func (snapsup *SnapSetup) InstanceName() string {
+	return snap.InstanceName(snapsup.SnapName(), snapsup.InstanceKey)
+}
+
+func (snapsup *SnapSetup) SnapName() string {
 	if snapsup.SideInfo.RealName == "" {
 		panic("SnapSetup.SideInfo.RealName not set")
 	}
@@ -91,15 +99,15 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.Name(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.Name(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) MountFile() string {
-	return snap.MountFile(snapsup.Name(), snapsup.Revision())
+	return snap.MountFile(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // SnapState holds the state for a snap installed in the system.

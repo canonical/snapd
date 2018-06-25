@@ -119,9 +119,9 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	})
 	if notFound, ok := err.(*asserts.NotFoundError); ok {
 		if notFound.Type == asserts.SnapRevisionType {
-			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.Name())
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.InstanceName())
 		} else {
-			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.InstanceName(), notFound)
 		}
 	}
 	if err != nil {
@@ -129,7 +129,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(t.State())
-	err = snapasserts.CrossCheck(snapsup.Name(), sha3_384, snapSize, snapsup.SideInfo, db)
+	err = snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, snapSize, snapsup.SideInfo, db)
 	if err != nil {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this
