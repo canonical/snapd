@@ -6,6 +6,9 @@
 %bcond_without vendorized
 %endif
 
+# Compat macros
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
