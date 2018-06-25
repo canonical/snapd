@@ -29,8 +29,8 @@ import (
 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
-// StoreChannel identifies and describes completely a store channel.
-type StoreChannel struct {
+// Channel identifies and describes completely a store channel.
+type Channel struct {
 	Architecture string `json:"architecture"`
 	Name         string `json:"name"`
 	Track        string `json:"track"`
@@ -38,16 +38,16 @@ type StoreChannel struct {
 	Branch       string `json:"branch,omitempty"`
 }
 
-// ParseStoreChannel parses a string representing a store channel and includes the given architecture, if architecture is "" the system architecture is included.
-func ParseStoreChannel(s string, architecture string) (StoreChannel, error) {
+// ParseChannel parses a string representing a store channel and includes the given architecture, if architecture is "" the system architecture is included.
+func ParseChannel(s string, architecture string) (Channel, error) {
 	if s == "" {
-		return StoreChannel{}, fmt.Errorf("channel name cannot be empty")
+		return Channel{}, fmt.Errorf("channel name cannot be empty")
 	}
 	p := strings.Split(s, "/")
 	var risk, track, branch string
 	switch len(p) {
 	default:
-		return StoreChannel{}, fmt.Errorf("channel name has too many components: %s", s)
+		return Channel{}, fmt.Errorf("channel name has too many components: %s", s)
 	case 3:
 		track, risk, branch = p[0], p[1], p[2]
 	case 2:
@@ -66,14 +66,14 @@ func ParseStoreChannel(s string, architecture string) (StoreChannel, error) {
 	}
 
 	if !strutil.ListContains(channelRisks, risk) {
-		return StoreChannel{}, fmt.Errorf("invalid risk in channel name: %s", s)
+		return Channel{}, fmt.Errorf("invalid risk in channel name: %s", s)
 	}
 
 	if architecture == "" {
 		architecture = arch.UbuntuArchitecture()
 	}
 
-	return StoreChannel{
+	return Channel{
 		Architecture: architecture,
 		Track:        track,
 		Risk:         risk,
@@ -81,8 +81,8 @@ func ParseStoreChannel(s string, architecture string) (StoreChannel, error) {
 	}.Clean(), nil
 }
 
-// Clean returns a StoreChannel with a normalized track and name.
-func (c StoreChannel) Clean() StoreChannel {
+// Clean returns a Channel with a normalized track and name.
+func (c Channel) Clean() Channel {
 	track := c.Track
 
 	if track == "latest" {
@@ -98,7 +98,7 @@ func (c StoreChannel) Clean() StoreChannel {
 		name = name + "/" + c.Branch
 	}
 
-	return StoreChannel{
+	return Channel{
 		Architecture: c.Architecture,
 		Name:         name,
 		Track:        track,
@@ -107,12 +107,12 @@ func (c StoreChannel) Clean() StoreChannel {
 	}
 }
 
-func (c *StoreChannel) String() string {
+func (c *Channel) String() string {
 	return c.Name
 }
 
 // Full returns the full name of the channel, inclusive the default track "latest".
-func (c *StoreChannel) Full() string {
+func (c *Channel) Full() string {
 	if c.Track == "" {
 		return "latest/" + c.Name
 	}
@@ -128,8 +128,8 @@ func riskLevel(risk string) int {
 	return -1
 }
 
-// StoreChannelMatch represents on which fields two channels are matching.
-type StoreChannelMatch struct {
+// ChannelMatch represents on which fields two channels are matching.
+type ChannelMatch struct {
 	Architecture bool
 	Track        bool
 	Risk         bool
@@ -144,7 +144,7 @@ type StoreChannelMatch struct {
 //  "track"
 //  "risk"
 //  ""
-func (cm StoreChannelMatch) String() string {
+func (cm ChannelMatch) String() string {
 	matching := []string{}
 	if cm.Architecture {
 		matching = append(matching, "architecture")
@@ -159,11 +159,11 @@ func (cm StoreChannelMatch) String() string {
 
 }
 
-// Match returns a StoreChannelMatch of which fields among architecture,track,risk match between c and c1 store channels, risk is matched taking channel inheritance into account and considering c the requested channel.
-func (c *StoreChannel) Match(c1 *StoreChannel) StoreChannelMatch {
+// Match returns a ChannelMatch of which fields among architecture,track,risk match between c and c1 store channels, risk is matched taking channel inheritance into account and considering c the requested channel.
+func (c *Channel) Match(c1 *Channel) ChannelMatch {
 	requestedRiskLevel := riskLevel(c.Risk)
 	rl1 := riskLevel(c1.Risk)
-	return StoreChannelMatch{
+	return ChannelMatch{
 		Architecture: c.Architecture == c1.Architecture,
 		Track:        c.Track == c1.Track,
 		Risk:         requestedRiskLevel >= rl1,

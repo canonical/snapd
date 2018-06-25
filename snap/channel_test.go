@@ -30,10 +30,10 @@ type storeChannelSuite struct{}
 
 var _ = Suite(&storeChannelSuite{})
 
-func (s storeChannelSuite) TestParseStoreChannel(c *C) {
-	ch, err := snap.ParseStoreChannel("stable", "")
+func (s storeChannelSuite) TestParseChannel(c *C) {
+	ch, err := snap.ParseChannel("stable", "")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: arch.UbuntuArchitecture(),
 		Name:         "stable",
 		Track:        "",
@@ -41,9 +41,9 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = snap.ParseStoreChannel("latest/stable", "")
+	ch, err = snap.ParseChannel("latest/stable", "")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: arch.UbuntuArchitecture(),
 		Name:         "stable",
 		Track:        "",
@@ -51,9 +51,9 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = snap.ParseStoreChannel("1.0/edge", "")
+	ch, err = snap.ParseChannel("1.0/edge", "")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: arch.UbuntuArchitecture(),
 		Name:         "1.0/edge",
 		Track:        "1.0",
@@ -61,9 +61,9 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = snap.ParseStoreChannel("1.0", "")
+	ch, err = snap.ParseChannel("1.0", "")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: arch.UbuntuArchitecture(),
 		Name:         "1.0/stable",
 		Track:        "1.0",
@@ -71,9 +71,9 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = snap.ParseStoreChannel("1.0/beta/foo", "")
+	ch, err = snap.ParseChannel("1.0/beta/foo", "")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: arch.UbuntuArchitecture(),
 		Name:         "1.0/beta/foo",
 		Track:        "1.0",
@@ -81,9 +81,9 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 		Branch:       "foo",
 	})
 
-	ch, err = snap.ParseStoreChannel("candidate/foo", "")
+	ch, err = snap.ParseChannel("candidate/foo", "")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: arch.UbuntuArchitecture(),
 		Name:         "candidate/foo",
 		Track:        "",
@@ -91,9 +91,9 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 		Branch:       "foo",
 	})
 
-	ch, err = snap.ParseStoreChannel("candidate/foo", "other-arch")
+	ch, err = snap.ParseChannel("candidate/foo", "other-arch")
 	c.Assert(err, IsNil)
-	c.Check(ch, DeepEquals, snap.StoreChannel{
+	c.Check(ch, DeepEquals, snap.Channel{
 		Architecture: "other-arch",
 		Name:         "candidate/foo",
 		Track:        "",
@@ -103,7 +103,7 @@ func (s storeChannelSuite) TestParseStoreChannel(c *C) {
 }
 
 func (s storeChannelSuite) TestClean(c *C) {
-	ch := snap.StoreChannel{
+	ch := snap.Channel{
 		Architecture: "arm64",
 		Track:        "latest",
 		Name:         "latest/stable",
@@ -112,7 +112,7 @@ func (s storeChannelSuite) TestClean(c *C) {
 
 	cleanedCh := ch.Clean()
 	c.Check(cleanedCh, Not(DeepEquals), c)
-	c.Check(cleanedCh, DeepEquals, snap.StoreChannel{
+	c.Check(cleanedCh, DeepEquals, snap.Channel{
 		Architecture: "arm64",
 		Track:        "",
 		Name:         "stable",
@@ -120,14 +120,14 @@ func (s storeChannelSuite) TestClean(c *C) {
 	})
 }
 
-func (s storeChannelSuite) TestParseStoreChannelErrors(c *C) {
-	_, err := snap.ParseStoreChannel("", "")
+func (s storeChannelSuite) TestParseChannelErrors(c *C) {
+	_, err := snap.ParseChannel("", "")
 	c.Check(err, ErrorMatches, "channel name cannot be empty")
 
-	_, err = snap.ParseStoreChannel("1.0////", "")
+	_, err = snap.ParseChannel("1.0////", "")
 	c.Check(err, ErrorMatches, "channel name has too many components: 1.0////")
 
-	_, err = snap.ParseStoreChannel("1.0/cand", "invalid risk in channel name: 1.0/cand")
+	_, err = snap.ParseChannel("1.0/cand", "invalid risk in channel name: 1.0/cand")
 	c.Check(err, ErrorMatches, "invalid risk in channel name: 1.0/cand")
 }
 
@@ -140,11 +140,12 @@ func (s *storeChannelSuite) TestString(c *C) {
 		{"latest/stable", "stable"},
 		{"1.0/edge", "1.0/edge"},
 		{"1.0/beta/foo", "1.0/beta/foo"},
+		{"1.0", "1.0/stable"},
 		{"candidate/foo", "candidate/foo"},
 	}
 
 	for _, t := range tests {
-		ch, err := snap.ParseStoreChannel(t.channel, "")
+		ch, err := snap.ParseChannel(t.channel, "")
 		c.Assert(err, IsNil)
 
 		c.Check(ch.String(), Equals, t.str)
@@ -160,11 +161,12 @@ func (s *storeChannelSuite) TestFull(c *C) {
 		{"latest/stable", "latest/stable"},
 		{"1.0/edge", "1.0/edge"},
 		{"1.0/beta/foo", "1.0/beta/foo"},
+		{"1.0", "1.0/stable"},
 		{"candidate/foo", "latest/candidate/foo"},
 	}
 
 	for _, t := range tests {
-		ch, err := snap.ParseStoreChannel(t.channel, "")
+		ch, err := snap.ParseChannel(t.channel, "")
 		c.Assert(err, IsNil)
 
 		c.Check(ch.Full(), Equals, t.str)
@@ -199,9 +201,9 @@ func (s *storeChannelSuite) TestMatch(c *C) {
 		if !t.sameArch {
 			c1Arch = "arm64"
 		}
-		req, err := snap.ParseStoreChannel(t.req, reqArch)
+		req, err := snap.ParseChannel(t.req, reqArch)
 		c.Assert(err, IsNil)
-		c1, err := snap.ParseStoreChannel(t.c1, c1Arch)
+		c1, err := snap.ParseChannel(t.c1, c1Arch)
 		c.Assert(err, IsNil)
 
 		c.Check(req.Match(&c1).String(), Equals, t.res)
