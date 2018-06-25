@@ -1318,6 +1318,9 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return false
 	}
 
+	// TODO: ensure that you cannot remove bases/core if those are
+	//       needed by one of the installed snaps.
+
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
 	// never remove anything that is used for booting
