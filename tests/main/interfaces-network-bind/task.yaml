@@ -1,8 +1,5 @@
 summary: Ensure that the network-bind interface works
 
-# core18 has no "nc"
-systems: [-ubuntu-core-18-*]
-
 details: |
     The network-bind interface allows a daemon to access the network as a server.
 
