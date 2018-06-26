@@ -47,13 +47,15 @@ check_canaries
 
 sed -i 's/charset=CHARSET/charset=UTF-8/' "$OUTPUT"
 
+# we need the || true because of
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=891347
 xgettext "$HERE"/data/polkit/*.policy \
     -o "$OUTPUT" \
     --its="$HERE/po/its/polkit.its" \
     --no-location \
     --package-name=snappy \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
-    --join-existing
+    --join-existing || true
 
 check_canaries
 
