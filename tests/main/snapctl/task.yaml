@@ -1,5 +1,8 @@
 summary: Check that `snapctl` can be run from within hooks
 
+# core18 has no curl
+systems: [-ubuntu-core-18-*]
+
 prepare: |
     snap pack $TESTSLIB/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap
