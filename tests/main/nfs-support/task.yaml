@@ -5,11 +5,8 @@ details: |
     permissions sufficient for NFS to operate.
 systems: [ubuntu-16.04-64]  # TODO: expand this list
 prepare: |
-    . "$TESTSLIB/pkgdb.sh"
     . "$TESTSLIB/snaps.sh"
 
-    # Install NFS server and a simple shell snap.
-    distro_install_package nfs-kernel-server
     install_local test-snapd-sh
 execute: |
     ensure_extra_perms() {

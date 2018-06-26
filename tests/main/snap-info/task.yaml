@@ -4,9 +4,6 @@ summary: Check that snap info works
 systems: [-ubuntu-core-18-*]
 
 prepare: |
-    . $TESTSLIB/pkgdb.sh
-    distro_install_package python3-yaml
-
     snap pack $TESTSLIB/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
