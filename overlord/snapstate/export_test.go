@@ -134,6 +134,7 @@ var (
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
+	ValidateFeatureFlags   = validateFeatureFlags
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
