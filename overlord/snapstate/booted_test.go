@@ -287,3 +287,101 @@ func (bs *bootedSuite) TestCurrentBootNameAndRevision(c *C) {
 	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
 	c.Check(err, ErrorMatches, "cannot retrieve boot revision for kernel: unset")
 }
+
+func (bs *bootedSuite) TestWaitRestartCore(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not core snap
+	err := snapstate.WaitRestart(task, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-app",
+		},
+	}, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, IsNil)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+		},
+	}
+
+	// core snap, restarting ... wait
+	state.MockRestarting(st, state.RestartSystem)
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+
+	// core snap, restarted, waiting for current core revision
+	state.MockRestarting(st, state.RestartUnset)
+	bs.bootloader.BootVars["snap_mode"] = "trying"
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
+
+	// core snap, restarted, right core revision, no rollback
+	bs.bootloader.BootVars["snap_mode"] = ""
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeOS, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
+	c.Check(err, IsNil)
+
+	// core snap, restarted, wrong core revision, rollback!
+	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeOS, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
+	c.Check(err, ErrorMatches, `cannot finish core installation, there was a rollback across reboot`)
+}
+
+func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
+	restore := snapstate.MockModelWithBase("core18")
+	defer restore()
+
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not core snap
+	err := snapstate.WaitRestart(task, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-app",
+		},
+	}, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, IsNil)
+
+	// core snap but we are on a model with a different base
+	err = snapstate.WaitRestart(task, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+		},
+	}, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, IsNil)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core18",
+		},
+	}
+
+	// core snap, restarting ... wait
+	state.MockRestarting(st, state.RestartSystem)
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+
+	// core snap, restarted, waiting for current core revision
+	state.MockRestarting(st, state.RestartUnset)
+	bs.bootloader.BootVars["snap_mode"] = "trying"
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
+
+	// core snap, restarted, right core revision, no rollback
+	bs.bootloader.BootVars["snap_mode"] = ""
+	bs.bootloader.BootVars["snap_core"] = "core18_2.snap"
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeApp, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
+	c.Check(err, IsNil)
+
+	// core snap, restarted, wrong core revision, rollback!
+	bs.bootloader.BootVars["snap_core"] = "core18_1.snap"
+	err = snapstate.WaitRestart(task, snapsup, &snap.Info{Type: snap.TypeApp, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
+	c.Check(err, ErrorMatches, `cannot finish core18 installation, there was a rollback across reboot`)
+}

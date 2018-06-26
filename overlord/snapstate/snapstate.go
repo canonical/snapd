@@ -516,7 +516,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err
 			return err
 		}
 		if snapsup.Name() != name || snapInfo.Revision != rev {
-			return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.Name())
 		}
 	}
 
