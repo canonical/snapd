@@ -558,14 +558,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	// The previous task (link-snap) may have triggered a restart,
-	// if this is the case we can only procceed once the restart
-	// has happened or we may not have all the interfaces of the
-	// new core/base snap.
-	if err := snapstate.WaitRestart(task); err != nil {
-		return err
-	}
-
 	var conns map[string]connState
 	err := st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
@@ -577,6 +569,18 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
+		return err
+	}
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	// The previous task (link-snap) may have triggered a restart,
+	// if this is the case we can only procceed once the restart
+	// has happened or we may not have all the interfaces of the
+	// new core/base snap.
+	if err := snapstate.WaitRestart(task, snapsup, snapInfo); err != nil {
 		return err
 	}
 

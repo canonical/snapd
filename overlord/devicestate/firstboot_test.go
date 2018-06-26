@@ -1296,11 +1296,16 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
-	st.Unlock()
-	s.overlord.Settle(250 * time.Millisecond)
-	st.Lock()
-
-	// at this point snapd is "restarting", pretend the restart has
+	// run change until it wants to restart
+	for i := 0; i < 25; i++ {
+		st.Unlock()
+		s.overlord.Settle(100 * time.Millisecond)
+		st.Lock()
+		if ok, _ := st.Restarting(); ok {
+			break
+		}
+	}
+	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	state.MockRestarting(st, state.RestartUnset)
