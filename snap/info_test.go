@@ -1100,8 +1100,8 @@ func (s *infoSuite) TestSplitInstanceName(c *C) {
 }
 
 func (s *infoSuite) TestInstanceSnapName(c *C) {
-	c.Check(snap.SnapName("foo_bar"), Equals, "foo")
-	c.Check(snap.SnapName("foo"), Equals, "foo")
+	c.Check(snap.InstanceSnap("foo_bar"), Equals, "foo")
+	c.Check(snap.InstanceSnap("foo"), Equals, "foo")
 
 	c.Check(snap.InstanceName("foo", "bar"), Equals, "foo_bar")
 	c.Check(snap.InstanceName("foo", ""), Equals, "foo")

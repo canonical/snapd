@@ -1005,8 +1005,8 @@ func DropNick(nick string) string {
 	return nick
 }
 
-// SnapName splits the instance name and returns the name of the snap.
-func SnapName(instanceName string) string {
+// InstanceSnap splits the instance name and returns the name of the snap.
+func InstanceSnap(instanceName string) string {
 	snapName, _ := SplitInstanceName(instanceName)
 	return snapName
 }
