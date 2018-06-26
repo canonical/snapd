@@ -1183,8 +1183,7 @@ slots:
 	c.Check(info.Plugs, HasLen, 4)
 	c.Check(info.Slots, HasLen, 2)
 	// these don't come from snap.yaml
-	c.Check(info.Publisher, Equals, "")
-	c.Check(info.PublisherID, Equals, "")
+	c.Check(info.Publisher, Equals, snap.StoreAccount{})
 	c.Check(info.Channel, Equals, "")
 	c.Check(info.License, Equals, "GPL-3.0")
 

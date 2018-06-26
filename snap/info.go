@@ -184,8 +184,7 @@ type Info struct {
 	Prices  map[string]float64
 	MustBuy bool
 
-	PublisherID string
-	Publisher   string
+	Publisher StoreAccount
 
 	Screenshots []ScreenshotInfo
 
@@ -199,6 +198,14 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+}
+
+// StoreAccount holds information about a store account, for example
+// of snap publisher.
+type StoreAccount struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display-name"`
 }
 
 // Layout describes a single element of the layout section.
@@ -999,24 +1006,25 @@ func DropNick(nick string) string {
 }
 
 // StoreName splits the instance name and returns the store name of the snap.
-func StoreName(name string) string {
-	return strings.SplitN(name, "_", 2)[0]
+func StoreName(instanceName string) string {
+	storeName, _ := SplitInstanceName(instanceName)
+	return storeName
 }
 
 // SplitInstanceName splits the instance name and returns the store name and the
 // instance key.
-func SplitInstanceName(name string) (store string, instanceKey string) {
-	split := strings.SplitN(name, "_", 2)
-	store = split[0]
+func SplitInstanceName(instanceName string) (storeName, instanceKey string) {
+	split := strings.SplitN(instanceName, "_", 2)
+	storeName = split[0]
 	if len(split) > 1 {
 		instanceKey = split[1]
 	}
-	return store, instanceKey
+	return storeName, instanceKey
 }
 
 // InstanceName takes the store name and the instance key and returns an instance
 // name of the snap.
-func InstanceName(storeName string, instanceKey string) string {
+func InstanceName(storeName, instanceKey string) string {
 	if instanceKey != "" {
 		return fmt.Sprintf("%s_%s", storeName, instanceKey)
 	}

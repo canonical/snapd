@@ -121,6 +121,11 @@ const buyFreeSnapFailsFindJson = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical"
+      },
       "download-size": 65536,
       "icon": "",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
@@ -174,6 +179,11 @@ const buySnapFindJson = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical"
+      },
       "download-size": 65536,
       "icon": "",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
