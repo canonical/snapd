@@ -301,6 +301,7 @@ distro_clean_package_cache() {
             quiet apt-get clean
             ;;
         fedora-*)
+            dnf clean all
             ;;
         opensuse-*)
             zypper -q clean --all
