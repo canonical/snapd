@@ -77,7 +77,8 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	return &Info{SideInfo: SideInfo{RealName: name, Revision: revision}}
+	storeName, instanceKey := SplitInstanceName(name)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
