@@ -469,6 +469,16 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
+// WaitRestart a Retry error if there is a pending restart.
+func WaitRestart(task *state.Task) (err error) {
+	if ok, _ := task.State().Restarting(); ok {
+		// don't continue until we are in the restarted snapd
+		task.Logf("Waiting for restart...")
+		return &state.Retry{}
+	}
+	return nil
+}
+
 func contentAttr(attrer interfaces.Attrer) string {
 	var s string
 	err := attrer.Attr("content", &s)
