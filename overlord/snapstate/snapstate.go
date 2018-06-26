@@ -520,20 +520,29 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
-	if len(info.Layout) == 0 {
-		return nil
-	}
-
 	tr := config.NewTransaction(st)
-	var featureFlagLayouts bool
-	if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
-		return err
-	}
-	if featureFlagLayouts {
-		return nil
+
+	if len(info.Layout) > 0 {
+		var flag bool
+		if err := tr.GetMaybe("core", "experimental.layouts", &flag); err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.layouts' to true")
+		}
 	}
 
-	return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+	if info.InstanceKey != "" {
+		var flag bool
+		if err := tr.GetMaybe("core", "experimental.parallel-instances", &flag); err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+		}
+	}
+
+	return nil
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.
@@ -860,10 +869,10 @@ var kindRevOrder = map[snap.Type]int{
 func (bk byKind) Less(i, j int) bool {
 	// snapd sorts first to ensure that on all refrehses it is the first
 	// snap package that gets refreshed.
-	if bk[i].StoreName() == "snapd" {
+	if bk[i].SnapName() == "snapd" {
 		return true
 	}
-	if bk[j].StoreName() == "snapd" {
+	if bk[j].SnapName() == "snapd" {
 		return false
 	}
 
