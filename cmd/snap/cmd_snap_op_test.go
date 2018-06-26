@@ -579,7 +579,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBr
 }, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: requested an apparently non-existing branch on latest/stable for snap
