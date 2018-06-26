@@ -507,6 +507,10 @@ func (s *infoSuite) TestSplitSnapApp(c *C) {
 		{"foo.bar.baz", []string{"foo", "bar.baz"}},
 		// special case, snapName == appName
 		{"foo", []string{"foo", "foo"}},
+		// snap instance names
+		{"foo_instance.bar", []string{"foo_instance", "bar"}},
+		{"foo_instance.bar.baz", []string{"foo_instance", "bar.baz"}},
+		{"foo_instance", []string{"foo_instance", "foo"}},
 	} {
 		snap, app := snap.SplitSnapApp(t.in)
 		c.Check([]string{snap, app}, DeepEquals, t.out)
@@ -523,6 +527,10 @@ func (s *infoSuite) TestJoinSnapApp(c *C) {
 		{[]string{"foo", "bar-baz"}, "foo.bar-baz"},
 		// special case, snapName == appName
 		{[]string{"foo", "foo"}, "foo"},
+		// snap instance names
+		{[]string{"foo_instance", "bar"}, "foo_instance.bar"},
+		{[]string{"foo_instance", "bar-baz"}, "foo_instance.bar-baz"},
+		{[]string{"foo_instance", "foo"}, "foo_instance"},
 	} {
 		snapApp := snap.JoinSnapApp(t.in[0], t.in[1])
 		c.Check(snapApp, Equals, t.out)

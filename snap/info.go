@@ -972,7 +972,7 @@ func InstallDate(name string) time.Time {
 func SplitSnapApp(snapApp string) (snap, app string) {
 	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
-		return l[0], l[0]
+		return l[0], StoreName(l[0])
 	}
 	return l[0], l[1]
 }
@@ -981,8 +981,9 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 // `snap` and the `app` part. It also deals with the special
 // case of snapName == appName.
 func JoinSnapApp(snap, app string) string {
-	if snap == app {
-		return app
+	storeName, instanceKey := SplitInstanceName(snap)
+	if storeName == app {
+		return InstanceName(app, instanceKey)
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
 }
