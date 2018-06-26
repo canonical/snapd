@@ -221,6 +221,8 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 		targetDir = pwd
 	}
 
+	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
+
 	actions := []*store.SnapAction{{
 		Action:   "download",
 		Name:     name,
@@ -248,6 +250,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 			logger.Debugf("not downloading, using existing file %s", targetFn)
 			return targetFn, snap, nil
 		}
+		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
 	pb := progress.MakeProgressBar()
@@ -303,7 +306,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 	}
 
 	// cross checks
-	if err := snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db); err != nil {
+	if err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, size, &info.SideInfo, db); err != nil {
 		return nil, err
 	}
 
@@ -312,7 +315,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 		"snap-id": info.SnapID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.Name(), err)
+		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.InstanceName(), err)
 	}
 	return a.(*asserts.SnapDeclaration), nil
 }

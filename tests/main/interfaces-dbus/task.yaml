@@ -11,9 +11,10 @@ details: |
 environment:
     DISPLAY: :0
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     echo "Give a snap declaring a dbus slot in installed"
@@ -23,15 +24,18 @@ prepare: |
     snap install --edge test-snapd-dbus-consumer
 
     echo "And the provider dbus loop is started"
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
     rm -f call.error
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit || true
 
 execute: |
+    #shellcheck disable=SC2046
     export $(cat dbus.env)
 
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"
@@ -40,18 +44,18 @@ execute: |
     done
 
     echo "And plug is disconnected by default"
-    snap interfaces -i dbus | MATCH "^\- +test-snapd-dbus-consumer:dbus-test"
+    snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-test'
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
     echo "And the consumer is not able to access the provided method"
-    if test-snapd-dbus-consumer.dbus-consumer 2>${PWD}/call.error; then
+    if test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
         echo "Expected permission error calling dbus method with disconnected plug"
         exit 1
     fi
-    cat call.error | MATCH "Permission denied"
+    MATCH "Permission denied" < call.error
 
     echo "When the plug is connected"
     snap connect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
