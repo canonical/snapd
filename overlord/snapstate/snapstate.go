@@ -471,7 +471,7 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 }
 
 // WaitRestart will return a Retry error if there is a pending restart
-// and a real error if anything went wrong (like a rollback accross
+// and a real error if anything went wrong (like a rollback across
 // restarts)
 func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
@@ -501,7 +501,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err
 		if model.Base() != "" {
 			bootName = model.Base()
 		}
-		// if it is not a bootable snap we are not interessted
+		// if it is not a bootable snap we are not interested
 		if snapsup.Name() != bootName {
 			return nil
 		}
