@@ -107,7 +107,7 @@ func (c Channel) Clean() Channel {
 	}
 }
 
-func (c *Channel) String() string {
+func (c Channel) String() string {
 	return c.Name
 }
 
