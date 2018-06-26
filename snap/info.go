@@ -731,7 +731,7 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	if app.Name == app.Snap.StoreName() {
+	if app.Name == app.Snap.SnapName() {
 		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Snap.InstanceName())
 	}
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
@@ -972,7 +972,7 @@ func InstallDate(name string) time.Time {
 func SplitSnapApp(snapApp string) (snap, app string) {
 	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
-		return l[0], StoreName(l[0])
+		return l[0], InstanceSnap(l[0])
 	}
 	return l[0], l[1]
 }
