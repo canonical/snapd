@@ -869,10 +869,10 @@ var kindRevOrder = map[snap.Type]int{
 func (bk byKind) Less(i, j int) bool {
 	// snapd sorts first to ensure that on all refrehses it is the first
 	// snap package that gets refreshed.
-	if bk[i].StoreName() == "snapd" {
+	if bk[i].SnapName() == "snapd" {
 		return true
 	}
-	if bk[j].StoreName() == "snapd" {
+	if bk[j].SnapName() == "snapd" {
 		return false
 	}
 
