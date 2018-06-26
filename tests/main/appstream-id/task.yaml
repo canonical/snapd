@@ -1,9 +1,6 @@
 summary: Verify AppStream ID integration
-# ubuntu-*-32: the snap used in the test was published only for amd64
-# fedora-*: uses GNU netcat by default
-# ubuntu-core-16-arm-*: the snap used in the test was published only for amd64
-# core18 has no "nc"
-systems: [-ubuntu-*-32, -fedora-*, -ubuntu-core-16-arm-*, -ubuntu-core-18-* ]
+# fedora-*: uses nmap netcat by default (https://nmap.org/ncat/)
+systems: [-fedora-*]
 
 prepare: |
     snap install jq

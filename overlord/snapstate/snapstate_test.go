@@ -9694,7 +9694,7 @@ layout:
   bind: $SNAP/usr
 `)
 	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
 	tr := config.NewTransaction(s.state)
@@ -9710,7 +9710,7 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	defer s.state.Unlock()
 
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
 	tr := config.NewTransaction(s.state)
@@ -9735,7 +9735,7 @@ func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
 	tr := config.NewTransaction(s.state)
@@ -9761,7 +9761,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	})
 
 	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
-	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
 	tr := config.NewTransaction(s.state)
@@ -9798,6 +9798,26 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.Info{
+		InstanceKey: "foo",
+	}
+
+	err := snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	// enable parallel instances
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInjectTasks(c *C) {

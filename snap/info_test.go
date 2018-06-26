@@ -1074,3 +1074,49 @@ func (s *infoSuite) TestNickname(c *C) {
 	c.Check(snap.DropNick("system"), Equals, "core")
 	c.Check(snap.DropNick("foo"), Equals, "foo")
 }
+
+func (s *infoSuite) TestSplitInstanceName(c *C) {
+	snapName, instanceKey := snap.SplitInstanceName("foo_bar")
+	c.Check(snapName, Equals, "foo")
+	c.Check(instanceKey, Equals, "bar")
+
+	snapName, instanceKey = snap.SplitInstanceName("foo")
+	c.Check(snapName, Equals, "foo")
+	c.Check(instanceKey, Equals, "")
+
+	// all following instance names are invalid
+
+	snapName, instanceKey = snap.SplitInstanceName("_bar")
+	c.Check(snapName, Equals, "")
+	c.Check(instanceKey, Equals, "bar")
+
+	snapName, instanceKey = snap.SplitInstanceName("foo___bar_bar")
+	c.Check(snapName, Equals, "foo")
+	c.Check(instanceKey, Equals, "__bar_bar")
+
+	snapName, instanceKey = snap.SplitInstanceName("")
+	c.Check(snapName, Equals, "")
+	c.Check(instanceKey, Equals, "")
+}
+
+func (s *infoSuite) TestInstanceSnapName(c *C) {
+	c.Check(snap.InstanceSnap("foo_bar"), Equals, "foo")
+	c.Check(snap.InstanceSnap("foo"), Equals, "foo")
+
+	c.Check(snap.InstanceName("foo", "bar"), Equals, "foo_bar")
+	c.Check(snap.InstanceName("foo", ""), Equals, "foo")
+}
+
+func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
+	info := &snap.Info{
+		SuggestedName: "snap-name",
+		InstanceKey:   "foo",
+	}
+
+	c.Check(info.InstanceName(), Equals, "snap-name_foo")
+	c.Check(info.SnapName(), Equals, "snap-name")
+
+	info.InstanceKey = ""
+	c.Check(info.InstanceName(), Equals, "snap-name")
+	c.Check(info.SnapName(), Equals, "snap-name")
+}
