@@ -1,5 +1,8 @@
 summary: Check that snap info works
 
+# core18 has no python3-yaml
+systems: [-ubuntu-core-18-*]
+
 prepare: |
     . $TESTSLIB/pkgdb.sh
     distro_install_package python3-yaml
