@@ -725,6 +725,34 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 }
 
+func (s *infoSuite) TestMinimalInfoDirAndFileMethodsParallelInstall(c *C) {
+	dirs.SetRootDir("")
+	info := snap.MinimalPlaceInfo("name_instance", snap.R("1"))
+	s.testInstanceDirAndFileMethods(c, info)
+}
+
+func (s *infoSuite) TestDirAndFileMethodsParallelInstall(c *C) {
+	dirs.SetRootDir("")
+	info := &snap.Info{SuggestedName: "name", InstanceKey: "instance"}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
+	s.testInstanceDirAndFileMethods(c, info)
+}
+
+func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
+	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
+	c.Check(info.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name_instance/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(info.DataDir(), Equals, "/var/snap/name_instance/1")
+	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name_instance/1")
+	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name_instance/common")
+	c.Check(info.CommonDataDir(), Equals, "/var/snap/name_instance/common")
+	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
+	// XXX: Those are actually a globs, not directories
+	c.Check(info.DataHomeDir(), Equals, "/home/*/snap/name_instance/1")
+	c.Check(info.CommonDataHomeDir(), Equals, "/home/*/snap/name_instance/common")
+	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
+}
+
 func makeFakeDesktopFile(c *C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
