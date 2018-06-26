@@ -742,6 +742,13 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
+
+	// snap with instance key
+	snapInfo.InstanceKey = "instance"
+	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_app.desktop`)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_sample.desktop`)
+
 }
 
 const coreSnapYaml = `name: core
@@ -810,6 +817,18 @@ apps:
 		"snap.pans.svc1.service",
 		"snap.pans.svc2.service",
 	})
+
+	// snap with instance
+	info.InstanceKey = "instance"
+	svcNames = []string{}
+	for i := range info.Services() {
+		svcNames = append(svcNames, svcs[i].ServiceName())
+	}
+	sort.Strings(svcNames)
+	c.Check(svcNames, DeepEquals, []string{
+		"snap.pans_instance.svc1.service",
+		"snap.pans_instance.svc2.service",
+	})
 }
 
 func (s *infoSuite) TestAppInfoIsService(c *C) {
@@ -832,6 +851,11 @@ apps:
 	c.Check(info.Apps["svc2"].IsService(), Equals, true)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
+
+	// snap with instance key
+	info.InstanceKey = "instance"
+	c.Check(svc.ServiceName(), Equals, "snap.pans_instance.svc1.service")
+	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.svc1.service")
 }
 
 func (s *infoSuite) TestAppInfoStringer(c *C) {
@@ -859,6 +883,10 @@ apps:
 	app := info.Apps["app1"]
 	socket := app.Sockets["sock1"]
 	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
+
+	// snap with instance key
+	info.InstanceKey = "instance"
+	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.app1.sock1.socket")
 }
 
 func (s *infoSuite) TestTimerFile(c *C) {
@@ -875,6 +903,10 @@ apps:
 	timerFile := app.Timer.File()
 	c.Check(timerFile, Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
 	c.Check(strings.TrimSuffix(app.ServiceFile(), ".service")+".timer", Equals, timerFile)
+
+	// snap with instance key
+	info.InstanceKey = "instance"
+	c.Check(app.Timer.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.app1.timer")
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {
