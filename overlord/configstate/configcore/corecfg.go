@@ -54,20 +54,32 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 // supportedConfigurations will be filled in by the files (like proxy.go)
 // that handle this configuration.
 var supportedConfigurations = map[string]bool{
-	"core.experimental.layouts": true,
+	"core.experimental.layouts":            true,
+	"core.experimental.parallel-instances": true,
 }
 
-func validateExperimentalSettings(tr Conf) error {
-	layoutsEnabled, err := coreCfg(tr, "experimental.layouts")
+func validateBoolFlag(tr Conf, flag string) error {
+	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
 	}
-	switch layoutsEnabled {
+	switch value {
 	case "", "true", "false":
-		return nil
+		// noop
 	default:
-		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
+		return fmt.Errorf("%s can only be set to 'true' or 'false'", flag)
 	}
+	return nil
+}
+
+func validateExperimentalSettings(tr Conf) error {
+	if err := validateBoolFlag(tr, "experimental.layouts"); err != nil {
+		return err
+	}
+	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func Run(tr Conf) error {
