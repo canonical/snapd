@@ -315,6 +315,12 @@ debug-each: |
         cat "$RUNTIME_STATE_PATH/runs" || true
     fi
 
+    echo "Print tests executed in the current machine"
+    if [ -f "$SPREAD_PATH/tests/runs" ]; then
+        echo "Tasks executed on system"
+        cat "$SPREAD_PATH/tests/runs"
+    fi
+
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
     # from the content looking similar to codeload.github.com.
