@@ -16,6 +16,10 @@ check_canaries() {
     for canary in "$c1" "$c2" "$c3"; do
 	if ! grep -q "$canary" "$OUTPUT"; then
 	    echo "canary '$canary' not found, pot extraction broken"
+	    ls -lh "$OUTPUT"
+	    cat "$OUTPUT"
+	    echo "Find found:"
+	    find "$HERE" -name "*.go" -type f
 	    exit 1
 	fi
     done
