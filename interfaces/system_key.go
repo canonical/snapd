@@ -86,6 +86,10 @@ func findSnapdPath() (string, error) {
 	}
 
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+		// reexecd' snapd may be coming from either 'core' or 'snapd'
+		// snaps, find the local prefix to the snap:
+		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
+		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
 		prefix := strings.Split(exe, "/usr/")[0]
 		return filepath.Join(prefix, "/usr/lib/snapd/snapd"), nil
 	}
