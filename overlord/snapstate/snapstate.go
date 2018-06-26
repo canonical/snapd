@@ -528,7 +528,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 			return err
 		}
 		if !flag {
-			return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.layouts' to true")
 		}
 	}
 
@@ -538,7 +538,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 			return err
 		}
 		if !flag {
-			return fmt.Errorf("cannot use experimental 'parallel-instances' feature, set option 'experimental.parallel-instances' to true and try again")
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
 		}
 	}
 
