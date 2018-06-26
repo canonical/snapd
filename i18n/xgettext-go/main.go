@@ -172,13 +172,13 @@ func processFiles(args []string) error {
 func processSingleGoSource(fset *token.FileSet, fname string) error {
 	fnameContent, err := ioutil.ReadFile(fname)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Create the AST by parsing src.
 	f, err := parser.ParseFile(fset, fname, fnameContent, parser.ParseComments)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -190,6 +190,14 @@ func processSingleGoSource(fset *token.FileSet, fname string) error {
 
 var formatTime = func() string {
 	return time.Now().Format("2006-01-02 15:04-0700")
+}
+
+func mustFprintf(w io.Writer, format string, a ...interface{}) (n int, err error) {
+	n, err = fmt.Fprintf(w, format, a...)
+	if err != nil {
+		panic(fmt.Sprintf("cannot write output: %v", err))
+	}
+	return n, err
 }
 
 func writePotFile(out io.Writer) {
@@ -213,7 +221,7 @@ msgstr  "Project-Id-Version: %s\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 `, opts.PackageName, opts.MsgIDBugsAddress, formatTime())
-	fmt.Fprintf(out, "%s", header)
+	mustFprintf(out, "%s", header)
 
 	// yes, this is the way to do it in go
 	sortedKeys := []string{}
@@ -229,19 +237,19 @@ msgstr  "Project-Id-Version: %s\n"
 		msgidList := msgIDs[k]
 		for _, msgid := range msgidList {
 			if opts.AddComments || opts.AddCommentsTag != "" {
-				fmt.Fprintf(out, "%s", msgid.comment)
+				mustFprintf(out, "%s", msgid.comment)
 			}
 		}
 		if !opts.NoLocation {
-			fmt.Fprintf(out, "#:")
+			mustFprintf(out, "#:")
 			for _, msgid := range msgidList {
-				fmt.Fprintf(out, " %s:%d", msgid.fname, msgid.line)
+				mustFprintf(out, " %s:%d", msgid.fname, msgid.line)
 			}
-			fmt.Fprintf(out, "\n")
+			mustFprintf(out, "\n")
 		}
 		msgid := msgidList[0]
 		if msgid.formatHint != "" {
-			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
+			mustFprintf(out, "#, %s\n", msgid.formatHint)
 		}
 		var formatOutput = func(in string) string {
 			// split string with \n into multiple lines
@@ -250,15 +258,15 @@ msgstr  "Project-Id-Version: %s\n"
 			// cleanup too aggressive splitting (empty "" lines)
 			return strings.TrimSuffix(out, "\"\n        \"")
 		}
-		fmt.Fprintf(out, "msgid   \"%v\"\n", formatOutput(k))
+		mustFprintf(out, "msgid   \"%v\"\n", formatOutput(k))
 		if msgid.msgidPlural != "" {
-			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", formatOutput(msgid.msgidPlural))
-			fmt.Fprintf(out, "msgstr[0]  \"\"\n")
-			fmt.Fprintf(out, "msgstr[1]  \"\"\n")
+			mustFprintf(out, "msgid_plural   \"%v\"\n", formatOutput(msgid.msgidPlural))
+			mustFprintf(out, "msgstr[0]  \"\"\n")
+			mustFprintf(out, "msgstr[1]  \"\"\n")
 		} else {
-			fmt.Fprintf(out, "msgstr  \"\"\n")
+			mustFprintf(out, "msgstr  \"\"\n")
 		}
-		fmt.Fprintf(out, "\n")
+		mustFprintf(out, "\n")
 	}
 
 }
