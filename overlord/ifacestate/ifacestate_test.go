@@ -2788,6 +2788,7 @@ func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
 
 	sup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
 			RealName: "producerconsumer"},
 	}
 
@@ -2844,10 +2845,12 @@ slots:
 
 	supContentPlug := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
 			RealName: "snap-content-plug"},
 	}
 	supContentSlot := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
 			RealName: "snap-content-slot"},
 	}
 	chg := s.state.NewChange("install", "...")

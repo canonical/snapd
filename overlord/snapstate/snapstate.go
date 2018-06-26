@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -469,13 +470,56 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
-// WaitRestart a Retry error if there is a pending restart.
-func WaitRestart(task *state.Task) (err error) {
+// WaitRestart will return a Retry error if there is a pending restart
+// and a real error if anything went wrong (like a rollback accross
+// restarts)
+func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for restart...")
 		return &state.Retry{}
 	}
+
+	// If not on classic check there was no rollback. A reboot
+	// can be triggered by:
+	// - core (old core16 world, system-reboot)
+	// - bootable base snap (new core18 world, system-reboot)
+	//
+	// TODO: Detect "snapd" snap daemon-restarts here that
+	//       fallback into the old version (once we have
+	//       better snapd rollback support in core18).
+	if !release.OnClassic {
+		// TODO: double check that we really rebooted
+		// otherwise this could be just a spurious restart
+		// of snapd
+
+		model, err := Model(task.State())
+		if err != nil {
+			return err
+		}
+		bootName := "core"
+		if model.Base() != "" {
+			bootName = model.Base()
+		}
+		// if it is not a bootable snap we are not interessted
+		if snapsup.Name() != bootName {
+			return nil
+		}
+
+		// we get core/base from CurrentBootNameAndRevision with
+		// snap.TypeOS
+		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
+		if err == ErrBootNameAndRevisionAgain {
+			return &state.Retry{After: 5 * time.Second}
+		}
+		if err != nil {
+			return err
+		}
+		if snapsup.Name() != name || snapInfo.Revision != rev {
+			return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+		}
+	}
+
 	return nil
 }
 
