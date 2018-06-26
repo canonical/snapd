@@ -87,11 +87,11 @@ restore_snapd_state() {
     fi
 
     # Start all the units which have to be active
-    for unit in $(cat "$SNAPD_ACTIVE_UNITS"); do
+    while read -r unit; do
         if ! systemctl is-active "$unit"; then
             systemctl start "$unit"
         fi
-    done
+    done  < "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_lib() {
