@@ -76,7 +76,7 @@ func (s *snapTestSuite) TestMockSnapInstance(c *C) {
 	snapInfo := snaptest.MockSnapInstance(c, "sample_instance", sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML and parameters is used
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo.StoreName(), Equals, "sample")
+	c.Check(snapInfo.SnapName(), Equals, "sample")
 	c.Check(snapInfo.InstanceKey, Equals, "instance")
 
 	// Data from SideInfo is used
@@ -108,7 +108,7 @@ func (s *snapTestSuite) TestMockSnapInstanceCurrent(c *C) {
 	snapInfo := snaptest.MockSnapInstanceCurrent(c, "sample_instance", sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML and parameters is used
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo.StoreName(), Equals, "sample")
+	c.Check(snapInfo.SnapName(), Equals, "sample")
 	c.Check(snapInfo.InstanceKey, Equals, "instance")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))

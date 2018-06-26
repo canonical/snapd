@@ -204,7 +204,7 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo2.StoreName(), Equals, "sample")
+	c.Check(snapInfo2.SnapName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "instance summary")
 
@@ -239,7 +239,7 @@ func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo2.StoreName(), Equals, "sample")
+	c.Check(snapInfo2.SnapName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
