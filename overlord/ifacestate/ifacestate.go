@@ -368,8 +368,14 @@ func disconnectHooks(st *state.State, conn *interfaces.Connection, installedSnap
 			Hook:     "disconnect-slot-" + slotName,
 			Optional: true,
 		}
+		undoDisconnectSlotHookSetup := &hookstate.HookSetup{
+			Snap:     slotSnap,
+			Hook:     "connect-slot-" + slotName,
+			Optional: true,
+		}
+
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
-		disconnectSlot := hookstate.HookTask(st, summary, disconnectSlotHookSetup, nil)
+		disconnectSlot := hookstate.HookTaskWithUndo(st, summary, disconnectSlotHookSetup, undoDisconnectSlotHookSetup, nil)
 
 		ts.AddTask(disconnectSlot)
 	}
@@ -385,8 +391,14 @@ func disconnectHooks(st *state.State, conn *interfaces.Connection, installedSnap
 			Hook:     "disconnect-plug-" + plugName,
 			Optional: true,
 		}
+		undoDisconnectPlugHookSetup := &hookstate.HookSetup{
+			Snap:     plugSnap,
+			Hook:     "connect-plug-" + plugName,
+			Optional: true,
+		}
+
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
-		disconnectPlug := hookstate.HookTask(st, summary, disconnectPlugHookSetup, nil)
+		disconnectPlug := hookstate.HookTaskWithUndo(st, summary, disconnectPlugHookSetup, undoDisconnectPlugHookSetup, nil)
 		disconnectPlug.WaitAll(ts)
 
 		ts.AddTask(disconnectPlug)
