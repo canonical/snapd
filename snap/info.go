@@ -264,11 +264,11 @@ type ChannelSnapInfo struct {
 // InstanceName returns the blessed name of the snap decorated with instance
 // key, if any.
 func (s *Info) InstanceName() string {
-	return InstanceName(s.StoreName(), s.InstanceKey)
+	return InstanceName(s.SnapName(), s.InstanceKey)
 }
 
-// StoreName returns the global blessed name of the snap.
-func (s *Info) StoreName() string {
+// SnapName returns the global blessed name of the snap.
+func (s *Info) SnapName() string {
 	if s.RealName != "" {
 		return s.RealName
 	}
@@ -1005,28 +1005,28 @@ func DropNick(nick string) string {
 	return nick
 }
 
-// StoreName splits the instance name and returns the store name of the snap.
-func StoreName(instanceName string) string {
-	storeName, _ := SplitInstanceName(instanceName)
-	return storeName
+// SnapName splits the instance name and returns the name of the snap.
+func SnapName(instanceName string) string {
+	snapName, _ := SplitInstanceName(instanceName)
+	return snapName
 }
 
-// SplitInstanceName splits the instance name and returns the store name and the
+// SplitInstanceName splits the instance name and returns the snap name and the
 // instance key.
-func SplitInstanceName(instanceName string) (storeName, instanceKey string) {
+func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
 	split := strings.SplitN(instanceName, "_", 2)
-	storeName = split[0]
+	snapName = split[0]
 	if len(split) > 1 {
 		instanceKey = split[1]
 	}
-	return storeName, instanceKey
+	return snapName, instanceKey
 }
 
-// InstanceName takes the store name and the instance key and returns an instance
+// InstanceName takes the snap name and the instance key and returns an instance
 // name of the snap.
-func InstanceName(storeName, instanceKey string) string {
+func InstanceName(snapName, instanceKey string) string {
 	if instanceKey != "" {
-		return fmt.Sprintf("%s_%s", storeName, instanceKey)
+		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
-	return storeName
+	return snapName
 }
