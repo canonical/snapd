@@ -174,6 +174,20 @@ func (s *pathIterSuite) TestPathIteratorUnicode(c *C) {
 	c.Assert(iter.Depth(), Equals, 4)
 }
 
+func (s *pathIterSuite) TestPathIteratorRewind(c *C) {
+	iter, err := strutil.NewPathIterator("/foo/bar")
+	c.Assert(err, IsNil)
+	for i := 0; i < 2; i++ {
+		c.Assert(iter.Next(), Equals, true)
+		c.Assert(iter.Depth(), Equals, 1)
+		c.Assert(iter.CurrentPath(), Equals, "/")
+		c.Assert(iter.Next(), Equals, true)
+		c.Assert(iter.Depth(), Equals, 2)
+		c.Assert(iter.CurrentPath(), Equals, "/foo/")
+		iter.Rewind()
+	}
+}
+
 func (s *pathIterSuite) TestPathIteratorExample(c *C) {
 	iter, err := strutil.NewPathIterator("/some/path/there")
 	c.Assert(err, IsNil)

@@ -129,3 +129,10 @@ func (iter *PathIterator) Next() bool {
 	iter.depth++
 	return true
 }
+
+// Rewind returns the iterator the the initial state, allowing the path to be traversed again.
+func (iter *PathIterator) Rewind() {
+	iter.left = 0
+	iter.right = 0
+	iter.depth = 0
+}
