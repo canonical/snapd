@@ -34,6 +34,9 @@ set -o pipefail
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
+
 
 ###
 ### Utility functions reused below.
@@ -281,8 +284,10 @@ prepare_project() {
                 REBOOT
             fi
         fi
-        if [[ "$SPREAD_REBOOT" != 1 ]]; then
-            echo "reboot did not work"
+        # double check we are running the installed kernel
+        # NOTE: arch kernels use ARCH as local version, eg. 4.16.13-2-ARCH
+        if [[ "$(pacman -Qi linux | grep '^Version' | awk '{print $3}')" != "$(uname -r | sed -e 's/-ARCH//')" ]]; then
+            echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
     fi
@@ -392,8 +397,8 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-        prepare_all_snap
+    if is_core_system; then
+        prepare_ubuntu_core
     else
         prepare_classic
     fi
@@ -409,6 +414,9 @@ prepare_suite_each() {
     if is_classic_system; then
         prepare_each_classic
     fi
+    #shellcheck source=tests/lib/state.sh
+    . "$TESTSLIB"/state.sh
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
 }
 
 restore_suite_each() {
