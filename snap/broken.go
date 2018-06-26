@@ -46,7 +46,7 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 				// be available under '<snap>' name, if the snap
 				// was installed with instance key, the app will
 				// be named `<snap>_<instance>'
-				appname = StoreName(l[0])
+				appname = InstanceSnap(l[0])
 			} else {
 				appname = l[1]
 			}
