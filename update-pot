@@ -3,6 +3,24 @@
 
 set -e
 
+# In LP#1758684 we got reports that the pot file generation
+# is broken. To get to the bottom of this add checks here
+# so that we error the build if this happens. Note that the
+# strings may be update if those change but spread tests will
+# tell us when it is needed.
+check_canaries() {
+    c1="Alternative command to run"
+    c2="Name of the key to use, otherwise use the default key"
+    c3="too many arguments for command"
+
+    for canary in "$c1" "$c2" "$c3"; do
+	if ! grep -q "$canary" "$OUTPUT"; then
+	    echo "canary '$canary' not found, pot extraction broken"
+	    exit 1
+	fi
+    done
+}
+
 HERE="$(dirname "$0")"
 
 OUTPUT="$HERE/po/snappy.pot"
@@ -24,6 +42,9 @@ find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
     --keyword=i18n.G \
     --keyword-plural=i18n.DG
 
+# check canary
+check_canaries
+
 sed -i 's/charset=CHARSET/charset=UTF-8/' "$OUTPUT"
 
 xgettext "$HERE"/data/polkit/*.policy \
@@ -32,15 +53,9 @@ xgettext "$HERE"/data/polkit/*.policy \
     --no-location \
     --package-name=snappy \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
-    --join-existing \
-    || true
+    --join-existing
 
-#xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
-#	--indent --add-comments=TRANSLATORS: --no-location --sort-output \
-#	--package-name=snappy \
-#	--msgid-bugs-address=snappy-devel@lists.ubuntu.com \
-#	--keyword=NG:1,2 --keyword=G \
-#	$HERE/*/*.go $HERE/cmd/*/*.go
+check_canaries
 
 # language packs
 for p in ${HERE}/po/*.po; do
