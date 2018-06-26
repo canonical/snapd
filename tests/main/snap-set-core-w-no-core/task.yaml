@@ -1,6 +1,6 @@
 summary: Ensure core can be configure before being installed
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 warn-timeout: 1m
 kill-timeout: 5m

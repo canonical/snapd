@@ -1,5 +1,5 @@
 summary: Check that firstboot assertions are imported and snaps installed also on classic
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
@@ -52,7 +52,7 @@ execute: |
     echo "Start the daemon with an empty state, this will make it import "
     echo "assertions from the $SEED_DIR/assertions subdirectory and "
     echo "install the seed snaps."
-    systemctl start snapd.socket snapd.service
+    systemctl start snapd.seeded.service
 
     echo "Wait for Seed change to be finished"
     for _ in $(seq 120); do
@@ -61,6 +61,9 @@ execute: |
         fi
         sleep 1
     done
+
+    echo "Ensure snapd.seeded.service is active"
+    systemctl status snapd.seeded.service
 
     echo "Verifying the imported assertions"
     if ! snap known model | MATCH "model: my-classic" ; then
