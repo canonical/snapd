@@ -1297,9 +1297,8 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	s.overlord.Settle(250 * time.Millisecond)
 	st.Lock()
-	c.Assert(err, IsNil)
 
 	// at this point snapd is "restarting", pretend the restart has
 	// happened

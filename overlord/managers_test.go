@@ -1142,6 +1142,17 @@ type: kernel`
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
 
+	// run, this will wait trigger a wait for the restart
+	st.Unlock()
+	ms.o.Settle(250 * time.Millisecond)
+	st.Lock()
+	// we are in restarting state and the change is not done yet
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	// pretend we restarted
+	state.MockRestarting(st, state.RestartUnset)
+
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
