@@ -144,6 +144,7 @@ type SideInfo struct {
 // Info provides information about snaps.
 type Info struct {
 	SuggestedName string
+	InstanceKey   string
 	Version       string
 	Type          Type
 	Architectures []string
@@ -263,8 +264,7 @@ type ChannelSnapInfo struct {
 // InstanceName returns the blessed name of the snap decorated with instance
 // key, if any.
 func (s *Info) InstanceName() string {
-	// TODO parallel-install: include instance key
-	return s.StoreName()
+	return InstanceName(s.StoreName(), s.InstanceKey)
 }
 
 // StoreName returns the global blessed name of the snap.
@@ -1003,4 +1003,30 @@ func DropNick(nick string) string {
 		return "core"
 	}
 	return nick
+}
+
+// StoreName splits the instance name and returns the store name of the snap.
+func StoreName(instanceName string) string {
+	storeName, _ := SplitInstanceName(instanceName)
+	return storeName
+}
+
+// SplitInstanceName splits the instance name and returns the store name and the
+// instance key.
+func SplitInstanceName(instanceName string) (storeName, instanceKey string) {
+	split := strings.SplitN(instanceName, "_", 2)
+	storeName = split[0]
+	if len(split) > 1 {
+		instanceKey = split[1]
+	}
+	return storeName, instanceKey
+}
+
+// InstanceName takes the store name and the instance key and returns an instance
+// name of the snap.
+func InstanceName(storeName, instanceKey string) string {
+	if instanceKey != "" {
+		return fmt.Sprintf("%s_%s", storeName, instanceKey)
+	}
+	return storeName
 }

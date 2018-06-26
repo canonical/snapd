@@ -274,6 +274,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	// check that up to few exceptions info is filled
 	expectedZeroFields := []string{
 		"SuggestedName",
+		"InstanceKey",
 		"Assumes",
 		"OriginalTitle",
 		"OriginalSummary",
