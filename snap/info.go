@@ -731,9 +731,8 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	// TODO parallel-install: use of proper instance/store name
-	if app.Name == app.Snap.InstanceName() {
-		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	if app.Name == app.Snap.StoreName() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Snap.InstanceName())
 	}
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
 }

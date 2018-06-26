@@ -164,6 +164,15 @@ apps:
 	c.Check(info.Apps["bar"].LauncherPostStopCommand(), Equals, "/usr/bin/snap run --command=post-stop foo.bar")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo")
 	c.Check(info.Apps["baz"].LauncherCommand(), Equals, `/usr/bin/snap run --timer="10:00-12:00,,mon,12:00~14:00" foo.baz`)
+
+	// snap with instance key
+	info.InstanceKey = "instance"
+	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/snap run foo_instance.bar")
+	c.Check(info.Apps["bar"].LauncherStopCommand(), Equals, "/usr/bin/snap run --command=stop foo_instance.bar")
+	c.Check(info.Apps["bar"].LauncherReloadCommand(), Equals, "/usr/bin/snap run --command=reload foo_instance.bar")
+	c.Check(info.Apps["bar"].LauncherPostStopCommand(), Equals, "/usr/bin/snap run --command=post-stop foo_instance.bar")
+	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo_instance")
+	c.Check(info.Apps["baz"].LauncherCommand(), Equals, `/usr/bin/snap run --timer="10:00-12:00,,mon,12:00~14:00" foo_instance.baz`)
 }
 
 const sampleYaml = `
