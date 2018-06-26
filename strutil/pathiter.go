@@ -50,10 +50,10 @@ type PathIterator struct {
 // The path is passed through filepath.Clean automatically.
 func NewPathIterator(path string) (*PathIterator, error) {
 	cleanPath := filepath.Clean(path)
-	if path != cleanPath {
+	if cleanPath != path && cleanPath+"/" != path {
 		return nil, fmt.Errorf("cannot iterate over unclean path %q", path)
 	}
-	return &PathIterator{path: cleanPath}, nil
+	return &PathIterator{path: path}, nil
 }
 
 // Path returns the path being traversed.
