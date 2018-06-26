@@ -81,6 +81,11 @@ func (mod *Model) Kernel() string {
 	return mod.HeaderString("kernel")
 }
 
+// KernelTrack returns the kernel track the model uses.
+func (mod *Model) KernelTrack() string {
+	return mod.HeaderString("kernel-track")
+}
+
 // Base returns the base snap the model uses.
 func (mod *Model) Base() string {
 	return mod.HeaderString("base")

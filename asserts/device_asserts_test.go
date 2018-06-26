@@ -60,6 +60,7 @@ const (
 		"gadget: brand-gadget\n" +
 		"base: core18\n" +
 		"kernel: baz-linux\n" +
+		"kernel-track: 4.15\n" +
 		"store: brand-store\n" +
 		sysUserAuths +
 		reqSnaps +
@@ -102,6 +103,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
+	c.Check(model.KernelTrack(), Equals, "4.15")
 	c.Check(model.Base(), Equals, "core18")
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
@@ -121,6 +123,21 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeKernelTrackIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "kernel-track: 4.15\n", "kernel-track: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.KernelTrack(), Equals, "")
+
+	encoded = strings.Replace(withTimestamp, "kernel-track: 4.15\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.KernelTrack(), Equals, "")
 }
 
 func (mods *modelSuite) TestDecodeBaseIsOptional(c *C) {
