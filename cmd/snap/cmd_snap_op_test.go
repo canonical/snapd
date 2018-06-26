@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -300,6 +300,294 @@ func (s *SnapOpSuite) TestInstallUnaliased(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallSnapNotFound(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("error: %v\n", err), check.Equals, `error: snap "foo" not found
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailable(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" not found for given constraints. Please use 'snap info foo'
+       to list available releases.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableOnChannel(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=mytrack", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" not found at least on channel "mytrack/stable". Please use
+       'snap info foo' to list available releases.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableAtRevision(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--revision=2", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" not found at least at revision 2. Please use 'snap info foo'
+       to list available releases.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOK(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable",
+  "releases": [{"architecture": "amd64", "channel": "beta"},
+               {"architecture": "amd64", "channel": "edge"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on stable but is available to install on the
+       following channels:
+
+       beta      snap install --beta foo
+       edge      snap install --edge foo
+
+       Please be mindful pre-release channels may include features not
+       completely tested or implemented. Get more information with 'snap info
+       foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOKPrerelOK(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "candidate",
+  "releases": [{"architecture": "amd64", "channel": "beta"},
+               {"architecture": "amd64", "channel": "edge"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--candidate", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on candidate but is available to install on
+       the following channels:
+
+       beta      snap install --beta foo
+       edge      snap install --edge foo
+
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOther(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable",
+  "releases": [{"architecture": "amd64", "channel": "1.0/stable"},
+               {"architecture": "amd64", "channel": "2.0/stable"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on latest/stable but is available to install
+       on the following tracks:
+
+       1.0/stable  snap install --channel=1.0 foo
+       2.0/stable  snap install --channel=2.0 foo
+
+       Please be mindful that different tracks may include different features.
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackLatestStable(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "2.0/stable",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on 2.0/stable but is available to install on
+       the following tracks:
+
+       latest/stable  snap install --stable foo
+
+       Please be mindful that different tracks may include different features.
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackAndRiskOther(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "2.0/stable",
+  "releases": [{"architecture": "amd64", "channel": "1.0/edge"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on 2.0/stable but other tracks exist.
+
+       Please be mindful that different tracks may include different features.
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAndRiskOK(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "arm64",
+  "channel": "stable",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-revision-not-available-for-architecture"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on stable for this architecture (arm64) but
+       exists on other architectures (amd64).
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAndRiskOther(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "arm64",
+  "channel": "1.0/stable",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-revision-not-available-for-architecture"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=1.0/stable", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on this architecture (arm64) but exists on
+       other architectures (amd64).
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "a/b/c/d",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: requested what looks like an invalid channel for snap "foo". Please use
+       'snap info foo' to list available releases.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBranch(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable/baz",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: requested an apparently non-existing branch on latest/stable for snap
+       "foo": baz
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
 }
 
 func testForm(r *http.Request, c *check.C) *multipart.Form {

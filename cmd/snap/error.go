@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/user"
 	"strings"
+	"text/tabwriter"
 
 	"golang.org/x/crypto/ssh/terminal"
 
@@ -34,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var errorPrefix = i18n.G("error: %v\n")
@@ -76,7 +79,8 @@ func fill(para string, indent int) string {
 	width--
 
 	var buf bytes.Buffer
-	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width-indent)
+	indentStr := strings.Repeat(" ", indent)
+	doc.ToText(&buf, para, indentStr, indentStr, width-indent)
 
 	return strings.TrimSpace(buf.String())
 }
@@ -98,10 +102,6 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 	var msg string
 	switch err.Kind {
 	case client.ErrorKindSnapNotFound:
-		// FIXME: the snap store _is_ sending us a different message when a
-		// snap does not exist vs. when it does not exist for the current
-		// arch/channel/revision. Surface that here somehow!
-
 		msg = i18n.G("snap %q not found")
 		if snapName == "" {
 			errValStr, ok := err.Value.(string)
@@ -109,22 +109,52 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 				snapName = errValStr
 			}
 		}
+	case client.ErrorKindRevisionNotAvailableForChannel, client.ErrorKindRevisionNotAvailableForArchitecture:
+		values, ok := err.Value.(map[string]interface{})
+		if ok {
+			candName, _ := values["snap-name"].(string)
+			if candName != "" {
+				snapName = candName
+			}
+			action, _ := values["action"].(string)
+			arch, _ := values["architecture"].(string)
+			channel, _ := values["channel"].(string)
+			releases, _ := values["releases"].([]interface{})
+			if snapName != "" && action != "" && arch != "" && channel != "" && len(releases) != 0 {
+				usesSnapName = false
+				msg = snapRevisionNotAvailableMessage(err.Kind, snapName, action, arch, channel, releases)
+				break
+			}
+		}
+		fallthrough
+	case client.ErrorKindRevisionNotAvailable:
+		if snapName == "" {
+			errValStr, ok := err.Value.(string)
+			if ok && errValStr != "" {
+				snapName = errValStr
+			}
+		}
+
+		// TRANSLATORS: %q and %[1]s refer to the same thing (a snap name).
+		msg = i18n.G(`
+snap %q not found for given constraints.
+Please use 'snap info %[1]s' to list available releases.`)
+
 		if opts != nil {
 			if opts.Revision != "" {
-				// TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
-				msg = fmt.Sprintf(i18n.G("snap %%q not found (at least at revision %q)"), opts.Revision)
+				// TRANSLATORS: %%[1]q|s will become %[1]q|s for the snap name; %s is whatever foo the user used for --revision=
+				msg = fmt.Sprintf(i18n.G(`
+snap %%[1]q not found at least at revision %s.
+Please use 'snap info %%[1]s' to list available releases.`), opts.Revision)
 			} else if opts.Channel != "" {
 				// (note --revision overrides --channel)
 
-				// TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
-				msg = fmt.Sprintf(i18n.G("snap %%q not found (at least in channel %q)"), opts.Channel)
+				// TRANSLATORS: %%[1]q|s will become %[1]q|s for the snap name; %q is whatever foo the user used for --channel=foo
+				msg = fmt.Sprintf(i18n.G(`
+snap %%[1]q not found at least on channel %q.
+Please use 'snap info %%[1]s' to list available releases.`), opts.Channel)
 			}
 		}
-	case client.ErrorKindRevisionNotAvailable:
-		// TRANSLATORS: %q and %[1]s refer to the same thing (a snap name).
-		msg = i18n.G(`
-snap %q not found in the given context.
-Please use 'snap info %[1]s' to list available releases.`)
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)
@@ -189,4 +219,137 @@ If you understand and want to proceed repeat the command including --classic.
 	}
 
 	return msg, nil
+}
+
+func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel string, releases []interface{}) string {
+	req, err := snap.ParseChannel(channel, arch)
+	if err != nil {
+		msg := fmt.Sprintf(i18n.G("requested what looks like an invalid channel for snap %[1]q.\nPlease use 'snap info %[1]s' to list available releases."), snapName)
+		return msg
+	}
+	avail := make([]*snap.Channel, 0, len(releases))
+	for _, v := range releases {
+		rel, _ := v.(map[string]interface{})
+		relCh, _ := rel["channel"].(string)
+		relArch, _ := rel["architecture"].(string)
+		if relArch == "" {
+			logger.Debugf("internal error: revision-not-found store error carries a release with invalid/empty architecture: %v", v)
+			continue
+		}
+		a, err := snap.ParseChannel(relCh, relArch)
+		if err != nil {
+			logger.Debugf("internal error: revision-not-found store error carries a release with invalid/empty channel (%v): %v", err, v)
+			continue
+		}
+		avail = append(avail, &a)
+	}
+
+	matches := map[string][]*snap.Channel{}
+	for _, a := range avail {
+		m := req.Match(a)
+		matchRepr := m.String()
+		if matchRepr != "" {
+			matches[matchRepr] = append(matches[matchRepr], a)
+		}
+	}
+
+	if kind == client.ErrorKindRevisionNotAvailableForArchitecture {
+		// TODO: add "Get more information..." hints once snap info
+		// support showing multiple/all archs
+
+		if hits := matches["track:risk"]; len(hits) != 0 {
+			archs := strings.Join(archsForChannels(hits), ", ")
+			msg := fmt.Sprintf(i18n.G("snap %q is not available on %v for this architecture (%s) but exists on other architectures (%s)."), snapName, req, arch, archs)
+			return msg
+		}
+
+		archs := strings.Join(archsForChannels(avail), ", ")
+		msg := fmt.Sprintf(i18n.G("snap %q is not available on this architecture (%s) but exists on other architectures (%s)."), snapName, arch, archs)
+		return msg
+	}
+
+	if len(matches["architecture:track:risk"]) != 0 && req.Branch != "" {
+		trackRisk := snap.Channel{Track: req.Track, Risk: req.Risk}
+		trackRisk = trackRisk.Clean()
+		msg := fmt.Sprintf(i18n.G("requested an apparently non-existing branch on %s for snap %q: %s"), trackRisk.Full(), snapName, req.Branch)
+		return msg
+	}
+
+	moreInfoHint := fmt.Sprintf(i18n.G("Get more information with 'snap info %s'."), snapName)
+	preRelWarn := i18n.G("Please be mindful pre-release channels may include features not completely tested or implemented.")
+	trackWarn := i18n.G("Please be mindful that different tracks may include different features.")
+
+	if hits := matches["architecture:track"]; len(hits) != 0 {
+		msg := fmt.Sprintf(i18n.G("snap %q is not available on %v but is available to install on the following channels:\n"), snapName, req)
+		msg += installTable(snapName, action, hits, false)
+		msg += "\n"
+		if req.Risk == "stable" {
+			msg += "\n" + preRelWarn
+		}
+		msg += "\n" + moreInfoHint
+		return msg
+	}
+	if hits := matches["architecture:risk"]; len(hits) != 0 {
+		msg := fmt.Sprintf(i18n.G("snap %q is not available on %s but is available to install on the following tracks:\n"), snapName, req.Full())
+		msg += installTable(snapName, action, hits, true)
+		msg += "\n\n" + trackWarn
+		msg += "\n" + moreInfoHint
+		return msg
+	}
+
+	msg := fmt.Sprintf(i18n.G("snap %q is not available on %s but other tracks exist.\n"), snapName, req.Full())
+	msg += "\n\n" + trackWarn
+	msg += "\n" + moreInfoHint
+	return msg
+}
+
+func installTable(snapName, action string, avail []*snap.Channel, full bool) string {
+	b := &bytes.Buffer{}
+	w := tabwriter.NewWriter(b, 10, 3, 2, ' ', 0)
+	first := true
+	for _, a := range avail {
+		if first {
+			first = false
+		} else {
+			fmt.Fprint(w, "\n")
+		}
+		var ch string
+		if full {
+			ch = a.Full()
+		} else {
+			ch = a.String()
+		}
+		chOption := channelOption(a)
+		fmt.Fprintf(w, "%s\tsnap %s %s %s", ch, action, chOption, snapName)
+	}
+	w.Flush()
+	tbl := b.String()
+	// indent to drive fill/ToText to keep the tabulations intact
+	lines := strings.SplitAfter(tbl, "\n")
+	for i := range lines {
+		lines[i] = "  " + lines[i]
+	}
+	return strings.Join(lines, "")
+}
+
+func channelOption(c *snap.Channel) string {
+	if c.Branch == "" {
+		if c.Track == "" {
+			return fmt.Sprintf("--%s", c.Risk)
+		}
+		if c.Risk == "stable" {
+			return fmt.Sprintf("--channel=%s", c.Track)
+		}
+	}
+	return fmt.Sprintf("--channel=%s", c)
+}
+
+func archsForChannels(cs []*snap.Channel) []string {
+	archs := []string{}
+	for _, c := range cs {
+		if !strutil.ListContains(archs, c.Architecture) {
+			archs = append(archs, c.Architecture)
+		}
+	}
+	return archs
 }
