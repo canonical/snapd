@@ -35,7 +35,8 @@ fi
 # ensure we have our xgettext-go
 go install github.com/snapcore/snapd/i18n/xgettext-go
 
-find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
+# exclude vendor and _build subdir
+find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print0 | xargs -0  \
     "${GOPATH%%:*}/bin/xgettext-go" \
     -o "$OUTPUT" \
     --add-comments-tag=TRANSLATORS: \
