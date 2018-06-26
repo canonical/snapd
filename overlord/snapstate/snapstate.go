@@ -1465,14 +1465,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			si := seq[i]
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
-
-		discardConns := st.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
-		discardConns.Set("snap-setup", &SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: name,
-			},
-		})
-		addNext(state.NewTaskSet(discardConns))
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}

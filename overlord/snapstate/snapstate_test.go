@@ -393,7 +393,6 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
-		"discard-conns",
 	})
 	verifyStopReason(c, ts, "remove")
 }
@@ -4548,10 +4547,6 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			op:   "discard-namespace",
 			name: "some-snap",
 		},
-		{
-			op:   "discard-conns:Doing",
-			name: "some-snap",
-		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
@@ -4674,10 +4669,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -4826,7 +4817,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 5)
+	c.Check(len(s.fakeBackend.ops), Equals, 4)
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
@@ -4843,10 +4834,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -7772,7 +7759,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 9*2)
+	c.Assert(s.state.TaskCount(), Equals, 8*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -7783,7 +7770,6 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
-			"discard-conns",
 		})
 		verifyStopReason(c, ts, "remove")
 	}
@@ -8291,10 +8277,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
-			op:   "discard-conns:Doing",
-			name: "ubuntu-core",
-		},
-		{
 			op:    "cleanup-trash",
 			name:  "core",
 			revno: snap.R(11),
@@ -8373,10 +8355,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "ubuntu-core",
 		},
 	}

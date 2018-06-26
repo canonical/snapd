@@ -2443,7 +2443,7 @@ apps:
 	defer st.Unlock()
 
 	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
