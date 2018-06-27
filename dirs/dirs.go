@@ -106,6 +106,7 @@ var (
 	SnapshotsDir     string
 
 	ErrtrackerDbDir string
+	SysDir          string
 )
 
 const (
@@ -265,4 +266,5 @@ func SetRootDir(rootdir string) {
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
+	SysDir = filepath.Join(rootdir, "/sys")
 }
