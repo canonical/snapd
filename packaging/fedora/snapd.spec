@@ -6,6 +6,9 @@
 %bcond_without vendorized
 %endif
 
+# Compat macros
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
@@ -649,6 +652,7 @@ popd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/snap/README
+%{_environmentdir}/990-snapd.conf
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -667,7 +671,6 @@ popd
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
-
 
 %files selinux
 %license data/selinux/COPYING

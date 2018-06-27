@@ -904,6 +904,9 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	return info, nil
 }
 
