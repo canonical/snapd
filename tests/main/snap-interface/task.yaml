@@ -2,10 +2,4 @@ summary: Check that "snap interface" works as expected
 details: |
     The "snap interface" command displays a listing of used interfaces
 execute: |
-    snap interface | MATCH 'core-support\s+ special permissions for the core snap'
     snap interface --all | MATCH 'classic-support\s+ special permissions for the classic snap'
-    snap interface core-support > out.yaml
-    diff -u out.yaml snap-interface-core-support.yaml
-restore: |
-    rm -f out.yaml
-

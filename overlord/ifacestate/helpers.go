@@ -48,9 +48,6 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
-	if err := m.renameCorePlugConnection(); err != nil {
-		return err
-	}
 	if err := removeStaleConnections(m.state); err != nil {
 		return err
 	}
@@ -165,35 +162,6 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 
 	if err := interfaces.WriteSystemKey(); err != nil {
 		logger.Noticef("cannot write system key: %v", err)
-	}
-	return nil
-}
-
-// renameCorePlugConnection renames one connection from "core-support" plug to
-// slot so that the plug name is "core-support-plug" while the slot is
-// unchanged. This matches a change introduced in 2.24, where the core snap no
-// longer has the "core-support" plug as that was clashing with the slot with
-// the same name.
-func (m *InterfaceManager) renameCorePlugConnection() error {
-	conns, err := getConns(m.state)
-	if err != nil {
-		return err
-	}
-	const oldPlugName = "core-support"
-	const newPlugName = "core-support-plug"
-	// old connection, note that slotRef is the same in both
-	slotRef := interfaces.SlotRef{Snap: "core", Name: oldPlugName}
-	oldPlugRef := interfaces.PlugRef{Snap: "core", Name: oldPlugName}
-	oldConnRef := interfaces.ConnRef{PlugRef: oldPlugRef, SlotRef: slotRef}
-	oldID := oldConnRef.ID()
-	// if the old connection is saved, replace it with the new connection
-	if cState, ok := conns[oldID]; ok {
-		newPlugRef := interfaces.PlugRef{Snap: "core", Name: newPlugName}
-		newConnRef := interfaces.ConnRef{PlugRef: newPlugRef, SlotRef: slotRef}
-		newID := newConnRef.ID()
-		delete(conns, oldID)
-		conns[newID] = cState
-		setConns(m.state, conns)
 	}
 	return nil
 }
