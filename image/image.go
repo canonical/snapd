@@ -131,6 +131,8 @@ func validateNoParallelSnapInstances(snaps []string) error {
 	return nil
 }
 
+// validateNonLocalSnaps raises an error when snaps that would be pulled from
+// the store use an instance key in their names
 func validateNonLocalSnaps(snaps []string) error {
 	nonLocalSnaps := make([]string, 0, len(snaps))
 	for _, snapName := range snaps {
