@@ -121,9 +121,34 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	}, nil
 }
 
+func validateNoParallelSnapInstances(snaps []string) error {
+	for _, snapName := range snaps {
+		_, instanceKey := snap.SplitInstanceName(snapName)
+		if instanceKey != "" {
+			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported",
+				snapName)
+		}
+	}
+	return nil
+}
+
+func validateNonLocalSnaps(snaps []string) error {
+	nonLocalSnaps := make([]string, len(snaps))
+	for _, snapName := range snaps {
+		if !strings.HasSuffix(snapName, ".snap") {
+			nonLocalSnaps = append(nonLocalSnaps, snapName)
+		}
+	}
+	return validateNoParallelSnapInstances(nonLocalSnaps)
+}
+
 func Prepare(opts *Options) error {
 	model, err := decodeModelAssertion(opts)
 	if err != nil {
+		return err
+	}
+
+	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
 		return err
 	}
 
@@ -136,8 +161,6 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
-
-	// TODO parallel-install: parallel installs should be blocked for now
 
 	local, err := localSnaps(tsto, opts)
 	if err != nil {
@@ -181,6 +204,10 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		if modela.Header(rsvd) != nil {
 			return nil, fmt.Errorf("model assertion cannot have reserved/unsupported header %q set", rsvd)
 		}
+	}
+
+	if err := validateNoParallelSnapInstances(modela.RequiredSnaps()); err != nil {
+		return nil, err
 	}
 
 	return modela, nil
