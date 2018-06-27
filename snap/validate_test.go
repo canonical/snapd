@@ -118,8 +118,8 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		// snap instance
 		"foo_bar",
-		"foo_0000000001",
-		"01game_0000000001",
+		"foo_0123456789",
+		"01game_0123456789",
 		"foo_1", "foo_1234abcd",
 	}
 	for _, name := range validNames {
@@ -136,6 +136,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"a-",
 		"a ", " a", "a a",
 		"_",
+		"ру́сский_язы́к",
 	}
 	for _, name := range invalidNames {
 		err := ValidateInstanceName(name)

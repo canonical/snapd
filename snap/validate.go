@@ -72,13 +72,13 @@ func isValidName(name string) bool {
 func ValidateInstanceName(instanceName string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_instance_name_validate and validate_instance_name .
-	pos := strings.IndexRune(instanceName, '_')
+	pos := strings.IndexByte(instanceName, '_')
 	if pos == -1 {
 		// just store name
 		return ValidateName(instanceName)
 	}
 
-	storeName := instanceName[0:pos]
+	storeName := instanceName[:pos]
 	instanceKey := instanceName[pos+1:]
 	if err := ValidateName(storeName); err != nil {
 		return err
