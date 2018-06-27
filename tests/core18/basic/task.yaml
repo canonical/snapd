@@ -17,6 +17,6 @@ execute: |
     test-snapd-tools-core18.echo hello | MATCH hello
 
     if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
-        echo "No the build-id of snapd is should not be empty."
+        echo "The build-id of snapd must not be empty."
         exit 1
     fi
