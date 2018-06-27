@@ -148,7 +148,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 	}
 	for _, name := range invalidInstanceKeys {
 		err := ValidateInstanceName(name)
-		c.Assert(err, ErrorMatches, `invalid snap instance key: ".*"`)
+		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
 	}
 
 }

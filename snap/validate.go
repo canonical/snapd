@@ -84,7 +84,9 @@ func ValidateInstanceName(instanceName string) error {
 		return err
 	}
 	if !validInstanceKey.MatchString(instanceKey) {
-		return fmt.Errorf("invalid snap instance key: %q", instanceKey)
+		// TODO parallel-install: extend the error message once snap
+		// install help has been updated
+		return fmt.Errorf("invalid instance key: %q", instanceKey)
 	}
 	return nil
 }
