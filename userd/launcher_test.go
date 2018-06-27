@@ -95,12 +95,11 @@ func (s *launcherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
 }
 
 func mockUICommands(c *C, script string) (restore func()) {
-	mockZenity := testutil.MockCommand(c, "zenity", script)
-	mockKdialog := testutil.MockCommand(c, "kdialog", script)
+	mock := testutil.MockCommand(c, "zenity", script)
+	mock.Also("kdialog", script)
 
 	return func() {
-		mockZenity.Restore()
-		mockKdialog.Restore()
+		mock.Restore()
 	}
 }
 
