@@ -46,9 +46,15 @@ func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo
 	// Set SideInfo so that we can use MountDir below
 	snapInfo.SideInfo = *sideInfo
 
-	// Set the snap instance name
-	_, instanceKey := snap.SplitInstanceName(instanceName)
-	snapInfo.InstanceKey = instanceKey
+	if instanceName != "" {
+		// Set the snap instance name
+		snapName, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+
+		// Make sure snap name/instance name checks out
+		c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
+		c.Assert(snapInfo.SnapName(), check.Equals, snapName)
+	}
 
 	// Put the YAML on disk, in the right spot.
 	metaDir := filepath.Join(snapInfo.MountDir(), "meta")
