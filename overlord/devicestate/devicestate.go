@@ -245,11 +245,13 @@ func CanManageRefreshes(st *state.State) bool {
 		return false
 	}
 	for _, snapst := range snapStates {
-		if !snapst.Active {
-			continue
-		}
+		// Always get the current info even if the snap is currently
+		// being operated on or if its disabled.
 		info, err := snapst.CurrentInfo()
 		if err != nil {
+			continue
+		}
+		if info.Broken != "" {
 			continue
 		}
 		// The snap must have a snap declaration (implies that
