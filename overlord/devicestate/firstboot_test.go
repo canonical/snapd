@@ -751,7 +751,7 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, modName string, extra
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
 		"account-id":   "my-brand",
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	assertChain = append(assertChain, brandAcct)
 
