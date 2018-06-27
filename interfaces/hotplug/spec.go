@@ -21,6 +21,8 @@ package hotplug
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/interfaces/utils"
 )
 
 type SlotSpec struct {
@@ -44,8 +46,11 @@ func NewSpecification(deviceKey string) (*Specification, error) {
 }
 
 func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}) {
-	// FIXME: normalize attributes
-	h.slots = append(h.slots, SlotSpec{Name: name, Label: label, Attrs: attrs})
+	h.slots = append(h.slots, SlotSpec{
+		Name:  name,
+		Label: label,
+		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
+	})
 }
 
 func (h *Specification) Slots() []SlotSpec {
@@ -54,7 +59,7 @@ func (h *Specification) Slots() []SlotSpec {
 		slots = append(slots, SlotSpec{
 			Name:  s.Name,
 			Label: s.Label,
-			Attrs: s.Attrs, // FIXME: deep copy
+			Attrs: s.Attrs,
 		})
 	}
 	return slots
