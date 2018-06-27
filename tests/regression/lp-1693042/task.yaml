@@ -10,7 +10,7 @@ execute: |
   out=$(! snap refresh "$core_name" --channel bogus 2>&1 1>- )
   revno=$( snap info "$core_name" | awk '/^installed:/{print $3}' )
   if [[ "$revno" =~ x[0-9]+ ]]; then
-      MATCH "error: local snap '$core_name' is unknown to the store" <<< "$out"
+      MATCH "error: local snap \"$core_name\" is unknown to the store" <<< "$out"
   else
       MATCH not.found <<< "$out"
   fi

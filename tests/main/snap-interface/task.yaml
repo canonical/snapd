@@ -7,7 +7,7 @@ execute: |
 
     # we have no core-support interface on a core18 system. core-support
     # is obsolete and not used anymore.
-    if !is_core18_system; then
+    if ! is_core18_system; then
         snap interface | MATCH 'core-support\s+ special permissions for the core snap'
     fi
     snap interface --all | MATCH 'classic-support\s+ special permissions for the classic snap'
