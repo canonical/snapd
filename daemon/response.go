@@ -392,6 +392,10 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 				"channel":      c.Name,
 			})
 		}
+		// we return all available releases (arch x channel)
+		// as reported in the store error, but we hint with
+		// the error kind whether there was anything at all
+		// available for this architecture
 		if archOK {
 			kind = errorKindSnapRevisionNotAvailableForChannel
 			msg = "no snap revision for the given channel"

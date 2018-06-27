@@ -382,8 +382,8 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOK(c *ch
 error: snap "foo" is not available on stable but is available to install on the
        following channels:
 
-       beta      snap install --beta foo
-       edge      snap install --edge foo
+       beta       snap install --beta foo
+       edge       snap install --edge foo
 
        Please be mindful pre-release channels may include features not
        completely tested or implemented. Get more information with 'snap info
@@ -412,8 +412,8 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOKPrerel
 error: snap "foo" is not available on candidate but is available to install on
        the following channels:
 
-       beta      snap install --beta foo
-       edge      snap install --edge foo
+       beta       snap install --beta foo
+       edge       snap install --edge foo
 
        Get more information with 'snap info foo'.
 `)
@@ -560,8 +560,8 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check
 	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: requested what looks like an invalid channel for snap "foo". Please use
-       'snap info foo' to list available releases.
+error: requested an invalid channel for snap "foo". Please use 'snap info foo'
+       to list available releases.
 `)
 
 	c.Check(s.Stdout(), check.Equals, "")
@@ -582,8 +582,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBr
 	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: requested an apparently non-existing branch on latest/stable for snap
-       "foo": baz
+error: requested a non-existing branch on latest/stable for snap "foo": baz
 `)
 
 	c.Check(s.Stdout(), check.Equals, "")

@@ -222,9 +222,11 @@ If you understand and want to proceed repeat the command including --classic.
 }
 
 func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel string, releases []interface{}) string {
+	// releases contains all available (arch x channel)
+	// as reported by the store through the daemon
 	req, err := snap.ParseChannel(channel, arch)
 	if err != nil {
-		msg := fmt.Sprintf(i18n.G("requested what looks like an invalid channel for snap %[1]q.\nPlease use 'snap info %[1]s' to list available releases."), snapName)
+		msg := fmt.Sprintf(i18n.G("requested an invalid channel for snap %[1]q.\nPlease use 'snap info %[1]s' to list available releases."), snapName)
 		return msg
 	}
 	avail := make([]*snap.Channel, 0, len(releases))
@@ -233,12 +235,12 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 		relCh, _ := rel["channel"].(string)
 		relArch, _ := rel["architecture"].(string)
 		if relArch == "" {
-			logger.Debugf("internal error: revision-not-found store error carries a release with invalid/empty architecture: %v", v)
+			logger.Debugf("internal error: %q daemon error carries a release with invalid/empty architecture: %v", kind, v)
 			continue
 		}
 		a, err := snap.ParseChannel(relCh, relArch)
 		if err != nil {
-			logger.Debugf("internal error: revision-not-found store error carries a release with invalid/empty channel (%v): %v", err, v)
+			logger.Debugf("internal error: %q daemon error carries a release with invalid/empty channel (%v): %v", kind, err, v)
 			continue
 		}
 		avail = append(avail, &a)
@@ -253,25 +255,30 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 		}
 	}
 
+	// no release is for this architecture
 	if kind == client.ErrorKindRevisionNotAvailableForArchitecture {
 		// TODO: add "Get more information..." hints once snap info
 		// support showing multiple/all archs
 
+		// there are matching track+risk releases for other archs
 		if hits := matches["track:risk"]; len(hits) != 0 {
 			archs := strings.Join(archsForChannels(hits), ", ")
 			msg := fmt.Sprintf(i18n.G("snap %q is not available on %v for this architecture (%s) but exists on other architectures (%s)."), snapName, req, arch, archs)
 			return msg
 		}
 
+		// not even that, generic error
 		archs := strings.Join(archsForChannels(avail), ", ")
 		msg := fmt.Sprintf(i18n.G("snap %q is not available on this architecture (%s) but exists on other architectures (%s)."), snapName, arch, archs)
 		return msg
 	}
 
+	// there are matching arch+track+risk releases and branch was specified
+	// and no release was available, assume this branch does not exist
 	if len(matches["architecture:track:risk"]) != 0 && req.Branch != "" {
 		trackRisk := snap.Channel{Track: req.Track, Risk: req.Risk}
 		trackRisk = trackRisk.Clean()
-		msg := fmt.Sprintf(i18n.G("requested an apparently non-existing branch on %s for snap %q: %s"), trackRisk.Full(), snapName, req.Branch)
+		msg := fmt.Sprintf(i18n.G("requested a non-existing branch on %s for snap %q: %s"), trackRisk.Full(), snapName, req.Branch)
 		return msg
 	}
 
@@ -279,6 +286,8 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	preRelWarn := i18n.G("Please be mindful pre-release channels may include features not completely tested or implemented.")
 	trackWarn := i18n.G("Please be mindful that different tracks may include different features.")
 
+	// there are matching arch+track releases => give hint and instructions
+	// about pre-release channels
 	if hits := matches["architecture:track"]; len(hits) != 0 {
 		msg := fmt.Sprintf(i18n.G("snap %q is not available on %v but is available to install on the following channels:\n"), snapName, req)
 		msg += installTable(snapName, action, hits, false)
@@ -289,6 +298,9 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 		msg += "\n" + moreInfoHint
 		return msg
 	}
+
+	// there are matching arch+risk releases => give hints and instructions
+	// about these other tracks
 	if hits := matches["architecture:risk"]; len(hits) != 0 {
 		msg := fmt.Sprintf(i18n.G("snap %q is not available on %s but is available to install on the following tracks:\n"), snapName, req.Full())
 		msg += installTable(snapName, action, hits, true)
@@ -297,6 +309,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 		return msg
 	}
 
+	// generic error
 	msg := fmt.Sprintf(i18n.G("snap %q is not available on %s but other tracks exist.\n"), snapName, req.Full())
 	msg += "\n\n" + trackWarn
 	msg += "\n" + moreInfoHint
@@ -305,7 +318,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 
 func installTable(snapName, action string, avail []*snap.Channel, full bool) string {
 	b := &bytes.Buffer{}
-	w := tabwriter.NewWriter(b, 10, 3, 2, ' ', 0)
+	w := tabwriter.NewWriter(b, len("candidate")+2, 1, 2, ' ', 0)
 	first := true
 	for _, a := range avail {
 		if first {
