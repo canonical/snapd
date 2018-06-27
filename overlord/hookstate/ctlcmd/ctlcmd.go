@@ -91,6 +91,7 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 	}
 }
 
+// ForbiddenCommandError conveys that a command cannot be invoked in some context
 type ForbiddenCommandError struct {
 	Message string
 }
@@ -99,6 +100,7 @@ func (f ForbiddenCommandError) Error() string {
 	return f.Message
 }
 
+// ForbiddenCommand contains information about an attempt to use a command in a context where it is not allowed.
 type ForbiddenCommand struct {
 	Uid  uint32
 	Name string
