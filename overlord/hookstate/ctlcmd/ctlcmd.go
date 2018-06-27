@@ -120,6 +120,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	for name, cmdInfo := range commands {
 		var data interface{}
 		// commands listed here will be allowed for regular users
+		// note: commands still need valid context and snaps can only access own config.
 		if uid == 0 || name == "get" {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
