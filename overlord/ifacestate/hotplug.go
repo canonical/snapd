@@ -124,8 +124,15 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				Interface:        iface.Name(),
 				HotplugDeviceKey: key,
 			}
+			if iface, ok := iface.(interfaces.SlotSanitizer); ok {
+				if err := iface.BeforePrepareSlot(slot); err != nil {
+					logger.Noticef("Failed to sanitize hotplug-created slot %q for interface %s", slot.Name, slot.Interface, err)
+					continue
+				}
+			}
+
 			if err := m.repo.AddSlot(slot); err != nil {
-				logger.Noticef("Failed to create slot %q for interface %q", slot.Name, slot.Interface)
+				logger.Noticef("Failed to create slot %q for interface %s", slot.Name, slot.Interface)
 				continue
 			}
 			slots[ss.Name] = &ss
