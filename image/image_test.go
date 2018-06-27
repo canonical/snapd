@@ -316,6 +316,32 @@ AXNpZw==
 	}
 }
 
+func (s *imageSuite) TestModelAssertionNoParallelInstances(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel
+required-snaps:
+  - foo_instance
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	c.Assert(err, IsNil)
+	_, err = image.DecodeModelAssertion(&image.Options{
+		ModelFile: fn,
+	})
+	c.Check(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
+}
+
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
@@ -990,6 +1016,18 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 
 	c.Check(s.stderr.String(), Equals, "")
+}
+
+func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Snaps:     []string{"foo_instance"},
+	})
+	c.Assert(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
 }
 
 type toolingAuthContextSuite struct {
