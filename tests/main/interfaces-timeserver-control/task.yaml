@@ -7,12 +7,7 @@ details: |
 # Debian sid is skipped because "timedatectl set-ntp" fails with the error:
 # "Failed to set ntp: Message recipient disconnected from message bus without replying"
 # A workaround is to make "systemctl enable --now systemd-timesyncd.service" instead
-#
-# FIXME:
-# core18 lacks supprot in systemd for the /etc/writable/timezone, once
-# https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1778936 is fixed
-# we need to re-enable it.
-systems: [-debian-sid-*, -ubuntu-core-18-*]
+systems: [-debian-sid-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh
