@@ -10,7 +10,7 @@ execute: |
 
     for _ in $(seq 5); do
       if systemctl status snapd.service | MATCH "Active: active"; then
-          get_journalctl_log -u snapd | MATCH "activation done in"
+          check_journalctl_log "activation done in" -u snapd
           exit
       fi
       sleep 1
