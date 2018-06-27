@@ -20,10 +20,6 @@ prepare: |
 
 restore: |
     rm -f ./*.error
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    distro_purge_package avahi-daemon
-    distro_auto_remove_packages
 
 execute: |
     avahi_dbus_call() {

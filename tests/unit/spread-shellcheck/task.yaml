@@ -13,9 +13,3 @@ execute: |
     testdir=$PWD
     cd "$SPREAD_PATH" || exit 1
     CAN_FAIL="$testdir/can-fail" ./spread-shellcheck spread.yaml tests
-
-restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package python3-yaml
-    snap remove shellcheck
