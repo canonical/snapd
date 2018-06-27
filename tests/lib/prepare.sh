@@ -482,7 +482,8 @@ EOF
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         # check users were copied
-        cat /mnt/system-data/var/lib/extrausers/"$f" | grep -e '^test:' -e '^ubuntu:'
+        grep "^test:" /mnt/system-data/var/lib/extrausers/"$f"
+        grep "^ubuntu:" /mnt/system-data/var/lib/extrausers/"$f"
     done
 
     # ensure spread -reuse works in the core image as well
