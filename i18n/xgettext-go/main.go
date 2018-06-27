@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -265,6 +266,8 @@ msgstr  "Project-Id-Version: %s\n"
 
 // FIXME: this must be setable via go-flags
 var opts struct {
+	FilesFrom string `short:"f" long:"files-from" description:"get list of input files from FILE"`
+
 	Output string `short:"o" long:"output" description:"output to specified file"`
 
 	AddComments bool `short:"c" long:"add-comments" description:"place all comment blocks preceding keyword lines in output file"`
@@ -290,7 +293,18 @@ func main() {
 		log.Fatalf("ParseArgs failed %s", err)
 	}
 
-	if err := processFiles(args[1:]); err != nil {
+	var files []string
+	if opts.FilesFrom != "" {
+		content, err := ioutil.ReadFile(opts.FilesFrom)
+		if err != nil {
+			log.Fatalf("cannot read file %v: %v", opts.FilesFrom, err)
+		}
+		content = bytes.TrimSpace(content)
+		files = strings.Split(string(content), "\n")
+	} else {
+		files = args[1:]
+	}
+	if err := processFiles(files); err != nil {
 		log.Fatalf("processFiles failed with: %s", err)
 	}
 

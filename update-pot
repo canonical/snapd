@@ -17,15 +17,12 @@ check_canaries() {
 	if ! grep -q "$canary" "$OUTPUT"; then
 	    echo "canary '$canary' not found, pot extraction broken"
 	    ls -lh "$OUTPUT"
-	    cat "$OUTPUT"
-	    echo "Find found:"
-	    find "$HERE" -name "*.go" -type f
 	    exit 1
 	fi
     done
 }
 
-HERE="$(dirname "$0")"
+HERE="$(readlink -f $(dirname "$0"))"
 
 OUTPUT="$HERE/po/snappy.pot"
 if [ -n "$1" ]; then
@@ -36,8 +33,12 @@ fi
 go install github.com/snapcore/snapd/i18n/xgettext-go
 
 # exclude vendor and _build subdir
-find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print0 | xargs -0  \
-    "${GOPATH%%:*}/bin/xgettext-go" \
+I18N_FILES="$(mktemp -d)/i18n.files"
+find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print > $I18N_FILES
+trap "rm -rf $(dirname "$I18N_FILES")" EXIT
+
+"${GOPATH%%:*}/bin/xgettext-go" \
+    -f "$I18N_FILES" \
     -o "$OUTPUT" \
     --add-comments-tag=TRANSLATORS: \
     --no-location \
