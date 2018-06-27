@@ -49,9 +49,9 @@ purge() {
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
     # *.snap mount points
-    mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
+    mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
     # services from snaps
-    services=$(echo "$units" | grep "^snap\..*\.service" | cut -f1 -d ' ')
+    services=$(echo "$units" | grep '^snap\..*\.service' | cut -f1 -d ' ')
     for unit in $services $mounts; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
@@ -62,7 +62,7 @@ purge() {
         echo "Stopping $unit"
         systemctl_stop "$unit"
 
-        if echo "$unit" | grep -q ".*\.mount" ; then
+        if echo "$unit" | grep -q '.*\.mount' ; then
             # Transform ${SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
             # extra / preceding snap name, eg:
             #  /var/lib/snapd/snap/core/3440  -> core/3440
