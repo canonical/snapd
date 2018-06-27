@@ -114,7 +114,6 @@ restore: |
     rm -f /etc/exports.d/test.exports
     rm -f -d /etc/exports.d
     exportfs -r
-    distro_purge_package nfs-kernel-server bsdgames
 
-    # Restart snapd in to ensure it doesn't know about NFS anymore.
+    # Restart snapd in to ensure it doesn't know about NFS configuration anymore.
     systemctl restart snapd.service
