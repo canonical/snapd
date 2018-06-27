@@ -169,7 +169,8 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 			continue
 		}
 
-		// TODO: remove slot, disconnect if connected
+		// TODO: remove slot, disconnect if connected; mark disconnect as triggered by hotplug event so that the connection
+		// is maintained in connState.
 
 		if !m.hotplug {
 			logger.Debugf("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.Path(), iface.Name())
