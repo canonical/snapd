@@ -192,12 +192,13 @@ var formatTime = func() string {
 	return time.Now().Format("2006-01-02 15:04-0700")
 }
 
-func mustFprintf(w io.Writer, format string, a ...interface{}) (n int, err error) {
-	n, err = fmt.Fprintf(w, format, a...)
+// mustFprintf will write the given format string to the given
+// writer. Any error will make it panic.
+func mustFprintf(w io.Writer, format string, a ...interface{}) {
+	_, err := fmt.Fprintf(w, format, a...)
 	if err != nil {
 		panic(fmt.Sprintf("cannot write output: %v", err))
 	}
-	return n, err
 }
 
 func writePotFile(out io.Writer) {
