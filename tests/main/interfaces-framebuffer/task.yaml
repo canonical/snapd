@@ -1,7 +1,7 @@
 summary: Ensure that the framebuffer interface works.
 
 # systems listed below do not have /dev/fb0
-systems: [ -ubuntu-14.04-*, -ubuntu-16.04-*, -ubuntu-18.04-*, -fedora-28-*, -debian-9-*, -ubuntu-core-16-64 ]
+systems: [ -ubuntu-14.04-*, -ubuntu-16.04-*, -ubuntu-18.04-*, -fedora-28-*, -debian-9-*, -ubuntu-core-16-64, -ubuntu-core-18-64 ]
 
 details: |
     The framebuffer interface allows to access the /dev/fb* buffer files.
