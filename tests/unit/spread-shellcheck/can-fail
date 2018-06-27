@@ -80,7 +80,6 @@ tests/main/snap-advise-command/task.yaml
 tests/main/snap-auto-import-asserts-spools/task.yaml
 tests/main/snap-auto-import-asserts/task.yaml
 tests/main/snap-auto-mount/task.yaml
-tests/main/snap-confine-from-core/task.yaml
 tests/main/snap-confine-privs/task.yaml
 tests/main/snap-confine/task.yaml
 tests/main/snap-connect/task.yaml
