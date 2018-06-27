@@ -24,6 +24,8 @@ restore: |
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
     rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+    distro_purge_package gnome-online-accounts
+    distro_auto_remove_packages
 
 execute: |
     echo "Ensure things run"

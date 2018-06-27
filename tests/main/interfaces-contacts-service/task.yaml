@@ -20,6 +20,8 @@ prepare: |
     mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
 
@@ -30,6 +32,8 @@ restore: |
         kill -9 "$pid" || true
     fi
     rm -rf "$XDG"
+    distro_purge_package evolution-data-server
+    distro_auto_remove_packages
 
 execute: |
     echo "Setting up D-Bus session bus"
