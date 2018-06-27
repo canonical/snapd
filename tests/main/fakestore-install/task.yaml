@@ -20,6 +20,10 @@ execute: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
+    # ensure that "core" is installed its a prereq of the base
+    # but cannot be fetched from the fake store (important for core18)
+    snap install core
+
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     setup_fake_store "$BLOB_DIR"
