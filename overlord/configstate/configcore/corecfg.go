@@ -55,19 +55,30 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 // that handle this configuration.
 var supportedConfigurations = map[string]bool{
 	"core.experimental.layouts": true,
+	"core.experimental.hotplug": true,
 }
 
-func validateExperimentalSettings(tr Conf) error {
-	layoutsEnabled, err := coreCfg(tr, "experimental.layouts")
+func validateExperimentalBoolString(tr Conf, name string) error {
+	enabled, err := coreCfg(tr, name)
 	if err != nil {
 		return err
 	}
-	switch layoutsEnabled {
+
+	switch enabled {
 	case "", "true", "false":
 		return nil
 	default:
-		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
+		return fmt.Errorf("%s can only be set to 'true' or 'false'", name)
 	}
+}
+
+func validateExperimentalSettings(tr Conf) error {
+	for _, opt := range []string{"experimental.layouts", "experimental.hotplug"} {
+		if err := validateExperimentalBoolString(tr, opt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Run(tr Conf) error {

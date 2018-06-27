@@ -109,28 +109,32 @@ type runCfgSuite struct {
 var _ = Suite(&runCfgSuite{})
 
 func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
-	conf := &mockConf{
-		state: r.state,
-		conf: map[string]interface{}{
-			"experimental.layouts": "foo",
-		},
-	}
-
-	err := configcore.Run(conf)
-	c.Check(err, ErrorMatches, `experimental.layouts can only be set to 'true' or 'false'`)
-}
-
-func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, t := range []string{"true", "false"} {
+	for _, opt := range []string{"experimental.layouts", "experimental.hotplug"} {
 		conf := &mockConf{
 			state: r.state,
 			conf: map[string]interface{}{
-				"experimental.layouts": t,
+				opt: "foo",
 			},
 		}
 
 		err := configcore.Run(conf)
-		c.Check(err, IsNil)
+		c.Check(err, ErrorMatches, `experimental.* can only be set to 'true' or 'false'`)
+	}
+}
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
+	for _, opt := range []string{"experimental.layouts", "experimental.hotplug"} {
+		for _, t := range []string{"true", "false"} {
+			conf := &mockConf{
+				state: r.state,
+				conf: map[string]interface{}{
+					opt: t,
+				},
+			}
+
+			err := configcore.Run(conf)
+			c.Check(err, IsNil)
+		}
 	}
 }
 
