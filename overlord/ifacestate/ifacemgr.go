@@ -31,9 +31,10 @@ import (
 // the system state.  It maintains interface connections, and also observes
 // installed snaps to track the current set of available plugs and slots.
 type InterfaceManager struct {
-	state  *state.State
-	runner *state.TaskRunner
-	repo   *interfaces.Repository
+	state   *state.State
+	runner  *state.TaskRunner
+	repo    *interfaces.Repository
+	hotplug bool
 }
 
 // Manager returns a new InterfaceManager.
@@ -59,6 +60,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 
 	s.Lock()
 	ifacerepo.Replace(s, m.repo)
+
+	hotplug, err := m.hotplugEnabled()
+	if err != nil {
+		return nil, err
+	}
+	m.hotplug = hotplug
 	s.Unlock()
 
 	// interface tasks might touch more than the immediate task target snap, serialize them

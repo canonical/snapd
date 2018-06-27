@@ -101,3 +101,13 @@ func (h *HotplugDeviceInfo) readOnceMaybe(fileName string, out *string) string {
 	}
 	return *out
 }
+
+// HotplugDeviceHandler can be implemented by interfaces that need to create slots in response to hotplug events
+type HotplugDeviceHandler interface {
+	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
+}
+
+// HotplugDeviceInfo can be implemented by interfaces that need to provide a non-standard device key for hotplug devices
+type HotplugDeviceKeyHandler interface {
+	HotplugDeviceKey(di *HotplugDeviceInfo) (string, error)
+}

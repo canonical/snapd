@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 )
@@ -104,32 +105,50 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			if connRef.SlotRef.Snap != coreSnapName {
 				continue
 			}
-			// we found a connection
+			// we found an old connection
 			connsToRecreate = append(connsToRecreate, connRef)
 		}
 
-		// if we see this device for the first time
-		if len(connsToRecreate) == 0 {
-			for _, ss := range slotSpecs {
-				slot := &snap.SlotInfo{
-					Name:      ss.Name,
-					Snap:      coreSnapInfo,
-					Interface: iface.Name(),
-					Attrs:     ss.Attrs,
-				}
+		if !m.hotplug {
+			logger.Debugf("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.Path(), iface.Name())
+			continue
+		}
 
-				if err := m.repo.AddSlot(slot); err != nil {
-					logger.Noticef("Failed to create slot %q for interface %q", slot.Name, slot.Interface)
-				} else {
-					logger.Debugf("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
+		slots := make(map[string]*hotplug.SlotSpec, len(slotSpecs))
+
+		// add slots to the repo
+		for _, ss := range slotSpecs {
+			slot := &snap.SlotInfo{
+				Name:             ss.Name,
+				Snap:             coreSnapInfo,
+				Interface:        iface.Name(),
+				HotplugDeviceKey: key,
+			}
+			if err := m.repo.AddSlot(slot); err != nil {
+				logger.Noticef("Failed to create slot %q for interface %q", slot.Name, slot.Interface)
+				continue
+			}
+			slots[ss.Name] = &ss
+			logger.Debugf("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
+		}
+
+		// we see this device for the first time (or it didn't have any connected slots before)
+		if len(connsToRecreate) == 0 {
+			// TODO: trigger auto-connects where appropriate
+			continue
+		}
+
+		// in typical case given interface creates exactly one slot, so we just re-create old connection
+		// regardless of slot name
+		if len(connsToRecreate) == 1 {
+			// TODO: create connect or autoconnect task to recreate the connection
+		} else {
+			// in rare cases given interface may create multiple slots - we identify (match) old slots by their names
+			for _, oldConn := range connsToRecreate {
+				if _, ok := slots[oldConn.SlotRef.Name]; ok {
+					// TODO: create connect or autoconnect task to recreate the connection
 				}
 			}
-			// TODO: trigger auto-connects where appropriate
-		} else {
-			// if we know this device already, recreate the slot and re-connect if needed
-			// iterate over conns in state to find old/affected 'core' connections;
-			// note, we cannot ask repo because we have to deal with hotplug-removed slots
-			// that don't exist in the repo yet.
 		}
 	}
 }
@@ -149,6 +168,21 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		if key == "" {
 			continue
 		}
+
 		// TODO: remove slot, disconnect if connected
+
+		if !m.hotplug {
+			logger.Debugf("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.Path(), iface.Name())
+			continue
+		}
 	}
+}
+
+func (m *InterfaceManager) hotplugEnabled() (bool, error) {
+	tr := config.NewTransaction(m.state)
+	var featureFlagHotplug bool
+	if err := tr.GetMaybe("core", "experimental.hotplug", &featureFlagHotplug); err != nil {
+		return false, err
+	}
+	return featureFlagHotplug, nil
 }

@@ -142,10 +142,11 @@ func New() (*Overlord, error) {
 
 	configstateInit(hookMgr)
 
-	o.udevMon = createUDevMonitor(ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
-
 	s.Lock()
 	defer s.Unlock()
+
+	o.udevMon = createUDevMonitor(ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
+
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
