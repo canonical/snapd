@@ -74,6 +74,7 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 		if err != nil {
 			errors <- err
 		}
+		close(queue)
 	}()
 	return quit
 }
