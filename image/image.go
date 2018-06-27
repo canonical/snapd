@@ -125,15 +125,14 @@ func validateNoParallelSnapInstances(snaps []string) error {
 	for _, snapName := range snaps {
 		_, instanceKey := snap.SplitInstanceName(snapName)
 		if instanceKey != "" {
-			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported",
-				snapName)
+			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
 		}
 	}
 	return nil
 }
 
 func validateNonLocalSnaps(snaps []string) error {
-	nonLocalSnaps := make([]string, len(snaps))
+	nonLocalSnaps := make([]string, 0, len(snaps))
 	for _, snapName := range snaps {
 		if !strings.HasSuffix(snapName, ".snap") {
 			nonLocalSnaps = append(nonLocalSnaps, snapName)
@@ -206,7 +205,9 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		}
 	}
 
-	if err := validateNoParallelSnapInstances(modela.RequiredSnaps()); err != nil {
+	modelSnaps := modela.RequiredSnaps()
+	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget(), modela.Base())
+	if err := validateNoParallelSnapInstances(modelSnaps); err != nil {
 		return nil, err
 	}
 
