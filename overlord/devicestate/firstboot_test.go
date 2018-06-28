@@ -1318,7 +1318,6 @@ snaps:
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(chg.Status(), Equals, state.DoingStatus)
 
 	// at this point the system is "restarting", pretend the restart has
 	// happened
