@@ -144,7 +144,7 @@ func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
-	release.OnClassic = true
+	release.MockOnClassic(true)
 
 	st := s.overlord.State()
 	st.Lock()
@@ -159,7 +159,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
-	release.OnClassic = true
+	release.MockOnClassic(true)
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -189,8 +189,34 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	c.Check(ds.Model, Equals, "my-model-classic")
 }
 
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
+	release.MockOnClassic(true)
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// create an empty seed.yaml
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
+}
+
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
-	release.OnClassic = true
+	release.MockOnClassic(true)
 
 	st := s.overlord.State()
 
@@ -723,7 +749,6 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		"model":        modelStr,
 		"architecture": "amd64",
 		"store":        "canonical",
-		"gadget":       "pc",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	for k, v := range extraHeaders {
@@ -733,6 +758,7 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		headers["classic"] = "true"
 	} else {
 		headers["kernel"] = "pc-kernel"
+		headers["gadget"] = "pc"
 	}
 	if len(reqSnaps) != 0 {
 		reqs := make([]interface{}, len(reqSnaps))
@@ -1065,7 +1091,7 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c *C) {
-	release.OnClassic = true
+	release.MockOnClassic(true)
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
