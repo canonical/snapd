@@ -371,9 +371,12 @@ prepare: |
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
-        echo >> /etc/zypp/zypp.conf
-        echo '# added by spread tests' >> /etc/zypp/zypp.conf
-        echo 'download.max_silent_tries = 20' >> /etc/zypp/zypp.conf
+        cat <<-EOF >> /etc/zypp/zypp.conf
+
+    # added by spread tests
+    download.max_silent_tries = 20
+    EOF
+
     fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
