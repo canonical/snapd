@@ -19,8 +19,9 @@
 
 package utils
 
-// Normalize interface attributes, similar to what normalizeYamlValue value does.
-// This is meant to be used to normalize attributes created at runtime (such as those coming from interface hooks).
+// NormalizeInterfaceAttributes normalises types of an attribute values.
+// The following transformations are applied: int -> int64, float32 -> float64.
+// The normalisation proceeds recursively through maps and slices.
 func NormalizeInterfaceAttributes(value interface{}) interface{} {
 	// Normalize ints/floats using their 64-bit variants.
 	switch v := value.(type) {
