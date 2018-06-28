@@ -170,16 +170,15 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		last++
 	}
 
-	lastConf := 0
 	if kernelName := model.Kernel(); kernelName != "" {
 		if err := installSeedEssential(kernelName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[lastConf])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[0])
 		configTss = append(configTss, configTs)
 		last++
-		lastConf++
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
@@ -187,10 +186,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[lastConf])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[1])
 		configTss = append(configTss, configTs)
 		last++
-		lastConf++
 	}
 
 	// chain together configuring core, kernel, and gadget after
