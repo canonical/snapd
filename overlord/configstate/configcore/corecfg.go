@@ -56,6 +56,7 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 var supportedConfigurations = map[string]bool{
 	"core.experimental.layouts":            true,
 	"core.experimental.parallel-instances": true,
+	"core.experimental.hotplug":            true,
 }
 
 func validateBoolFlag(tr Conf, flag string) error {
@@ -77,6 +78,9 @@ func validateExperimentalSettings(tr Conf) error {
 		return err
 	}
 	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
+		return err
+	}
+	if err := validateBoolFlag(tr, "experimental.hotplug"); err != nil {
 		return err
 	}
 	return nil
