@@ -40,3 +40,27 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 	}
 	return value
 }
+
+func CopyAttributes(value map[string]interface{}) map[string]interface{} {
+	return copyRecursive(value).(map[string]interface{})
+}
+
+func copyRecursive(value interface{}) interface{} {
+	// note: ensure all the mutable types (or types that need a conversion)
+	// are handled here.
+	switch v := value.(type) {
+	case []interface{}:
+		arr := make([]interface{}, len(v))
+		for i, el := range v {
+			arr[i] = copyRecursive(el)
+		}
+		return arr
+	case map[string]interface{}:
+		mp := make(map[string]interface{}, len(v))
+		for key, item := range v {
+			mp[key] = copyRecursive(item)
+		}
+		return mp
+	}
+	return value
+}

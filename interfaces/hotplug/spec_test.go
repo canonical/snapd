@@ -44,8 +44,8 @@ func (s *hotplugSpecSuite) TearDownTest(c *C) {
 
 func (s *hotplugSpecSuite) TestAddSlot(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.AddSlot("slot1", "A slot", map[string]interface{}{"foo": "bar"}), IsNil)
-	c.Assert(spec.AddSlot("slot2", "A slot", map[string]interface{}{"baz": "booze"}), IsNil)
+	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}}), IsNil)
 
 	c.Assert(spec.Slots(), DeepEquals, []*SlotSpec{
 		&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
@@ -55,8 +55,8 @@ func (s *hotplugSpecSuite) TestAddSlot(c *C) {
 
 func (s *hotplugSpecSuite) TestAddSlotDuplicate(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.AddSlot("slot1", "A slot", map[string]interface{}{"foo": "bar"}), IsNil)
-	err := spec.AddSlot("slot1", "A slot", map[string]interface{}{"baz": "booze"})
+	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	err := spec.AddSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `slot "slot1" already exists`)
 
