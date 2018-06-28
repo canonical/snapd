@@ -27,6 +27,7 @@ import (
 
 	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -58,7 +59,7 @@ func (s *CoreSuite) TestValidateName(c *C) {
 		"a0", "a-0", "a-0a",
 	}
 	for _, name := range validNames {
-		err := ValidateName(name)
+		err := utils.ValidateName(name)
 		c.Assert(err, IsNil)
 	}
 	invalidNames := []string{
@@ -78,7 +79,7 @@ func (s *CoreSuite) TestValidateName(c *C) {
 		"日本語", "한글", "ру́сский язы́к",
 	}
 	for _, name := range invalidNames {
-		err := ValidateName(name)
+		err := utils.ValidateName(name)
 		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
 	}
 }
