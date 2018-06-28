@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/utils"
 )
 
+// SlotSpec is a definition of the slot to create in response to udev event.
 type SlotSpec struct {
 	Name  string
 	Label string
@@ -41,17 +42,20 @@ func NewSpecification() *Specification {
 	}
 }
 
-func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}) error {
-	if _, ok := h.slots[name]; ok {
-		return fmt.Errorf("slot %q already exists", name)
+func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
+	if _, ok := h.slots[slotSpec.Name]; ok {
+		return fmt.Errorf("slot %q already exists", slotSpec.Name)
 	}
 	// TODO: use ValidateName here (after moving to utils)
+	attrs := slotSpec.Attrs
 	if attrs == nil {
 		attrs = make(map[string]interface{})
+	} else {
+		attrs = utils.CopyAttributes(slotSpec.Attrs)
 	}
-	h.slots[name] = &SlotSpec{
-		Name:  name,
-		Label: label,
+	h.slots[slotSpec.Name] = &SlotSpec{
+		Name:  slotSpec.Name,
+		Label: slotSpec.Label,
 		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
 	}
 	return nil
@@ -60,11 +64,7 @@ func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}
 func (h *Specification) Slots() []*SlotSpec {
 	slots := make([]*SlotSpec, 0, len(h.slots))
 	for _, s := range h.slots {
-		slots = append(slots, &SlotSpec{
-			Name:  s.Name,
-			Label: s.Label,
-			Attrs: s.Attrs,
-		})
+		slots = append(slots, s)
 	}
 	return slots
 }
