@@ -107,7 +107,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
 		"account-id":   "my-brand",
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	s.storeSigning.Add(brandAcct)
 
