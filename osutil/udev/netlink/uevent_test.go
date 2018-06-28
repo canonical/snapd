@@ -20,7 +20,7 @@ func TestParseUEvent(testing *testing.T) {
 	t := testingWrapper{testing}
 
 	samples := []UEvent{
-		UEvent{
+		{
 			Action: ADD,
 			KObj:   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
 			Env: map[string]string{
@@ -33,7 +33,7 @@ func TestParseUEvent(testing *testing.T) {
 				"SEQNUM":    "2569",
 			},
 		},
-		UEvent{
+		{
 			Action: REMOVE,
 			KObj:   "mykobj",
 			Env: map[string]string{

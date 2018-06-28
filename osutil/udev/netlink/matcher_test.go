@@ -30,19 +30,19 @@ func TestRules(testing *testing.T) {
 	wrongAction := "can't match"
 
 	rules := []RuleDefinition{
-		RuleDefinition{
+		{
 			Action: nil,
 			Env: map[string]string{
 				"DEVNAME": "hidraw\\d+",
 			},
 		},
 
-		RuleDefinition{
+		{
 			Action: &add,
 			Env:    make(map[string]string, 0),
 		},
 
-		RuleDefinition{
+		{
 			Action: nil,
 			Env: map[string]string{
 				"SUBSYSTEM": "can't match",
@@ -50,7 +50,7 @@ func TestRules(testing *testing.T) {
 			},
 		},
 
-		RuleDefinition{
+		{
 			Action: &add,
 			Env: map[string]string{
 				"SUBSYSTEM": "hidraw",
@@ -58,7 +58,7 @@ func TestRules(testing *testing.T) {
 			},
 		},
 
-		RuleDefinition{
+		{
 			Action: &wrongAction,
 			Env: map[string]string{
 				"SUBSYSTEM": "hidraw",
@@ -68,39 +68,39 @@ func TestRules(testing *testing.T) {
 	}
 
 	testcases := []Testcase{
-		Testcase{
+		{
 			Object: &rules[0],
 			Valid:  true,
 		},
-		Testcase{
+		{
 			Object: &rules[1],
 			Valid:  true,
 		},
-		Testcase{
+		{
 			Object: &rules[2],
 			Valid:  false,
 		},
-		Testcase{
+		{
 			Object: &rules[3],
 			Valid:  true,
 		},
-		Testcase{
+		{
 			Object: &rules[4],
 			Valid:  false,
 		},
-		Testcase{
+		{
 			Object: &RuleDefinitions{[]RuleDefinition{rules[0], rules[4]}},
 			Valid:  true,
 		},
-		Testcase{
+		{
 			Object: &RuleDefinitions{[]RuleDefinition{rules[4], rules[0]}},
 			Valid:  true,
 		},
-		Testcase{
+		{
 			Object: &RuleDefinitions{[]RuleDefinition{rules[2], rules[4]}},
 			Valid:  false,
 		},
-		Testcase{
+		{
 			Object: &RuleDefinitions{[]RuleDefinition{rules[3], rules[1]}},
 			Valid:  true,
 		},
