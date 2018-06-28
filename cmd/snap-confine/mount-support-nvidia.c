@@ -97,6 +97,7 @@ static const char *nvidia_globs[] = {
 	"libXvMCNVIDIA.so*",
 	"libXvMCNVIDIA_dynamic.so*",
 	"libcuda.so*",
+	"libcudart.so*",
 	"libnvcuvid.so*",
 	"libnvidia-cfg.so*",
 	"libnvidia-compiler.so*",
