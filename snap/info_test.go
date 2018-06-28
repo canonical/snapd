@@ -195,6 +195,24 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
 
+func (s *infoSuite) TestReadInfoWithInstance(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "instance summary"}
+
+	snapInfo1 := snaptest.MockSnapInstance(c, "sample_instance", sampleYaml, si)
+
+	snapInfo2, err := snap.ReadInfo("sample_instance", si)
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo2.SnapName(), Equals, "sample")
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
+	c.Check(snapInfo2.Summary(), Equals, "instance summary")
+
+	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+
+	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
 func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42)}
 
@@ -210,6 +228,24 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	snapInfo3, err := snap.ReadCurrentInfo("not-sample")
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
+}
+
+func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42)}
+
+	snapInfo1 := snaptest.MockSnapInstanceCurrent(c, "sample_instance", sampleYaml, si)
+
+	snapInfo2, err := snap.ReadCurrentInfo("sample_instance")
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo2.SnapName(), Equals, "sample")
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
+	c.Check(snapInfo2, DeepEquals, snapInfo1)
+
+	snapInfo3, err := snap.ReadCurrentInfo("sample_other")
+	c.Check(snapInfo3, IsNil)
+	c.Assert(err, ErrorMatches, `cannot find current revision for snap sample_other:.*`)
 }
 
 func (s *infoSuite) TestInstallDate(c *C) {
@@ -1076,32 +1112,32 @@ func (s *infoSuite) TestNickname(c *C) {
 }
 
 func (s *infoSuite) TestSplitInstanceName(c *C) {
-	store, key := snap.SplitInstanceName("foo_bar")
-	c.Check(store, Equals, "foo")
-	c.Check(key, Equals, "bar")
+	snapName, instanceKey := snap.SplitInstanceName("foo_bar")
+	c.Check(snapName, Equals, "foo")
+	c.Check(instanceKey, Equals, "bar")
 
-	store, key = snap.SplitInstanceName("foo")
-	c.Check(store, Equals, "foo")
-	c.Check(key, Equals, "")
+	snapName, instanceKey = snap.SplitInstanceName("foo")
+	c.Check(snapName, Equals, "foo")
+	c.Check(instanceKey, Equals, "")
 
 	// all following instance names are invalid
 
-	store, key = snap.SplitInstanceName("_bar")
-	c.Check(store, Equals, "")
-	c.Check(key, Equals, "bar")
+	snapName, instanceKey = snap.SplitInstanceName("_bar")
+	c.Check(snapName, Equals, "")
+	c.Check(instanceKey, Equals, "bar")
 
-	store, key = snap.SplitInstanceName("foo___bar_bar")
-	c.Check(store, Equals, "foo")
-	c.Check(key, Equals, "__bar_bar")
+	snapName, instanceKey = snap.SplitInstanceName("foo___bar_bar")
+	c.Check(snapName, Equals, "foo")
+	c.Check(instanceKey, Equals, "__bar_bar")
 
-	store, key = snap.SplitInstanceName("")
-	c.Check(store, Equals, "")
-	c.Check(key, Equals, "")
+	snapName, instanceKey = snap.SplitInstanceName("")
+	c.Check(snapName, Equals, "")
+	c.Check(instanceKey, Equals, "")
 }
 
-func (s *infoSuite) TestInstanceStoreName(c *C) {
-	c.Check(snap.StoreName("foo_bar"), Equals, "foo")
-	c.Check(snap.StoreName("foo"), Equals, "foo")
+func (s *infoSuite) TestInstanceSnapName(c *C) {
+	c.Check(snap.InstanceSnap("foo_bar"), Equals, "foo")
+	c.Check(snap.InstanceSnap("foo"), Equals, "foo")
 
 	c.Check(snap.InstanceName("foo", "bar"), Equals, "foo_bar")
 	c.Check(snap.InstanceName("foo", ""), Equals, "foo")
@@ -1114,9 +1150,9 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 	}
 
 	c.Check(info.InstanceName(), Equals, "snap-name_foo")
-	c.Check(info.StoreName(), Equals, "snap-name")
+	c.Check(info.SnapName(), Equals, "snap-name")
 
 	info.InstanceKey = ""
 	c.Check(info.InstanceName(), Equals, "snap-name")
-	c.Check(info.StoreName(), Equals, "snap-name")
+	c.Check(info.SnapName(), Equals, "snap-name")
 }

@@ -5,6 +5,9 @@ restore: |
 
     echo "Remove the firewall rule again"
     iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
+    echo "Remove ingress traffic policing rule"
+    iptables -D INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
+             --hashlimit-name 'econnreset' -j DROP
 
     rm -f test-snapd-huge_*
 
@@ -22,10 +25,18 @@ debug: |
     ls -lh
     echo "download log:"
     cat snap-download.log
+    echo "iptables rules and counters"
+    iptables -L -n -v
 
 execute: |
     echo "Downloading a large snap in the background"
     rm -f test-snapd-huge_*
+    # what happens in this test is that when running in GCE backend, the
+    # downloads is very fast, ~100MB/s and it may finish 'before' we insert the
+    # OUTPUT chain rule that drops outgoing TCP packets and triggers retries, to
+    # remedy this apply policing of ingress traffic down to 512kB/s
+    iptables -I INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
+             --hashlimit-name 'econnreset' -j DROP
 
     su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge 2>snap-download.log" test &
 
