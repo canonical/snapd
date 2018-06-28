@@ -1282,6 +1282,23 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 
+	// the first taskset installs snapd and waits for noone
+	i := 0
+	tSnapd := tsAll[i].Tasks()[0]
+	c.Check(tSnapd.WaitTasks(), HasLen, 0)
+	// the next installs the core18 and that will wait for snapd
+	i++
+	tCore18 := tsAll[i].Tasks()[0]
+	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
+	// the next installs the kernel and will wait for the core18
+	i++
+	tKernel := tsAll[i].Tasks()[0]
+	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
+	// the next installs the gadget and will wait for the kernel
+	i++
+	tGadget := tsAll[i].Tasks()[0]
+	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -1297,14 +1314,12 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	// run change until it wants to restart
-	for i := 0; i < 25; i++ {
-		st.Unlock()
-		s.overlord.Settle(100 * time.Millisecond)
-		st.Lock()
-		if ok, _ := st.Restarting(); ok {
-			break
-		}
-	}
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+
 	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
