@@ -26,8 +26,6 @@ import (
 )
 
 var (
-	accountValidationCertified = "certified"
-
 	// account ids look like snap-ids or a nice identifier
 	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 )
@@ -36,8 +34,8 @@ var (
 // to its identifier and provides the authority's confidence in the name's validity.
 type Account struct {
 	assertionBase
-	certified bool
-	timestamp time.Time
+	validation string
+	timestamp  time.Time
 }
 
 // AccountID returns the account-id of the account.
@@ -55,9 +53,12 @@ func (acc *Account) DisplayName() string {
 	return acc.HeaderString("display-name")
 }
 
-// IsCertified returns true if the authority has confidence in the account's name.
-func (acc *Account) IsCertified() bool {
-	return acc.certified
+// Validation returns the level of confidence of the authority in the
+// account's identity, expected to be "unproven" or "verified", and
+// for forward compatibility any value != "unproven" can be considered
+// at least "verified".
+func (acc *Account) Validation() string {
+	return acc.validation
 }
 
 // Timestamp returns the time when the account was issued.
@@ -82,11 +83,17 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkNotEmptyString(assert.headers, "validation")
+	validation, err := checkNotEmptyString(assert.headers, "validation")
 	if err != nil {
 		return nil, err
 	}
-	certified := assert.headers["validation"] == accountValidationCertified
+	// backward compatibility with the hard-coded trusted account
+	// assertions
+	// TODO: generate revision 1 of them with validation
+	// s/certified/verified/
+	if validation == "certified" {
+		validation = "verified"
+	}
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
@@ -100,7 +107,7 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 
 	return &Account{
 		assertionBase: assert,
-		certified:     certified,
+		validation:    validation,
 		timestamp:     timestamp,
 	}, nil
 }
