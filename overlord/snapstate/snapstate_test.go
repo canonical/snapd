@@ -6669,12 +6669,15 @@ func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
 
 	// not restarting
 	state.MockRestarting(st, state.RestartUnset)
-	err := snapstate.WaitRestart(task, nil, &snap.Info{Type: snap.TypeApp})
+	si := &snap.SideInfo{RealName: "some-app"}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	err := snapstate.WaitRestart(task, snapsup)
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
 	state.MockRestarting(st, state.RestartDaemon)
-	err = snapstate.WaitRestart(task, nil, &snap.Info{Type: snap.TypeApp})
+	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
 

@@ -1155,8 +1155,10 @@ type: kernel`
 
 	// run, this will wait trigger a wait for the restart
 	st.Unlock()
-	ms.o.Settle(250 * time.Millisecond)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
+	c.Assert(err, IsNil)
+
 	// we are in restarting state and the change is not done yet
 	restarting, _ := st.Restarting()
 	c.Check(restarting, Equals, true)
