@@ -5212,7 +5212,7 @@ func (s *postCreateUserSuite) setupSigner(accountID string, signerPrivKey assert
 
 	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
 		"account-id":   accountID,
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	s.storeSigning.Add(signerAcct)
 	assertAdd(st, signerAcct)
@@ -6120,38 +6120,23 @@ func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
-func (s *apiSuite) TestSnapctlGetUID(c *check.C) {
-	var uid uint32
+func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	_ = s.daemon(c)
 
 	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
-		return 100, uid, dirs.SnapSocket, nil
+		return 100, 9999, dirs.SnapSocket, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
-	ctlcmdRun = func(*hookstate.Context, []string) ([]byte, []byte, error) {
-		return nil, nil, nil
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.ForbiddenCommandError{}
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
-	for _, t := range []struct {
-		uid uint32
-		cmd string
-		arg string
-
-		expectedCode int
-	}{
-		{1000, "get", "something", 200},
-		{0, "get", "something", 200},
-		{1000, "set", "some=thing", 403},
-		{0, "set", "some=thing", 200},
-	} {
-		uid = t.uid
-		buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, t.cmd, t.arg))
-		req, err := http.NewRequest("POST", "/v2/snapctl", buf)
-		c.Assert(err, check.IsNil)
-		rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
-		c.Assert(rsp.Status, check.Equals, t.expectedCode)
-	}
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 403)
 }
 
 var _ = check.Suite(&postDebugSuite{})
