@@ -218,7 +218,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	}
 
 	return &essentialInfo{
-		Name:        info.StoreName(),
+		Name:        info.SnapName(),
 		SnapID:      snapID,
 		DeveloperID: develID,
 		DevelName:   devel,
@@ -329,7 +329,7 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		snaps[info.StoreName()] = fn
+		snaps[info.SnapName()] = fn
 	}
 
 	return snaps, err

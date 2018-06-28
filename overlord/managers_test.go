@@ -449,7 +449,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
-		"snap-id":       fakeSnapID(info.StoreName()),
+		"snap-id":       fakeSnapID(info.SnapName()),
 		"snap-sha3-384": snapDigest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-revision": revno,
@@ -642,7 +642,7 @@ func (ms *mgrsSuite) serveSnap(snapPath, revno string) {
 	if err != nil {
 		panic(err)
 	}
-	name := info.StoreName()
+	name := info.SnapName()
 	ms.serveIDtoName[fakeSnapID(name)] = name
 	ms.serveSnapPath[name] = snapPath
 	ms.serveRevision[name] = revno

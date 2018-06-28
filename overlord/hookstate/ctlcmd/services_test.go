@@ -144,7 +144,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				RealName: info1.StoreName(),
+				RealName: info1.SnapName(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
@@ -155,7 +155,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				RealName: info2.StoreName(),
+				RealName: info2.SnapName(),
 				Revision: info2.Revision,
 				SnapID:   "other-snap-id",
 			},
