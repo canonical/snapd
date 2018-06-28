@@ -5212,7 +5212,7 @@ func (s *postCreateUserSuite) setupSigner(accountID string, signerPrivKey assert
 
 	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
 		"account-id":   accountID,
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	s.storeSigning.Add(signerAcct)
 	assertAdd(st, signerAcct)
