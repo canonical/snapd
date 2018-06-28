@@ -75,8 +75,3 @@ func (h *HotplugDeviceInfo) DeviceName() string {
 func (h *HotplugDeviceInfo) DeviceType() string {
 	return h.Data["DEVTYPE"]
 }
-
-// HotplugDeviceHandler can be implemented by interfaces that need to create slots in response to hotplug events
-type HotplugDeviceHandler interface {
-	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
-}
