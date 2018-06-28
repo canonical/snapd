@@ -473,11 +473,16 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 // WaitRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts)
-func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err error) {
+func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for restart...")
 		return &state.Retry{}
+	}
+
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
+	if err != nil {
+		return err
 	}
 
 	// If not on classic check there was no rollback. A reboot
@@ -515,6 +520,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err
 		if err != nil {
 			return err
 		}
+
 		if snapsup.Name() != name || snapInfo.Revision != rev {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
