@@ -281,11 +281,21 @@ func (bs *bootedSuite) TestCurrentBootNameAndRevision(c *C) {
 	bs.bootloader.BootVars["snap_mode"] = "trying"
 	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
 	c.Check(err, Equals, snapstate.ErrBootNameAndRevisionAgain)
+}
 
-	bs.bootloader.BootVars["snap_mode"] = ""
+func (bs *bootedSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	delete(bs.bootloader.BootVars, "snap_kernel")
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
+	_, _, err := snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
 	c.Check(err, ErrorMatches, "cannot retrieve boot revision for kernel: unset")
+
+	delete(bs.bootloader.BootVars, "snap_core")
+	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeOS)
+	c.Check(err, ErrorMatches, "cannot retrieve boot revision for core: unset")
+
+	delete(bs.bootloader.BootVars, "snap_core")
+	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeBase)
+	c.Check(err, ErrorMatches, "cannot retrieve boot revision for base: unset")
+
 }
 
 func (bs *bootedSuite) TestWaitRestartCore(c *C) {
