@@ -32,12 +32,12 @@ type SlotSpec struct {
 }
 
 type Specification struct {
-	slots map[string]SlotSpec
+	slots map[string]*SlotSpec
 }
 
 func NewSpecification() *Specification {
 	return &Specification{
-		slots: make(map[string]SlotSpec),
+		slots: make(map[string]*SlotSpec),
 	}
 }
 
@@ -49,7 +49,7 @@ func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}
 	if attrs == nil {
 		attrs = make(map[string]interface{})
 	}
-	h.slots[name] = SlotSpec{
+	h.slots[name] = &SlotSpec{
 		Name:  name,
 		Label: label,
 		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
@@ -57,10 +57,10 @@ func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}
 	return nil
 }
 
-func (h *Specification) Slots() []SlotSpec {
-	slots := make([]SlotSpec, len(h.slots))
+func (h *Specification) Slots() []*SlotSpec {
+	slots := make([]*SlotSpec, 0, len(h.slots))
 	for _, s := range h.slots {
-		slots = append(slots, SlotSpec{
+		slots = append(slots, &SlotSpec{
 			Name:  s.Name,
 			Label: s.Label,
 			Attrs: s.Attrs,

@@ -20,22 +20,18 @@
 package hotplug
 
 import (
-	"io/ioutil"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
+// HotplugDeviceInfo carries information about added/removed device detected at runtime.
 type HotplugDeviceInfo struct {
-	object       string
-	Data         map[string]string
-	idVendor     string
-	idProduct    string
-	product      string
-	manufacturer string
-	serial       string
+	object string
+	Data   map[string]string
 }
 
+// NewHotplugDeviceInfo creates HotplugDeviceInfo structure related to udev add or remove event.
 func NewHotplugDeviceInfo(obj string, env map[string]string) *HotplugDeviceInfo {
 	return &HotplugDeviceInfo{
 		object: obj,
@@ -43,71 +39,44 @@ func NewHotplugDeviceInfo(obj string, env map[string]string) *HotplugDeviceInfo 
 	}
 }
 
+// Returns object path, i.e. the sysfs path of the device, e.g. /devices/pci0000:00/0000:00:14.0/usb1/1-2.
+// It is expected to be equal to DEVPATH attribute.
 func (h *HotplugDeviceInfo) Object() string {
 	return h.object
 }
 
+// Returns full device path under /sysfs, e.g /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2.
+// The path is derived from DEVPATH attribute of the udev event.
 func (h *HotplugDeviceInfo) Path() string {
-	return filepath.Join(dirs.SysDir, h.Data["DEVPATH"])
+	return filepath.Join(dirs.SysfsDir, h.Data["DEVPATH"])
 }
 
+// Returns the value of "SUBSYSTEM" attribute of the udev event associated with the device, e.g. "usb".
 func (h *HotplugDeviceInfo) Subsystem() string {
 	return h.Data["SUBSYSTEM"]
 }
 
+// Returns the value of "MINOR" attribute of the udev event associated with the device.
 func (h *HotplugDeviceInfo) Minor() string {
 	return h.Data["MINOR"]
 }
 
+// Returns the value of "MAJOR" attribute of the udev event associated with the device.
 func (h *HotplugDeviceInfo) Major() string {
 	return h.Data["MAJOR"]
 }
 
+// Returns the value of "DEVNAME" attribute of the udev event associated with the device, e.g. "ttyUSB0".
 func (h *HotplugDeviceInfo) DeviceName() string {
 	return h.Data["DEVNAME"]
 }
 
+// Returns the value of "DEVTYPE" attribute of the udev event associated with the device, e.g. "usb_device".
 func (h *HotplugDeviceInfo) DeviceType() string {
 	return h.Data["DEVTYPE"]
-}
-
-func (h *HotplugDeviceInfo) IdVendor() string {
-	return h.readOnceMaybe("idVendor", &h.idVendor)
-}
-
-func (h *HotplugDeviceInfo) IdProduct() string {
-	return h.readOnceMaybe("idProduct", &h.idProduct)
-}
-
-func (h *HotplugDeviceInfo) Product() string {
-	return h.readOnceMaybe("product", &h.product)
-}
-
-func (h *HotplugDeviceInfo) Manufacturer() string {
-	return h.readOnceMaybe("manufacturer", &h.manufacturer)
-}
-
-func (h *HotplugDeviceInfo) Serial() string {
-	return h.readOnceMaybe("serial", &h.serial)
-}
-
-func (h *HotplugDeviceInfo) readOnceMaybe(fileName string, out *string) string {
-	if *out == "" {
-		data, err := ioutil.ReadFile(filepath.Join(h.Path(), fileName))
-		if err != nil {
-			return ""
-		}
-		*out = string(data)
-	}
-	return *out
 }
 
 // HotplugDeviceHandler can be implemented by interfaces that need to create slots in response to hotplug events
 type HotplugDeviceHandler interface {
 	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
-}
-
-// HotplugDeviceInfo can be implemented by interfaces that need to provide a non-standard device key for hotplug devices
-type HotplugDeviceKeyHandler interface {
-	HotplugDeviceKey(di *HotplugDeviceInfo) (string, error)
 }
