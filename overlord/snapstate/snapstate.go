@@ -498,17 +498,17 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err
 			return err
 		}
 		bootName := "core"
+		typ := snap.TypeOS
 		if model.Base() != "" {
 			bootName = model.Base()
+			typ = snap.TypeBase
 		}
 		// if it is not a bootable snap we are not interested
 		if snapsup.Name() != bootName {
 			return nil
 		}
 
-		// we get core/base from CurrentBootNameAndRevision with
-		// snap.TypeOS
-		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
+		name, rev, err := CurrentBootNameAndRevision(typ)
 		if err == ErrBootNameAndRevisionAgain {
 			return &state.Retry{After: 5 * time.Second}
 		}
@@ -516,6 +516,8 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (err
 			return err
 		}
 		if snapsup.Name() != name || snapInfo.Revision != rev {
+			// TODO: make sure this revision gets ignored for
+			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.Name())
 		}
 	}
