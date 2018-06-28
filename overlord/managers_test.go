@@ -1059,7 +1059,18 @@ type: os
 	ok, rst := st.Restarting()
 	c.Assert(ok, Equals, true)
 	c.Assert(rst, Equals, state.RestartSystem)
-	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	findKind := func(chg *state.Change, kind string) *state.Task {
+		for _, t := range chg.Tasks() {
+			if t.Kind() == kind {
+				return t
+			}
+		}
+		return nil
+	}
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// this is already set
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
