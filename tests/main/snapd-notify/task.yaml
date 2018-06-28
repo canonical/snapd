@@ -8,10 +8,24 @@ execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
+    echo "Check that snapd uses notifications"
+    systemctl show -p Type snapd.service | MATCH Type=notify
+
     for _ in $(seq 5); do
-      if systemctl status snapd.service | MATCH "Active: active"; then
-          check_journalctl_log "activation done in" -u snapd
-          exit
+      if systemctl is-active snapd.service; then
+        # ExecMainStartTimestampMonotonic=35275661308
+        mainstart="$(systemctl show -p ExecMainStartTimestampMonotonic snapd.service | cut -f2 -d=)"
+        # ActiveEnterTimestampMonotonic=35275819212
+        activeenter="$(systemctl show -p ActiveEnterTimestampMonotonic snapd.service | cut -f2 -d=)"
+        # WatchdogTimestampMonotonic=35275819210
+        watchdog="$(systemctl show -p WatchdogTimestampMonotonic snapd.service | cut -f2 -d=)"
+        # service became active after it was started
+        test "$activeenter" -gt "$mainstart"
+        # service pinged systemd after start
+        test "$watchdog" -gt "$mainstart"
+        # and became active after having pinged the daemon
+        test "$activeenter" -ge "$watchdog"
+        exit 0
       fi
       sleep 1
     done
