@@ -283,7 +283,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	}
 	// Remount $tgt_dir (i.e. .../lib/gl) read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
-	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
+	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
 		die("cannot remount %s as read-only", buf);
 	}
 }
