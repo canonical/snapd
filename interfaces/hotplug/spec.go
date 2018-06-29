@@ -36,17 +36,20 @@ type SlotSpec struct {
 	Attrs map[string]interface{}
 }
 
+// Specification contains data about all slots that a hotplug interface wants to have created in response to uevent.
 type Specification struct {
 	// slots are indexed by slot name to ensure unique names
 	slots map[string]*SlotSpec
 }
 
+// NewSpecification creates an empty hotplug Specification.
 func NewSpecification() *Specification {
 	return &Specification{
 		slots: make(map[string]*SlotSpec),
 	}
 }
 
+// AddSlot adds a specification of a slot.
 func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	if _, ok := h.slots[slotSpec.Name]; ok {
 		return fmt.Errorf("slot %q already exists", slotSpec.Name)
@@ -66,6 +69,7 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	return nil
 }
 
+// Slots returns specifications of all slots created by given interface.
 func (h *Specification) Slots() []*SlotSpec {
 	keys := make([]string, 0, len(h.slots))
 	for k := range h.slots {

@@ -28,7 +28,8 @@ import (
 // HotplugDeviceInfo carries information about added/removed device detected at runtime.
 type HotplugDeviceInfo struct {
 	object string
-	Data   map[string]string
+	// Data is a map of all attributes returned for given uevent.
+	Data map[string]string
 }
 
 // NewHotplugDeviceInfo creates HotplugDeviceInfo structure related to udev add or remove event.

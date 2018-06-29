@@ -69,3 +69,21 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 	c.Assert(di.Major(), Equals, "189")
 	c.Assert(di.Minor(), Equals, "130")
 }
+
+func (s *hotplugSuite) TestPropertiesMissing(c *C) {
+	env := map[string]string{
+		"DEVPATH": "/devices/pci0000:00/0000:00:14.0/usb2/2-3",
+		"ACTION":  "add", "SUBSYSTEM": "usb",
+	}
+
+	di := NewHotplugDeviceInfo("/devices/pci0000:00/0000:00:14.0/usb2/2-3", env)
+
+	c.Assert(di.Data, DeepEquals, env)
+	c.Assert(di.Object(), Equals, "/devices/pci0000:00/0000:00:14.0/usb2/2-3")
+	c.Assert(di.DeviceName(), Equals, "")
+	c.Assert(di.DeviceType(), Equals, "")
+	c.Assert(di.Path(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
+	c.Assert(di.Subsystem(), Equals, "usb")
+	c.Assert(di.Major(), Equals, "")
+	c.Assert(di.Minor(), Equals, "")
+}
