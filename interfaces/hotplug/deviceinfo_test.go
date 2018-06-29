@@ -60,7 +60,6 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 
 	di := NewHotplugDeviceInfo("/devices/pci0000:00/0000:00:14.0/usb2/2-3", env)
 
-	c.Assert(di.Data, DeepEquals, env)
 	c.Assert(di.Object(), Equals, "/devices/pci0000:00/0000:00:14.0/usb2/2-3")
 	c.Assert(di.DeviceName(), Equals, "bus/usb/002/003")
 	c.Assert(di.DeviceType(), Equals, "usb_device")
@@ -68,6 +67,13 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 	c.Assert(di.Subsystem(), Equals, "usb")
 	c.Assert(di.Major(), Equals, "189")
 	c.Assert(di.Minor(), Equals, "130")
+
+	minor, ok := di.Attribute("MINOR")
+	c.Assert(ok, Equals, true)
+	c.Assert(minor, Equals, "130")
+
+	_, ok = di.Attribute("FOO")
+	c.Assert(ok, Equals, false)
 }
 
 func (s *hotplugSuite) TestPropertiesMissing(c *C) {
@@ -78,7 +84,6 @@ func (s *hotplugSuite) TestPropertiesMissing(c *C) {
 
 	di := NewHotplugDeviceInfo("/devices/pci0000:00/0000:00:14.0/usb2/2-3", env)
 
-	c.Assert(di.Data, DeepEquals, env)
 	c.Assert(di.Object(), Equals, "/devices/pci0000:00/0000:00:14.0/usb2/2-3")
 	c.Assert(di.DeviceName(), Equals, "")
 	c.Assert(di.DeviceType(), Equals, "")
