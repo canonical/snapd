@@ -7216,9 +7216,16 @@ type snapSetupSuite struct{}
 
 var _ = Suite(&snapSetupSuite{})
 
-type canRemoveSuite struct{}
+type canRemoveSuite struct {
+	st *state.State
+}
 
 var _ = Suite(&canRemoveSuite{})
+
+func (s *canRemoveSuite) SetUpTest(c *C) {
+	s.st = state.New(nil)
+	snapstate.MockModel()
+}
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	info := &snap.Info{
@@ -7226,8 +7233,8 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, false), Equals, true)
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, true)
 }
 
 func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
@@ -7236,7 +7243,7 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{}, true), Equals, false)
 }
 
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
@@ -7249,9 +7256,19 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	}
 	kernel.RealName = "krnl"
 
-	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
 
-	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
+	snapstate.MockModelWithBase("core18")
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.RealName = "os"
+
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, true)
 }
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
@@ -7260,7 +7277,7 @@ func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
 }
 
 func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
@@ -7269,9 +7286,9 @@ func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
 }
 
 func revs(seq []*snap.SideInfo) []int {
