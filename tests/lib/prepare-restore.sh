@@ -238,6 +238,9 @@ prepare_project() {
         exit 1
     fi
 
+    # Prepare the state directories for execution
+    prepare_state
+
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
@@ -382,12 +385,6 @@ EOF
 }
 
 prepare_project_each() {
-    # We want to rotate the logs so that when inspecting or dumping them we
-    # will just see logs since the test has started.
-
-    # Reset systemd journal cursor.
-    start_new_journalctl_log
-
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
 
@@ -405,18 +402,19 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # save the job which is going to be exeuted in the system
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+    # Reset systemd journal cursor.
+    start_new_journalctl_log
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     if is_classic_system; then
         prepare_each_classic
     fi
-    #shellcheck source=tests/lib/state.sh
-    . "$TESTSLIB"/state.sh
-    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    # Check if journalctl is ready to run the test
+    check_journalctl_ready
 }
 
 restore_suite_each() {
@@ -426,8 +424,6 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
         . $TESTSLIB/pkgdb.sh
