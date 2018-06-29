@@ -6657,6 +6657,30 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	c.Assert(l, HasLen, 1)
 }
 
+func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not restarting
+	state.MockRestarting(st, state.RestartUnset)
+	si := &snap.SideInfo{RealName: "some-app"}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	err := snapstate.WaitRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	// restarting ... we always wait
+	state.MockRestarting(st, state.RestartDaemon)
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, FitsTypeOf, &state.Retry{})
+}
+
 type snapmgrQuerySuite struct {
 	st      *state.State
 	restore func()
