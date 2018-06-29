@@ -539,7 +539,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {

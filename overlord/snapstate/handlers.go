@@ -469,7 +469,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb)
+	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	if err != nil {
 		return err
 	}
