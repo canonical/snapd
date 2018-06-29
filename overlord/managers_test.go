@@ -1059,7 +1059,18 @@ type: os
 	ok, rst := st.Restarting()
 	c.Assert(ok, Equals, true)
 	c.Assert(rst, Equals, state.RestartSystem)
-	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	findKind := func(chg *state.Change, kind string) *state.Task {
+		for _, t := range chg.Tasks() {
+			if t.Kind() == kind {
+				return t
+			}
+		}
+		return nil
+	}
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// this is already set
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
@@ -1141,6 +1152,19 @@ type: kernel`
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
+
+	// run, this will trigger a wait for the restart
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// we are in restarting state and the change is not done yet
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	// pretend we restarted
+	state.MockRestarting(st, state.RestartUnset)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
