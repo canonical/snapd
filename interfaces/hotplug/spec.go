@@ -28,12 +28,16 @@ import (
 
 // SlotSpec is a definition of the slot to create in response to udev event.
 type SlotSpec struct {
+	// XXX: Name is the name the interface wants to give to the slot; we
+	// might want to mediate this though (e.g. generate automatically), so this
+	// may change/go away.
 	Name  string
 	Label string
 	Attrs map[string]interface{}
 }
 
 type Specification struct {
+	// slots are indexed by slot name to ensure unique names
 	slots map[string]*SlotSpec
 }
 

@@ -45,33 +45,38 @@ func (h *HotplugDeviceInfo) Object() string {
 	return h.object
 }
 
+// Returns the value of "SUBSYSTEM" attribute of the udev event associated with the device, e.g. "usb".
+// Subsystem value is always present.
+func (h *HotplugDeviceInfo) Subsystem() string {
+	return h.Data["SUBSYSTEM"]
+}
+
 // Returns full device path under /sysfs, e.g /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2.
 // The path is derived from DEVPATH attribute of the udev event.
 func (h *HotplugDeviceInfo) Path() string {
 	return filepath.Join(dirs.SysfsDir, h.Data["DEVPATH"])
 }
 
-// Returns the value of "SUBSYSTEM" attribute of the udev event associated with the device, e.g. "usb".
-func (h *HotplugDeviceInfo) Subsystem() string {
-	return h.Data["SUBSYSTEM"]
-}
-
 // Returns the value of "MINOR" attribute of the udev event associated with the device.
+// The Minor value may be empty.
 func (h *HotplugDeviceInfo) Minor() string {
 	return h.Data["MINOR"]
 }
 
 // Returns the value of "MAJOR" attribute of the udev event associated with the device.
+// The Major value may be empty.
 func (h *HotplugDeviceInfo) Major() string {
 	return h.Data["MAJOR"]
 }
 
 // Returns the value of "DEVNAME" attribute of the udev event associated with the device, e.g. "ttyUSB0".
+// The DeviceName value may be empty.
 func (h *HotplugDeviceInfo) DeviceName() string {
 	return h.Data["DEVNAME"]
 }
 
 // Returns the value of "DEVTYPE" attribute of the udev event associated with the device, e.g. "usb_device".
+// The DeviceType value may be empty.
 func (h *HotplugDeviceInfo) DeviceType() string {
 	return h.Data["DEVTYPE"]
 }
