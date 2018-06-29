@@ -3,7 +3,7 @@ summary: Check that the core.watchdog settings work
 systems: [ubuntu-core-16-*]
 
 environment:
-    WATCHDOG_FILE: /etc/systemd/system.conf.d/10-ubuntu-core-watchdog.conf
+    WATCHDOG_FILE: /etc/systemd/system.conf.d/10-snapd-watchdog.conf
 
 restore: |
     rm -f "$WATCHDOG_FILE"
