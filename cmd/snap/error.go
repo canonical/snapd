@@ -226,6 +226,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	// as reported by the store through the daemon
 	req, err := snap.ParseChannel(channel, arch)
 	if err != nil {
+		// TRANSLATORS: %[1]q and %[1]s refer to the same thing, a snap name
 		msg := fmt.Sprintf(i18n.G("requested an invalid channel for snap %[1]q.\nPlease use 'snap info %[1]s' to list available releases."), snapName)
 		return msg
 	}
@@ -263,32 +264,45 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 		// there are matching track+risk releases for other archs
 		if hits := matches["track:risk"]; len(hits) != 0 {
 			archs := strings.Join(archsForChannels(hits), ", ")
+			// TRANSLATORS: %q is for the snap name, %v is the requested channel, first %s is the system architecture short name, second %s is a comma separated list of available arch short names
 			msg := fmt.Sprintf(i18n.G("snap %q is not available on %v for this architecture (%s) but exists on other architectures (%s)."), snapName, req, arch, archs)
 			return msg
 		}
 
 		// not even that, generic error
 		archs := strings.Join(archsForChannels(avail), ", ")
+		// TRANSLATORS: %q is for the snap name, first %s is the system architecture short name, second %s is a comma separated list of available arch short names
 		msg := fmt.Sprintf(i18n.G("snap %q is not available on this architecture (%s) but exists on other architectures (%s)."), snapName, arch, archs)
 		return msg
 	}
 
-	// there are matching arch+track+risk releases and branch was specified
-	// and no release was available, assume this branch does not exist
-	if len(matches["architecture:track:risk"]) != 0 && req.Branch != "" {
-		trackRisk := snap.Channel{Track: req.Track, Risk: req.Risk}
-		trackRisk = trackRisk.Clean()
-		msg := fmt.Sprintf(i18n.G("requested a non-existing branch on %s for snap %q: %s"), trackRisk.Full(), snapName, req.Branch)
+	// a branch was requested
+	if req.Branch != "" {
+		// there are matching arch+track+risk, give main track info
+		if len(matches["architecture:track:risk"]) != 0 {
+			trackRisk := snap.Channel{Track: req.Track, Risk: req.Risk}
+			trackRisk = trackRisk.Clean()
+
+			// TRANSLATORS: %q is for the snap name, first %s is the full requested channel
+			msg := fmt.Sprintf(i18n.G("requested a non-existing branch on %s for snap %q: %s"), trackRisk.Full(), snapName, req.Branch)
+			return msg
+		}
+
+		msg := fmt.Sprintf(i18n.G("requested a non-existing branch for snap %q: %s"), snapName, req.Full())
 		return msg
 	}
 
-	moreInfoHint := fmt.Sprintf(i18n.G("Get more information with 'snap info %s'."), snapName)
+	// TRANSLATORS: can optionally be concatenated after a blank line at the end of other error messages, together with the "Get more information ..." hint
 	preRelWarn := i18n.G("Please be mindful pre-release channels may include features not completely tested or implemented.")
+	// TRANSLATORS: can optionally be concatenated after a blank line at the end of other error messages, together with the "Get more information ..." hint
 	trackWarn := i18n.G("Please be mindful that different tracks may include different features.")
+	// TRANSLATORS: %s is for the snap name, will be concatenated after at the end of other error messages, possibly after a blank line
+	moreInfoHint := fmt.Sprintf(i18n.G("Get more information with 'snap info %s'."), snapName)
 
 	// there are matching arch+track releases => give hint and instructions
 	// about pre-release channels
 	if hits := matches["architecture:track"]; len(hits) != 0 {
+		// TRANSLATORS: %q is for the snap name, %v is the requested channel
 		msg := fmt.Sprintf(i18n.G("snap %q is not available on %v but is available to install on the following channels:\n"), snapName, req)
 		msg += installTable(snapName, action, hits, false)
 		msg += "\n"
@@ -302,6 +316,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	// there are matching arch+risk releases => give hints and instructions
 	// about these other tracks
 	if hits := matches["architecture:risk"]; len(hits) != 0 {
+		// TRANSLATORS: %q is for the snap name, %s is the full requested channel
 		msg := fmt.Sprintf(i18n.G("snap %q is not available on %s but is available to install on the following tracks:\n"), snapName, req.Full())
 		msg += installTable(snapName, action, hits, true)
 		msg += "\n\n" + trackWarn
@@ -310,6 +325,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	}
 
 	// generic error
+	// TRANSLATORS: %q is for the snap name, %s is the full requested channel
 	msg := fmt.Sprintf(i18n.G("snap %q is not available on %s but other tracks exist.\n"), snapName, req.Full())
 	msg += "\n\n" + trackWarn
 	msg += "\n" + moreInfoHint
