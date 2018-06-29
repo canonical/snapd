@@ -142,7 +142,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	f.pokeStateLock()
 
 	sspec := snapSpec{
-		Name: spec.Name,
+		Name: snap.InstanceSnap(spec.Name),
 	}
 	info, err := f.snap(sspec, user)
 
@@ -183,20 +183,23 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		return nil, store.ErrSnapNotFound
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(spec.Name)
+
 	info := &snap.Info{
 		Architectures: []string{"all"},
 		SideInfo: snap.SideInfo{
-			RealName: spec.Name,
+			RealName: snapName,
 			Channel:  spec.Channel,
-			SnapID:   spec.Name + "-id",
+			SnapID:   snapName + "-id",
 			Revision: spec.Revision,
 		},
-		Version: spec.Name,
+		Version: snapName,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		Confinement: confinement,
 		Type:        typ,
+		InstanceKey: instanceKey,
 	}
 	switch spec.Channel {
 	case "channel-for-devmode":
@@ -443,6 +446,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if !a.Revision.Unset() {
 			info.Channel = ""
 		}
+		_, info.InstanceKey = snap.SplitInstanceName(a.Name)
 		res = append(res, info)
 	}
 
@@ -531,8 +535,11 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	}
 
 	name := filepath.Base(snapFilePath)
-	if idx := strings.IndexByte(name, '_'); idx > -1 {
-		name = name[:idx]
+	split := strings.Split(name, "_")
+	if len(split) >= 2 {
+		// <snap>_<rev>.snap
+		// <snap>_<instance-key>_<rev>.snap
+		name = split[0]
 	}
 
 	f.ops = append(f.ops, op)
@@ -547,6 +554,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	}
 	f.ops = append(f.ops, fakeOp{
 		op:    "setup-snap",
+		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
 	})
@@ -567,17 +575,19 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
+	snapName, instanceKey := snap.SplitInstanceName(name)
 	// naive emulation for now, always works
 	info := &snap.Info{
-		SuggestedName: name,
+		SuggestedName: snapName,
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		Type:          snap.TypeApp,
 	}
-	if strings.Contains(name, "alias-snap") {
-		name = "alias-snap"
+	if strings.Contains(snapName, "alias-snap") {
+		// only for the switch below
+		snapName = "alias-snap"
 	}
-	switch name {
+	switch snapName {
 	case "gadget":
 		info.Type = snap.TypeGadget
 	case "core":
@@ -613,6 +623,7 @@ apps:
 		info.SideInfo = *si
 	}
 
+	info.InstanceKey = instanceKey
 	return info, nil
 }
 
@@ -700,6 +711,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p pro
 	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
 		op:    "undo-setup-snap",
+		name:  s.InstanceName(),
 		path:  s.MountDir(),
 		stype: typ,
 	})

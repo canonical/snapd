@@ -736,6 +736,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapst.UserID = snapsup.UserID
 		}
 	}
+	// keep instance key
+	snapst.InstanceKey = snapsup.InstanceKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
 	if err != nil {
