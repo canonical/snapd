@@ -429,9 +429,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	// When modifying connection state translate the "snapd" snap to the "core"
 	// snap. This allows rollbacks until the epoch system can be used to make
 	// backwards-incompatible changes to the state.
-	if connRef.SlotRef.Snap == "snapd" {
-		connRef.SlotRef.Snap = "core"
-	}
+	remapOutgoingConnRef(connRef)
 
 	conns[connRef.ID()] = connState{
 		Interface:        conn.Interface(),
@@ -459,6 +457,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	cref := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+
+	// When a request comes in asking for "core" explicitly but we also have
+	// "snapd" in the repository then transparently change the request to
+	// refer to "snapd". This keeps existing scripts, user command line
+	// history and anything else that names the core snap explicitly, working.
+	remapIncomingConnRef(st, cref)
 
 	conns, err := getConns(st)
 	if err != nil {
@@ -466,7 +471,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var snapStates []snapstate.SnapState
-	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
+	for _, snapName := range []string{cref.PlugRef.Snap, cref.SlotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
 			if err == state.ErrNoState {
@@ -479,7 +484,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	err = m.repo.Disconnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 	if err != nil {
 		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 	}
@@ -494,14 +499,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-
 	// When modifying connection state translate the "snapd" snap to the "core"
 	// snap. This allows rollbacks until the epoch system can be used to make
 	// backwards-incompatible changes to the state.
-	if cref.SlotRef.Snap == "snapd" {
-		cref.SlotRef.Snap = "core"
-	}
+	remapOutgoingConnRef(cref)
 	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil

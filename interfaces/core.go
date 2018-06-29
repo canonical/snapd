@@ -105,6 +105,14 @@ func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 	}
 }
 
+// NewConnRefStrings creates a connection reference for a given set of names.
+func NewConnRefStrings(plugSnap, plugName, slotSnap, slotName string) *ConnRef{
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plugSnap, Name: plugName},
+		SlotRef: SlotRef{Snap: slotSnap, Name: slotName},
+	}
+}
+
 // ID returns a string identifying a given connection.
 func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
