@@ -557,7 +557,7 @@ var (
 		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
-		"udisks2":                   {"app"},
+		"udisks2":                   {"app", "core"},
 		"uhid":                      {"core"},
 		"unity8":                    {"app"},
 		"unity8-calendar":           {"app"},
@@ -694,7 +694,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
-		"udisks2":                   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
 	}
@@ -767,6 +766,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"udisks2":               true,
 		"unity8":                true,
 		"wayland":               true,
 	}
