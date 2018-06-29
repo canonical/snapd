@@ -22,9 +22,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
+	"reflect"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"text/template"
 
 	"github.com/jessevdk/go-flags"
 
@@ -43,12 +46,16 @@ type cmdList struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 
-	All bool `long:"all"`
+	All    bool   `long:"all"`
+	Format string `long:"format"`
 }
 
 func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
-		map[string]string{"all": i18n.G("Show all revisions")}, nil)
+		map[string]string{
+			"all":    i18n.G("Show all revisions"),
+			"format": i18n.G("Use format string for output (try --format=help)"),
+		}, nil)
 }
 
 type snapsByName []*client.Snap
@@ -62,7 +69,7 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return listSnaps(installedSnapNames(x.Positional.Snaps), x.All)
+	return listSnaps(installedSnapNames(x.Positional.Snaps), x.Format, x.All)
 }
 
 var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
@@ -103,7 +110,14 @@ func fmtChannel(ch string) string {
 	return ch
 }
 
-func listSnaps(names []string, all bool) error {
+func listSnaps(names []string, format string, all bool) error {
+	w := tabWriter()
+	defer w.Flush()
+
+	if format == "help" {
+		return describeListFormat(w)
+	}
+
 	cli := Client()
 	snaps, err := cli.List(names, &client.ListOptions{All: all})
 	if err != nil {
@@ -121,9 +135,80 @@ func listSnaps(names []string, all bool) error {
 	}
 	sort.Sort(snapsByName(snaps))
 
-	w := tabWriter()
-	defer w.Flush()
+	switch format {
+	case "":
+		return outputSnapsDefault(w, snaps)
+	default:
+		return outputSnapsWithFormat(w, snaps, format)
+	}
+}
 
+type fieldDesc struct {
+	name string
+	help string
+}
+
+func clientSnapFields() []fieldDesc {
+	v := reflect.TypeOf(client.Snap{})
+	n := v.NumField()
+	fields := make([]fieldDesc, n)
+	for i := 0; i < n; i++ {
+		field := v.Field(i)
+		fields[i].name = strings.Split(field.Tag.Get("json"), ",")[0]
+		fields[i].help = field.Tag.Get("help")
+	}
+
+	return fields
+}
+
+func clientSnapMap(s *client.Snap) map[string]interface{} {
+	res := make(map[string]interface{})
+
+	v := reflect.Indirect(reflect.ValueOf(s))
+	t := v.Type()
+	n := v.NumField()
+	for i := 0; i < n; i++ {
+		field := v.Field(i)
+		name := strings.Split(t.Field(i).Tag.Get("json"), ",")[0]
+		res[name] = field.Interface()
+	}
+
+	return res
+}
+
+func describeListFormat(w io.Writer) error {
+	fmt.Fprintf(w, `Format uses a simple template system.
+
+Use --format="{{.name}} {{.version}}" to get started.
+
+All the elements available for snaps are:
+`)
+	for _, fld := range clientSnapFields() {
+		if fld.help != "" {
+			fmt.Fprintf(w, " - %s:\t%s\n", fld.name, fld.help)
+		}
+	}
+
+	return nil
+}
+
+func outputSnapsWithFormat(w io.Writer, snaps []*client.Snap, format string) error {
+	t, err := template.New("list-output").Parse(format)
+	if err != nil {
+		return fmt.Errorf("cannot use given template (try --format=help): %s", err)
+	}
+
+	for _, snap := range snaps {
+		m := clientSnapMap(snap)
+		if err := t.Execute(w, m); err != nil {
+			return err
+		}
+		fmt.Fprint(w, "\n")
+	}
+	return nil
+}
+
+func outputSnapsDefault(w io.Writer, snaps []*client.Snap) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher\tNotes"))
 
 	for _, snap := range snaps {
