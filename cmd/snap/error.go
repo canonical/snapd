@@ -109,7 +109,8 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 				snapName = errValStr
 			}
 		}
-	case client.ErrorKindRevisionNotAvailableForChannel, client.ErrorKindRevisionNotAvailableForArchitecture:
+	case client.ErrorKindChannelNotAvailable,
+		client.ErrorKindArchitectureNotAvailable:
 		values, ok := err.Value.(map[string]interface{})
 		if ok {
 			candName, _ := values["snap-name"].(string)
@@ -135,24 +136,19 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 			}
 		}
 
-		// TRANSLATORS: %q and %[1]s refer to the same thing (a snap name).
-		msg = i18n.G(`
-snap %q not found for given constraints.
-Please use 'snap info %[1]s' to list available releases.`)
+		usesSnapName = false
+		// TRANSLATORS: %[1]q and %[1]s refer to the same thing (a snap name).
+		msg = fmt.Sprintf(i18n.G(`snap %[1]q not available as specified (see 'snap info %[1]s')`), snapName)
 
 		if opts != nil {
 			if opts.Revision != "" {
-				// TRANSLATORS: %%[1]q|s will become %[1]q|s for the snap name; %s is whatever foo the user used for --revision=
-				msg = fmt.Sprintf(i18n.G(`
-snap %%[1]q not found at least at revision %s.
-Please use 'snap info %%[1]s' to list available releases.`), opts.Revision)
+				// TRANSLATORS: %[1]q and %[1]s refer to the same thing (a snap name); %s is whatever the user used for --revision=
+				msg = fmt.Sprintf(i18n.G(`snap %[1]q revision %s not available (see 'snap info %[1]s')`), snapName, opts.Revision)
 			} else if opts.Channel != "" {
 				// (note --revision overrides --channel)
 
-				// TRANSLATORS: %%[1]q|s will become %[1]q|s for the snap name; %q is whatever foo the user used for --channel=foo
-				msg = fmt.Sprintf(i18n.G(`
-snap %%[1]q not found at least on channel %q.
-Please use 'snap info %%[1]s' to list available releases.`), opts.Channel)
+				// TRANSLATORS: %[1]q and %[1]s refer to the same thing (a snap name); %q is whatever foo the user used for --channel=foo
+				msg = fmt.Sprintf(i18n.G(`snap %[1]q not available on channel %q (see 'snap info %[1]s')`), snapName, opts.Channel)
 			}
 		}
 	case client.ErrorKindSnapAlreadyInstalled:
@@ -226,8 +222,8 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	// as reported by the store through the daemon
 	req, err := snap.ParseChannel(channel, arch)
 	if err != nil {
-		// TRANSLATORS: %[1]q and %[1]s refer to the same thing, a snap name
-		msg := fmt.Sprintf(i18n.G("requested an invalid channel for snap %[1]q.\nPlease use 'snap info %[1]s' to list available releases."), snapName)
+		// TRANSLATORS: %q is the invalid request channel, %s is the snap name
+		msg := fmt.Sprintf(i18n.G("requested channel %q is not valid (see 'snap info %s' for valid ones)"), channel, snapName)
 		return msg
 	}
 	avail := make([]*snap.Channel, 0, len(releases))
@@ -257,7 +253,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	}
 
 	// no release is for this architecture
-	if kind == client.ErrorKindRevisionNotAvailableForArchitecture {
+	if kind == client.ErrorKindArchitectureNotAvailable {
 		// TODO: add "Get more information..." hints once snap info
 		// support showing multiple/all archs
 

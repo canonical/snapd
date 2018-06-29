@@ -143,9 +143,9 @@ const (
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
-	errorKindSnapRevisionNotAvailable                = errorKind("snap-revision-not-available")
-	errorKindSnapRevisionNotAvailableForChannel      = errorKind("snap-revision-not-available-for-channel")
-	errorKindSnapRevisionNotAvailableForArchitecture = errorKind("snap-revision-not-available-for-architecture")
+	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
+	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
+	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
@@ -397,11 +397,11 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 		// the error kind whether there was anything at all
 		// available for this architecture
 		if archOK {
-			kind = errorKindSnapRevisionNotAvailableForChannel
-			msg = "no snap revision for the given channel"
+			kind = errorKindSnapChannelNotAvailable
+			msg = "no snap revision on specified channel"
 		} else {
-			kind = errorKindSnapRevisionNotAvailableForArchitecture
-			msg = "no snap revision for the given architecture"
+			kind = errorKindSnapArchitectureNotAvailable
+			msg = "no snap revision on specified architecture"
 		}
 		values["releases"] = releases
 		value = values

@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -5543,14 +5544,6 @@ func (s *storeTestSuite) TestSnapActionDownloadWithRevision(c *C) {
 	s.testSnapActionGetWithRevision("download", c)
 }
 
-func MustParseChannel(s string, arch string) snap.Channel {
-	parsed, err := snap.ParseChannel(s, arch)
-	if err != nil {
-		panic(err)
-	}
-	return parsed
-}
-
 func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
@@ -5797,8 +5790,8 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 				Action:  "refresh",
 				Channel: "candidate",
 				Releases: []snap.Channel{
-					MustParseChannel("beta", "amd64"),
-					MustParseChannel("beta", "arm64"),
+					snaptest.MustParseChannel("beta", "amd64"),
+					snaptest.MustParseChannel("beta", "arm64"),
 				},
 			},
 		},

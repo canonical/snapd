@@ -168,3 +168,14 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 	}
 	return filepath.Join(snapSource, snapFilePath)
 }
+
+// MustParseChannel parses a string representing a store channel and
+// includes the given architecture, if architecture is "" the system
+// architecture is included. It panics on error.
+func MustParseChannel(s string, architecture string) snap.Channel {
+	c, err := snap.ParseChannel(s, architecture)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}

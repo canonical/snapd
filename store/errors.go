@@ -73,7 +73,7 @@ type RevisionNotAvailableError struct {
 }
 
 func (e *RevisionNotAvailableError) Error() string {
-	return "no snap revision given constraints"
+	return "no snap revision available as specified"
 }
 
 // DownloadError represents a download error

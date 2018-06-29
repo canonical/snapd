@@ -388,9 +388,9 @@ const (
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 
-	ErrorKindRevisionNotAvailable                = "snap-revision-not-available"
-	ErrorKindRevisionNotAvailableForChannel      = "snap-revision-not-available-for-channel"
-	ErrorKindRevisionNotAvailableForArchitecture = "snap-revision-not-available-for-architecture"
+	ErrorKindRevisionNotAvailable     = "snap-revision-not-available"
+	ErrorKindChannelNotAvailable      = "snap-channel-not-available"
+	ErrorKindArchitectureNotAvailable = "snap-architecture-not-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 

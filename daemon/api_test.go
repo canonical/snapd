@@ -6864,14 +6864,6 @@ func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	}
 }
 
-func MustParseChannel(s string, arch string) snap.Channel {
-	parsed, err := snap.ParseChannel(s, arch)
-	if err != nil {
-		panic(err)
-	}
-	return parsed
-}
-
 func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
@@ -6881,7 +6873,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Action:  "install",
 		Channel: "stable",
 		Releases: []snap.Channel{
-			MustParseChannel("beta", thisArch),
+			snaptest.MustParseChannel("beta", thisArch),
 		},
 	}
 	rsp := si.errToResponse(err).(*resp)
@@ -6889,8 +6881,8 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Status: 404,
 		Type:   ResponseTypeError,
 		Result: &errorResult{
-			Message: "no snap revision for the given channel",
-			Kind:    errorKindSnapRevisionNotAvailableForChannel,
+			Message: "no snap revision on specified channel",
+			Kind:    errorKindSnapChannelNotAvailable,
 			Value: map[string]interface{}{
 				"snap-name":    "foo",
 				"action":       "install",
@@ -6907,7 +6899,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Action:  "install",
 		Channel: "stable",
 		Releases: []snap.Channel{
-			MustParseChannel("beta", "other-arch"),
+			snaptest.MustParseChannel("beta", "other-arch"),
 		},
 	}
 	rsp = si.errToResponse(err).(*resp)
@@ -6915,8 +6907,8 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Status: 404,
 		Type:   ResponseTypeError,
 		Result: &errorResult{
-			Message: "no snap revision for the given architecture",
-			Kind:    errorKindSnapRevisionNotAvailableForArchitecture,
+			Message: "no snap revision on specified architecture",
+			Kind:    errorKindSnapArchitectureNotAvailable,
 			Value: map[string]interface{}{
 				"snap-name":    "foo",
 				"action":       "install",
@@ -6935,7 +6927,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Status: 404,
 		Type:   ResponseTypeError,
 		Result: &errorResult{
-			Message: "no snap revision given constraints",
+			Message: "no snap revision available as specified",
 			Kind:    errorKindSnapRevisionNotAvailable,
 			Value:   "foo",
 		},
