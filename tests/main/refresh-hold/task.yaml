@@ -1,0 +1,7 @@
+summary: Check that the refresh hold works
+
+execute: |
+    echo "Ensure snap set core refresh.hold works"
+    when="$(date --iso-8601=seconds -d tomorrow)"
+    snap set core refresh.hold="$when"
+    snap snap refresh --time | MATCH "^hold: $when"
