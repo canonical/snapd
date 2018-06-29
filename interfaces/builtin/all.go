@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -68,7 +69,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			continue
 		}
 		// Reject plug with invalid name
-		if err := interfaces.ValidateName(plugName); err != nil {
+		if err := utils.ValidateName(plugName); err != nil {
 			snapInfo.BadInterfaces[plugName] = err.Error()
 			badPlugs = append(badPlugs, plugName)
 			continue
@@ -88,7 +89,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			continue
 		}
 		// Reject slot with invalid name
-		if err := interfaces.ValidateName(slotName); err != nil {
+		if err := utils.ValidateName(slotName); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
 			badSlots = append(badSlots, slotName)
 			continue
