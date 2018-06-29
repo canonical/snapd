@@ -202,7 +202,7 @@ if [ "$STATIC" = 1 ]; then
     if ! which nakedret >/dev/null; then
         go get -u github.com/alexkohler/nakedret
     fi
-    got=$(go list ./... | grep -v '/osutil/udev/' | xargs nakedret 2>&1)
+    got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
         echo "$got"
         exit 1
