@@ -30,13 +30,18 @@ import (
 )
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
 	if oErr != nil {
 		return snapType, oErr
 	}
+
+	_, s.InstanceKey = snap.SplitInstanceName(instanceName)
+
+	// TODO parallel-install: enforce snap.Info.SnapName() == snap name from instanceName
+
 	instdir := s.MountDir()
 
 	defer func() {
