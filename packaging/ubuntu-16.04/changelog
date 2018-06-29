@@ -8,9 +8,9 @@ snapd (2.34~pre1) xenial; urgency=medium
       connecting
     - snap: account for parallel installs in wrappers, place info and
       tests
-    - configcore: fix incorrect handling of keys with nubmers (like
+    - configcore: fix incorrect handling of keys with numbers (like
       gpu_mem_512)
-    - tests: fix tests when no keyboad input detected
+    - tests: fix tests when no keyboard input detected
     - overlord/configstate: add watchdog options
     - snap-mgmt: fix for non-existent dbus system policy dir,
       shellchecks
