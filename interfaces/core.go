@@ -216,18 +216,6 @@ const (
 	SecuritySystemd SecuritySystem = "systemd"
 )
 
-// Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
-
-// ValidateName checks if a string can be used as a plug or slot name.
-func ValidateName(name string) error {
-	valid := validName.MatchString(name)
-	if !valid {
-		return fmt.Errorf("invalid interface name: %q", name)
-	}
-	return nil
-}
-
 // ValidateDBusBusName checks if a string conforms to
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
 func ValidateDBusBusName(busName string) error {
