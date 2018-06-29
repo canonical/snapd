@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
@@ -34,6 +35,8 @@ type Repository struct {
 	// Protects the internals from concurrent access.
 	m      sync.Mutex
 	ifaces map[string]Interface
+	// subset of ifaces that implement HotplugDeviceAdded method
+	hotplugIfaces map[string]Interface
 	// Indexed by [snapName][plugName]
 	plugs map[string]map[string]*snap.PlugInfo
 	slots map[string]map[string]*snap.SlotInfo
@@ -47,12 +50,13 @@ type Repository struct {
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	repo := &Repository{
-		ifaces:    make(map[string]Interface),
-		plugs:     make(map[string]map[string]*snap.PlugInfo),
-		slots:     make(map[string]map[string]*snap.SlotInfo),
-		slotPlugs: make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
-		plugSlots: make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
-		backends:  make(map[SecuritySystem]SecurityBackend),
+		ifaces:        make(map[string]Interface),
+		hotplugIfaces: make(map[string]Interface),
+		plugs:         make(map[string]map[string]*snap.PlugInfo),
+		slots:         make(map[string]map[string]*snap.SlotInfo),
+		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
+		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
+		backends:      make(map[SecuritySystem]SecurityBackend),
 	}
 
 	return repo
@@ -79,6 +83,11 @@ func (r *Repository) AddInterface(i Interface) error {
 		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
 	r.ifaces[interfaceName] = i
+
+	if _, ok := i.(hotplug.Definer); ok {
+		r.hotplugIfaces[interfaceName] = i
+	}
+
 	return nil
 }
 
@@ -89,6 +98,18 @@ func (r *Repository) AllInterfaces() []Interface {
 
 	ifaces := make([]Interface, 0, len(r.ifaces))
 	for _, iface := range r.ifaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
+}
+
+func (r *Repository) AllHotplugInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.hotplugIfaces))
+	for _, iface := range r.hotplugIfaces {
 		ifaces = append(ifaces, iface)
 	}
 	sort.Sort(byInterfaceName(ifaces))
