@@ -212,7 +212,7 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if [ ! -f "$SNAPD_STATE_FILE" ]; then
+    if ! is_snapd_state_saved; then
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -593,7 +593,7 @@ prepare_ubuntu_core() {
     setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
-    if [ ! -d $SNAPD_STATE_PATH ]; then
+    if ! is_snapd_state_saved; then
         systemctl stop snapd.service snapd.socket
         save_snapd_state
         systemctl start snapd.socket

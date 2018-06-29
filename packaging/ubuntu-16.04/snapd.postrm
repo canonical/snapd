@@ -71,7 +71,9 @@ if [ "$1" = "purge" ]; then
             # udev rules
             find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
             # dbus policy files
-            find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
+            if [ -d /etc/dbus-1/system.d ]; then
+                find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
+            fi
             # timer files
             find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
