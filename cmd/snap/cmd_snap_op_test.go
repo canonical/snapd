@@ -509,7 +509,8 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAnd
   "action": "install",
   "architecture": "arm64",
   "channel": "stable",
-  "releases": [{"architecture": "amd64", "channel": "stable"}]
+  "releases": [{"architecture": "amd64", "channel": "stable"},
+               {"architecture": "s390x", "channel": "stable"}]
 }, "kind": "snap-revision-not-available-for-architecture"}, "status-code": 404}`)
 	})
 
@@ -517,7 +518,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAnd
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on stable for this architecture (arm64) but
-       exists on other architectures (amd64).
+       exists on other architectures (amd64, s390x).
 `)
 
 	c.Check(s.Stdout(), check.Equals, "")
@@ -531,7 +532,8 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAnd
   "action": "install",
   "architecture": "arm64",
   "channel": "1.0/stable",
-  "releases": [{"architecture": "amd64", "channel": "stable"}]
+  "releases": [{"architecture": "amd64", "channel": "stable"},
+               {"architecture": "s390x", "channel": "stable"}]
 }, "kind": "snap-revision-not-available-for-architecture"}, "status-code": 404}`)
 	})
 
@@ -539,7 +541,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAnd
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on this architecture (arm64) but exists on
-       other architectures (amd64).
+       other architectures (amd64, s390x).
 `)
 
 	c.Check(s.Stdout(), check.Equals, "")
@@ -568,7 +570,7 @@ error: requested an invalid channel for snap "foo". Please use 'snap info foo'
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBranch(c *check.C) {
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBranchOnMainChannel(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
   "snap-name": "foo",
@@ -583,6 +585,27 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBr
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: requested a non-existing branch on latest/stable for snap "foo": baz
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBranch(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision given constraints", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable/baz",
+  "releases": [{"architecture": "amd64", "channel": "edge"}]
+}, "kind": "snap-revision-not-available-for-channel"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: requested a non-existing branch for snap "foo": latest/stable/baz
 `)
 
 	c.Check(s.Stdout(), check.Equals, "")
