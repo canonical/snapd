@@ -2,8 +2,6 @@ summary: Check snap web servers
 
 # arch: there is no ip6-localhost
 # core18: no ipv6-localhost
-# core18: test-snapd-python-webserver broken here because it uses host
-#         python3.6 but only includes modules for python3.5
 systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-core-18-*]
 
 environment:
