@@ -568,6 +568,14 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// The previous task (link-snap) may have triggered a restart,
+	// if this is the case we can only procceed once the restart
+	// has happened or we may not have all the interfaces of the
+	// new core/base snap.
+	if err := snapstate.WaitRestart(task, snapsup); err != nil {
+		return err
+	}
+
 	snapName := snapsup.Name()
 
 	autots := state.NewTaskSet()
