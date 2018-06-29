@@ -20,7 +20,7 @@ restore: |
     rm -f call.error
 
 execute: |
-    if [ ! -d /dev/input/by-path/ ] || [ "$(find /dev/input/by-path -name '*-event-kbd' | wc -l)" -eq 0 ]; then
+    if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
             # ensure the test runs at least on this spread system
             echo "No /dev/input/by-path but this test cannot be skipped on ubuntu-16.04-64"
