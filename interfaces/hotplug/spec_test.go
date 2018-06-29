@@ -48,8 +48,8 @@ func (s *hotplugSpecSuite) TestAddSlot(c *C) {
 	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}}), IsNil)
 
 	c.Assert(spec.Slots(), DeepEquals, []*SlotSpec{
-		&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
-		&SlotSpec{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}},
+		{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
+		{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}},
 	})
 }
 
@@ -61,6 +61,6 @@ func (s *hotplugSpecSuite) TestAddSlotDuplicate(c *C) {
 	c.Assert(err, ErrorMatches, `slot "slot1" already exists`)
 
 	c.Assert(spec.Slots(), DeepEquals, []*SlotSpec{
-		&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
+		{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
 	})
 }
