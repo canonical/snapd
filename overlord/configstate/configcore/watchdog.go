@@ -42,7 +42,7 @@ func init() {
 
 func updateWatchdogConfig(config map[string]uint) error {
 	dir := dirs.SnapSystemdConfDir
-	name := "10-ubuntu-core-watchdog.conf"
+	name := "10-snapd-watchdog.conf"
 	dirContent := make(map[string]*osutil.FileState, 1)
 
 	configStr := []string{}

@@ -47,7 +47,7 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-ubuntu-core-watchdog.conf")
+	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-snapd-watchdog.conf")
 	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
 	c.Assert(err, IsNil)
 }
