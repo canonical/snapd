@@ -77,7 +77,8 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	return &Info{SideInfo: SideInfo{RealName: name, Revision: revision}}
+	storeName, instanceKey := SplitInstanceName(name)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
@@ -264,11 +265,11 @@ type ChannelSnapInfo struct {
 // InstanceName returns the blessed name of the snap decorated with instance
 // key, if any.
 func (s *Info) InstanceName() string {
-	return InstanceName(s.StoreName(), s.InstanceKey)
+	return InstanceName(s.SnapName(), s.InstanceKey)
 }
 
-// StoreName returns the global blessed name of the snap.
-func (s *Info) StoreName() string {
+// SnapName returns the global blessed name of the snap.
+func (s *Info) SnapName() string {
 	if s.RealName != "" {
 		return s.RealName
 	}
@@ -731,9 +732,8 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	// TODO parallel-install: use of proper instance/store name
-	if app.Name == app.Snap.InstanceName() {
-		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	if app.Name == app.Snap.SnapName() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Snap.InstanceName())
 	}
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
 }
@@ -905,6 +905,9 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	return info, nil
 }
 
@@ -973,7 +976,7 @@ func InstallDate(name string) time.Time {
 func SplitSnapApp(snapApp string) (snap, app string) {
 	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
-		return l[0], l[0]
+		return l[0], InstanceSnap(l[0])
 	}
 	return l[0], l[1]
 }
@@ -982,8 +985,9 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 // `snap` and the `app` part. It also deals with the special
 // case of snapName == appName.
 func JoinSnapApp(snap, app string) string {
-	if snap == app {
-		return app
+	storeName, instanceKey := SplitInstanceName(snap)
+	if storeName == app {
+		return InstanceName(app, instanceKey)
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
 }
@@ -1006,28 +1010,28 @@ func DropNick(nick string) string {
 	return nick
 }
 
-// StoreName splits the instance name and returns the store name of the snap.
-func StoreName(instanceName string) string {
-	storeName, _ := SplitInstanceName(instanceName)
-	return storeName
+// InstanceSnap splits the instance name and returns the name of the snap.
+func InstanceSnap(instanceName string) string {
+	snapName, _ := SplitInstanceName(instanceName)
+	return snapName
 }
 
-// SplitInstanceName splits the instance name and returns the store name and the
+// SplitInstanceName splits the instance name and returns the snap name and the
 // instance key.
-func SplitInstanceName(instanceName string) (storeName, instanceKey string) {
+func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
 	split := strings.SplitN(instanceName, "_", 2)
-	storeName = split[0]
+	snapName = split[0]
 	if len(split) > 1 {
 		instanceKey = split[1]
 	}
-	return storeName, instanceKey
+	return snapName, instanceKey
 }
 
-// InstanceName takes the store name and the instance key and returns an instance
+// InstanceName takes the snap name and the instance key and returns an instance
 // name of the snap.
-func InstanceName(storeName, instanceKey string) string {
+func InstanceName(snapName, instanceKey string) string {
 	if instanceKey != "" {
-		return fmt.Sprintf("%s_%s", storeName, instanceKey)
+		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
-	return storeName
+	return snapName
 }

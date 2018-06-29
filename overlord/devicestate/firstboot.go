@@ -150,31 +150,37 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		alreadySeeded[snapName] = true
 		return nil
 	}
+
+	last := -1
 	// if there are snaps to seed, core/base needs to be seeded too
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" {
-			if err := installSeedEssential("snapd", -1); err != nil {
+			if err := installSeedEssential("snapd", last); err != nil {
 				return nil, err
 			}
+			last++
 		}
-		if err := installSeedEssential(baseSnap, -1); err != nil {
+		if err := installSeedEssential(baseSnap, last); err != nil {
 			return nil, err
 		}
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" if where the system config lives.
 		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
+		last++
 	}
 
-	last := 0
+	lastConf := 0
 	if kernelName := model.Kernel(); kernelName != "" {
 		if err := installSeedEssential(kernelName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[last])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		lastConf++
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
@@ -182,9 +188,14 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[last])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		//If we use lastConf again we need to enable this. It is
+		//commented out because go vet complains about an ineffectual
+		// assignment.
+		//lastConf++
 	}
 
 	// chain together configuring core, kernel, and gadget after

@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -75,7 +76,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	defer r.m.Unlock()
 
 	interfaceName := i.Name()
-	if err := ValidateName(interfaceName); err != nil {
+	if err := utils.ValidateName(interfaceName); err != nil {
 		return err
 	}
 	if _, ok := r.ifaces[interfaceName]; ok {
@@ -305,7 +306,7 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 		return err
 	}
 	// Reject plug with invalid names
-	if err := ValidateName(plug.Name); err != nil {
+	if err := utils.ValidateName(plug.Name); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -400,7 +401,7 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 		return err
 	}
 	// Reject plug with invalid names
-	if err := ValidateName(slot.Name); err != nil {
+	if err := utils.ValidateName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct

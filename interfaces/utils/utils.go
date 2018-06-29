@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,11 +19,16 @@
 
 package utils
 
+import (
+	"fmt"
+	"regexp"
+)
+
+// NormalizeInterfaceAttributes normalises types of an attribute values.
+// The following transformations are applied: int -> int64, float32 -> float64.
+// The normalisation proceeds recursively through maps and slices.
 func NormalizeInterfaceAttributes(value interface{}) interface{} {
 	// Normalize ints/floats using their 64-bit variants.
-	// That kind of normalization happens in normalizeYamlValue(..) for static attributes
-	// when the yaml is loaded, but it needs to be done here as well because we're also
-	// dealing with dynamic attributes set by the code of interfaces.
 	switch v := value.(type) {
 	case int:
 		return int64(v)
@@ -39,4 +44,16 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 		}
 	}
 	return value
+}
+
+// Regular expression describing correct identifiers.
+var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+
+// ValidateName checks if a string can be used as a plug or slot name.
+func ValidateName(name string) error {
+	valid := validName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid interface name: %q", name)
+	}
+	return nil
 }
