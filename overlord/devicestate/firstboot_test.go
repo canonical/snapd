@@ -144,7 +144,8 @@ func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
-	release.MockOnClassic(true)
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	st := s.overlord.State()
 	st.Lock()
@@ -159,7 +160,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
-	release.MockOnClassic(true)
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -190,7 +192,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
-	release.MockOnClassic(true)
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -216,7 +219,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
-	release.MockOnClassic(true)
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	st := s.overlord.State()
 
@@ -1091,7 +1095,8 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c *C) {
-	release.MockOnClassic(true)
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
