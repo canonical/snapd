@@ -21,6 +21,7 @@ package hotplug
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/interfaces/utils"
 )
@@ -62,9 +63,15 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 }
 
 func (h *Specification) Slots() []*SlotSpec {
+	keys := make([]string, 0, len(h.slots))
+	for k := range h.slots {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	slots := make([]*SlotSpec, 0, len(h.slots))
-	for _, s := range h.slots {
-		slots = append(slots, s)
+	for _, k := range keys {
+		slots = append(slots, h.slots[k])
 	}
 	return slots
 }
