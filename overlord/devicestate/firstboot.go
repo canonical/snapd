@@ -170,15 +170,17 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		last++
 	}
 
+	lastConf := 0
 	if kernelName := model.Kernel(); kernelName != "" {
 		if err := installSeedEssential(kernelName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
 		// wait for the previous configTss
-		configTs.WaitAll(configTss[0])
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		lastConf++
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
@@ -187,9 +189,13 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		}
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
 		// wait for the previous configTss
-		configTs.WaitAll(configTss[1])
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		//If we use lastConf again we need to enable this. It is
+		//commented out because go vet complains about an ineffectual
+		// assignment.
+		//lastConf++
 	}
 
 	// chain together configuring core, kernel, and gadget after

@@ -1153,7 +1153,7 @@ type: kernel`
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
 
-	// run, this will wait trigger a wait for the restart
+	// run, this will trigger a wait for the restart
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
