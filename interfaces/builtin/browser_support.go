@@ -268,6 +268,22 @@ setpriority
 # https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
 mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
+
+# The Breakpad crash reporter uses ptrace to read register/memory state
+# from the crashed process, but it doesn't need to modify any state; see
+# https://bugzilla.mozilla.org/show_bug.cgi?id=1461848.
+#
+# These rules allow that but don't allow ptrace operations that
+# write registers, which can be used to bypass security; see
+# https://lkml.org/lkml/2016/5/26/354.
+ptrace PTRACE_ATTACH
+ptrace PTRACE_DETACH
+ptrace PTRACE_GETREGS
+ptrace PTRACE_GETFPREGS
+ptrace PTRACE_GETFPXREGS
+ptrace PTRACE_GETREGSET
+ptrace PTRACE_PEEKDATA
+ptrace PTRACE_PEEKUSER
 `
 
 const browserSupportConnectedPlugSecCompWithSandbox = `
