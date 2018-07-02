@@ -480,3 +480,10 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 func (mb mockBackend) RequestRestart(t state.RestartType) {
 	mb.o.requestRestart(t)
 }
+
+func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
+	createUDevMonitor = new
+	return func() {
+		createUDevMonitor = NewUDevMonitor
+	}
+}

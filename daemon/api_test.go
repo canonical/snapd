@@ -224,8 +224,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
-	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
-		return &overlord.UDevMonitorMock{}
+	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
+		return nil
 	})
 
 	s.rsnaps = nil
