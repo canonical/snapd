@@ -214,10 +214,10 @@ static void test_sc_snap_name_validate__respects_error_protocol(void)
 	    ("snap name must use lower case letters, digits or dashes\n");
 }
 
-static void test_sc_snap_drop_instance_name_no_dest(void)
+static void test_sc_snap_drop_instance_key_no_dest(void)
 {
 	if (g_test_subprocess()) {
-		sc_snap_drop_instance_name("foo_bar", NULL, 0);
+		sc_snap_drop_instance_key("foo_bar", NULL, 0);
 		g_test_fail();
 		return;
 	}
@@ -226,12 +226,12 @@ static void test_sc_snap_drop_instance_name_no_dest(void)
 
 }
 
-static void test_sc_snap_drop_instance_name_short_dest(void)
+static void test_sc_snap_drop_instance_key_short_dest(void)
 {
 	if (g_test_subprocess()) {
 		char dest[10] = { 0 };
-		sc_snap_drop_instance_name("foo-foo-foo-foo-foo_bar", dest,
-					   sizeof dest);
+		sc_snap_drop_instance_key("foo-foo-foo-foo-foo_bar", dest,
+					  sizeof dest);
 		g_test_fail();
 		return;
 	}
@@ -239,11 +239,11 @@ static void test_sc_snap_drop_instance_name_short_dest(void)
 	g_test_trap_assert_failed();
 }
 
-static void test_sc_snap_drop_instance_name_short_dest2(void)
+static void test_sc_snap_drop_instance_key_short_dest2(void)
 {
 	if (g_test_subprocess()) {
 		char dest[3] = { 0 };	// "foo" sans the nil byte
-		sc_snap_drop_instance_name("foo", dest, sizeof dest);
+		sc_snap_drop_instance_key("foo", dest, sizeof dest);
 		g_test_fail();
 		return;
 	}
@@ -251,11 +251,11 @@ static void test_sc_snap_drop_instance_name_short_dest2(void)
 	g_test_trap_assert_failed();
 }
 
-static void test_sc_snap_drop_instance_name_no_name(void)
+static void test_sc_snap_drop_instance_key_no_name(void)
 {
 	if (g_test_subprocess()) {
 		char dest[10] = { 0 };
-		sc_snap_drop_instance_name(NULL, dest, sizeof dest);
+		sc_snap_drop_instance_key(NULL, dest, sizeof dest);
 		g_test_fail();
 		return;
 	}
@@ -263,28 +263,130 @@ static void test_sc_snap_drop_instance_name_no_name(void)
 	g_test_trap_assert_failed();
 }
 
-static void test_sc_snap_drop_instance_name_basic(void)
+static void test_sc_snap_drop_instance_key_basic(void)
 {
 	char name[41] = { 0xff };
 
-	sc_snap_drop_instance_name("foo_bar", name, sizeof name);
+	sc_snap_drop_instance_key("foo_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
 
 	memset(name, 0xff, sizeof name);
-	sc_snap_drop_instance_name("foo-bar_bar", name, sizeof name);
+	sc_snap_drop_instance_key("foo-bar_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo-bar");
 
 	memset(name, 0xff, sizeof name);
-	sc_snap_drop_instance_name("foo-bar", name, sizeof name);
+	sc_snap_drop_instance_key("foo-bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo-bar");
 
 	memset(name, 0xff, sizeof name);
-	sc_snap_drop_instance_name("_baz", name, sizeof name);
+	sc_snap_drop_instance_key("_baz", name, sizeof name);
 	g_assert_cmpstr(name, ==, "");
 
 	memset(name, 0xff, sizeof name);
-	sc_snap_drop_instance_name("foo", name, sizeof name);
+	sc_snap_drop_instance_key("foo", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
+}
+
+static void test_sc_snap_split_instance_name_trailing_nil(void)
+{
+	if (g_test_subprocess()) {
+		char dest[3] = { 0 };
+		// pretend there is no place for trailing \0
+		sc_snap_split_instance_name("_", NULL, 0, dest, 0);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_split_instance_name_short_instance_dest(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_snap_split_instance_name("foo_barbarbarbar", NULL, 0,
+					    dest, sizeof dest);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_split_instance_name_basic(void)
+{
+	char name[41] = { 0xff };
+	char instance[20] = { 0xff };
+
+	sc_snap_split_instance_name("foo_bar", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo");
+	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo-bar_bar", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo-bar");
+	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo-bar", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo-bar");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("_baz", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "baz");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_split_instance_name("foo_bar", name, sizeof name, NULL, 0);
+	g_assert_cmpstr(name, ==, "foo");
+
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo_bar", NULL, 0, instance,
+				    sizeof instance);
+	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("hello_world_surprise", name, sizeof name,
+				    instance, sizeof instance);
+	g_assert_cmpstr(name, ==, "hello");
+	g_assert_cmpstr(instance, ==, "world_surprise");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("_", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo_", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo");
+	g_assert_cmpstr(instance, ==, "");
 }
 
 static void __attribute__ ((constructor)) init(void)
@@ -294,14 +396,20 @@ static void __attribute__ ((constructor)) init(void)
 			test_sc_snap_name_validate);
 	g_test_add_func("/snap/sc_snap_name_validate/respects_error_protocol",
 			test_sc_snap_name_validate__respects_error_protocol);
-	g_test_add_func("/snap/sc_snap_drop_instance_name/basic",
-			test_sc_snap_drop_instance_name_basic);
-	g_test_add_func("/snap/sc_snap_drop_instance_name/no_dest",
-			test_sc_snap_drop_instance_name_no_dest);
-	g_test_add_func("/snap/sc_snap_drop_instance_name/no_name",
-			test_sc_snap_drop_instance_name_no_name);
-	g_test_add_func("/snap/sc_snap_drop_instance_name/short_dest",
-			test_sc_snap_drop_instance_name_short_dest);
-	g_test_add_func("/snap/sc_snap_drop_instance_name/short_dest2",
-			test_sc_snap_drop_instance_name_short_dest2);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/basic",
+			test_sc_snap_drop_instance_key_basic);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/no_dest",
+			test_sc_snap_drop_instance_key_no_dest);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/no_name",
+			test_sc_snap_drop_instance_key_no_name);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest",
+			test_sc_snap_drop_instance_key_short_dest);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest2",
+			test_sc_snap_drop_instance_key_short_dest2);
+	g_test_add_func("/snap/sc_snap_split_instance_name/basic",
+			test_sc_snap_split_instance_name_basic);
+	g_test_add_func("/snap/sc_snap_split_instance_name/trailing_nil",
+			test_sc_snap_split_instance_name_trailing_nil);
+	g_test_add_func("/snap/sc_snap_split_instance_name/short_instance_dest",
+			test_sc_snap_split_instance_name_short_instance_dest);
 }

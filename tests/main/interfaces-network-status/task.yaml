@@ -9,7 +9,7 @@ details: |
     The snap is also declaring a plug on this interface must be able to ask for its status.
 
 # dbus-launch not supported in ubuntu-core
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
     . "$TESTSLIB/dbus.sh"

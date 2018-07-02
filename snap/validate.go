@@ -37,6 +37,9 @@ import (
 // Regular expressions describing correct identifiers.
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
+// The fixed length of valid snap IDs.
+const validSnapIDLength = 32
+
 // almostValidName is part of snap and socket name validation.
 //   the full regexp we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is
 //   O(2ⁿ) on the length of the string in python. An equivalent regexp that
@@ -51,6 +54,9 @@ var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 //   validators.
 var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
 
+// validInstanceKey is a regular expression describing valid snap instance key
+var validInstanceKey = regexp.MustCompile("^[a-z0-9]{1,10}$")
+
 // isValidName checks snap and socket socket identifiers.
 func isValidName(name string) bool {
 	if !almostValidName.MatchString(name) {
@@ -60,6 +66,29 @@ func isValidName(name string) bool {
 		return false
 	}
 	return true
+}
+
+// ValidateName checks if a string can be used as a snap instance name.
+func ValidateInstanceName(instanceName string) error {
+	// NOTE: This function should be synchronized with the two other
+	// implementations: sc_instance_name_validate and validate_instance_name .
+	pos := strings.IndexByte(instanceName, '_')
+	if pos == -1 {
+		// just store name
+		return ValidateName(instanceName)
+	}
+
+	storeName := instanceName[:pos]
+	instanceKey := instanceName[pos+1:]
+	if err := ValidateName(storeName); err != nil {
+		return err
+	}
+	if !validInstanceKey.MatchString(instanceKey) {
+		// TODO parallel-install: extend the error message once snap
+		// install help has been updated
+		return fmt.Errorf("invalid instance key: %q", instanceKey)
+	}
+	return nil
 }
 
 // ValidateName checks if a string can be used as a snap name.
@@ -210,7 +239,8 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
-	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
+	// TODO parallel-install: use of proper instance/store name, discuss socket activation in parallel install world
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.InstanceName())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
 	}
@@ -255,11 +285,12 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
-	name := info.Name()
+	name := info.InstanceName()
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 
+	// TODO parallel-install: use of proper instance/store name, validate instance key
 	if err := ValidateName(name); err != nil {
 		return err
 	}
@@ -312,7 +343,7 @@ func Validate(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type == TypeOS || info.Type == TypeBase {
 		if info.Base != "" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
 		}
 	}
 

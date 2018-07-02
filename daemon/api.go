@@ -698,8 +698,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:       name,
-		AnyChannel: true,
+		Name: name,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	switch err {
@@ -769,9 +768,9 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
-		url, err := route.URL("name", x.Name())
+		url, err := route.URL("name", x.InstanceName())
 		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.InstanceName(), x.Revision, err)
 			continue
 		}
 
@@ -827,7 +826,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	results := make([]*json.RawMessage, len(found))
 
 	for i, x := range found {
-		name := x.info.Name()
+		name := x.info.InstanceName()
 		rev := x.info.Revision
 
 		url, err := route.URL("name", name)
@@ -1360,14 +1359,14 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	tset, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	tset, err := snapstateTryPath(st, info.InstanceName(), trydir, flags)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
-	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.Name()})
-	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
+	chg.Set("api-data", map[string]string{"snap-name": info.InstanceName()})
 
 	ensureStateSoon(st)
 
@@ -1568,7 +1567,7 @@ out:
 		if err != nil {
 			return BadRequest("cannot read snap file: %v", err)
 		}
-		snapName = info.Name()
+		snapName = info.InstanceName()
 		sideInfo = &snap.SideInfo{RealName: snapName}
 	}
 
@@ -1577,6 +1576,7 @@ out:
 		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
 
+	// TODO parallel-install: pass instance key if needed
 	tset, err := snapstateInstallPath(st, sideInfo, tempPath, "", flags)
 	if err != nil {
 		return InternalError("cannot install snap file: %v", err)
@@ -1779,7 +1779,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			apps = append(apps, app.Name)
 		}
 		pj := plugJSON{
-			Snap:        plug.Snap.Name(),
+			Snap:        plug.Snap.InstanceName(),
 			Name:        plug.Name,
 			Interface:   plug.Interface,
 			Attrs:       plug.Attrs,
@@ -1796,7 +1796,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		}
 
 		sj := slotJSON{
-			Snap:        slot.Snap.Name(),
+			Snap:        slot.Snap.InstanceName(),
 			Name:        slot.Name,
 			Interface:   slot.Interface,
 			Attrs:       slot.Attrs,
@@ -2591,16 +2591,15 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
-	// we only allow "get" from regular users in snapctl
-	if uid != 0 && snapctlOptions.Args[0] != "get" {
-		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
-	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
 	if err != nil {
+		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
+			return Forbidden(e.Error())
+		}
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {

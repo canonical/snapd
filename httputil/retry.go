@@ -82,6 +82,11 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 				logger.Debugf("Retrying because of: %s", opErr)
 				return true
 			}
+			if opErr.Op == "dial" {
+				logger.Debugf("Retrying because of: %#v (syscall error: %#v)", opErr, syscallErr.Err)
+				return true
+			}
+			logger.Debugf("Encountered syscall error: %#v", syscallErr)
 		}
 		if opNetErr, ok := opErr.Err.(net.Error); ok {
 			// TODO: some DNS errors? just log for now
@@ -126,6 +131,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 				if ShouldRetryError(attempt, err) {
 					continue
 				} else {
+					maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
 					return nil, err
 				}
 			}

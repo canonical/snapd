@@ -22,6 +22,7 @@ package snap_test
 import (
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -42,8 +43,15 @@ type: gadget
 
 var mockGadgetYaml = []byte(`
 defaults:
-  core:
+  system:
     something: true
+
+connections:
+  - plug: snapid1:plg1
+    slot: snapid2:slot
+  - plug: snapid3:process-control
+  - plug: snapid4:pctl4
+    slot: system:process-control
 
 volumes:
   volumename:
@@ -104,9 +112,9 @@ volumes:
 
 var mockClassicGadgetYaml = []byte(`
 defaults:
-  core:
+  system:
     something: true
-  other:
+  otheridididididididididididididi:
     foo:
       bar: baz
 `)
@@ -160,8 +168,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Defaults: map[string]map[string]interface{}{
-			"core":  {"something": true},
-			"other": {"foo": map[string]interface{}{"bar": "baz"}},
+			"system": {"something": true},
+			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
 	})
 }
@@ -175,7 +183,12 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Defaults: map[string]map[string]interface{}{
-			"core": {"something": true},
+			"system": {"something": true},
+		},
+		Connections: []snap.GadgetConnection{
+			{Plug: snap.GadgetConnectionPlug{SnapID: "snapid1", Plug: "plg1"}, Slot: snap.GadgetConnectionSlot{SnapID: "snapid2", Slot: "slot"}},
+			{Plug: snap.GadgetConnectionPlug{SnapID: "snapid3", Plug: "process-control"}, Slot: snap.GadgetConnectionSlot{SnapID: "system", Slot: "process-control"}},
+			{Plug: snap.GadgetConnectionPlug{SnapID: "snapid4", Plug: "pctl4"}, Slot: snap.GadgetConnectionSlot{SnapID: "system", Slot: "process-control"}},
 		},
 		Volumes: map[string]snap.GadgetVolume{
 			"volumename": {
@@ -302,4 +315,48 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 
 	_, err = snap.ReadGadgetInfo(info, false)
 	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader not declared in any volume")
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidDefaultsKey(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	mockGadgetYamlBroken := []byte(`
+defaults:
+ foo:
+  x: 1
+`)
+
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Assert(err, ErrorMatches, `default stanza not keyed by "system" or snap-id: foo`)
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidConnection(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	mockGadgetYamlBroken := `
+connections:
+ - @INVALID@
+`
+	tests := []struct {
+		invalidConn string
+		expectedErr string
+	}{
+		{``, `gadget connection plug cannot be empty`},
+		{`foo:bar baz:quux`, `(?s).*unmarshal errors:.*`},
+		{`plug: foo:`, `.*mapping values are not allowed in this context`},
+		{`plug: ":"`, `.*in gadget connection plug: expected "\(<snap-id>\|system\):name" not ":"`},
+		{`slot: "foo:"`, `.*in gadget connection slot: expected "\(<snap-id>\|system\):name" not "foo:"`},
+		{`slot: foo:bar`, `gadget connection plug cannot be empty`},
+	}
+
+	for _, t := range tests {
+		mockGadgetYamlBroken := strings.Replace(mockGadgetYamlBroken, "@INVALID@", t.invalidConn, 1)
+
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(mockGadgetYamlBroken), 0644)
+		c.Assert(err, IsNil)
+
+		_, err = snap.ReadGadgetInfo(info, false)
+		c.Check(err, ErrorMatches, t.expectedErr)
+	}
 }

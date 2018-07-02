@@ -41,11 +41,11 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	defer st.Unlock()
 
 	// Put a side info into the state
-	snapstate.Set(st, snapInfo.Name(), &snapstate.SnapState{
+	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
 			{
-				RealName: snapInfo.Name(),
+				RealName: snapInfo.SnapName(),
 				Revision: snapInfo.Revision,
 				SnapID:   "ididid",
 			},

@@ -63,7 +63,7 @@ type localInfos struct {
 
 func (li *localInfos) Name(pathOrName string) string {
 	if info := li.pathToInfo[pathOrName]; info != nil {
-		return info.Name()
+		return info.InstanceName()
 	}
 	return pathOrName
 }
@@ -101,7 +101,7 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			}
 			// local snap gets local revision
 			info.Revision = snap.R(-1)
-			nameToPath[info.Name()] = snapName
+			nameToPath[info.InstanceName()] = snapName
 			local[snapName] = info
 
 			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
@@ -121,9 +121,35 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	}, nil
 }
 
+func validateNoParallelSnapInstances(snaps []string) error {
+	for _, snapName := range snaps {
+		_, instanceKey := snap.SplitInstanceName(snapName)
+		if instanceKey != "" {
+			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
+		}
+	}
+	return nil
+}
+
+// validateNonLocalSnaps raises an error when snaps that would be pulled from
+// the store use an instance key in their names
+func validateNonLocalSnaps(snaps []string) error {
+	nonLocalSnaps := make([]string, 0, len(snaps))
+	for _, snapName := range snaps {
+		if !strings.HasSuffix(snapName, ".snap") {
+			nonLocalSnaps = append(nonLocalSnaps, snapName)
+		}
+	}
+	return validateNoParallelSnapInstances(nonLocalSnaps)
+}
+
 func Prepare(opts *Options) error {
 	model, err := decodeModelAssertion(opts)
 	if err != nil {
+		return err
+	}
+
+	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
 		return err
 	}
 
@@ -179,6 +205,12 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		if modela.Header(rsvd) != nil {
 			return nil, fmt.Errorf("model assertion cannot have reserved/unsupported header %q set", rsvd)
 		}
+	}
+
+	modelSnaps := modela.RequiredSnaps()
+	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget(), modela.Base())
+	if err := validateNoParallelSnapInstances(modelSnaps); err != nil {
+		return nil, err
 	}
 
 	return modela, nil
@@ -399,7 +431,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 		// set seed.yaml
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
-			Name:    info.Name(),
+			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: info.Channel,
 			File:    filepath.Base(fn),

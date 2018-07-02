@@ -187,9 +187,14 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// core/ubuntu-core can not have prerequisites
-	snapName := snapsup.Name()
-	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+	// os/base/kernel/gadget cannot have prerequisites other
+	// than the models default base (or core) which is installed anyway
+	switch snapsup.Type {
+	case snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
+		return nil
+	}
+	// snapd is special and has no prereqs
+	if snapsup.Name() == "snapd" {
 		return nil
 	}
 
@@ -816,17 +821,39 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// maybeRestart will schedule a reboot or restart as needed for the just linked
-// snap with info if it's a core or kernel snap.
+// maybeRestart will schedule a reboot or restart as needed for the
+// just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
-	if release.OnClassic && info.Type == snap.TypeOS {
-		t.Logf("Requested daemon restart.")
-		st.RequestRestart(state.RestartDaemon)
+
+	// TODO: once classic uses the snapd snap we need to restart
+	//       here too
+	if release.OnClassic {
+		if info.Type == snap.TypeOS {
+			t.Logf("Requested daemon restart.")
+			st.RequestRestart(state.RestartDaemon)
+		}
+		return
 	}
-	if !release.OnClassic && boot.KernelOsBaseRebootRequired(info) {
+
+	// On a core system we may need a full reboot if
+	// core/base or the kernel changes.
+	if boot.ChangeRequiresReboot(info) {
 		t.Logf("Requested system restart.")
 		st.RequestRestart(state.RestartSystem)
+		return
+	}
+
+	// On core systems that use a base snap we need to restart
+	// snapd when the snapd snap changes.
+	model, err := Model(st)
+	if err != nil {
+		logger.Noticef("cannot get model assertion: %v", model)
+		return
+	}
+	if model.Base() != "" && info.InstanceName() == "snapd" {
+		t.Logf("Requested daemon restart (snapd snap).")
+		st.RequestRestart(state.RestartDaemon)
 	}
 }
 
