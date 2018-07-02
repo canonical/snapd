@@ -1,0 +1,24 @@
+summary: Check that `snap set core network.disable-ipv6` works
+
+systems: [ubuntu-core-*]
+
+execute: |
+    echo "Ensure we have inet6"
+    ip addr | MATCH inet6
+    
+    echo "Disable ipv6"
+    snap set core network.disable-ipv6=true
+    MATCH "net.ipv6.conf.all.disable_ipv6=1" < /etc/sysctl.d/10-snapd-network.conf
+    if ip addr | grep -q inet6; then
+        echo "Disable of ipv6 did not work"
+        ip addr
+        exit 1
+    fi
+
+    echo "Enable ipv6"
+    snap set core network.disable-ipv6=false
+    MATCH "net.ipv6.conf.all.disable_ipv6=0" < /etc/sysctl.d/10-snapd-network.conf
+
+    echo "Reset ipv6"
+    snap set core network.disable-ipv6=""
+    ! test -f /etc/sysctl.d/10-snapd-network.conf 
