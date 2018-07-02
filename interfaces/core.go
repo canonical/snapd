@@ -106,7 +106,7 @@ func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 }
 
 // NewConnRefStrings creates a connection reference for a given set of names.
-func NewConnRefStrings(plugSnap, plugName, slotSnap, slotName string) *ConnRef{
+func NewConnRefStrings(plugSnap, plugName, slotSnap, slotName string) *ConnRef {
 	return &ConnRef{
 		PlugRef: PlugRef{Snap: plugSnap, Name: plugName},
 		SlotRef: SlotRef{Snap: slotSnap, Name: slotName},
