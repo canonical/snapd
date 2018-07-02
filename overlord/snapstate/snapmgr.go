@@ -273,13 +273,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	}
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
-	info, err := readInfo(name, cur, 0)
-	if err != nil {
-		return nil, err
-	}
-	info.InstanceKey = snapst.InstanceKey
-
-	return info, nil
+	return readInfo(name, cur, 0)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
