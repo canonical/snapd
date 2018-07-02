@@ -26,6 +26,11 @@ import (
 	"github.com/snapcore/snapd/interfaces/utils"
 )
 
+// Definer can be implemented by interfaces that need to create slots in response to hotplug events
+type Definer interface {
+	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
+}
+
 // SlotSpec is a definition of the slot to create in response to udev event.
 type SlotSpec struct {
 	// XXX: Name is the name the interface wants to give to the slot; we
