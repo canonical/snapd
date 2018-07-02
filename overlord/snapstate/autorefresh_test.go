@@ -133,23 +133,34 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.schedule", "managed")
-	tr.Commit()
+	for _, t := range []struct {
+		conf   string
+		legacy bool
+	}{
+		{"refresh.timer", false},
+		{"refresh.schedule", true},
+	} {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", t.conf, "managed")
+		tr.Commit()
 
-	af := snapstate.NewAutoRefresh(s.state)
-	s.state.Unlock()
-	err := af.Ensure()
-	s.state.Lock()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, HasLen, 0)
+		af := snapstate.NewAutoRefresh(s.state)
+		s.state.Unlock()
+		err := af.Ensure()
+		s.state.Lock()
+		c.Check(err, IsNil)
+		c.Check(s.store.ops, HasLen, 0)
 
-	refreshScheduleStr, legacy, err := af.RefreshSchedule()
-	c.Check(refreshScheduleStr, Equals, "managed")
-	c.Check(legacy, Equals, true)
-	c.Check(err, IsNil)
+		refreshScheduleStr, legacy, err := af.RefreshSchedule()
+		c.Check(refreshScheduleStr, Equals, "managed")
+		c.Check(legacy, Equals, t.legacy)
+		c.Check(err, IsNil)
 
-	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
+		c.Check(af.NextRefresh(), DeepEquals, time.Time{})
+
+		// ensure clean config for the next run
+		s.state.Set("config", nil)
+	}
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {

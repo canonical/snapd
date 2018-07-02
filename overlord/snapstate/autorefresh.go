@@ -327,16 +327,15 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
-	if refreshScheduleManaged(m.state) {
+	if managed, legacy := refreshScheduleManaged(m.state); managed {
 		if m.lastRefreshSchedule != "managed" {
-			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
+			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		return nil, "managed", true, nil
+		return nil, "managed", legacy, nil
 	}
 
 	tr := config.NewTransaction(m.state)
-
 	// try the new refresh.timer config option first
 	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
@@ -427,24 +426,34 @@ func autoRefreshInFlight(st *state.State) bool {
 
 // refreshScheduleManaged returns true if the refresh schedule of the
 // device is managed by an external snap
-func refreshScheduleManaged(st *state.State) bool {
-	var refreshScheduleStr string
+func refreshScheduleManaged(st *state.State) (managed bool, legacy bool) {
+	var confStr string
 
 	// this will only be "nil" if running in tests
 	if CanManageRefreshes == nil {
-		return false
+		return false, legacy
 	}
 
+	// check new style timer first
 	tr := config.NewTransaction(st)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
-	if err != nil {
-		return false
+	err := tr.Get("core", "refresh.timer", &confStr)
+	if err != nil && !config.IsNoOption(err) {
+		return false, legacy
 	}
-	if refreshScheduleStr != "managed" {
-		return false
+	// if not set, fallback to refresh.schedule
+	if confStr == "" {
+		tr := config.NewTransaction(st)
+		err := tr.Get("core", "refresh.schedule", &confStr)
+		if err != nil {
+			return false, legacy
+		}
+		legacy = true
 	}
 
-	return CanManageRefreshes(st)
+	if confStr != "managed" {
+		return false, legacy
+	}
+	return CanManageRefreshes(st), legacy
 }
 
 // getTime retrieves a time from a state value.
