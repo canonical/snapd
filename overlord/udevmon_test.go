@@ -22,7 +22,7 @@ package overlord_test
 import (
 	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
-	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/overlord"
 	. "gopkg.in/check.v1"
 )
@@ -41,12 +41,12 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addCalled, removeCalled bool
-	var addInfo, remInfo *interfaces.HotplugDeviceInfo
-	addedCb := func(inf *interfaces.HotplugDeviceInfo) {
+	var addInfo, remInfo *hotplug.HotplugDeviceInfo
+	addedCb := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
 		addInfo = inf
 	}
-	removedCb := func(inf *interfaces.HotplugDeviceInfo) {
+	removedCb := func(inf *hotplug.HotplugDeviceInfo) {
 		removeCalled = true
 		remInfo = inf
 	}
@@ -96,15 +96,15 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	c.Assert(addCalled, Equals, true)
 	c.Assert(removeCalled, Equals, true)
 
-	c.Assert(addInfo.Name(), Equals, "def")
-	c.Assert(addInfo.Type(), Equals, "boo")
+	c.Assert(addInfo.DeviceName(), Equals, "def")
+	c.Assert(addInfo.DeviceType(), Equals, "boo")
 	c.Assert(addInfo.Subsystem(), Equals, "usb")
 	c.Assert(addInfo.Path(), Equals, "/sys/abc")
 	c.Assert(addInfo.Major(), Equals, "2")
 	c.Assert(addInfo.Minor(), Equals, "1")
 
-	c.Assert(remInfo.Name(), Equals, "ghi")
-	c.Assert(remInfo.Type(), Equals, "bzz")
+	c.Assert(remInfo.DeviceName(), Equals, "ghi")
+	c.Assert(remInfo.DeviceType(), Equals, "bzz")
 	c.Assert(remInfo.Subsystem(), Equals, "usb")
 	c.Assert(remInfo.Path(), Equals, "/sys/def")
 	c.Assert(remInfo.Major(), Equals, "0")

@@ -27,7 +27,7 @@ import (
 	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
 
-	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -37,8 +37,8 @@ type UDevMon interface {
 	Stop() error
 }
 
-type DeviceAddedCallback func(device *interfaces.HotplugDeviceInfo)
-type DeviceRemovedCallback func(device *interfaces.HotplugDeviceInfo)
+type DeviceAddedCallback func(device *hotplug.HotplugDeviceInfo)
+type DeviceRemovedCallback func(device *hotplug.HotplugDeviceInfo)
 
 // UDevMonitor monitors kernel uevents making it possible to find USB devices.
 type UDevMonitor struct {
@@ -82,11 +82,19 @@ func (m *UDevMonitor) Connect() error {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
-	// TODO: pass filters
-	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
+	var deviceFilter netlink.Matcher
+	deviceFilter = &netlink.RuleDefinitions{
+		Rules: []netlink.RuleDefinition{
+			{
+				Env: map[string]string{
+					"DEVTYPE": "usb_device",
+				},
+			},
+		},
+	}
 
-	// TODO: pass filters
-	m.crawlerStop = crawler.ExistingDevices(m.crawlerDevices, m.crawlerErrors, nil)
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, deviceFilter)
+	m.crawlerStop = crawler.ExistingDevices(m.crawlerDevices, m.crawlerErrors, deviceFilter)
 
 	return nil
 }
@@ -136,14 +144,14 @@ func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
 }
 
 func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
-	di := interfaces.NewHotplugDeviceInfo(kobj, env)
+	di := hotplug.NewHotplugDeviceInfo(kobj, env)
 	if m.deviceAddedCb != nil {
 		m.deviceAddedCb(di)
 	}
 }
 
 func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
-	di := interfaces.NewHotplugDeviceInfo(kobj, env)
+	di := hotplug.NewHotplugDeviceInfo(kobj, env)
 	if m.deviceRemovedCb != nil {
 		m.deviceRemovedCb(di)
 	}

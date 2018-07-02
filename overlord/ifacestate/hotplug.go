@@ -20,13 +20,13 @@
 package ifacestate
 
 import (
-	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 )
 
-func (m *InterfaceManager) HotplugDeviceAdded(deviceInfo *interfaces.HotplugDeviceInfo) {
+func (m *InterfaceManager) HotplugDeviceAdded(deviceInfo *hotplug.HotplugDeviceInfo) {
 	// TODO
 }
 
-func (m *InterfaceManager) HotplugDeviceRemoved(deviceInfo *interfaces.HotplugDeviceInfo) {
+func (m *InterfaceManager) HotplugDeviceRemoved(deviceInfo *hotplug.HotplugDeviceInfo) {
 	// TODO
 }
