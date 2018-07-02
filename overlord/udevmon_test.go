@@ -20,9 +20,9 @@
 package overlord_test
 
 import (
-	"github.com/pilebones/go-udev/crawler"
-	"github.com/pilebones/go-udev/netlink"
 	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/osutil/udev/crawler"
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 	"github.com/snapcore/snapd/overlord"
 	. "gopkg.in/check.v1"
 )
