@@ -267,10 +267,6 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// When a request comes in asking for "core" explicitly but we also have
-	// "snapd" in the repository then transparently change the request to
-	// refer to "snapd". This keeps existing scripts, user command line
-	// history and anything else that names the core snap explicitly, working.
 	plugSnap, plugName, slotSnap, slotName = remapIncomingConnStrings(st, plugSnap, plugName, slotSnap, slotName)
 
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {

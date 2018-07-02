@@ -228,13 +228,6 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if snapName != "" && cref.PlugRef.Snap != snapName && cref.SlotRef.Snap != snapName {
 			continue
 		}
-		// When re-loading connections, in the presence of the snapd snap
-		// (which then takes over as the host for implicit interfaces),
-		// translate connection state so that stored connections going to the
-		// "core" snap are routed to the "snapd" snap instead.
-		//
-		// This is done in memory only so that the old snapd state can stay
-		// compatible for reverting. This version of snapd will automatically
 		remapIncomingConnRef(m.state, cref)
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
@@ -517,30 +510,41 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 	return decl.SnapName(), nil
 }
 
+// remapIncomingConnRef potentially re-maps connection reference from an API request or being loaded from store.
+//
+// The operation done by remapIncomingConnRef must be symmetric with remapIncomingConnRef.
+// In practice the pair of functions are used to make "snapd" snap the host of implicit
+// interfaces and connections without altering the state in a backwards incompatible way.
+//
+// Data coming from the state and from API requests is changed so that slots on "core"
+// become slots on "snapd" (but only when "snapd" snap itself is being used). When
+// data is about to hit the state again it is re-mapped back.
+func remapIncomingConnRef(st *state.State, cref *interfaces.ConnRef) {
+	if cref.SlotRef.Snap == "core" && hasSnapdSnap(st) {
+		cref.SlotRef.Snap = "snapd"
+	}
+}
+
+// remapIncomingConnRef potentially re-maps connection reference being saved to store.
+func remapOutgoingConnRef(st *state.State, cref *interfaces.ConnRef) {
+	if cref.SlotRef.Snap == "snapd" && hasSnapdSnap(st) {
+		cref.SlotRef.Snap = "core"
+	}
+}
+
+// hasSnapdSnap returns true if there snapd snap is represented in the state.
 func hasSnapdSnap(st *state.State) bool {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
 	return err == nil
 }
 
+// remapIncomingConnStrings is like remapIncomingConnRef but with different argument and return types.
 func remapIncomingConnStrings(st *state.State, plugSnap, plugName, slotSnap, slotName string) (outPlugSnap, outPlugName, outSlotSnap, outSlotName string) {
-	cref := interfaces.NewConnRefStrings(plugSnap, plugName, slotSnap, slotName)
+	cref := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
+		SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName},
+	}
 	remapIncomingConnRef(st, cref)
 	return cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name
-}
-
-func remapIncomingConnRef(st *state.State, cref *interfaces.ConnRef) {
-	// When a request comes in asking for "core" explicitly but we also have
-	// "snapd" in the repository then transparently change the request to
-	// refer to "snapd". This keeps existing scripts, user command line
-	// history and anything else that names the core snap explicitly, working.
-	if cref.SlotRef.Snap == "core" && hasSnapdSnap(st) {
-		cref.SlotRef.Snap = "snapd"
-	}
-}
-
-func remapOutgoingConnRef(cref *interfaces.ConnRef) {
-	if cref.SlotRef.Snap == "snapd" {
-		cref.SlotRef.Snap = "core"
-	}
 }
