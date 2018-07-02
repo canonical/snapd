@@ -1585,6 +1585,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 			return nil, nil, err
 		}
 		removed = append(removed, name)
+		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 

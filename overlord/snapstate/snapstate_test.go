@@ -7813,7 +7813,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
 	c.Assert(s.state.TaskCount(), Equals, 8*2)
-	for _, ts := range tts {
+	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
 			"run-hook[remove]",
@@ -7825,6 +7825,11 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"discard-conns",
 		})
 		verifyStopReason(c, ts, "remove")
+		// check that tasksets are in separate lanes
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+		}
+
 	}
 }
 
