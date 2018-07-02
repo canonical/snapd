@@ -7,10 +7,4 @@ execute: |
     snap install test-snapd-tools
     snap remove test-snapd-tools
     snap install test-snapd-tools
-    for _ in $(seq 10); do
-        if get_journalctl_log -u snapd | MATCH 'using cache for .*/test-snapd-tools.*\.snap'; then
-            break
-        fi
-        sleep 1
-    done
-    get_journalctl_log -u snapd | MATCH 'using cache for .*/test-snapd-tools.*\.snap'
+    check_journalctl_log 'using cache for .*/test-snapd-tools.*\.snap' -u snapd

@@ -865,7 +865,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 		Revision: snap.R(1),
 	}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
-	sideInfo.RealName = snapInfo.StoreName()
+	sideInfo.RealName = snapInfo.SnapName()
 
 	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
 		"snap-name": sideInfo.RealName,
@@ -895,7 +895,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
-	sideInfo.RealName = snapInfo.StoreName()
+	sideInfo.RealName = snapInfo.SnapName()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1063,7 +1063,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1107,7 +1107,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1155,7 +1155,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1208,7 +1208,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1270,7 +1270,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1341,7 +1341,7 @@ slots:
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 		},
@@ -1388,7 +1388,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1434,7 +1434,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyIgnoresStrayConnection(c 
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1463,7 +1463,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	// Run the setup-profiles task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -1562,7 +1562,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Note that the task will see SnapSetup.Flags equal to DeveloperMode.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 		Flags: snapstate.Flags{DevMode: true},
@@ -1613,7 +1613,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// Run the setup-profiles task for the new revision and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: newSnapInfo.StoreName(),
+			RealName: newSnapInfo.SnapName(),
 			Revision: newSnapInfo.Revision,
 		},
 	})
@@ -1651,7 +1651,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -2119,7 +2119,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: siC.StoreName(),
+			RealName: siC.SnapName(),
 			Revision: siC.Revision,
 		},
 		Flags: snapstate.Flags{DevMode: true},
@@ -2233,7 +2233,7 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 	// Add a change that undoes "setup-snap-security"
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -2273,7 +2273,7 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	// Add a change that undoes "setup-snap-security"
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -2420,7 +2420,7 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.StoreName(),
+			RealName: snapInfo.SnapName(),
 			Revision: snapInfo.Revision,
 		},
 	})
@@ -2745,6 +2745,7 @@ func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
 
 	sup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
 			RealName: "producerconsumer"},
 	}
 
@@ -2801,10 +2802,12 @@ slots:
 
 	supContentPlug := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
 			RealName: "snap-content-plug"},
 	}
 	supContentSlot := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
 			RealName: "snap-content-slot"},
 	}
 	chg := s.state.NewChange("install", "...")

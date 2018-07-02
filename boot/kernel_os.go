@@ -109,7 +109,7 @@ func SetNextBoot(s *snap.Info) error {
 	}
 
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
-		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.StoreName(), s.Type)
+		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.Type)
 	}
 
 	bootloader, err := partition.FindBootloader()

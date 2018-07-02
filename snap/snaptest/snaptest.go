@@ -33,11 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap/pack"
 )
 
-// MockSnap puts a snap.yaml file on disk so to mock an installed snap, based on the provided arguments.
-//
-// The caller is responsible for mocking root directory with dirs.SetRootDir()
-// and for altering the overlord state if required.
-func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(sideInfo, check.Not(check.IsNil))
 
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
@@ -49,6 +45,16 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 
 	// Set SideInfo so that we can use MountDir below
 	snapInfo.SideInfo = *sideInfo
+
+	if instanceName != "" {
+		// Set the snap instance name
+		snapName, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+
+		// Make sure snap name/instance name checks out
+		c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
+		c.Assert(snapInfo.SnapName(), check.Equals, snapName)
+	}
 
 	// Put the YAML on disk, in the right spot.
 	metaDir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -68,6 +74,23 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return snapInfo
 }
 
+// MockSnap puts a snap.yaml file on disk so to mock an installed snap, based on the provided arguments.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	return mockSnap(c, "", yamlText, sideInfo)
+}
+
+// MockSnapInstance puts a snap.yaml file on disk so to mock an installed snap
+// instance, based on the provided arguments.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockSnapInstance(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	return mockSnap(c, instanceName, yamlText, sideInfo)
+}
+
 // MockSnapCurrent does the same as MockSnap but additionally creates the
 // 'current' symlink.
 //
@@ -75,6 +98,18 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 // and for altering the overlord state if required.
 func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	si := MockSnap(c, yamlText, sideInfo)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+	return si
+}
+
+// MockSnapInstanceCurrent does the same as MockSnapInstance but additionally
+// creates the 'current' symlink.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockSnapInstanceCurrent(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	si := MockSnapInstance(c, instanceName, yamlText, sideInfo)
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
 	c.Assert(err, check.IsNil)
 	return si

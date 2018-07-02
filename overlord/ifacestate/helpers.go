@@ -425,10 +425,9 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 	return plugRef, slotRef, nil
 }
 
-func getConns(st *state.State) (map[string]connState, error) {
-	// Get information about connections from the state
-	var conns map[string]connState
-	err := st.Get("conns", &conns)
+// Get information about connections from the state
+func getConns(st *state.State) (conns map[string]connState, err error) {
+	err = st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
 		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
 	}
