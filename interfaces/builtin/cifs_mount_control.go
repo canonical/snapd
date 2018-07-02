@@ -19,7 +19,7 @@
 
 package builtin
 
-const cifsMountControlSummary = `allows to mount and unmount CIFS shares`
+const cifsMountControlSummary = `allows mounting and unmounting CIFS filesystems`
 
 const cifsMountControlBaseDeclarationSlots = `
   cifs-mount-control:
@@ -38,7 +38,7 @@ umount2
 `
 
 const cifsMountControlConnectedPlugAppArmor = `
-# Description: Allow to mount and unmount CIFS filesystems.
+# Description: Allow mounting and unmounting CIFS filesystems.
 
 # Required for mounts and unmounts
 capability sys_admin,
