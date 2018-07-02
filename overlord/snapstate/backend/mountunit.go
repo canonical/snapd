@@ -42,12 +42,6 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 		return err
 	}
 
-	// we need to do a daemon-reload here to ensure that systemd really
-	// knows about this new mount unit file
-	if err := sysd.DaemonReload(); err != nil {
-		return err
-	}
-
 	if err := sysd.Enable(mountUnitName); err != nil {
 		return err
 	}
@@ -80,11 +74,6 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 			return err
 		}
 		if err := os.Remove(unit); err != nil {
-			return err
-		}
-		// daemon-reload to ensure that systemd actually really
-		// forgets about this mount unit
-		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
