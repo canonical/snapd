@@ -1263,9 +1263,15 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
 		SideInfo: snapst.CurrentSideInfo(),
 		Flags:    snapst.Flags.ForSnapSetup(),
+		Type:     info.Type,
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.Name(), snapst.Current))
@@ -1322,6 +1328,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: name,
 			Revision: snapst.Current,
 		},
+		Type: info.Type,
 	}
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
@@ -1477,6 +1484,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			RealName: name,
 			Revision: revision,
 		},
+		Type: info.Type,
 	}
 
 	// trigger remove
@@ -1641,9 +1649,16 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 			flags.Classic = true
 		}
 	}
+
+	info, err := Info(st, name, rev)
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
+		Type:     info.Type,
 	}
 	return doInstall(st, &snapst, snapsup, 0)
 }
