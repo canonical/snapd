@@ -430,6 +430,8 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	if slotSnapName == "" {
 		// Use the core snap if the slot-side snap name is empty
 		switch {
+		case r.slots["snapd"] != nil:
+			slotSnapName = "snapd"
 		case r.slots["core"] != nil:
 			slotSnapName = "core"
 		case r.slots["ubuntu-core"] != nil:
@@ -748,6 +750,8 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 // coreSnapName returns the name of the core snap if one exists
 func (r *Repository) guessCoreSnapName() (string, error) {
 	switch {
+	case r.slots["snapd"] != nil:
+		return "snapd", nil
 	case r.slots["core"] != nil:
 		return "core", nil
 	case r.slots["ubuntu-core"] != nil:

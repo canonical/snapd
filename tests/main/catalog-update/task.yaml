@@ -1,5 +1,8 @@
 summary: Ensure catalog update works
 
+# FIXME: core18 and journal cursor are not reliable
+systems: [-ubuntu-core-18-*]
+
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"

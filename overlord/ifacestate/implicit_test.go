@@ -20,23 +20,36 @@
 package ifacestate_test
 
 import (
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
 
-type implicitSuite struct{}
+type implicitSuite struct {
+	o     *overlord.Overlord
+	state *state.State
+}
 
 var _ = Suite(&implicitSuite{})
 
-func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
+func (s *implicitSuite) SetUpTest(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+}
+
+func (s *implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	ifacestate.AddImplicitSlots(s.state, info)
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
@@ -53,12 +66,15 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	c.Assert(len(info.Slots) > 10, Equals, true)
 }
 
-func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
+func (s *implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	ifacestate.AddImplicitSlots(s.state, info)
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]

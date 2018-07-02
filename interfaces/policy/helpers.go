@@ -26,16 +26,32 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // check helpers
 
-func checkSnapType(snapType snap.Type, types []string) error {
+func snapIDSnapd(snapID string) bool {
+	var snapIDsSnapd = []string{
+		// production
+		"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+		// staging
+		"todo-staging-snapd-id",
+		// tests
+		"snapd-snap-ididididididididididi",
+	}
+	return strutil.ListContains(snapIDsSnapd, snapID)
+}
+
+func checkSnapType(snap *snap.Info, types []string) error {
 	if len(types) == 0 {
 		return nil
 	}
-	s := string(snapType)
-	if s == "os" { // we use "core" in the assertions
+	snapID := snap.SnapID
+	s := string(snap.Type)
+	if s == "os" || snapIDSnapd(snapID) {
+		// we use "core" in the assertions and we need also to
+		// allow for the "snapd" snap
 		s = "core"
 	}
 	for _, t := range types {
@@ -87,7 +103,7 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Plu
 	if err := cstrs.SlotAttributes.Check(connc.Slot, connc); err != nil {
 		return err
 	}
-	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
+	if err := checkSnapType(connc.Slot.Snap(), cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
 	if err := checkID("snap id", connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
@@ -127,7 +143,7 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Slo
 	if err := cstrs.SlotAttributes.Check(connc.Slot, connc); err != nil {
 		return err
 	}
-	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
+	if err := checkSnapType(connc.Plug.Snap(), cstrs.PlugSnapTypes); err != nil {
 		return err
 	}
 	if err := checkID("snap id", connc.plugSnapID(), cstrs.PlugSnapIDs, nil); err != nil {
@@ -165,7 +181,7 @@ func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotI
 	if err := cstrs.SlotAttributes.Check(slot, nil); err != nil {
 		return err
 	}
-	if err := checkSnapType(slot.Snap.Type, cstrs.SlotSnapTypes); err != nil {
+	if err := checkSnapType(slot.Snap, cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
@@ -194,7 +210,7 @@ func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugI
 	if err := cstrs.PlugAttributes.Check(plug, nil); err != nil {
 		return err
 	}
-	if err := checkSnapType(plug.Snap.Type, cstrs.PlugSnapTypes); err != nil {
+	if err := checkSnapType(plug.Snap, cstrs.PlugSnapTypes); err != nil {
 		return err
 	}
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {

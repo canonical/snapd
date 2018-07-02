@@ -141,7 +141,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// own separate tests
 	snowflakes := map[string]bool{
 		"content":       true,
-		"core-support":  true,
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
@@ -529,7 +528,6 @@ var (
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
-		"core-support":            {"core"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
 		"fwupd":                   {"app"},
@@ -573,9 +571,7 @@ var (
 		"lxd":             nil,
 	}
 
-	restrictedPlugInstallation = map[string][]string{
-		"core-support": {"core"},
-	}
+	restrictedPlugInstallation = map[string][]string{}
 
 	snapTypeMap = map[string]snap.Type{
 		"core":   snap.TypeOS,
@@ -764,7 +760,6 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
 		"classic-support":       true,
-		"core-support":          true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"kernel-module-control": true,

@@ -829,7 +829,6 @@ version: 0
 type: os
 plugs:
   network-bind:
-  core-support:
 `
 
 // reading snap via ReadInfoFromSnapFile renames clashing core plugs
@@ -842,9 +841,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.Plugs["network-bind"], IsNil)
-	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
-	c.Check(info.Plugs["core-support-plug"], NotNil)
 }
 
 // reading snap via ReadInfo renames clashing core plugs
@@ -854,9 +851,7 @@ func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
 	info, err := snap.ReadInfo("core", si)
 	c.Assert(err, IsNil)
 	c.Check(info.Plugs["network-bind"], IsNil)
-	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
-	c.Check(info.Plugs["core-support-plug"], NotNil)
 }
 
 // reading snap via InfoFromSnapYaml renames clashing core plugs
@@ -864,9 +859,7 @@ func (s *infoSuite) TestInfoFromSnapYamlRenamesCorePlugs(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(coreSnapYaml))
 	c.Assert(err, IsNil)
 	c.Check(info.Plugs["network-bind"], IsNil)
-	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
-	c.Check(info.Plugs["core-support-plug"], NotNil)
 }
 
 func (s *infoSuite) TestInfoServices(c *C) {

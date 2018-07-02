@@ -134,8 +134,9 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 }
 
 // Connect returns a set of tasks for connecting an interface.
-//
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	plugSnap, plugName, slotSnap, slotName = remapIncomingConnStrings(st, plugSnap, plugName, slotSnap, slotName)
+
 	const auto = false
 	if err := checkConnectConflicts(st, plugSnap, slotSnap, auto); err != nil {
 		return nil, err
@@ -255,7 +256,7 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 		return nil, nil, err
 	}
 
-	addImplicitSlots(snapInfo)
+	addImplicitSlots(st, snapInfo)
 	slot, ok := snapInfo.Slots[slotName]
 	if !ok {
 		return nil, nil, fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
@@ -266,6 +267,8 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	plugSnap, plugName, slotSnap, slotName = remapIncomingConnStrings(st, plugSnap, plugName, slotSnap, slotName)
+
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
@@ -284,7 +287,7 @@ func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	// XXX: addImplicitSlots is really a brittle interface
-	addImplicitSlots(snapInfo)
+	addImplicitSlots(st, snapInfo)
 
 	if snapInfo.SnapID == "" {
 		// no SnapID means --dangerous was given, so skip interface checks
