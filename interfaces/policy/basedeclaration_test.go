@@ -571,6 +571,7 @@ var (
 		"lxd":             nil,
 	}
 
+	// add any interfaces here that use a plugs installation constraint (eg, like the old core-support)
 	restrictedPlugInstallation = map[string][]string{}
 
 	snapTypeMap = map[string]snap.Type{
