@@ -397,7 +397,7 @@ func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
 		for _, sig := range sigs {
 			meth, ok := ifaceType.MethodByName(sig.name)
 			if !ok {
-				// all specificiation methods are optional.
+				// all specification methods are optional.
 				continue
 			}
 			methType := meth.Type
