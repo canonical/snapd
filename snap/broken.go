@@ -72,7 +72,7 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 // Some released core snaps had explicitly defined plugs "network-bind" that
 // clashed with implicit slots with the same names but this was not validated
 // before.  To avoid a flag day and any potential issues, transparently rename
-// the two clashing plugs by appending the "-plug" suffix.
+// the clashing plugs by appending the "-plug" suffix.
 func (info *Info) renameClashingCorePlugs() {
 	if info.InstanceName() == "core" && info.Type == TypeOS {
 		info.renamePlug("network-bind", "network-bind-plug")
