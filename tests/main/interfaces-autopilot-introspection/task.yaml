@@ -7,7 +7,7 @@ details: |
     The test uses an snap that declares a plug on autopilot-intrsopection, it
     needs to request a dbus name on start so that its state can be queried.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
     #shellcheck source=tests/lib/dirs.sh

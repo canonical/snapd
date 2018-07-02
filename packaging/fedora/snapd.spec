@@ -6,6 +6,9 @@
 %bcond_without vendorized
 %endif
 
+# Compat macros
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
@@ -70,7 +73,7 @@
 %endif
 
 Name:           snapd
-Version:        2.33
+Version:        2.33.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -649,6 +652,7 @@ popd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/snap/README
+%{_environmentdir}/990-snapd.conf
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -667,7 +671,6 @@ popd
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
-
 
 %files selinux
 %license data/selinux/COPYING
@@ -730,6 +733,17 @@ fi
 
 
 %changelog
+* Thu Jun 21 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.33.1
+ - many: improve udev trigger on refresh experience
+ - systemd: require snapd.socket in snapd.seeded.service
+ - snap: don't include newline in hook environment
+ - interfaces/apparmor: allow killing snap-update-ns
+ - tests: skip "try" test on s390x
+ - tests: skip security-dev-input-event-denied when /dev/input/by-
+   path/ is missing
+ - tests: skip security-dev-input-event-denied on s390x/arm64
+
 * Fri Jun 08 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.33
  - packaging: use official bolt in the errtracker on fedora

@@ -35,14 +35,18 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 	out := make(map[string]*AppInfo)
 
 	// guess binaries first
-	name := info.SuggestedName
+	name := info.InstanceName()
 	for _, p := range []string{name, fmt.Sprintf("%s.*", name)} {
 		matches, _ := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, p))
 		for _, m := range matches {
 			l := strings.SplitN(filepath.Base(m), ".", 2)
 			var appname string
 			if len(l) == 1 {
-				appname = l[0]
+				// when app is named the same as snap, it will
+				// be available under '<snap>' name, if the snap
+				// was installed with instance key, the app will
+				// be named `<snap>_<instance>'
+				appname = InstanceSnap(l[0])
 			} else {
 				appname = l[1]
 			}
@@ -74,7 +78,7 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 // was not validated before.  To avoid a flag day and any potential issues,
 // transparently rename the two clashing plugs by appending the "-plug" suffix.
 func (info *Info) renameClashingCorePlugs() {
-	if info.Name() == "core" && info.Type == TypeOS {
+	if info.InstanceName() == "core" && info.Type == TypeOS {
 		for _, plugName := range []string{"network-bind", "core-support"} {
 			info.renamePlug(plugName, plugName+"-plug")
 		}

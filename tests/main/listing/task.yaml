@@ -8,6 +8,9 @@ prepare: |
 # with the distro
 backends: [-autopkgtest]
 
+# TODO: update test for core18 but its already pretty confusing as is
+systems: [-ubuntu-core-18-*]
+
 execute: |
     echo "List prints core snap version"
     # most core versions should be like "16-2", so [0-9]{2}-[0-9.]+

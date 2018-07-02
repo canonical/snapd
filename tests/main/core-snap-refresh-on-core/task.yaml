@@ -44,7 +44,7 @@ execute: |
     fi
   
     #shellcheck source=tests/lib/boot.sh
-    . $TESTSLIB/boot.sh
+    . "$TESTSLIB"/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # ensure we have a good starting place
     
