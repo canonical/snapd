@@ -95,8 +95,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
-	// ensure core gets installed. if it is already installed return
-	// an empty task set
+	if snapst.IsInstalled() {
+		// consider also the current revision to set plugs-only hint
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+	}
+
 	ts := state.NewTaskSet()
 
 	targetRevision := snapsup.Revision()
@@ -652,13 +659,14 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	}
 
 	snapsup := &SnapSetup{
-		Base:     info.Base,
-		Prereq:   defaultContentPlugProviders(st, info),
-		SideInfo: si,
-		SnapPath: path,
-		Channel:  channel,
-		Flags:    flags.ForSnapSetup(),
-		Type:     info.Type,
+		Base:      info.Base,
+		Prereq:    defaultContentPlugProviders(st, info),
+		SideInfo:  si,
+		SnapPath:  path,
+		Channel:   channel,
+		Flags:     flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -709,6 +717,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
 		Type:         info.Type,
+		PlugsOnly:    len(info.Slots) == 0,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -867,6 +876,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 			Type:         update.Type,
+			PlugsOnly:    len(update.Slots) == 0,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -1269,9 +1279,10 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo: snapst.CurrentSideInfo(),
-		Flags:    snapst.Flags.ForSnapSetup(),
-		Type:     info.Type,
+		SideInfo:  snapst.CurrentSideInfo(),
+		Flags:     snapst.Flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.Name(), snapst.Current))
@@ -1328,7 +1339,8 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: name,
 			Revision: snapst.Current,
 		},
-		Type: info.Type,
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
@@ -1484,7 +1496,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			RealName: name,
 			Revision: revision,
 		},
-		Type: info.Type,
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	// trigger remove
@@ -1656,9 +1669,10 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo: snapst.Sequence[i],
-		Flags:    flags.ForSnapSetup(),
-		Type:     info.Type,
+		SideInfo:  snapst.Sequence[i],
+		Flags:     flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 	return doInstall(st, &snapst, snapsup, 0)
 }
