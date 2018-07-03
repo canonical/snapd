@@ -1394,6 +1394,9 @@ func coreInUse(st *state.State) bool {
 }
 
 // canRemove verifies that a snap can be removed.
+//
+// TODO: canRemove should also return the reason why the snap cannot
+//       be removed to the user
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
