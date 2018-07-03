@@ -1354,6 +1354,25 @@ func canDisable(si *snap.Info) bool {
 	return true
 }
 
+// baseInUse returns true if the given base is needed by another snap
+func baseInUse(st *state.State, base *snap.Info) bool {
+	snapStates, err := All(st)
+	if err != nil {
+		return false
+	}
+	for _, snapst := range snapStates {
+		if !snapst.Active {
+			continue
+		}
+		if snapInfo, err := snapst.CurrentInfo(); err == nil {
+			if snapInfo.Base == base.SnapName() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // canRemove verifies that a snap can be removed.
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
@@ -1389,6 +1408,11 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return true
 	}
 
+	// do not allow removal of bases that are in use
+	if si.Type == snap.TypeBase && baseInUse(st, si) {
+		return false
+	}
+
 	// Allow snap.TypeOS removals if a different base is in use
 	//
 	// Note that removal of the boot base itself is prevented
@@ -1396,6 +1420,8 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	if si.Type == snap.TypeOS {
 		if model, err := Model(st); err == nil {
 			if model.Base() != "" {
+				// TODO: check that nothing is using
+				// "core" as a base
 				return true
 			}
 		}
@@ -1406,9 +1432,6 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
-
-	// TODO: ensure that you cannot remove bases/core if those are
-	//       needed by one of the installed snaps.
 
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 

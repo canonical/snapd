@@ -7223,8 +7223,13 @@ type canRemoveSuite struct {
 var _ = Suite(&canRemoveSuite{})
 
 func (s *canRemoveSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	snapstate.MockModel()
+}
+
+func (s *canRemoveSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -7289,6 +7294,40 @@ func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
+}
+
+func (s *canRemoveSuite) TestBaseUnused(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestBaseInUse(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+	})
+
+	// pretend now we want to remove "some-base"
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
 }
 
 func revs(seq []*snap.SideInfo) []int {
