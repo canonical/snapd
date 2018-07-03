@@ -124,7 +124,8 @@ const buyFreeSnapFailsFindJson = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -182,7 +183,8 @@ const buySnapFindJson = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
