@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SocketCanInterfaceSuite struct {
+type CanBusInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,70 +38,70 @@ type SocketCanInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&SocketCanInterfaceSuite{
-	iface: builtin.MustInterface("socketcan"),
+var _ = Suite(&CanBusInterfaceSuite{
+	iface: builtin.MustInterface("can-bus"),
 })
 
-const socketCanConsumerYaml = `name: consumer
+const canBusConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [socketcan]
+  plugs: [can-bus]
 `
 
-const socketCanCoreYaml = `name: core
+const canBusCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  socketcan:
+  can-bus:
 `
 
-func (s *SocketCanInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, socketCanConsumerYaml, nil, "socketcan")
-	s.slot, s.slotInfo = MockConnectedSlot(c, socketCanCoreYaml, nil, "socketcan")
+func (s *CanBusInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, canBusConsumerYaml, nil, "can-bus")
+	s.slot, s.slotInfo = MockConnectedSlot(c, canBusCoreYaml, nil, "can-bus")
 }
 
-func (s *SocketCanInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "socketcan")
+func (s *CanBusInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "can-bus")
 }
 
-func (s *SocketCanInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *CanBusInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "socketcan",
-		Interface: "socketcan",
+		Name:      "can-bus",
+		Interface: "can-bus",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"socketcan slots are reserved for the core snap")
+		"can-bus slots are reserved for the core snap")
 }
 
-func (s *SocketCanInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *CanBusInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SocketCanInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *CanBusInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network can,\n")
 }
 
-func (s *SocketCanInterfaceSuite) TestSecCompSpec(c *C) {
+func (s *CanBusInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
 }
 
-func (s *SocketCanInterfaceSuite) TestStaticInfo(c *C) {
+func (s *CanBusInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows use of SocketCAN network interfaces`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "socketcan")
+	c.Assert(si.Summary, Equals, `allows access to the CAN bus`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "can-bus")
 }
 
-func (s *SocketCanInterfaceSuite) TestInterfaces(c *C) {
+func (s *CanBusInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

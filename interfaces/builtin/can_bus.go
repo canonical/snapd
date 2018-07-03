@@ -19,35 +19,35 @@
 
 package builtin
 
-const socketCanSummary = `allows use of SocketCAN network interfaces`
+const canBusSummary = `allows access to the CAN bus`
 
-const socketCanBaseDeclarationSlots = `
-  socketcan:
+const canBusBaseDeclarationSlots = `
+  can-bus:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const socketCanConnectedPlugAppArmor = `
-# Description: Can use SocketCAN networking
+const canBusConnectedPlugAppArmor = `
+# Description: Can use CAN networking
 network can,
 `
 
-const socketCanConnectedPlugSecComp = `
-# Description: Can use SocketCAN networking
+const canBusConnectedPlugSecComp = `
+# Description: Can use CAN networking
 bind
 `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "socketcan",
-		summary:               socketCanSummary,
+		name:                  "can-bus",
+		summary:               canBusSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  socketCanBaseDeclarationSlots,
-		connectedPlugAppArmor: socketCanConnectedPlugAppArmor,
-		connectedPlugSecComp:  socketCanConnectedPlugSecComp,
+		baseDeclarationSlots:  canBusBaseDeclarationSlots,
+		connectedPlugAppArmor: canBusConnectedPlugAppArmor,
+		connectedPlugSecComp:  canBusConnectedPlugSecComp,
 		reservedForOS:         true,
 	})
 }

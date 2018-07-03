@@ -263,9 +263,9 @@ apps:
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
-  socketcan:
+  can-bus:
     command: bin/run
-    plugs: [ socketcan ]
+    plugs: [ can-bus ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
