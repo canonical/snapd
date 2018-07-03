@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -47,12 +48,12 @@ func (cm *nullCache) Get(cacheKey, targetPath string) error {
 }
 func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
 
-// changesByReverseMtime sorts by the mtime of files
-type changesByReverseMtime []os.FileInfo
+// changesByMtime sorts by the mtime of files
+type changesByMtime []os.FileInfo
 
-func (s changesByReverseMtime) Len() int           { return len(s) }
-func (s changesByReverseMtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s changesByReverseMtime) Less(i, j int) bool { return s[i].ModTime().After(s[j].ModTime()) }
+func (s changesByMtime) Len() int           { return len(s) }
+func (s changesByMtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s changesByMtime) Less(i, j int) bool { return s[i].ModTime().Before(s[j].ModTime()) }
 
 // cacheManager implements a downloadCache via content based hard linking
 type CacheManager struct {
@@ -143,11 +144,42 @@ func (cm *CacheManager) cleanup() error {
 		return nil
 	}
 
-	sort.Sort(changesByReverseMtime(fil))
-	for _, fi := range fil[cm.maxItems:] {
-		if err := os.Remove(cm.path(fi.Name())); err != nil && os.IsNotExist(err) {
+	var lastErr error
+	sort.Sort(changesByMtime(fil))
+	deleted := 0
+	for _, fi := range fil {
+		path := cm.path(fi.Name())
+		n, err := hardLinkCount(path)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		// If the file is referenced in the filesystem somewhere
+		// else our copy is "free" so skip it.
+		if n > 1 {
+			continue
+		}
+		if err := os.Remove(path); err != nil && os.IsNotExist(err) {
 			return err
 		}
+		deleted++
+		if len(fil)-deleted <= cm.maxItems {
+			break
+		}
 	}
-	return nil
+	return lastErr
+}
+
+// hardLinkCount returns the number of hardlinks the given path
+func hardLinkCount(path string) (uint64, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	if sys := fi.Sys(); sys != nil {
+		if stat, ok := sys.(*syscall.Stat_t); ok {
+			return uint64(stat.Nlink), nil
+		}
+	}
+	return 0, fmt.Errorf("cannot get hardLinkCount for %s", path)
 }

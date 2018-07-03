@@ -22,8 +22,10 @@ package store_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -59,8 +61,16 @@ func (s *cacheSuite) makeTestFile(c *C, name, content string) string {
 
 func (s *cacheSuite) TestPutMany(c *C) {
 	for i := 1; i < s.maxItems+10; i++ {
-		err := s.cm.Put(fmt.Sprintf("cacheKey-%d", i), s.makeTestFile(c, fmt.Sprintf("f%d", i), fmt.Sprintf("%d", i)))
+		p := s.makeTestFile(c, fmt.Sprintf("f%d", i), fmt.Sprintf("%d", i))
+		err := s.cm.Put(fmt.Sprintf("cacheKey-%d", i), p)
 		c.Check(err, IsNil)
+
+		// Remove the test file again, it is now only in the cache
+		err = os.Remove(p)
+		c.Assert(err, IsNil)
+		// We need to sync the (meta)data here or the test is racy
+		syscall.Sync()
+
 		if i < s.maxItems {
 			c.Check(s.cm.Count(), Equals, i)
 		} else {
@@ -90,16 +100,30 @@ func (s *cacheSuite) TestGet(c *C) {
 func (s *cacheSuite) TestClenaup(c *C) {
 	// add files, add more than
 	cacheKeys := make([]string, s.maxItems+2)
+	testFiles := make([]string, s.maxItems+2)
 	for i := 0; i < s.maxItems+2; i++ {
 		p := s.makeTestFile(c, fmt.Sprintf("f%d", i), strconv.Itoa(i))
 		cacheKey := fmt.Sprintf("cacheKey-%d", i)
 		cacheKeys[i] = cacheKey
 		s.cm.Put(cacheKey, p)
 
+		// keep track of the test files
+		testFiles[i] = p
+
 		// mtime is not very granular
 		time.Sleep(10 * time.Millisecond)
 	}
-	c.Check(s.cm.Count(), Equals, s.maxItems)
+	// Nothing was removed at this point because the test files are
+	// still in place and we just hardlink to them. The cache cleanup
+	// will only clean files with a link-count of 1.
+	c.Check(s.cm.Count(), Equals, s.maxItems+2)
+
+	// Remove the test files again, they are now only in the cache.
+	for _, p := range testFiles {
+		err := os.Remove(p)
+		c.Assert(err, IsNil)
+	}
+	s.cm.Cleanup()
 
 	// the oldest files are removed from the cache
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, false)
@@ -108,5 +132,4 @@ func (s *cacheSuite) TestClenaup(c *C) {
 	// the newest files are still there
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[2])), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-1])), Equals, true)
-
 }
