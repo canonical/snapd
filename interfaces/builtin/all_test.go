@@ -308,7 +308,7 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidSlotNameYaml, nil)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid slot name: "ttyS5"\)`)
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
@@ -320,7 +320,7 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidPlugNameYaml, nil)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid plug name: "ttyS3"\)`)
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
