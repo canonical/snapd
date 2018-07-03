@@ -1261,11 +1261,27 @@ func (s *RepositorySuite) TestConnections(c *C) {
 
 	conns, err := s.testRepo.Connections(s.plug.Snap.InstanceName())
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plug, s.slot)})
+	c.Assert(len(conns), Equals, 1)
+	c.Assert(conns[0].Plug.Name(), Equals, s.plug.Name)
+	c.Assert(conns[0].Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
+		"attr": "value",
+	})
+	c.Assert(conns[0].Slot.Name(), Equals, s.slot.Name)
+	c.Assert(conns[0].Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
+		"attr": "value",
+	})
 
 	conns, err = s.testRepo.Connections(s.slot.Snap.InstanceName())
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plug, s.slot)})
+	c.Assert(len(conns), Equals, 1)
+	c.Assert(conns[0].Plug.Name(), Equals, s.plug.Name)
+	c.Assert(conns[0].Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
+		"attr": "value",
+	})
+	c.Assert(conns[0].Slot.Name(), Equals, s.slot.Name)
+	c.Assert(conns[0].Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
+		"attr": "value",
+	})
 
 	conns, err = s.testRepo.Connections("abc")
 	c.Assert(err, IsNil)

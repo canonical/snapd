@@ -2051,7 +2051,17 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"plug-static": map[string]interface{}{
+				"attr1": "value2",
+				"attr3": "value3",
+			},
+			"slot-static": map[string]interface{}{
+				"attr2": "value4",
+				"attr4": "value6",
+			},
+		},
 	})
 	s.state.Unlock()
 
@@ -2061,6 +2071,19 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+
+	conns, err := repo.Connections("producer")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	c.Assert(conns[0].Plug.Name(), Equals, "plug")
+	c.Assert(conns[0].Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
+		"attr1": "value2",
+		"attr3": "value3",
+	})
+	c.Assert(conns[0].Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
+		"attr2": "value4",
+		"attr4": "value6",
+	})
 }
 
 func (s *interfaceManagerSuite) TestManagerDoesntReloadUndesiredAutoconnections(c *C) {

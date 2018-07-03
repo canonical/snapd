@@ -751,7 +751,7 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 	return conns, nil
 }
 
-func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
+func (r *Repository) Connections(snapName string) ([]*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -762,17 +762,15 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 		}
 	}
 
-	var conns []*ConnRef
+	var conns []*Connection
 	for _, plugInfo := range r.plugs[snapName] {
-		for slotInfo := range r.plugSlots[plugInfo] {
-			connRef := NewConnRef(plugInfo, slotInfo)
-			conns = append(conns, connRef)
+		for _, c := range r.plugSlots[plugInfo] {
+			conns = append(conns, c)
 		}
 	}
 	for _, slotInfo := range r.slots[snapName] {
-		for plugInfo := range r.slotPlugs[slotInfo] {
-			connRef := NewConnRef(plugInfo, slotInfo)
-			conns = append(conns, connRef)
+		for _, c := range r.slotPlugs[slotInfo] {
+			conns = append(conns, c)
 		}
 	}
 
