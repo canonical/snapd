@@ -51,38 +51,6 @@ func (s *CoreSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *CoreSuite) TestValidateName(c *C) {
-	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-	}
-	for _, name := range validNames {
-		err := ValidateName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// name cannot be empty
-		"",
-		// dashes alone are not a name
-		"-", "--",
-		// double dashes in a name are not allowed
-		"a--a",
-		// name should not end with a dash
-		"a-",
-		// name cannot have any spaces in it
-		"a ", " a", "a a",
-		// a number alone is not a name
-		"0", "123",
-		// identifier must be plain ASCII
-		"日本語", "한글", "ру́сский язы́к",
-	}
-	for _, name := range invalidNames {
-		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
-	}
-}
-
 func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
 	validNames := []string{

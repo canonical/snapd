@@ -100,6 +100,8 @@ backends:
                 workers: 4
             - ubuntu-16.04-64:
                 workers: 4
+            - ubuntu-17.10-64:
+                workers: 4
             - ubuntu-18.04-64:
                 workers: 4
 
@@ -366,6 +368,17 @@ prepare: |
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
         dnf --refresh -y makecache
+    fi
+    if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # We seem to be hitting a flaky openSUSE mirror from time to time,
+        # increase the number of download attempts libzypp will try to
+        # workaround that.
+        cat <<-EOF >> /etc/zypp/zypp.conf
+
+    # added by spread tests
+    download.max_silent_tries = 20
+    EOF
+
     fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
