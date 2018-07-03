@@ -99,6 +99,7 @@ build_rpm() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*)
+            # shellcheck disable=SC2089
             extra_tar_args="$extra_tar_args --exclude='vendor/*'"
             ;;
         opensuse-*)
@@ -117,7 +118,7 @@ build_rpm() {
     cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
+    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" "${extra_tar_args[@]}" "snapd-$version")
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -328,7 +329,7 @@ prepare_project() {
     esac
 
     # update vendoring
-    if [ -z "$(which govendor)" ]; then
+    if [ -z "$(command -v govendor)" ]; then
         rm -rf "$GOPATH/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
@@ -426,7 +427,7 @@ restore_suite() {
     "$TESTSLIB"/reset.sh --store
     if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
-        . $TESTSLIB/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch

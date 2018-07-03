@@ -3,18 +3,20 @@
 set -e
 
 if [ "$GOPATH" = "" ]; then
-    export GOPATH=$(mktemp -d)
+    GOPATH=$(mktemp -d)
+    export GOPATH
+    # shellcheck disable=SC2064
     trap "rm -rf $GOPATH" EXIT
 
-    mkdir -p $GOPATH/src/github.com/snapcore/
-    ln -s $(pwd) $GOPATH/src/github.com/snapcore/snapd
-    cd $GOPATH/src/github.com/snapcore/snapd
+    mkdir -p "$GOPATH/src/github.com/snapcore/"
+    ln -s "$(pwd)" "$GOPATH/src/github.com/snapcore/snapd"
+    cd "$GOPATH/src/github.com/snapcore/snapd"
 fi
 
-if ! which govendor >/dev/null;then
+if ! command -v govendor >/dev/null;then
     export PATH="$PATH:${GOPATH%%:*}/bin"
 
-    if ! which govendor >/dev/null;then
+    if ! command -v govendor >/dev/null;then
 	    echo Installing govendor
 	    go get -u github.com/kardianos/govendor
     fi
