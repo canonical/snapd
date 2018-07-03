@@ -1,5 +1,8 @@
 summary: Ensure that the gpg-keys interface works.
 
+# core18 has no gpg
+systems: [-ubuntu-core-18-*]
+
 details: |
     The gpg-keys interface allows to access gpg binary and keys.
 
