@@ -86,7 +86,7 @@ func (s *helpersSuite) TestSnapdTypeCheck(c *C) {
 	// Type checking the snapd snap is done in a special way.
 	// It appears to be of type "core" while in reality it is of type "app".
 	sideInfo := &snap.SideInfo{
-		SnapID: "snapd-snap-id",
+		SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 	}
 	snapInfo := snaptest.MockInfo(c, `
 name: snapd
