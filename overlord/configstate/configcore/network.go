@@ -44,10 +44,6 @@ func handleNetworkConfiguration(tr Conf) error {
 	name := "10-snapd-network.conf"
 	content := bytes.NewBuffer(nil)
 
-	if !osutil.FileExists(dir) {
-		return nil
-	}
-
 	var sysctl string
 	output, err := coreCfg(tr, "network.disable-ipv6")
 	if err != nil {
@@ -71,7 +67,7 @@ func handleNetworkConfiguration(tr Conf) error {
 	if sysctl != "" {
 		// write the new config
 		dirContent := map[string]*osutil.FileState{
-			name: &osutil.FileState{
+			name: {
 				Content: content.Bytes(),
 				Mode:    0644,
 			},
