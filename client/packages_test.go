@@ -120,7 +120,8 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"publisher": {
                             "id": "canonical",
                             "username": "canonical",
-                            "display-name": "Canonical"
+                            "display-name": "Canonical",
+                            "validation": "verified"
                         },
 			"resource": "/v2/snaps/hello-world.canonical",
 			"status": "available",
@@ -149,6 +150,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			ID:          "canonical",
 			Username:    "canonical",
 			DisplayName: "Canonical",
+			Validation:  "verified",
 		},
 		Status:      client.StatusAvailable,
 		Type:        client.TypeApp,
@@ -202,7 +204,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"publisher": {
                             "id": "ogra-id",
                             "username": "ogra",
-                            "display-name": "Ogra"
+                            "display-name": "Ogra",
+                            "validation": "unproven"
                         },
 			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
@@ -240,6 +243,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			ID:          "ogra-id",
 			Username:    "ogra",
 			DisplayName: "Ogra",
+			Validation:  "unproven",
 		},
 		Status:      client.StatusActive,
 		Type:        client.TypeApp,

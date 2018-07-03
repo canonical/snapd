@@ -267,7 +267,7 @@ func (s *RepositorySuite) TestAddPlugFailsWithInvalidPlugName(c *C) {
 		Interface: "interface",
 	}
 	err := s.testRepo.AddPlug(plug)
-	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
+	c.Assert(err, ErrorMatches, `invalid plug name: "bad-name-"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 0)
 }
 
@@ -500,7 +500,7 @@ func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 		Interface: "interface",
 	}
 	err := s.emptyRepo.AddSlot(slot)
-	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
+	c.Assert(err, ErrorMatches, `invalid slot name: "bad-name-"`)
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 
