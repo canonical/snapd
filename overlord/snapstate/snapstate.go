@@ -1385,6 +1385,9 @@ func coreInUse(st *state.State) bool {
 			continue
 		}
 		if snapInfo, err := snapst.CurrentInfo(); err == nil {
+			if snapInfo.Type != snap.TypeApp || snapInfo.SnapName() == "snapd" {
+				continue
+			}
 			if snapInfo.Base == "" {
 				return true
 			}
