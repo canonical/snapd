@@ -37,3 +37,7 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }
+
+func (cm *CacheManager) Cleanup() error {
+	return cm.cleanup()
+}
