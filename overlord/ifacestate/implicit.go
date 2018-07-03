@@ -22,6 +22,8 @@ package ifacestate
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -32,11 +34,25 @@ import (
 //
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
-func addImplicitSlots(snapInfo *snap.Info) {
-	if snapInfo.Type != snap.TypeOS {
+func addImplicitSlots(st *state.State, snapInfo *snap.Info) {
+	// Implicit slots can be added to the special "snapd" snap or to snaps with
+	// type "os". Currently there are no other snaps that gain implicit
+	// interfaces.
+	if snapInfo.Type != snap.TypeOS && snapInfo.InstanceName() != "snapd" {
 		return
 	}
-	// Ask each interface if it wants to be implcitly added.
+
+	// If we are considering adding implicit interfaces to a snap with type
+	// "os" we need to check if the "snapd" snap exists in the state. The
+	// "snapd" snap takes priority over the "core" or "ubuntu-core" snaps.
+	if snapInfo.Type == snap.TypeOS {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, "snapd", &snapst); err == nil {
+			return
+		}
+	}
+
+	// Ask each interface if it wants to be implicitly added.
 	for _, iface := range builtin.Interfaces() {
 		si := interfaces.StaticInfoOf(iface)
 		if (release.OnClassic && si.ImplicitOnClassic) || (!release.OnClassic && si.ImplicitOnCore) {
