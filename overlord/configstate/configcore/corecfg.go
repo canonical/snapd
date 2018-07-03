@@ -145,7 +145,7 @@ func Run(tr Conf) error {
 	if err := handleWatchdogConfiguration(tr); err != nil {
 		return err
 	}
-	// network.disable-{ipv4,ipv6}
+	// network.disable-ipv6
 	if err := handleNetworkConfiguration(tr); err != nil {
 		return err
 	}

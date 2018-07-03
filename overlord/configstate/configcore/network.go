@@ -44,17 +44,16 @@ func handleNetworkConfiguration(tr Conf) error {
 	name := "10-snapd-network.conf"
 	content := bytes.NewBuffer(nil)
 
-	var sysctl string
 	output, err := coreCfg(tr, "network.disable-ipv6")
 	if err != nil {
 		return nil
 	}
 	switch output {
 	case "true":
-		sysctl = "net.ipv6.conf.all.disable_ipv6=1"
+		sysctl := "net.ipv6.conf.all.disable_ipv6=1"
 		content.WriteString(sysctl + "\n")
 	case "false":
-		sysctl = "net.ipv6.conf.all.disable_ipv6=0"
+		sysctl := "net.ipv6.conf.all.disable_ipv6=0"
 		content.WriteString(sysctl + "\n")
 	case "":
 		if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
@@ -64,7 +63,7 @@ func handleNetworkConfiguration(tr Conf) error {
 		return fmt.Errorf("unsupported disable-ipv6 option: %q", output)
 	}
 
-	if sysctl != "" {
+	if content.Len() > 0 {
 		// write the new config
 		dirContent := map[string]*osutil.FileState{
 			name: {
@@ -73,14 +72,17 @@ func handleNetworkConfiguration(tr Conf) error {
 			},
 		}
 		glob := name
-		if _, _, err = osutil.EnsureDirState(dir, glob, dirContent); err != nil {
+		changed, _, err := osutil.EnsureDirState(dir, glob, dirContent)
+		if err != nil {
 			return err
 		}
 
 		// load the new config into the kernel
-		output, err := exec.Command("sysctl", "-p", filepath.Join(dir, name)).CombinedOutput()
-		if err != nil {
-			return osutil.OutputErr(output, err)
+		if len(changed) > 0 {
+			output, err := exec.Command("sysctl", "-p", filepath.Join(dir, name)).CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(output, err)
+			}
 		}
 	}
 
