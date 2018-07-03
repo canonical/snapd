@@ -2,7 +2,6 @@ tests/main/base-snaps-refresh/task.yaml
 tests/main/interfaces-calendar-service/task.yaml
 tests/main/interfaces-contacts-service/task.yaml
 tests/main/interfaces-desktop-document-portal/task.yaml
-tests/main/interfaces-joystick/task.yaml
 tests/main/interfaces-mount-observe/task.yaml
 tests/main/interfaces-netlink-audit/task.yaml
 tests/main/interfaces-netlink-connector/task.yaml
