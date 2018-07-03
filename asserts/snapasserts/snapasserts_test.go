@@ -124,6 +124,7 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 	c.Check(err, IsNil)
 	// and a snap instance name
 	err = snapasserts.CrossCheck("foo_instance", digest, size, si, s.localDB)
+	c.Check(err, IsNil)
 }
 
 func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
