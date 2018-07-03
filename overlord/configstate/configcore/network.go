@@ -22,7 +22,6 @@ package configcore
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -56,33 +55,30 @@ func handleNetworkConfiguration(tr Conf) error {
 		sysctl := "net.ipv6.conf.all.disable_ipv6=0"
 		content.WriteString(sysctl + "\n")
 	case "":
-		if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
-			return err
-		}
+		// nothing
 	default:
 		return fmt.Errorf("unsupported disable-ipv6 option: %q", output)
 	}
-
+	dirContent := map[string]*osutil.FileState{}
 	if content.Len() > 0 {
-		// write the new config
-		dirContent := map[string]*osutil.FileState{
-			name: {
-				Content: content.Bytes(),
-				Mode:    0644,
-			},
+		dirContent[name] = &osutil.FileState{
+			Content: content.Bytes(),
+			Mode:    0644,
 		}
-		glob := name
-		changed, _, err := osutil.EnsureDirState(dir, glob, dirContent)
-		if err != nil {
-			return err
-		}
+	}
 
-		// load the new config into the kernel
-		if len(changed) > 0 {
-			output, err := exec.Command("sysctl", "-p", filepath.Join(dir, name)).CombinedOutput()
-			if err != nil {
-				return osutil.OutputErr(output, err)
-			}
+	// write the new config
+	glob := name
+	changed, _, err := osutil.EnsureDirState(dir, glob, dirContent)
+	if err != nil {
+		return err
+	}
+
+	// load the new config into the kernel
+	if len(changed) > 0 {
+		output, err := exec.Command("sysctl", "-p", filepath.Join(dir, name)).CombinedOutput()
+		if err != nil {
+			return osutil.OutputErr(output, err)
 		}
 	}
 
