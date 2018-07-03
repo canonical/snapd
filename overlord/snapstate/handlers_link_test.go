@@ -315,11 +315,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
+			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
+			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 	})
 }
