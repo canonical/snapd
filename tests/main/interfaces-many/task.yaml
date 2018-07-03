@@ -90,15 +90,8 @@ execute: |
             slot_iface=":browser-support"
         fi
 
-        CONNECTED_PATTERN="$slot_iface +$CONSUMER_SNAP"
+        CONNECTED_PATTERN="$slot_iface +.*$CONSUMER_SNAP"
         DISCONNECTED_PATTERN="$slot_iface +-"
-
-        # The core-support plug is connected by the core snap, so account for
-        # that
-        if [ "$plug_iface" = "$CONSUMER_SNAP:core-support" ]; then
-            CONNECTED_PATTERN="$slot_iface +core:core-support-plug,$CONSUMER_SNAP"
-            DISCONNECTED_PATTERN="$slot_iface +core:core-support-plug$"
-        fi
 
         # Skip any interfaces that core doesn't ship
         if ! snap interfaces | MATCH "$slot_iface +" ; then
