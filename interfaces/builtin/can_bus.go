@@ -37,6 +37,9 @@ network can,
 const canBusConnectedPlugSecComp = `
 # Description: Can use CAN networking
 bind
+
+# We allow AF_CAN in the default template since it is mediated via the AppArmor rule
+#socket AF_CAN
 `
 
 func init() {
