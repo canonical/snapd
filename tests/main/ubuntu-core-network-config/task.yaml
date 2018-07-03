@@ -17,7 +17,8 @@ execute: |
 
     echo "Enable ipv6"
     snap set core network.disable-ipv6=false
-    MATCH "net.ipv6.conf.all.disable_ipv6=0" < /etc/sysctl.d/10-snapd-network.conf
+    ! test -f /etc/sysctl.d/10-snapd-network.conf
+    sysctl net.ipv6.conf.all.disable_ipv6 | MATCH "net.ipv6.conf.all.disable_ipv6=0"
 
     echo "Reset ipv6"
     snap set core network.disable-ipv6=""
