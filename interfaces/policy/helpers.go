@@ -38,8 +38,6 @@ func snapIDSnapd(snapID string) bool {
 		// TODO: when snapd snap is uploaded to staging, replace this with
 		// the real snap-id.
 		"todo-staging-snapd-id",
-		// tests
-		"snapd-snap-id",
 	}
 	return strutil.ListContains(snapIDsSnapd, snapID)
 }
