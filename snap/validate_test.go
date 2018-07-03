@@ -111,6 +111,49 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateInstanceName(c *C) {
+	validNames := []string{
+		// plain names are also valid instance names
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		// snap instance
+		"foo_bar",
+		"foo_0123456789",
+		"01game_0123456789",
+		"foo_1", "foo_1234abcd",
+	}
+	for _, name := range validNames {
+		err := ValidateInstanceName(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// invalid names are also invalid instance names, just a few
+		// samples
+		"",
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"a--a",
+		"a-",
+		"a ", " a", "a a",
+		"_",
+		"ру́сский_язы́к",
+	}
+	for _, name := range invalidNames {
+		err := ValidateInstanceName(name)
+		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
+	}
+	invalidInstanceKeys := []string{
+		// the snap names are valid, but instance keys are not
+		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
+		"foo__bar",
+	}
+	for _, name := range invalidInstanceKeys {
+		err := ValidateInstanceName(name)
+		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
+	}
+
+}
+
 func (s *ValidateSuite) TestValidateVersion(c *C) {
 	validVersions := []string{
 		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
@@ -1320,5 +1363,39 @@ apps:
 			c.Assert(err, NotNil)
 			c.Check(err, ErrorMatches, tc.err)
 		}
+	}
+}
+
+func (s *validateSuite) TestValidatePlugSlotName(c *C) {
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+	}
+	for _, name := range validNames {
+		c.Assert(ValidatePlugName(name), IsNil)
+		c.Assert(ValidateSlotName(name), IsNil)
+		c.Assert(ValidateInterfaceName(name), IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	}
+	for _, name := range invalidNames {
+		c.Assert(ValidatePlugName(name), ErrorMatches, `invalid plug name: ".*"`)
+		c.Assert(ValidateSlotName(name), ErrorMatches, `invalid slot name: ".*"`)
+		c.Assert(ValidateInterfaceName(name), ErrorMatches, `invalid interface name: ".*"`)
 	}
 }

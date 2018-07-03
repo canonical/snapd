@@ -107,7 +107,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
 		"account-id":   "my-brand",
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	s.storeSigning.Add(brandAcct)
 
@@ -314,6 +314,105 @@ AXNpZw==
 		})
 		c.Check(err, ErrorMatches, fmt.Sprintf("model assertion cannot have reserved/unsupported header %q set", rsvd))
 	}
+}
+
+func (s *imageSuite) TestModelAssertionNoParallelInstancesOfSnaps(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel
+required-snaps:
+  - foo_instance
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	c.Assert(err, IsNil)
+	_, err = image.DecodeModelAssertion(&image.Options{
+		ModelFile: fn,
+	})
+	c.Check(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
+}
+
+func (s *imageSuite) TestModelAssertionNoParallelInstancesOfKernel(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel_instance
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	c.Assert(err, IsNil)
+	_, err = image.DecodeModelAssertion(&image.Options{
+		ModelFile: fn,
+	})
+	c.Check(err, ErrorMatches, `cannot use snap "kernel_instance", parallel snap instances are unsupported`)
+}
+
+func (s *imageSuite) TestModelAssertionNoParallelInstancesOfGadget(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget_instance
+kernel: kernel
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	c.Assert(err, IsNil)
+	_, err = image.DecodeModelAssertion(&image.Options{
+		ModelFile: fn,
+	})
+	c.Check(err, ErrorMatches, `cannot use snap "brand-gadget_instance", parallel snap instances are unsupported`)
+}
+
+func (s *imageSuite) TestModelAssertionNoParallelInstancesOfBase(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel
+base: core18_instance
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	c.Assert(err, IsNil)
+	_, err = image.DecodeModelAssertion(&image.Options{
+		ModelFile: fn,
+	})
+	c.Check(err, ErrorMatches, `cannot use snap "core18_instance", parallel snap instances are unsupported`)
 }
 
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
@@ -990,6 +1089,18 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 
 	c.Check(s.stderr.String(), Equals, "")
+}
+
+func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Snaps:     []string{"foo_instance"},
+	})
+	c.Assert(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
 }
 
 type toolingAuthContextSuite struct {

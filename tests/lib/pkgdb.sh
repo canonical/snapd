@@ -300,6 +300,9 @@ distro_clean_package_cache() {
         ubuntu-*|debian-*)
             quiet apt-get clean
             ;;
+        fedora-*)
+            dnf clean all
+            ;;
         opensuse-*)
             zypper -q clean --all
             ;;
@@ -345,6 +348,10 @@ distro_query_package_info() {
             ;;
         arch-*)
             pacman -Si "$1"
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
             ;;
     esac
 }

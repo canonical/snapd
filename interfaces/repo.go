@@ -71,7 +71,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	defer r.m.Unlock()
 
 	interfaceName := i.Name()
-	if err := ValidateName(interfaceName); err != nil {
+	if err := snap.ValidateInterfaceName(interfaceName); err != nil {
 		return err
 	}
 	if _, ok := r.ifaces[interfaceName]; ok {
@@ -268,8 +268,8 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := ValidateName(plug.Name); err != nil {
+	// Reject plugs with invalid names
+	if err := snap.ValidatePlugName(plug.Name); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -363,8 +363,8 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := ValidateName(slot.Name); err != nil {
+	// Reject slots with invalid names
+	if err := snap.ValidateSlotName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct

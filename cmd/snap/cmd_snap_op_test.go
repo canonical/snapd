@@ -78,7 +78,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar"}, "revision":42, "channel":"%s"}]}\n`, t.channel)
+		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s"}]}\n`, t.channel)
 	default:
 		t.c.Fatalf("expected to get %d requests, now on %d", t.total, t.n+1)
 	}
@@ -558,7 +558,7 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			c.Check(r.URL.Query().Get("select"), check.Equals, "refresh")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar"}, "revision":17,"summary":"some summary"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":17,"summary":"some summary"}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -1093,7 +1093,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar"}, "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "publisher": {"id": "baz-id", "username": "baz", "display-name": "Baz"}, "revision":42, "channel":"edge"}]}\n`)
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "publisher": {"id": "baz-id", "username": "baz", "display-name": "Baz", "validation": "unproven"}, "revision":42, "channel":"edge"}]}\n`)
 
 		default:
 			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
