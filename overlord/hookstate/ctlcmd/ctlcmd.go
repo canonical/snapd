@@ -91,20 +91,46 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 	}
 }
 
+// ForbiddenCommandError conveys that a command cannot be invoked in some context
+type ForbiddenCommandError struct {
+	Message string
+}
+
+func (f ForbiddenCommandError) Error() string {
+	return f.Message
+}
+
+// ForbiddenCommand contains information about an attempt to use a command in a context where it is not allowed.
+type ForbiddenCommand struct {
+	Uid  uint32
+	Name string
+}
+
+func (f *ForbiddenCommand) Execute(args []string) error {
+	return &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)}
+}
+
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
+func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
-		cmd := cmdInfo.generator()
-		cmd.setStdout(&stdoutBuffer)
-		cmd.setStderr(&stderrBuffer)
-		cmd.setContext(context)
-
-		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
+		var data interface{}
+		// commands listed here will be allowed for regular users
+		// note: commands still need valid context and snaps can only access own config.
+		if uid == 0 || name == "get" {
+			cmd := cmdInfo.generator()
+			cmd.setStdout(&stdoutBuffer)
+			cmd.setStderr(&stderrBuffer)
+			cmd.setContext(context)
+			data = cmd
+		} else {
+			data = &ForbiddenCommand{Uid: uid, Name: name}
+		}
+		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
 		}

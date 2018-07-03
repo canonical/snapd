@@ -558,17 +558,21 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var conns map[string]connState
-	err := st.Get("conns", &conns)
-	if err != nil && err != state.ErrNoState {
+	conns, err := getConns(st)
+	if err != nil {
 		return err
-	}
-	if conns == nil {
-		conns = make(map[string]connState)
 	}
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
+		return err
+	}
+
+	// The previous task (link-snap) may have triggered a restart,
+	// if this is the case we can only procceed once the restart
+	// has happened or we may not have all the interfaces of the
+	// new core/base snap.
+	if err := snapstate.WaitRestart(task, snapsup); err != nil {
 		return err
 	}
 
@@ -818,13 +822,9 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
-	var conns map[string]connState
-	err := st.Get("conns", &conns)
-	if err != nil && err != state.ErrNoState {
+	conns, err := getConns(st)
+	if err != nil {
 		return err
-	}
-	if conns == nil {
-		conns = make(map[string]connState)
 	}
 
 	gconns, err := snapstate.GadgetConnections(st)

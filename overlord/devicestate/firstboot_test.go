@@ -144,7 +144,8 @@ func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	st := s.overlord.State()
 	st.Lock()
@@ -159,7 +160,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -189,8 +191,36 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	c.Check(ds.Model, Equals, "my-model-classic")
 }
 
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// create an empty seed.yaml
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
+}
+
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	st := s.overlord.State()
 
@@ -723,7 +753,6 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		"model":        modelStr,
 		"architecture": "amd64",
 		"store":        "canonical",
-		"gadget":       "pc",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	for k, v := range extraHeaders {
@@ -733,6 +762,7 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		headers["classic"] = "true"
 	} else {
 		headers["kernel"] = "pc-kernel"
+		headers["gadget"] = "pc"
 	}
 	if len(reqSnaps) != 0 {
 		reqs := make([]interface{}, len(reqSnaps))
@@ -751,7 +781,7 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, modName string, extra
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
 		"account-id":   "my-brand",
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	assertChain = append(assertChain, brandAcct)
 
@@ -1065,7 +1095,8 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -1282,6 +1313,23 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 
+	// the first taskset installs snapd and waits for noone
+	i := 0
+	tSnapd := tsAll[i].Tasks()[0]
+	c.Check(tSnapd.WaitTasks(), HasLen, 0)
+	// the next installs the core18 and that will wait for snapd
+	i++
+	tCore18 := tsAll[i].Tasks()[0]
+	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
+	// the next installs the kernel and will wait for the core18
+	i++
+	tKernel := tsAll[i].Tasks()[0]
+	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
+	// the next installs the gadget and will wait for the kernel
+	i++
+	tGadget := tsAll[i].Tasks()[0]
+	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -1296,12 +1344,13 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
+	// run change until it wants to restart
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// at this point snapd is "restarting", pretend the restart has
+	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	state.MockRestarting(st, state.RestartUnset)
