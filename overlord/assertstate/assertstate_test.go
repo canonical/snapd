@@ -519,7 +519,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install "f", snap "f" is undergoing a rename to "foo".*`)
 }
 
 func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
