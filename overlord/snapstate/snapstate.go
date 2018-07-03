@@ -1373,6 +1373,26 @@ func baseInUse(st *state.State, base *snap.Info) bool {
 	return false
 }
 
+// coreInUse returns true if any snap uses "core" (i.e. does not
+// declare a base
+func coreInUse(st *state.State) bool {
+	snapStates, err := All(st)
+	if err != nil {
+		return false
+	}
+	for _, snapst := range snapStates {
+		if !snapst.Active {
+			continue
+		}
+		if snapInfo, err := snapst.CurrentInfo(); err == nil {
+			if snapInfo.Base == "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // canRemove verifies that a snap can be removed.
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
@@ -1419,9 +1439,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// via the snapst.Required flag that is set on firstboot.
 	if si.Type == snap.TypeOS {
 		if model, err := Model(st); err == nil {
-			if model.Base() != "" {
-				// TODO: check that nothing is using
-				// "core" as a base
+			if model.Base() != "" && !coreInUse(st) {
 				return true
 			}
 		}
