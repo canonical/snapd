@@ -98,6 +98,9 @@ reset_all_snap() {
     # remove all leftover snaps
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
+
+    remove_bases=""
+    # remove all app snaps first
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
@@ -109,11 +112,19 @@ reset_all_snap() {
                     systemctl start snapd.service snapd.socket
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
-                    snap remove "$snap"
+                    if snap info "$snap" | egrep '^type: +(base|os)'; then
+                        remove_bases="$remove_bases $snap"
+                    else
+                        snap remove "$snap"
+                    fi
                 fi
                 ;;
         esac
     done
+    # remove all base/os snaps at the end
+    if [ -n "$remove_bases" ]; then
+        snap remove "$remove_bases"
+    fi
 
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
