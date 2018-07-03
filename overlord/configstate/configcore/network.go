@@ -54,6 +54,8 @@ func handleNetworkConfiguration(tr Conf) error {
 		sysctl = "net.ipv6.conf.all.disable_ipv6=1"
 		content.WriteString(sysctl + "\n")
 	case "false", "":
+		// Store the sysctl for the code below but don't write it to
+		// content so that the file setting this option gets removed.
 		sysctl = "net.ipv6.conf.all.disable_ipv6=0"
 	default:
 		return fmt.Errorf("unsupported disable-ipv6 option: %q", output)
