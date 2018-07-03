@@ -368,14 +368,17 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if a.Action != "install" && a.Action != "refresh" {
 			panic("not supported")
 		}
+		if a.InstanceName == "" {
+			return nil, fmt.Errorf("internal error: action without instance name")
+		}
 
 		if a.Action == "install" {
-			spec := store.SnapSpec{
+			spec := snapSpec{
 				Name:     a.InstanceName,
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.snap(sspec, user)
+			info, err := f.snap(spec, user)
 			if err != nil {
 				installErrors[a.InstanceName] = err
 				continue
