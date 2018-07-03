@@ -266,9 +266,6 @@ apps:
   socketcan:
     command: bin/run
     plugs: [ socketcan ]
-  socketcan-control:
-    command: bin/run
-    plugs: [ socketcan-control ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
