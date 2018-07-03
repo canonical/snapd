@@ -88,7 +88,7 @@ func (s *brokenSuite) TestGuessAppsForBrokenServices(c *C) {
 	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz", Daemon: "simple"})
 }
 
-func (s *brokenSuite) TestRenamePlug(c *C) {
+func (s *brokenSuite) TestForceRenamePlug(c *C) {
 	snapInfo := snaptest.MockInvalidInfo(c, `name: core
 version: 0
 plugs:
@@ -111,7 +111,7 @@ hooks:
 	c.Assert(snapInfo.Hooks["configure"].Plugs["old"], DeepEquals, snapInfo.Plugs["old"])
 
 	// Rename the plug now.
-	snapInfo.RenamePlug("old", "new")
+	snapInfo.ForceRenamePlug("old", "new")
 
 	// Check that there's no trace of the old plug name.
 	c.Assert(snapInfo.Plugs["old"], IsNil)

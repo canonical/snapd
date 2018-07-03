@@ -47,7 +47,8 @@ const findJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -69,7 +70,8 @@ const findJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 20480,
       "icon": "",
@@ -91,7 +93,8 @@ const findJSON = `
       "publisher": {
          "id": "noise-id",
          "username": "noise",
-         "display-name": "Bret"
+         "display-name": "Bret",
+         "validation": "unproven"
       },
       "download-size": 512004096,
       "icon": "",
@@ -163,7 +166,8 @@ const findHelloJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -185,7 +189,8 @@ const findHelloJSON = `
       "publisher": {
          "id": "noise-id",
          "username": "noise",
-         "display-name": "Bret"
+         "display-name": "Bret",
+         "validation": "unproven"
       },
       "download-size": 512004096,
       "icon": "",
@@ -247,7 +252,8 @@ const findPricedJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -308,7 +314,8 @@ const findPricedAndBoughtJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
