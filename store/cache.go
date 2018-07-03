@@ -170,7 +170,7 @@ func (cm *CacheManager) cleanup() error {
 	return lastErr
 }
 
-// hardLinkCount returns the number of hardlinks the given path
+// hardLinkCount returns the number of hardlinks for the given path
 func hardLinkCount(path string) (uint64, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -181,5 +181,5 @@ func hardLinkCount(path string) (uint64, error) {
 			return uint64(stat.Nlink), nil
 		}
 	}
-	return 0, fmt.Errorf("cannot get hardLinkCount for %s", path)
+	return 0, fmt.Errorf("internal error: cannot get hardLinkCount for %s", path)
 }
