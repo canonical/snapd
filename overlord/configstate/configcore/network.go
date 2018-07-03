@@ -47,15 +47,14 @@ func handleNetworkConfiguration(tr Conf) error {
 	if err != nil {
 		return nil
 	}
+
+	var sysctl string
 	switch output {
 	case "true":
-		sysctl := "net.ipv6.conf.all.disable_ipv6=1"
+		sysctl = "net.ipv6.conf.all.disable_ipv6=1"
 		content.WriteString(sysctl + "\n")
-	case "false":
-		sysctl := "net.ipv6.conf.all.disable_ipv6=0"
-		content.WriteString(sysctl + "\n")
-	case "":
-		// nothing
+	case "false", "":
+		sysctl = "net.ipv6.conf.all.disable_ipv6=0"
 	default:
 		return fmt.Errorf("unsupported disable-ipv6 option: %q", output)
 	}
@@ -69,14 +68,14 @@ func handleNetworkConfiguration(tr Conf) error {
 
 	// write the new config
 	glob := name
-	changed, _, err := osutil.EnsureDirState(dir, glob, dirContent)
+	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
 	if err != nil {
 		return err
 	}
 
 	// load the new config into the kernel
-	if len(changed) > 0 {
-		output, err := exec.Command("sysctl", "-p", filepath.Join(dir, name)).CombinedOutput()
+	if len(changed) > 0 || len(removed) > 0 {
+		output, err := exec.Command("sysctl", "-w", sysctl).CombinedOutput()
 		if err != nil {
 			return osutil.OutputErr(output, err)
 		}

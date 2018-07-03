@@ -61,7 +61,8 @@ func (s *networkSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *networkSuite) TestConfigureNetworkIntegrationIPv6True(c *C) {
+func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
+	// disable ipv6
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
@@ -72,12 +73,12 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6True(c *C) {
 
 	c.Check(s.mockNetworkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=1\n")
 	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
-		{"sysctl", "-p", s.mockNetworkSysctlPath},
+		{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"},
 	})
-}
+	s.mockSysctl.ForgetCalls()
 
-func (s *networkSuite) TestConfigureNetworkIntegrationIPv6False(c *C) {
-	err := configcore.Run(&mockConf{
+	// enable it again
+	err = configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": false,
@@ -85,18 +86,32 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6False(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(s.mockNetworkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=0\n")
+	c.Check(osutil.FileExists(s.mockNetworkSysctlPath), Equals, false)
 	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
-		{"sysctl", "-p", s.mockNetworkSysctlPath},
+		{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=0"},
 	})
+	s.mockSysctl.ForgetCalls()
+
+	// enable it yet again, this does not trigger another syscall
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"network.disable-ipv6": false,
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.mockSysctl.Calls(), HasLen, 0)
 }
 
-func (s *networkSuite) TestConfigureNetworkIntegrationNone(c *C) {
+func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
 	})
 	c.Assert(err, IsNil)
 
+	// the file is not there and was not there before, nothing changed
+	// and no sysctl call is generated
 	c.Check(osutil.FileExists(s.mockNetworkSysctlPath), Equals, false)
+	c.Check(s.mockSysctl.Calls(), HasLen, 0)
 }
