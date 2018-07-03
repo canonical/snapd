@@ -2386,64 +2386,21 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 	})
 }
 
-// Test "core-support" connections that loop back to core is
-// renamed to match the rename of the plug.
-func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
-	// Put state with old connection data.
-	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"core:core-support core:core-support": map[string]interface{}{
-			"interface": "core-support", "auto": true,
-		},
-		"snap:unrelated core:unrelated": map[string]interface{}{
-			"interface": "unrelated", "auto": true,
-		},
-	})
-	s.state.Unlock()
-
-	// mock both snaps, otherwise the manager will remove stale connections
-	s.mockSnap(c, coreSnapYaml)
-	s.mockSnap(c, sampleSnapYaml)
-
-	// Start the manager, this is where renames happen.
-	s.manager(c)
-
-	// Check that "core-support" connection got renamed.
-	s.state.Lock()
-	var conns map[string]interface{}
-	err := s.state.Get("conns", &conns)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"core:core-support-plug core:core-support": map[string]interface{}{
-			"interface": "core-support", "auto": true,
-		},
-		"snap:unrelated core:unrelated": map[string]interface{}{
-			"interface": "unrelated", "auto": true,
-		},
-	})
-}
-
-// Test that "network-bind" and "core-support" plugs are renamed to
-// "network-bind-plug" and "core-support-plug" in order not to clash with slots
-// with the same names.
+// Test that "network-bind" plugs are renamed to "network-bind-plug" in order
+// not to clash with slots with the same names.
 func (s *interfaceManagerSuite) TestAutomaticCorePlugsRenamed(c *C) {
 	s.mockSnap(c, coreSnapYaml+`
 plugs:
   network-bind:
-  core-support:
 `)
 	mgr := s.manager(c)
 
 	// old plugs are gone
 	c.Assert(mgr.Repository().Plug("core", "network-bind"), IsNil)
-	c.Assert(mgr.Repository().Plug("core", "core-support"), IsNil)
 	// new plugs are present
-	c.Assert(mgr.Repository().Plug("core", "network-bind-plug"), Not(IsNil))
-	c.Assert(mgr.Repository().Plug("core", "core-support-plug"), Not(IsNil))
+	c.Assert(mgr.Repository().Plug("core", "network-bind-plug"), NotNil)
 	// slots are present and unchanged
-	c.Assert(mgr.Repository().Slot("core", "network-bind"), Not(IsNil))
-	c.Assert(mgr.Repository().Slot("core", "core-support"), Not(IsNil))
+	c.Assert(mgr.Repository().Slot("core", "network-bind"), NotNil)
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
