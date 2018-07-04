@@ -340,9 +340,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Find the device that is backing the current revision of the base snap.
 	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
 
-	// Check if we are running on classic. Do it here because we will always
-	// (seemingly) run on a core system once we are inside a mount namespace.
-	bool is_classic = is_running_on_classic_distribution();
+	// Check if we are running in normal mode with pivot root. Do this here
+	// because once on the inside of the transformed mount namespace we can no
+	// longer tell.
+	bool is_normal_mode =
+	    sc_should_use_normal_mode(sc_classify_distro(), base_snap_name);
 
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
@@ -399,7 +401,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
 		bool should_discard =
-		    is_classic ? should_discard_current_ns(base_snap_dev) :
+		    is_normal_mode ? should_discard_current_ns(base_snap_dev) :
 		    false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
