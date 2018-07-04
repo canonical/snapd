@@ -102,24 +102,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
-	si, err := singleActionResult(name, action.Action, res, err)
-	// TODO: Ideally the store would provide better error reporting
-	//       right now it sends store.ErrRevisionNotAvailable when
-	//       a snap is in a different channel and also when it is
-	//       not available for the given architecture. Once the
-	//       store differentiates between those we can just do
-	//       `return singleActionResult(name, action.Action, res, err)`
-	//       here.
-	if channel != "" && err == store.ErrRevisionNotAvailable {
-		st.Unlock()
-		_, err1 := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
-		st.Lock()
-		if err1 != nil {
-			return nil, store.ErrSnapNotFound
-		}
-	}
-	return si, err
-
+	return singleActionResult(name, action.Action, res, err)
 }
 
 func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
