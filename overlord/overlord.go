@@ -108,7 +108,7 @@ func New() (*Overlord, error) {
 	o.unknownMgr = NewUnknownTaskManager(s)
 	o.stateEng.AddManager(o.unknownMgr)
 
-	hookMgr, err := hookstate.Manager(s)
+	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}

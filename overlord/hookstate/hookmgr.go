@@ -49,7 +49,6 @@ type hijackKey struct{ hook, snap string }
 // snap. Otherwise they're skipped with no error.
 type HookManager struct {
 	state      *state.State
-	runner     *state.TaskRunner
 	repository *repository
 
 	contextsMutex sync.RWMutex
@@ -88,11 +87,9 @@ type HookSetup struct {
 }
 
 // Manager returns a new HookManager.
-func Manager(s *state.State) (*HookManager, error) {
-	runner := state.NewTaskRunner(s)
-
+func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
-	runner.SetBlocked(func(thisTask *state.Task, running []*state.Task) bool {
+	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
 		// check if we're a hook task, probably not needed but let's take extra care
 		if thisTask.Kind() != "run-hook" {
 			return false
@@ -117,7 +114,6 @@ func Manager(s *state.State) (*HookManager, error) {
 
 	manager := &HookManager{
 		state:      s,
-		runner:     runner,
 		repository: newRepository(),
 		contexts:   make(map[string]*Context),
 		hijackMap:  make(map[hijackKey]hijackFunc),
@@ -145,23 +141,20 @@ func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerato
 }
 
 func (m *HookManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *HookManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
 }
 
 // Wait implements StateManager.Wait.
 func (m *HookManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
 func (m *HookManager) Stop() {
-	m.runner.Stop()
 }
 
 func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {
