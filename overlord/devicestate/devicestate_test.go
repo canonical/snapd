@@ -69,6 +69,7 @@ func TestDeviceManager(t *testing.T) { TestingT(t) }
 type deviceMgrSuite struct {
 	o       *overlord.Overlord
 	state   *state.State
+	se      *overlord.StateEngine
 	hookMgr *hookstate.HookManager
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
@@ -122,6 +123,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.se = s.o.StateEngine()
 
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
 
@@ -144,7 +146,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(s.state, hookMgr)
+	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
 	s.db = db
@@ -324,6 +326,7 @@ func (s *deviceMgrSuite) findBecomeOperationalChange(skipIDs ...string) *state.C
 }
 
 func (s *deviceMgrSuite) TestKnownTaskKinds(c *C) {
+	c.Skip("becoming pointless")
 	kinds := s.mgr.KnownTaskKinds()
 	sort.Strings(kinds)
 	c.Assert(kinds, DeepEquals, []string{"generate-device-key", "mark-seeded", "request-serial"})
@@ -365,7 +368,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 
 	// not started without gadget
 	s.state.Unlock()
-	s.mgr.Ensure()
+	s.se.Ensure()
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -514,7 +517,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 
 	// not started without some installation happening or happened
 	s.state.Unlock()
-	s.mgr.Ensure()
+	s.se.Ensure()
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -686,8 +689,8 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
@@ -709,8 +712,8 @@ version: gadget
 	c.Check(ok, Equals, true)
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	// Repeated handler run but set original serial.
@@ -772,8 +775,8 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
@@ -787,8 +790,8 @@ version: gadget
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	// Repeated handler run but set original serial.
@@ -848,8 +851,8 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -905,15 +908,15 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -2202,7 +2205,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	runner1 := state.NewTaskRunner(st)
 	hookMgr1, err := hookstate.Manager(st, runner1)
 	c.Assert(err, IsNil)
-	mgr1, err := devicestate.Manager(st, hookMgr1)
+	mgr1, err := devicestate.Manager(st, hookMgr1, runner1)
 	c.Assert(err, IsNil)
 
 	ok := false
@@ -2224,7 +2227,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	runner2 := state.NewTaskRunner(st)
 	hookMgr2, err := hookstate.Manager(st, runner2)
 	c.Assert(err, IsNil)
-	mgr2, err := devicestate.Manager(st, hookMgr2)
+	mgr2, err := devicestate.Manager(st, hookMgr2, runner2)
 	c.Assert(err, IsNil)
 
 	ok = false
