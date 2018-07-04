@@ -30,7 +30,7 @@ execute: |
     ( snap install --channel beta "$DEVMODE_SNAP" 2>&1 && exit 1 || true ) | MATCH -z "${expected// /[[:space:]]+}"
 
     echo "Install devmode snap from stable"
-    expected='error: snap "'"$DEVMODE_SNAP"'" not found in the given context.'
+    expected='error: snap "'"$DEVMODE_SNAP"'" is not available on stable but'
     #shellcheck disable=SC2015
     actual=$(snap install --devmode "$DEVMODE_SNAP" 2>&1 && exit 1 || true)
     echo "$actual" | grep -Pzq "$expected"
