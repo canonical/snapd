@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -323,13 +322,6 @@ func (s *deviceMgrSuite) findBecomeOperationalChange(skipIDs ...string) *state.C
 		}
 	}
 	return nil
-}
-
-func (s *deviceMgrSuite) TestKnownTaskKinds(c *C) {
-	c.Skip("becoming pointless")
-	kinds := s.mgr.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{"generate-device-key", "mark-seeded", "request-serial"})
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {

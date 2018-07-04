@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -160,13 +159,6 @@ func (s *hookManagerSuite) settle(c *C) {
 func (s *hookManagerSuite) TestSmoke(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
-}
-
-func (s *hookManagerSuite) TestKnownTaskKinds(c *C) {
-	c.Skip("becoming pointless")
-	kinds := s.manager.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{"configure-snapd", "run-hook"})
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {

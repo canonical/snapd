@@ -431,10 +431,6 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
-func (m *DeviceManager) KnownTaskKinds() []string {
-	return nil
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error

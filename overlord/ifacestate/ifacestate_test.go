@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -170,23 +169,6 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	s.manager(c)
 	s.se.Ensure()
 	s.se.Wait()
-}
-
-func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
-	c.Skip("becoming pointless")
-	mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.o.TaskRunner(), nil, nil)
-	c.Assert(err, IsNil)
-	kinds := mgr.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{
-		"auto-connect",
-		"connect",
-		"discard-conns",
-		"disconnect",
-		"gadget-connect",
-		"remove-profiles",
-		"setup-profiles",
-		"transition-ubuntu-core"})
 }
 
 func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {

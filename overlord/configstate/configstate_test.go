@@ -234,10 +234,6 @@ type witnessManager struct {
 	committed bool
 }
 
-func (m *witnessManager) KnownTaskKinds() []string {
-	return nil
-}
-
 func (wm *witnessManager) Ensure() error {
 	wm.state.Lock()
 	defer wm.state.Unlock()
