@@ -32,8 +32,9 @@ prepare: |
     EOF
 
 restore: |
-    # This snap is remove because it generates thousans of log lines in journalctl, causing next 
-    # tests receive those lines in the journal
+    # This snap is removed because it generates thousands of DENIALS in the journal. Most of those
+    # are sent after the journalctl cursor for following test is determined producing errors while
+    # preparing the test.
     snap remove network-bind-consumer
 
 execute: |
