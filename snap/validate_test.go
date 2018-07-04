@@ -1365,3 +1365,37 @@ apps:
 		}
 	}
 }
+
+func (s *validateSuite) TestValidatePlugSlotName(c *C) {
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+	}
+	for _, name := range validNames {
+		c.Assert(ValidatePlugName(name), IsNil)
+		c.Assert(ValidateSlotName(name), IsNil)
+		c.Assert(ValidateInterfaceName(name), IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	}
+	for _, name := range invalidNames {
+		c.Assert(ValidatePlugName(name), ErrorMatches, `invalid plug name: ".*"`)
+		c.Assert(ValidateSlotName(name), ErrorMatches, `invalid slot name: ".*"`)
+		c.Assert(ValidateInterfaceName(name), ErrorMatches, `invalid interface name: ".*"`)
+	}
+}

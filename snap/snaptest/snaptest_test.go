@@ -150,3 +150,51 @@ func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 	// They info object is not valid
 	c.Check(snap.Validate(snapInfo), ErrorMatches, `cannot have plug and slot with the same name: "network"`)
 }
+
+func (s *snapTestSuite) TestRenameSlot(c *C) {
+	snapInfo := snaptest.MockInfo(c, `name: core
+version: 0
+slots:
+  old:
+    interface: interface
+  slot:
+    interface: interface
+plugs:
+  plug:
+    interface: interface
+apps:
+  app:
+hooks:
+  configure:
+`, nil)
+
+	// Rename "old" to "plug"
+	err := snaptest.RenameSlot(snapInfo, "old", "plug")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "plug": existing plug with that name`)
+
+	// Rename "old" to "slot"
+	err = snaptest.RenameSlot(snapInfo, "old", "slot")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "slot": existing slot with that name`)
+
+	// Rename "old" to "bad name"
+	err = snaptest.RenameSlot(snapInfo, "old", "bad name")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "bad name": invalid slot name: "bad name"`)
+
+	// Rename "old" to "new"
+	err = snaptest.RenameSlot(snapInfo, "old", "new")
+	c.Assert(err, IsNil)
+
+	// Check that there's no trace of the old slot name.
+	c.Assert(snapInfo.Slots["old"], IsNil)
+	c.Assert(snapInfo.Slots["new"], NotNil)
+	c.Assert(snapInfo.Slots["new"].Name, Equals, "new")
+	c.Assert(snapInfo.Apps["app"].Slots["old"], IsNil)
+	c.Assert(snapInfo.Apps["app"].Slots["new"], DeepEquals, snapInfo.Slots["new"])
+	c.Assert(snapInfo.Hooks["configure"].Slots["old"], IsNil)
+	c.Assert(snapInfo.Hooks["configure"].Slots["new"], DeepEquals, snapInfo.Slots["new"])
+
+	// Rename "old" to "new" (again)
+	err = snaptest.RenameSlot(snapInfo, "old", "new")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "new": no such slot`)
+
+}
