@@ -771,6 +771,10 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 
 	task = ts.Tasks()[2]
 	c.Assert(task.Kind(), Equals, "disconnect")
+	var autoDisconnect bool
+	c.Assert(task.Get("automatic-disconnect", &autoDisconnect), Equals, state.ErrNoState)
+	c.Assert(autoDisconnect, Equals, false)
+
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
 	c.Assert(err, IsNil)
@@ -3123,6 +3127,11 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 	ht := t.HaltTasks()
 	c.Assert(ht, HasLen, 3)
+
+	c.Assert(ht[2].Kind(), Equals, "disconnect")
+	var autoDisconnect bool
+	c.Assert(ht[2].Get("automatic-disconnect", &autoDisconnect), IsNil)
+	c.Assert(autoDisconnect, Equals, true)
 
 	var expectedHooks = []struct{ snap, hook string }{
 		{snap: "producer", hook: "disconnect-slot-slot"},

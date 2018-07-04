@@ -2202,6 +2202,14 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 	c.Assert(chg2.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
+const otherSnapYaml = `name: other-snap
+version: 1.0
+apps:
+   baz:
+        command: bin/bar
+        plugs: [media-hub]
+`
+
 func (ms *mgrsSuite) TestUpdateManyWithAutoconnect(c *C) {
 	const someSnapYaml = `name: some-snap
 version: 1.0
@@ -2211,13 +2219,7 @@ apps:
         plugs: [network,home]
         slots: [media-hub]
 `
-	const otherSnapYaml = `name: other-snap
-version: 1.0
-apps:
-   baz:
-        command: bin/bar
-        plugs: [media-hub]
-`
+
 	const coreSnapYaml = `name: core
 type: os
 version: @VERSION@`
@@ -2332,21 +2334,15 @@ version: @VERSION@`
 	c.Assert(connections, HasLen, 3)
 }
 
-func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
-	const someSnapYaml = `name: some-snap
+const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
    foo:
         command: bin/bar
         slots: [media-hub]
 `
-	const otherSnapYaml = `name: other-snap
-version: 1.0
-apps:
-   baz:
-        command: bin/bar
-        plugs: [media-hub]
-`
+
+func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
 	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
 	ms.serveSnap(snapPath, "40")
 
@@ -2543,4 +2539,60 @@ apps:
 	c.Assert(plugHookCount, Equals, 1)
 	c.Assert(slotHookCount, Equals, 1)
 	c.Assert(disconnectInterfacesCount, Equals, 2)
+}
+
+func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+	}, nil, nil, nil)
+
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg := st.NewChange("uninstall", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections; auto-connection should be removed completely from conns on uninstall.
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, HasLen, 0)
 }
