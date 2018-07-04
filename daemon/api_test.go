@@ -600,6 +600,7 @@ UnitFileState=potatoes
 				ID:          "bar-id",
 				Username:    "bar",
 				DisplayName: "Bar",
+				Validation:  "unproven",
 			},
 			Status:      "active",
 			Icon:        "/v2/icons/foo/icon",
@@ -1495,6 +1496,7 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -1553,6 +1555,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1587,6 +1590,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
@@ -1615,6 +1619,7 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1701,6 +1706,7 @@ func (s *apiSuite) TestFindCommonID(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 		CommonIDs: []string{"org.foo"},
 	}}
@@ -1728,6 +1734,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "verified",
 		},
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
@@ -1752,6 +1759,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		"id":           "foo-id",
 		"username":     "foo",
 		"display-name": "Foo",
+		"validation":   "verified",
 	})
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
@@ -1813,6 +1821,7 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1857,6 +1866,7 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1894,6 +1904,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -1984,6 +1995,7 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -2028,6 +2040,7 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -2051,6 +2064,7 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
@@ -5213,7 +5227,7 @@ func (s *postCreateUserSuite) setupSigner(accountID string, signerPrivKey assert
 
 	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
 		"account-id":   accountID,
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	s.storeSigning.Add(signerAcct)
 	assertAdd(st, signerAcct)
@@ -6121,38 +6135,23 @@ func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
-func (s *apiSuite) TestSnapctlGetUID(c *check.C) {
-	var uid uint32
+func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	_ = s.daemon(c)
 
 	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
-		return 100, uid, dirs.SnapSocket, nil
+		return 100, 9999, dirs.SnapSocket, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
-	ctlcmdRun = func(*hookstate.Context, []string) ([]byte, []byte, error) {
-		return nil, nil, nil
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.ForbiddenCommandError{}
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
-	for _, t := range []struct {
-		uid uint32
-		cmd string
-		arg string
-
-		expectedCode int
-	}{
-		{1000, "get", "something", 200},
-		{0, "get", "something", 200},
-		{1000, "set", "some=thing", 403},
-		{0, "set", "some=thing", 200},
-	} {
-		uid = t.uid
-		buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, t.cmd, t.arg))
-		req, err := http.NewRequest("POST", "/v2/snapctl", buf)
-		c.Assert(err, check.IsNil)
-		rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
-		c.Assert(rsp.Status, check.Equals, t.expectedCode)
-	}
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 403)
 }
 
 var _ = check.Suite(&postDebugSuite{})
