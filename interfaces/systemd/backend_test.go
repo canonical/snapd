@@ -116,7 +116,6 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 			{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.foo.service"},
 			{"systemctl", "stop", "snap.samba.interface.foo.service"},
 			{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
-			{"systemctl", "daemon-reload"},
 		})
 	}
 }
