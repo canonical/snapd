@@ -59,7 +59,9 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	if _, ok := h.slots[slotSpec.Name]; ok {
 		return fmt.Errorf("slot %q already exists", slotSpec.Name)
 	}
-	// TODO: use ValidateName here (after moving to utils)
+	if err := utils.ValidateName(slotSpec.Name); err != nil {
+		return err
+	}
 	attrs := slotSpec.Attrs
 	if attrs == nil {
 		attrs = make(map[string]interface{})
