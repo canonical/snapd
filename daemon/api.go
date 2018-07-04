@@ -1908,6 +1908,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		repo := c.d.overlord.InterfaceManager().Repository()
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			ifacestate.RemapIncomingConnRef(st, connRef)
+			// NOTE: now we don't talk about "core" but about "snapd" snap, where applicable.
+			// This persists in the state through tasks but not in the connection state.
 			var ts *state.TaskSet
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
@@ -1924,6 +1927,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 				return InterfacesUnchanged("nothing to do")
 			}
 			for _, connRef := range conns {
+				ifacestate.RemapIncomingConnRef(st, connRef)
+				// NOTE: now we don't talk about "core" but about "snapd" snap, where applicable.
+				// This persists in the state through tasks but not in the connection state.
 				var ts *state.TaskSet
 				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 				if err != nil {

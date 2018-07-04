@@ -134,33 +134,6 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 	})
 }
 
-func (s *helpersSuite) TestRemapIncomingConnStrings(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// When "snapd" snap is present, incoming requests re-map "core" snap
-	// to "snapd" snap for interface connections.
-	restore := MockSnapdPresence(c, s.st, true)
-	defer restore()
-
-	plugSnap, plugName, slotSnap, slotName := "example", "network", "core", "network"
-	plugSnapX, plugNameX, slotSnapX, slotNameX := ifacestate.RemapIncomingConnStrings(s.st, plugSnap, plugName, slotSnap, slotName)
-	c.Assert(plugSnapX, Equals, "example")
-	c.Assert(plugNameX, Equals, "network")
-	c.Assert(slotSnapX, Equals, "snapd")
-	c.Assert(slotNameX, Equals, "network")
-
-	// When "snapd" snap is absent, requests are not changed in any way.
-	restore = MockSnapdPresence(c, s.st, false)
-	defer restore()
-
-	plugSnapX, plugNameX, slotSnapX, slotNameX = ifacestate.RemapIncomingConnStrings(s.st, plugSnap, plugName, slotSnap, slotName)
-	c.Assert(plugSnapX, Equals, "example")
-	c.Assert(plugNameX, Equals, "network")
-	c.Assert(slotSnapX, Equals, "core")
-	c.Assert(slotNameX, Equals, "network")
-}
-
 func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

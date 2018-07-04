@@ -426,7 +426,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		task.Set("old-conn", oldconn)
 	}
 
-	remapOutgoingConnRef(st, connRef)
 	conns[connRef.ID()] = connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
@@ -455,7 +454,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	cref := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
-	remapIncomingConnRef(st, cref)
 	conns, err := getConns(st)
 	if err != nil {
 		return err
@@ -490,7 +488,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	remapOutgoingConnRef(st, cref)
 	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil

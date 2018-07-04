@@ -33,9 +33,6 @@ var (
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
 	ConnectPriv               = connect
 	HasSnapdSnap              = hasSnapdSnap
-	RemapIncomingConnRef      = remapIncomingConnRef
-	RemapIncomingConnStrings  = remapIncomingConnStrings
-	RemapOutgoingConnRef      = remapOutgoingConnRef
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the

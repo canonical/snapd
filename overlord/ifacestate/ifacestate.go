@@ -135,8 +135,6 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 
 // Connect returns a set of tasks for connecting an interface.
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	plugSnap, plugName, slotSnap, slotName = remapIncomingConnStrings(st, plugSnap, plugName, slotSnap, slotName)
-
 	const auto = false
 	if err := checkConnectConflicts(st, plugSnap, slotSnap, auto); err != nil {
 		return nil, err
@@ -267,8 +265,6 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	plugSnap, plugName, slotSnap, slotName = remapIncomingConnStrings(st, plugSnap, plugName, slotSnap, slotName)
-
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
