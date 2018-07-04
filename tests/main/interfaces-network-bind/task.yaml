@@ -31,6 +31,11 @@ prepare: |
 
     EOF
 
+restore: |
+    # This snap is remove because it generates thousans of log lines in journalctl, causing next 
+    # tests receive those lines in the journal
+    snap remove network-bind-consumer
+
 execute: |
     echo "The interface is connected by default"
     snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"

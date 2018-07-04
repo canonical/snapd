@@ -14,9 +14,5 @@ execute: |
     echo "Then systemctl reports the status of the service as loaded, active and running"
     expected="(?s).*?Loaded: loaded .*?Active: active \(running\)"
     systemctl status $SERVICE_NAME | grep -Pqz "$expected"
-
 restore: |
     rm -f *.snap
-    # This snap is remove because it generates thousans of log lines in journalctl, causing next 
-    # tests receive those lines in the journal
-    snap remove network-bind-consumer

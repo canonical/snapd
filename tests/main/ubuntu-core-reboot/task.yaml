@@ -14,11 +14,6 @@ prepare: |
     install_local test-snapd-tools
     install_local network-bind-consumer
 
-restore: |
-    # This snap is remove because it generates thousans of log lines in journalctl, causing next 
-    # tests receive those lines in the journal
-    snap remove network-bind-consumer
-
 execute: |
     echo "Ensure snaps are (still) there."
     snap list | MATCH test-snapd-tools
