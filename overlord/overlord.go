@@ -138,7 +138,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(deviceMgr)
 
-	o.addManager(cmdstate.Manager(s))
+	o.addManager(cmdstate.Manager(s, o.runner))
 
 	configstateInit(hookMgr)
 
