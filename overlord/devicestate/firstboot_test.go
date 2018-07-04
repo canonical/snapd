@@ -595,7 +595,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	// situation
 	o := overlord.Mock()
 	st := o.State()
-	snapmgr, err := snapstate.Manager(st)
+	snapmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
 
@@ -606,15 +606,16 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
 
+	o.AddManager(o.TaskRunner())
+
 	chg := s.makeBecomeOperationalChange(c, st)
 
+	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
 	// under the subset of managers
 	for i := 0; i < 25 && !chg.IsReady(); i++ {
-		snapmgr.Ensure()
-		ifacemgr.Ensure()
-		snapmgr.Wait()
-		ifacemgr.Wait()
+		se.Ensure()
+		se.Wait()
 	}
 
 	st.Lock()

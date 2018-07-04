@@ -22,43 +22,16 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
 type discardSnapSuite struct {
-	state   *state.State
-	snapmgr *snapstate.SnapManager
-
-	fakeBackend *fakeSnappyBackend
-
-	reset func()
+	baseHandlerSuite
 }
 
 var _ = Suite(&discardSnapSuite{})
-
-func (s *discardSnapSuite) SetUpTest(c *C) {
-	// use fake root
-	dirs.SetRootDir(c.MkDir())
-
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
-
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
-}
-
-func (s *discardSnapSuite) TearDownTest(c *C) {
-	s.reset()
-}
 
 func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
@@ -81,8 +54,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -115,8 +88,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -147,8 +120,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -180,8 +153,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()

@@ -51,8 +51,6 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
-
-	runner *state.TaskRunner
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -298,13 +296,10 @@ func Store(st *state.State) StoreService {
 }
 
 // Manager returns a new snap manager.
-func Manager(st *state.State) (*SnapManager, error) {
-	runner := state.NewTaskRunner(st)
-
+func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	m := &SnapManager{
 		state:          st,
 		backend:        backend.Backend{},
-		runner:         runner,
 		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),
@@ -362,7 +357,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 
 	// control serialisation
-	runner.SetBlocked(m.blockedTask)
+	runner.AddBlocked(m.blockedTask)
 
 	writeSnapReadme()
 
@@ -543,8 +538,6 @@ func (m *SnapManager) Ensure() error {
 		m.catalogRefresh.Ensure(),
 	}
 
-	m.runner.Ensure()
-
 	//FIXME: use firstErr helper
 	for _, e := range errs {
 		if e != nil {
@@ -556,15 +549,14 @@ func (m *SnapManager) Ensure() error {
 }
 
 func (m *SnapManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	// XXX go away
+	return nil
 }
 
 // Wait implements StateManager.Wait.
 func (m *SnapManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
-	m.runner.Stop()
 }
