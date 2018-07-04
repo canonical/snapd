@@ -126,7 +126,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.runner, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +445,7 @@ func Mock() *Overlord {
 	o.stateEng = NewStateEngine(s)
 	o.runner = state.NewTaskRunner(s)
 	o.unknownMgr = NewUnknownTaskManager(s)
-	o.stateEng.AddManager(o.unknownMgr)
+	//o.stateEng.AddManager(o.unknownMgr)
 
 	return o
 }

@@ -18,10 +18,7 @@
 package ifacestate
 
 import (
-	"errors"
 	"time"
-
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -33,16 +30,6 @@ var (
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
 	ConnectPriv               = connect
 )
-
-// AddForeignTaskHandlers registers handlers for tasks handled outside of the
-// InterfaceManager.
-func AddForeignTaskHandlers(m *InterfaceManager) {
-	// Add handler to test full aborting of changes
-	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return errors.New("error out")
-	}
-	m.runner.AddHandler("error-trigger", erroringHandler, nil)
-}
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
 	old := removeStaleConnections
