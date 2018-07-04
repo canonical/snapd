@@ -130,6 +130,8 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
+		s.o.AddManager(s.o.TaskRunner())
+
 		// ensure the re-generation of security profiles did not
 		// confuse the tests
 		s.secBackend.SetupCalls = nil
@@ -139,7 +141,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 
 func (s *interfaceManagerSuite) hookManager(c *C) *hookstate.HookManager {
 	if s.privateHookMgr == nil {
-		mgr, err := hookstate.Manager(s.state)
+		mgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 		c.Assert(err, IsNil)
 		s.privateHookMgr = mgr
 		s.o.AddManager(mgr)

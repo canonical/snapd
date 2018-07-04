@@ -142,7 +142,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	hookMgr, err := hookstate.Manager(s.state)
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	mgr, err := devicestate.Manager(s.state, hookMgr)
 	c.Assert(err, IsNil)
@@ -152,6 +152,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.hookMgr)
 	s.mgr = mgr
 	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
@@ -2198,7 +2199,8 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	st := state.New(nil)
 
-	hookMgr1, err := hookstate.Manager(st)
+	runner1 := state.NewTaskRunner(st)
+	hookMgr1, err := hookstate.Manager(st, runner1)
 	c.Assert(err, IsNil)
 	mgr1, err := devicestate.Manager(st, hookMgr1)
 	c.Assert(err, IsNil)
@@ -2219,7 +2221,8 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	})
 	st.Unlock()
 
-	hookMgr2, err := hookstate.Manager(st)
+	runner2 := state.NewTaskRunner(st)
+	hookMgr2, err := hookstate.Manager(st, runner2)
 	c.Assert(err, IsNil)
 	mgr2, err := devicestate.Manager(st, hookMgr2)
 	c.Assert(err, IsNil)
