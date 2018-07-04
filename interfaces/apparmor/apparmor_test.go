@@ -56,7 +56,7 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
+	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
@@ -66,7 +66,7 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
-	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
+	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"})
 	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
 apparmor_parser output:
 `)
@@ -80,7 +80,7 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplaceWithSnapdDebug(c
 	defer os.Unsetenv("SNAPD_DEBUG")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
+	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
@@ -94,7 +94,7 @@ func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
 	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.UnloadProfile("snap.samba.smbd")
+	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--remove", "snap.samba.smbd"},
@@ -104,7 +104,7 @@ func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
 func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
-	err := apparmor.UnloadProfile("snap.samba.smbd")
+	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"})
 	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
 apparmor_parser output:
 `)
@@ -121,7 +121,7 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
 
 	fname := filepath.Join(dirs.AppArmorCacheDir, "profile")
 	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.UnloadProfile("profile")
+	err = apparmor.UnloadProfiles([]string{"profile"})
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)

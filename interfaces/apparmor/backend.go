@@ -165,8 +165,8 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot find system apparmor profile for snap-confine")
 	}
 
-	// We are not using apparmor.LoadProfile() because it uses other cache.
-	if err := loadProfile(profilePath, dirs.SystemApparmorCacheDir, skipReadCache); err != nil {
+	// We are not using apparmor.LoadProfiles() because it uses other cache.
+	if err := loadProfiles([]string{profilePath}, dirs.SystemApparmorCacheDir, skipReadCache); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
@@ -525,30 +525,25 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 }
 
 func reloadProfiles(profiles []string, profileDir, cacheDir string) error {
+	files := []string{}
 	for _, profile := range profiles {
-		err := loadProfile(filepath.Join(profileDir, profile), cacheDir, 0)
-		if err != nil {
-			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
-		}
+		files = append(files, filepath.Join(profileDir, profile))
+	}
+	err := loadProfiles(files, cacheDir, 0)
+	if err != nil {
+		return fmt.Errorf("cannot load apparmor profiles %q: %s", files, err)
 	}
 	return nil
 }
 
 func reloadChangedProfiles(profiles []string, profileDir, cacheDir string) error {
+	files := []string{}
 	for _, profile := range profiles {
-		err := loadProfile(filepath.Join(profileDir, profile), cacheDir, skipReadCache)
-		if err != nil {
-			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
-		}
+		files = append(files, filepath.Join(profileDir, profile))
 	}
-	return nil
-}
-
-func unloadProfiles(profiles []string, cacheDir string) error {
-	for _, profile := range profiles {
-		if err := unloadProfile(profile, cacheDir); err != nil {
-			return fmt.Errorf("cannot unload apparmor profile %q: %s", profile, err)
-		}
+	err := loadProfiles(files, cacheDir, skipReadCache)
+	if err != nil {
+		return fmt.Errorf("cannot load apparmor profiles %q: %s", files, err)
 	}
 	return nil
 }
