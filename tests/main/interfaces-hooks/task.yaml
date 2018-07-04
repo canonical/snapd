@@ -29,8 +29,8 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     remove_markers() {
-        rm -f $CONSUMER_DATA/*-plug-*done
-        rm -f $PRODUCER_DATA/*-slot-*done
+        rm -f "$CONSUMER_DATA"/*-plug-*done
+        rm -f "$PRODUCER_DATA"/*-slot-*done
     }
     check_attributes(){
         # static values should have the values defined in snap's yaml
@@ -89,7 +89,7 @@ execute: |
     [ -f "$PRODUCER_DATA/connect-slot-producer-done" ]
     [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
 
-    cat "$CONSUMER_DATA/unprepare-plug-consumer-done" | MATCH "plug-changed.consumer-value"
+    MATCH "plug-changed.consumer-value" < "$CONSUMER_DATA/unprepare-plug-consumer-done" 
 
     remove_markers
 
