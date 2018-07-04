@@ -15,7 +15,6 @@ restart_journalctl(){
 }
 
 start_new_journalctl_log(){
-    restart_journalctl
     echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
     cursor=$(get_last_journalctl_cursor)
     if [ -z "$cursor" ]; then
