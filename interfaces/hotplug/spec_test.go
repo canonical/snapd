@@ -51,6 +51,8 @@ func (s *hotplugSpecSuite) TestAddSlot(c *C) {
 		{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
 		{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}},
 	})
+
+	c.Assert(spec.AddSlot(&SlotSpec{Name: "---", Label: "A slot", Attrs: map[string]interface{}{}}), ErrorMatches, `invalid interface name: "---"`)
 }
 
 func (s *hotplugSpecSuite) TestAddSlotDuplicate(c *C) {
