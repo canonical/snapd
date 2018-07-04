@@ -218,6 +218,30 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (ovs *overlordSuite) TestUnknownTasks(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
+	// unknown tasks are ignored and succeed
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	t := st.NewTask("unknown", "...")
+	chg := st.NewChange("change-w-unknown", "...")
+	chg.AddTask(t)
+
+	st.Unlock()
+	err = o.Settle(1 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
 func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	restoreIntv := overlord.MockEnsureInterval(10 * time.Millisecond)
 	defer restoreIntv()
@@ -429,8 +453,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
-	// FIXME this isn't necessary
-	o.UnknownTaskManager().Ignore([]string{"foo"})
 
 	// create two changes, one that can be pruned now, one in progress
 	st := o.State()
