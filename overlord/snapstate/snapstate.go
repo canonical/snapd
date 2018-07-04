@@ -1509,7 +1509,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	if removeAll {
-		// run disconnect hooks; interfaces get disconnected at once by discard-conns task below
+		// run disconnect hooks
 		disconnect := st.NewTask("disconnect-interfaces", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.Name()))
 		disconnect.Set("snap-setup", snapsup)
 		if prev != nil {
