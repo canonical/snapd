@@ -93,10 +93,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
-func (m *InterfaceManager) KnownTaskKinds() []string {
-	return nil
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
 	return nil

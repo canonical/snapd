@@ -21,7 +21,6 @@ package cmdstate_test
 
 import (
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -81,13 +80,6 @@ func (s *cmdSuite) SetUpTest(c *check.C) {
 
 func (s *cmdSuite) TearDownTest(c *check.C) {
 	s.restore()
-}
-
-func (s *cmdSuite) TestKnownTaskKinds(c *check.C) {
-	c.Skip("becoming pointless")
-	kinds := s.manager.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, check.DeepEquals, []string{"exec-command"})
 }
 
 func (s *cmdSuite) TestExecTask(c *check.C) {

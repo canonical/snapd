@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"sort"
 	"testing"
 	"time"
 
@@ -129,13 +128,6 @@ func (s *assertMgrSuite) TestDB(c *C) {
 
 	db := assertstate.DB(s.state)
 	c.Check(db, FitsTypeOf, (*asserts.Database)(nil))
-}
-
-func (s *assertMgrSuite) TestKnownTaskKinds(c *C) {
-	c.Skip("becoming pointless")
-	kinds := s.mgr.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{"validate-snap"})
 }
 
 func (s *assertMgrSuite) TestAdd(c *C) {

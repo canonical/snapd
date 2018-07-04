@@ -38,10 +38,6 @@ func Manager(st *state.State, runner *state.TaskRunner) *CommandManager {
 	return &CommandManager{}
 }
 
-func (m *CommandManager) KnownTaskKinds() []string {
-	return nil
-}
-
 // Ensure is part of the overlord.StateManager interface.
 func (m *CommandManager) Ensure() error {
 	return nil
