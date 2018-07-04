@@ -52,6 +52,7 @@ func TestAssertManager(t *testing.T) { TestingT(t) }
 type assertMgrSuite struct {
 	o     *overlord.Overlord
 	state *state.State
+	se    *overlord.StateEngine
 	mgr   *assertstate.AssertManager
 
 	storeSigning *assertstest.StoreStack
@@ -102,10 +103,13 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
-	mgr, err := assertstate.Manager(s.state)
+	s.se = s.o.StateEngine()
+	mgr, err := assertstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.mgr = mgr
 	s.o.AddManager(s.mgr)
+
+	s.o.AddManager(s.o.TaskRunner())
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
@@ -128,6 +132,7 @@ func (s *assertMgrSuite) TestDB(c *C) {
 }
 
 func (s *assertMgrSuite) TestKnownTaskKinds(c *C) {
+	c.Skip("becoming pointless")
 	kinds := s.mgr.KnownTaskKinds()
 	sort.Strings(kinds)
 	c.Assert(kinds, DeepEquals, []string{"validate-snap"})
@@ -444,7 +449,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	defer s.mgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -482,7 +487,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	defer s.mgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -515,7 +520,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	defer s.mgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -569,7 +574,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	defer s.mgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
