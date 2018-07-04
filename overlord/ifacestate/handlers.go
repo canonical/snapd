@@ -496,7 +496,12 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	// store old connection for undo
 	task.Set("old-conn", conn)
 
-	if conn.Auto {
+	var autoDisconnect bool
+	if err := task.Get("automatic-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: failed to read 'automatic-disconnect' flag: %s", err)
+	}
+
+	if conn.Auto && !autoDisconnect {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
 		conn.DynamicSlotAttrs = nil
@@ -847,7 +852,10 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		if err != nil {
 			break
 		}
-		ts, err := disconnect(st, conn)
+		// "automatic-disconnect" flag indicates it's an automatically-triggered disconnect, in which
+		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
+		// them so they can be automatically connected if the snap is installed again.
+		ts, err := disconnect(st, conn, []string{"automatic-disconnect"})
 		if err != nil {
 			return err
 		}

@@ -321,10 +321,10 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 		return nil, err
 	}
 
-	return disconnect(st, conn)
+	return disconnect(st, conn, nil)
 }
 
-func disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
+func disconnect(st *state.State, conn *interfaces.Connection, flags []string) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
 	plugName := conn.Plug.Name()
@@ -335,6 +335,9 @@ func disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 	disconnectTask := st.NewTask("disconnect", summary)
 	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	for _, flag := range flags {
+		disconnectTask.Set(flag, true)
+	}
 
 	hooks, err := disconnectHooks(st, conn, nil)
 	if err != nil {
