@@ -319,7 +319,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 
 	st := d.overlord.State()
 	// adds an assertion db
-	assertstate.Manager(st)
+	assertstate.Manager(st, o.TaskRunner())
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)

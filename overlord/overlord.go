@@ -120,7 +120,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(snapMgr)
 
-	assertMgr, err := assertstate.Manager(s)
+	assertMgr, err := assertstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func New() (*Overlord, error) {
 
 	configstateInit(hookMgr)
 
-	// the shared task runner should be added last
+	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
 	o.unknownMgr.Ignore(o.runner.KnownTaskKinds())
 
