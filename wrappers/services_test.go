@@ -78,7 +78,6 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
-		{"daemon-reload"},
 	})
 
 	content, err := ioutil.ReadFile(svcFile)
@@ -104,9 +103,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
-	c.Assert(sysdLog, HasLen, 2)
+	c.Assert(sysdLog, HasLen, 1)
 	c.Check(sysdLog[0], DeepEquals, []string{"--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
-	c.Check(sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C) {
@@ -265,7 +263,6 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
 		c.Check(sysdLog, DeepEquals, [][]string{
 			{"--root", dirs.GlobalRootDir, "enable", "snap.hello-snap.svc1.service"},
 			{"--root", dirs.GlobalRootDir, "disable", "snap.hello-snap.svc1.service"},
-			{"daemon-reload"},
 		})
 	}
 }
@@ -325,7 +322,6 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
 		{"--root", dirs.GlobalRootDir, "enable", svc1Name},
 		{"--root", dirs.GlobalRootDir, "enable", svc2Name}, // this one fails
 		{"--root", dirs.GlobalRootDir, "disable", svc1Name},
-		{"daemon-reload"},
 	})
 }
 
@@ -340,9 +336,11 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	c.Check(svcFiles, HasLen, 0)
 
 	first := true
+	numCall := 0
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) < 2 {
+		numCall++
+		if numCall == 2 {
 			return nil, fmt.Errorf("failed")
 		}
 		if first {
@@ -371,11 +369,8 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	c.Check(svcFiles, HasLen, 0)
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", svc1Name},
-		{"--root", dirs.GlobalRootDir, "enable", svc2Name},
-		{"daemon-reload"}, // this one fails
+		{"--root", dirs.GlobalRootDir, "enable", svc2Name}, // This one fails
 		{"--root", dirs.GlobalRootDir, "disable", svc1Name},
-		{"--root", dirs.GlobalRootDir, "disable", svc2Name},
-		{"daemon-reload"}, // so does this one :-)
 	})
 }
 
@@ -667,7 +662,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
-		{"daemon-reload"},
 	})
 
 	sysdLog = nil
@@ -726,7 +720,6 @@ apps:
 		c.Assert(err, IsNil)
 		c.Check(sysdLog, DeepEquals, [][]string{
 			{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
-			{"daemon-reload"},
 		})
 
 		sysdLog = nil
@@ -874,9 +867,8 @@ func (s *servicesTestSuite) TestFailedAddSnapCleansUp(c *C) {
 
 	calls := 0
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if len(cmd) == 1 && cmd[0] == "daemon-reload" && calls == 0 {
-			// only fail the first systemd daemon-reload call, the
-			// second one is at the end of cleanup
+		if calls == 0 {
+			// Fail first systemctl call
 			calls += 1
 			return nil, fmt.Errorf("failed")
 		}
@@ -935,14 +927,16 @@ apps:
 		sysdLog = [][]string{}
 		err := wrappers.AddSnapServices(info, &progress.Null)
 		c.Assert(err, IsNil)
-		reloads := 0
-		c.Logf("calls: %v", sysdLog)
-		for _, call := range sysdLog {
-			if strutil.ListContains(call, "daemon-reload") {
-				reloads += 1
+		if info == onlyServices {
+			enabled := 0
+			c.Logf("calls: %v", sysdLog)
+			for _, call := range sysdLog {
+				if strutil.ListContains(call, "enable") {
+					enabled += 1
+				}
 			}
+			c.Check(enabled >= 1, Equals, true, Commentf("test-case %v did not enable services as expected", i))
 		}
-		c.Check(reloads >= 1, Equals, true, Commentf("test-case %v did not reload services as expected", i))
 	}
 }
 
@@ -983,10 +977,9 @@ apps:
 	// fix the apps order to make the test stable
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 2, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 1, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		// only svc3 gets started during boot
 		{"--root", dirs.GlobalRootDir, "enable", svc3Name},
-		{"daemon-reload"},
 	}, Commentf("calls: %v", sysdLog))
 }
