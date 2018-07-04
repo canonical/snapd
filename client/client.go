@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -387,7 +387,10 @@ const (
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
-	ErrorKindRevisionNotAvailable   = "snap-revision-not-available"
+
+	ErrorKindRevisionNotAvailable     = "snap-revision-not-available"
+	ErrorKindChannelNotAvailable      = "snap-channel-not-available"
+	ErrorKindArchitectureNotAvailable = "snap-architecture-not-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
