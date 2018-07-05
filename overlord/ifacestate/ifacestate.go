@@ -330,42 +330,41 @@ func disconnect(st *state.State, conn *interfaces.Connection, flags []string) (*
 	plugName := conn.Plug.Name()
 	slotName := conn.Slot.Name()
 
+	var plugSnapst, slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
+		return nil, err
+	}
+	if err := snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
+		return nil, err
+	}
+
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	disconnectTask := st.NewTask("disconnect", summary)
 	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+	disconnectTask.Set("slot-static", conn.Slot.StaticAttrs())
+	disconnectTask.Set("slot-dynamic", conn.Slot.DynamicAttrs())
+	disconnectTask.Set("plug-static", conn.Plug.StaticAttrs())
+	disconnectTask.Set("plug-dynamic", conn.Plug.DynamicAttrs())
+
 	for _, flag := range flags {
 		disconnectTask.Set(flag, true)
 	}
 
-	hooks, err := disconnectHooks(st, conn, nil)
-	if err != nil {
-		return nil, err
-	}
-	disconnectTask.WaitAll(hooks)
-
-	ts := state.NewTaskSet(hooks.Tasks()...)
-	ts.AddTask(disconnectTask)
-	return ts, nil
-}
-
-// disconnectHooks returns a set of tasks for running disconnect- hooks for an interface.
-func disconnectHooks(st *state.State, conn *interfaces.Connection, installedSnapTask *state.Task) (*state.TaskSet, error) {
-	plugSnap := conn.Plug.Snap().InstanceName()
-	slotSnap := conn.Slot.Snap().InstanceName()
-	plugName := conn.Plug.Name()
-	slotName := conn.Slot.Name()
-
 	ts := state.NewTaskSet()
 
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, slotSnap, &snapst); err != nil {
-		return nil, err
-	}
+	initialContext := make(map[string]interface{})
+	initialContext["attrs-task"] = disconnectTask.ID()
+
+	var disconnectSlot *state.Task
 
 	// do not run slot hooks if slotSnap is not active
-	if snapst.Active {
+	if slotSnapst.Active {
 		disconnectSlotHookSetup := &hookstate.HookSetup{
 			Snap:     slotSnap,
 			Hook:     "disconnect-slot-" + slotName,
@@ -378,17 +377,14 @@ func disconnectHooks(st *state.State, conn *interfaces.Connection, installedSnap
 		}
 
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
-		disconnectSlot := hookstate.HookTaskWithUndo(st, summary, disconnectSlotHookSetup, undoDisconnectSlotHookSetup, nil)
+		disconnectSlot = hookstate.HookTaskWithUndo(st, summary, disconnectSlotHookSetup, undoDisconnectSlotHookSetup, initialContext)
 
 		ts.AddTask(disconnectSlot)
-	}
-
-	if err := snapstate.Get(st, plugSnap, &snapst); err != nil {
-		return nil, err
+		disconnectTask.WaitFor(disconnectSlot)
 	}
 
 	// do not run plug hooks if slotSnap is not active
-	if snapst.Active {
+	if plugSnapst.Active {
 		disconnectPlugHookSetup := &hookstate.HookSetup{
 			Snap:     plugSnap,
 			Hook:     "disconnect-plug-" + plugName,
@@ -401,23 +397,18 @@ func disconnectHooks(st *state.State, conn *interfaces.Connection, installedSnap
 		}
 
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
-		disconnectPlug := hookstate.HookTaskWithUndo(st, summary, disconnectPlugHookSetup, undoDisconnectPlugHookSetup, nil)
+		disconnectPlug := hookstate.HookTaskWithUndo(st, summary, disconnectPlugHookSetup, undoDisconnectPlugHookSetup, initialContext)
 		disconnectPlug.WaitAll(ts)
 
+		if disconnectSlot != nil {
+			disconnectPlug.WaitFor(disconnectSlot)
+		}
+
 		ts.AddTask(disconnectPlug)
+		disconnectTask.WaitFor(disconnectPlug)
 	}
 
-	// expose plug/slot attributes to the hooks
-	for _, task := range ts.Tasks() {
-		task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-		task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-
-		task.Set("slot-static", conn.Slot.StaticAttrs())
-		task.Set("slot-dynamic", conn.Slot.DynamicAttrs())
-		task.Set("plug-static", conn.Plug.StaticAttrs())
-		task.Set("plug-dynamic", conn.Plug.DynamicAttrs())
-	}
-
+	ts.AddTask(disconnectTask)
 	return ts, nil
 }
 
