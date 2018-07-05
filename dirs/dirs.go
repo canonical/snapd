@@ -179,7 +179,7 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	if release.DistroLike("fedora", "archlinux", "manjaro") {
+	if release.DistroLike("fedora", "arch", "manjaro") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
