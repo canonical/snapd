@@ -34,12 +34,22 @@ type InterfaceManager struct {
 	state  *state.State
 	runner *state.TaskRunner
 	repo   *interfaces.Repository
+
+	// Flag indicating if implicit slots should be added to "snapd" snap. This
+	// is here because the interface manager is the only entity adding such
+	// slots and must ensure that: ubuntu-core -> core transition can run as
+	// before (both snaps have the implicit slots but that case is handled
+	// directly) and so that once "snapd" snap is installed only one snap in
+	// the system will hold implicit interfaces.
+	//
+	// This is set on startup of the interface manager, based on the presence
+	// of "snapd" snap in the state.
+	implicitSlotsOnSnapd bool
 }
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
-	delayedCrossMgrInit()
 
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
@@ -52,6 +62,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
+	delayedCrossMgrInit(m)
 
 	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err

@@ -104,8 +104,17 @@ func (m *InterfaceManager) addSnaps() error {
 	if err != nil {
 		return err
 	}
+	// Before adding any snap scan the set of snaps we know about. If any of
+	// those is snapd then for the duration of this process always add
+	// implicit slots to snapd and not to any other type: os snap.
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		if snapInfo.SnapName() == "snapd" {
+			m.implicitSlotsOnSnapd = true
+			break
+		}
+	}
+	for _, snapInfo := range snaps {
+		m.addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
@@ -134,7 +143,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	}
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		m.addImplicitSlots(snapInfo)
 	}
 
 	// For each snap:
@@ -253,16 +262,16 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if conn.Undesired {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(id)
+		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
 		}
-		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
+		if snapName != "" && cref.PlugRef.Snap != snapName && cref.SlotRef.Snap != snapName {
 			continue
 		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
+		if _, err := m.repo.Connect(cref, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
 			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
 				// Some versions of snapd may have left stray connections that
 				// don't have the corresponding plug or slot anymore. Before we
@@ -272,8 +281,8 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			}
 			logger.Noticef("%s", err)
 		} else {
-			affected[connRef.PlugRef.Snap] = true
-			affected[connRef.SlotRef.Snap] = true
+			affected[cref.PlugRef.Snap] = true
+			affected[cref.SlotRef.Snap] = true
 		}
 	}
 	result := make([]string, 0, len(affected))
@@ -457,7 +466,9 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 	return plugRef, slotRef, nil
 }
 
-// Get information about connections from the state
+// Get information about connections from the state.
+//
+// Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]connState, err error) {
 	err = st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
@@ -466,11 +477,33 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 	if conns == nil {
 		conns = make(map[string]connState)
 	}
-	return conns, nil
+	remapped := make(map[string]connState, len(conns))
+	for id, cstate := range conns {
+		cref, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return nil, err
+		}
+		RemapIncomingConnRef(st, cref)
+		remapped[cref.ID()] = cstate
+	}
+	return remapped, nil
 }
 
+// Set information about connections in the state.
+//
+// Connections are transparently re-mapped according to remapOutgoingConnRef
 func setConns(st *state.State, conns map[string]connState) {
-	st.Set("conns", conns)
+	remapped := make(map[string]connState, len(conns))
+	for id, cstate := range conns {
+		cref, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			// We cannot fail here
+			panic(err)
+		}
+		RemapOutgoingConnRef(st, cref)
+		remapped[cref.ID()] = cstate
+	}
+	st.Set("conns", remapped)
 }
 
 // snapsWithSecurityProfiles returns all snaps that have active
@@ -539,4 +572,33 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 		return "", err
 	}
 	return decl.SnapName(), nil
+}
+
+// remapIncomingConnRef potentially re-maps connection reference from an API request or being loaded from store.
+//
+// The operation done by remapIncomingConnRef must be symmetric with remapIncomingConnRef.
+// In practice the pair of functions are used to make "snapd" snap the host of implicit
+// interfaces and connections without altering the state in a backwards incompatible way.
+//
+// Data coming from the state and from API requests is changed so that slots on "core"
+// become slots on "snapd" (but only when "snapd" snap itself is being used). When
+// data is about to hit the state again it is re-mapped back.
+func RemapIncomingConnRef(st *state.State, cref *interfaces.ConnRef) {
+	if cref.SlotRef.Snap == "core" && hasSnapdSnap(st) {
+		cref.SlotRef.Snap = "snapd"
+	}
+}
+
+// remapIncomingConnRef potentially re-maps connection reference being saved to store.
+func RemapOutgoingConnRef(st *state.State, cref *interfaces.ConnRef) {
+	if cref.SlotRef.Snap == "snapd" && hasSnapdSnap(st) {
+		cref.SlotRef.Snap = "core"
+	}
+}
+
+// hasSnapdSnap returns true if there snapd snap is represented in the state.
+func hasSnapdSnap(st *state.State) bool {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapst)
+	return err == nil
 }

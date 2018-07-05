@@ -60,7 +60,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		addImplicitSlots(affectedSnapInfo)
+		m.addImplicitSlots(affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
@@ -102,7 +102,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
-	addImplicitSlots(snapInfo)
+	m.addImplicitSlots(snapInfo)
 	snapName := snapInfo.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
@@ -452,6 +452,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	cref := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	conns, err := getConns(st)
 	if err != nil {
@@ -459,7 +460,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var snapStates []snapstate.SnapState
-	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
+	for _, snapName := range []string{cref.PlugRef.Snap, cref.SlotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
 			if err == state.ErrNoState {
@@ -472,7 +473,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	err = m.repo.Disconnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 	if err != nil {
 		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 	}
@@ -487,7 +488,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
@@ -721,7 +721,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto"})
+		ts, err := m.connect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto"})
 		if err != nil {
 			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
@@ -770,7 +770,7 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 
 	// The reloadConnections() just modifies the repository object, it
 	// has no effect on the running system, i.e. no security profiles
-	// on disk are rewriten. This is ok because core/ubuntu-core have
+	// on disk are rewritten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the slot-name encoded.
 	if _, err := m.reloadConnections(oldName); err != nil {
@@ -877,7 +877,7 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-gadget"})
+		ts, err := m.connect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-gadget"})
 		if err != nil {
 			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
 		}
