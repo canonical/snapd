@@ -82,7 +82,6 @@ backends:
                 workers: 4
                 manual: true
             - fedora-28-64:
-                image: fedora-28-64-selinux-permissive
                 workers: 4
 
             - opensuse-42.3-64:
