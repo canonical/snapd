@@ -1,0 +1,9 @@
+summary: Verify paths are correctly reported
+
+execute: |
+    # shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    snap debug paths | MATCH "^snap-mount-dir:\s+${SNAP_MOUNT_DIR}$"
+    snap debug paths | MATCH "^snap-bin-dir:\s+${SNAP_MOUNT_DIR}/bin$"
+    snap debug paths | MATCH "^distro-libexec:\s+${LIBEXECDIR}/snapd$"
