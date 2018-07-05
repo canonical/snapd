@@ -143,12 +143,12 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.SnapMountDir, "core/2"),
+			path:  filepath.Join(dirs.SnapMountDir, "core/2"),
 			stype: "os",
 		},
 	})
@@ -201,12 +201,12 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.SnapMountDir, "borken/2"),
+			path:  filepath.Join(dirs.SnapMountDir, "borken/2"),
 			stype: "app",
 		},
 	})
@@ -261,12 +261,12 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
+			path:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
 			stype: "app",
 		},
 	})
@@ -335,7 +335,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 	})

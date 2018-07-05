@@ -24,7 +24,13 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/snap"
 )
+
+// Definer can be implemented by interfaces that need to create slots in response to hotplug events
+type Definer interface {
+	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
+}
 
 // SlotSpec is a definition of the slot to create in response to udev event.
 type SlotSpec struct {
@@ -54,7 +60,9 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	if _, ok := h.slots[slotSpec.Name]; ok {
 		return fmt.Errorf("slot %q already exists", slotSpec.Name)
 	}
-	// TODO: use ValidateName here (after moving to utils)
+	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
+		return err
+	}
 	attrs := slotSpec.Attrs
 	if attrs == nil {
 		attrs = make(map[string]interface{})
