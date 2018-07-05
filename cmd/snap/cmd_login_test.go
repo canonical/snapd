@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -58,9 +57,11 @@ func (s *SnapSuite) TestLoginSimple(c *C) {
 	rest, err := snap.Parser().ParseArgs([]string{"login", "foo@example.com"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(strings.HasSuffix(s.Stdout(), `Password of "foo@example.com": 
+	c.Check(s.Stdout(), Equals, `Personal information is handled as per our privacy notice at https://www.ubuntu.com/legal/dataprivacy/snap-store
+
+Password of "foo@example.com": 
 Login successful
-`), Equals, true)
+`)
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
 }
@@ -80,9 +81,11 @@ func (s *SnapSuite) TestLoginAskEmail(c *C) {
 	// test slightly ugly, on a real system STDOUT will be:
 	//    Email address: foo@example.com\n
 	// because the input to stdin is echoed
-	c.Check(strings.HasSuffix(s.Stdout(), `Email address: Password of "foo@example.com": 
+	c.Check(s.Stdout(), Equals, `Personal information is handled as per our privacy notice at https://www.ubuntu.com/legal/dataprivacy/snap-store
+
+Email address: Password of "foo@example.com": 
 Login successful
-`), Equals, true)
+`)
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
 }
