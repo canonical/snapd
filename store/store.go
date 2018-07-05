@@ -1992,6 +1992,11 @@ type snapActionJSON struct {
 	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
 }
 
+type snapRelease struct {
+	Architecture string `json:"architecture"`
+	Channel      string `json:"channel"`
+}
+
 type snapActionResult struct {
 	Result           string    `json:"result"`
 	InstanceKey      string    `json:"instance-key"`
@@ -2002,6 +2007,9 @@ type snapActionResult struct {
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+		Extra   struct {
+			Releases []snapRelease `json:"releases"`
+		} `json:"extra"`
 	} `json:"error"`
 }
 
@@ -2103,8 +2111,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	installNum := 0
 	downloadNum := 0
-	installKeys := make(map[string]bool, len(actions))
-	downloadKeys := make(map[string]bool, len(actions))
+	installs := make(map[string]*SnapAction, len(actions))
+	downloads := make(map[string]*SnapAction, len(actions))
+	refreshes := make(map[string]*SnapAction, len(actions))
 	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
 		if !isValidAction(a.Action) {
@@ -2121,19 +2130,19 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := a.SnapID
-		if a.Action == "install" || a.Action == "download" {
-			if !a.Revision.Unset() {
-				a.Channel = ""
-			}
-			if a.Action == "install" {
-				installNum++
-				instanceKey = fmt.Sprintf("install-%d", installNum)
-				installKeys[instanceKey] = true
-			} else {
-				downloadNum++
-				instanceKey = fmt.Sprintf("download-%d", downloadNum)
-				downloadKeys[instanceKey] = true
-			}
+		if !a.Revision.Unset() {
+			a.Channel = ""
+		}
+		if a.Action == "install" {
+			installNum++
+			instanceKey = fmt.Sprintf("install-%d", installNum)
+			installs[instanceKey] = a
+		} else if a.Action == "download" {
+			downloadNum++
+			instanceKey = fmt.Sprintf("download-%d", downloadNum)
+			downloads[instanceKey] = a
+		} else {
+			refreshes[instanceKey] = a
 		}
 
 		// TODO parallel-install: use of proper instance/store name
@@ -2197,23 +2206,28 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	var snaps []*snap.Info
 	for _, res := range results.Results {
 		if res.Result == "error" {
-			if installKeys[res.InstanceKey] {
+			if a := installs[res.InstanceKey]; a != nil {
 				if res.Name != "" {
-					installErrors[res.Name] = translateSnapActionError("install", res.Error.Code, res.Error.Message)
+					installErrors[res.Name] = translateSnapActionError("install", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
-			} else if downloadKeys[res.InstanceKey] {
+			} else if a := downloads[res.InstanceKey]; a != nil {
 				if res.Name != "" {
-					downloadErrors[res.Name] = translateSnapActionError("download", res.Error.Code, res.Error.Message)
+					downloadErrors[res.Name] = translateSnapActionError("download", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			} else {
 				if cur := curSnaps[res.InstanceKey]; cur != nil {
-					refreshErrors[cur.Name] = translateSnapActionError("refresh", res.Error.Code, res.Error.Message)
+					a := refreshes[res.InstanceKey]
+					channel := a.Channel
+					if channel == "" && a.Revision.Unset() {
+						channel = cur.TrackingChannel
+					}
+					refreshErrors[cur.Name] = translateSnapActionError("refresh", channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			}
-			otherErrors = append(otherErrors, translateSnapActionError("-", res.Error.Code, res.Error.Message))
+			otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, res.Error.Message, nil))
 			continue
 		}
 		snapInfo, err := infoFromStoreSnap(&res.Snap)
@@ -2236,7 +2250,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	for _, errObj := range results.ErrorList {
-		otherErrors = append(otherErrors, translateSnapActionError("-", errObj.Code, errObj.Message))
+		otherErrors = append(otherErrors, translateSnapActionError("", "", errObj.Code, errObj.Message, nil))
 	}
 
 	if len(refreshErrors)+len(installErrors)+len(downloadErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
