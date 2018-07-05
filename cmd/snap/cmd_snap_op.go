@@ -338,30 +338,32 @@ type cmdInstall struct {
 
 	Unaliased bool `long:"unaliased"`
 
-	Instance string `long:"instance" hidden:"yes"`
+	Name string `long:"name" hidden:"yes"`
 
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
+func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.SnapOptions) error {
 	var err error
-	var installFromFile bool
 	var changeID string
+	var snapName string
+	var path string
 
 	cli := Client()
-	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-		installFromFile = true
-		changeID, err = cli.InstallPath(name, opts)
+	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".snap") || strings.Contains(nameOrPath, ".snap.") {
+		path = nameOrPath
+		changeID, err = cli.InstallPath(path, x.Name, opts)
 	} else {
-		if opts.Instance != "" {
-			return errors.New(i18n.G("cannot use instance name when installing from store"))
+		snapName = nameOrPath
+		if desiredName != "" {
+			return errors.New(i18n.G("cannot use explicit name when installing from store"))
 		}
-		changeID, err = cli.Install(name, opts)
+		changeID, err = cli.Install(snapName, opts)
 	}
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(nameOrPath, err, opts)
 		if err != nil {
 			return err
 		}
@@ -378,16 +380,13 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	}
 
 	// extract the snapName from the change, important for sideloaded
-	var snapName string
-
-	if installFromFile {
+	if path != "" {
 		if err := chg.Get("snap-name", &snapName); err != nil {
-			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", nameOrPath, err)
 		}
-		name = snapName
 	}
 
-	return showDone([]string{name}, "install")
+	return showDone([]string{snapName}, "install")
 }
 
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
@@ -462,20 +461,19 @@ func (x *cmdInstall) Execute([]string) error {
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 		Unaliased: x.Unaliased,
-		Instance:  x.Instance,
 	}
 	x.setModes(opts)
 
 	names := remoteSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
-		return x.installOne(names[0], opts)
+		return x.installOne(names[0], x.Name, opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
-	if x.Instance != "" {
+	if x.Name != "" {
 		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))
 	}
 	return x.installMany(names, nil)
@@ -906,7 +904,7 @@ func init() {
 			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
 			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
-			"instance":        i18n.G("Install the snap file as given snap instance"),
+			"name":            i18n.G("Install the snap file under given snap name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{

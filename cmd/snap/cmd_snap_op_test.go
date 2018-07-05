@@ -486,7 +486,7 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	err := ioutil.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath, "--instance", "foo_bar"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from 'bar' installed`)
@@ -496,12 +496,12 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 }
 
 func (s *SnapSuite) TestInstallWithInstanceNoPath(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"install", "--instance", "foo_bar", "some-snap"})
-	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing from store")
+	_, err := snap.Parser().ParseArgs([]string{"install", "--name", "foo_bar", "some-snap"})
+	c.Assert(err, check.ErrorMatches, "cannot use explicit name when installing from store")
 }
 
 func (s *SnapSuite) TestInstallManyWithInstance(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"install", "--instance", "foo_bar", "some-snap-1", "some-snap-2"})
+	_, err := snap.Parser().ParseArgs([]string{"install", "--name", "foo_bar", "some-snap-1", "some-snap-2"})
 	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing multiple snaps")
 }
 
