@@ -10,7 +10,12 @@ make_snap() {
     if [ ! -f "$SNAP_FILE" ]; then
         snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
     fi
-    echo "$SNAP_FILE"
+    # echo the snap name
+    if [ -f "$SNAP_FILE" ]; then
+        echo "$SNAP_FILE"
+    else
+        find "$TESTSLIB/snaps/${SNAP_NAME}" -name *.snap | head -n1
+    fi
 }
 
 install_local() {

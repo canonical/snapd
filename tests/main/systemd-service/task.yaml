@@ -1,13 +1,13 @@
 summary: Check that a service installed by a snap is reported as active by systemd
 
 environment:
-    SERVICE_NAME: snap.test-snapd-service-try.service.service
+    SERVICE_NAME: snap.test-snapd-service.test-snapd-service.service
 
 execute: |
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a service snap is installed"
-    install_local test-snapd-service-try-v2
+    install_local test-snapd-service
 
     echo "When the service state is reported as active"
     while ! systemctl show -p ActiveState $SERVICE_NAME | grep -Pq "ActiveState=active"; do sleep 0.5; done
