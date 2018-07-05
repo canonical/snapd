@@ -600,6 +600,7 @@ UnitFileState=potatoes
 				ID:          "bar-id",
 				Username:    "bar",
 				DisplayName: "Bar",
+				Validation:  "unproven",
 			},
 			Status:      "active",
 			Icon:        "/v2/icons/foo/icon",
@@ -1495,6 +1496,7 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -1553,6 +1555,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1587,6 +1590,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
@@ -1615,6 +1619,7 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1701,6 +1706,7 @@ func (s *apiSuite) TestFindCommonID(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 		CommonIDs: []string{"org.foo"},
 	}}
@@ -1728,6 +1734,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "verified",
 		},
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
@@ -1752,6 +1759,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		"id":           "foo-id",
 		"username":     "foo",
 		"display-name": "Foo",
+		"validation":   "verified",
 	})
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
@@ -1813,6 +1821,7 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1857,6 +1866,7 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 
@@ -1894,6 +1904,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -1984,6 +1995,7 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -2028,6 +2040,7 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -2051,6 +2064,7 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 			ID:          "foo-id",
 			Username:    "foo",
 			DisplayName: "Foo",
+			Validation:  "unproven",
 		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
