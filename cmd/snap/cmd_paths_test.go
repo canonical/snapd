@@ -36,9 +36,9 @@ func (s *SnapSuite) TestPathsUbuntu(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap-mount-dir:  /snap\n"+
-		"snap-bin-dir:    /snap/bin\n"+
-		"distro-libexec:  /usr/lib/snapd\n")
+		"SNAPD_MOUNT=/snap\n"+
+		"SNAPD_BIN=/snap/bin\n"+
+		"SNAPD_LIBEXEC=/usr/lib/snapd\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -51,9 +51,9 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap-mount-dir:  /var/lib/snapd/snap\n"+
-		"snap-bin-dir:    /var/lib/snapd/snap/bin\n"+
-		"distro-libexec:  /usr/libexec/snapd\n")
+		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
+		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+
+		"SNAPD_LIBEXEC=/usr/libexec/snapd\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -66,8 +66,8 @@ func (s *SnapSuite) TestPathsArch(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap-mount-dir:  /var/lib/snapd/snap\n"+
-		"snap-bin-dir:    /var/lib/snapd/snap/bin\n"+
-		"distro-libexec:  /usr/lib/snapd\n")
+		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
+		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+
+		"SNAPD_LIBEXEC=/usr/lib/snapd\n")
 	c.Assert(s.Stderr(), Equals, "")
 }

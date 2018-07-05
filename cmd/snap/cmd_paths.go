@@ -54,11 +54,11 @@ func (cmd cmdPaths) Execute(args []string) error {
 		name string
 		path string
 	}{
-		{"snap-mount-dir", dirs.SnapMountDir},
-		{"snap-bin-dir", dirs.SnapBinariesDir},
-		{"distro-libexec", dirs.DistroLibExecDir},
+		{"SNAPD_MOUNT", dirs.SnapMountDir},
+		{"SNAPD_BIN", dirs.SnapBinariesDir},
+		{"SNAPD_LIBEXEC", dirs.DistroLibExecDir},
 	} {
-		fmt.Fprintf(w, "%s:\t%s\n", p.name, p.path)
+		fmt.Fprintf(w, "%s=%s\n", p.name, p.path)
 	}
 
 	return nil
