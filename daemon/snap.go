@@ -65,6 +65,7 @@ func publisherAccount(st *state.State, info *snap.Info) (*snap.StoreAccount, err
 		ID:          pubAcct.AccountID(),
 		Username:    pubAcct.Username(),
 		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
 	}, nil
 }
 

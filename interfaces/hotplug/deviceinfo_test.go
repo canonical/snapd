@@ -58,12 +58,12 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 		"TYPE": "0/0/0", "BUSNUM": "002",
 	}
 
-	di := NewHotplugDeviceInfo("/devices/pci0000:00/0000:00:14.0/usb2/2-3", env)
+	di, err := NewHotplugDeviceInfo(env)
+	c.Assert(err, IsNil)
 
-	c.Assert(di.Object(), Equals, "/devices/pci0000:00/0000:00:14.0/usb2/2-3")
 	c.Assert(di.DeviceName(), Equals, "bus/usb/002/003")
 	c.Assert(di.DeviceType(), Equals, "usb_device")
-	c.Assert(di.Path(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
+	c.Assert(di.DevicePath(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
 	c.Assert(di.Subsystem(), Equals, "usb")
 	c.Assert(di.Major(), Equals, "189")
 	c.Assert(di.Minor(), Equals, "130")
@@ -82,12 +82,16 @@ func (s *hotplugSuite) TestPropertiesMissing(c *C) {
 		"ACTION":  "add", "SUBSYSTEM": "usb",
 	}
 
-	di := NewHotplugDeviceInfo("/devices/pci0000:00/0000:00:14.0/usb2/2-3", env)
+	di, err := NewHotplugDeviceInfo(map[string]string{})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `missing device path attribute`)
 
-	c.Assert(di.Object(), Equals, "/devices/pci0000:00/0000:00:14.0/usb2/2-3")
+	di, err = NewHotplugDeviceInfo(env)
+	c.Assert(err, IsNil)
+
 	c.Assert(di.DeviceName(), Equals, "")
 	c.Assert(di.DeviceType(), Equals, "")
-	c.Assert(di.Path(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
+	c.Assert(di.DevicePath(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
 	c.Assert(di.Subsystem(), Equals, "usb")
 	c.Assert(di.Major(), Equals, "")
 	c.Assert(di.Minor(), Equals, "")

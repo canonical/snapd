@@ -19,11 +19,6 @@
 
 package utils
 
-import (
-	"fmt"
-	"regexp"
-)
-
 // NormalizeInterfaceAttributes normalises types of an attribute values.
 // The following transformations are applied: int -> int64, float32 -> float64.
 // The normalisation proceeds recursively through maps and slices.
@@ -69,16 +64,4 @@ func copyRecursive(value interface{}) interface{} {
 		return mp
 	}
 	return value
-}
-
-// Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
-
-// ValidateName checks if a string can be used as a plug or slot name.
-func ValidateName(name string) error {
-	valid := validName.MatchString(name)
-	if !valid {
-		return fmt.Errorf("invalid interface name: %q", name)
-	}
-	return nil
 }
