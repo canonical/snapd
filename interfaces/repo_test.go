@@ -775,7 +775,7 @@ func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
 
 // Tests for Repository.ResolveDisconnect()
 
-// All the was to resolve a 'snap disconnect' between two snaps.
+// All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps are not installed though.
 func (s *RepositorySuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 	scenarios := []struct {
@@ -845,7 +845,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 	}
 }
 
-// All the was to resolve a 'snap disconnect' between two snaps.
+// All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps are not installed though but a snapd snap is.
 func (s *RepositorySuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
 	// Rename the "slot" from the snapd snap so that it is not picked up below.
@@ -917,7 +917,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
 	}
 }
 
-// All the was to resolve a 'snap disconnect' between two snaps.
+// All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps are not installed though but a core snap is.
 func (s *RepositorySuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 	// Rename the "slot" from the core snap so that it is not picked up below.
@@ -989,7 +989,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 	}
 }
 
-// All the was to resolve a 'snap disconnect' between two snaps.
+// All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps as well as the core snap are installed.
 // The snaps are not connected.
 func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
@@ -1069,7 +1069,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
 	}
 }
 
-// All the was to resolve a 'snap disconnect' between two snaps.
+// All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps as well as the core snap are installed.
 // The snaps are connected.
 func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
