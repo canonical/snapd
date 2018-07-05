@@ -37,17 +37,17 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// LoadProfile loads apparmor profiles from the given files.
+// LoadProfiles loads apparmor profiles from the given files.
 //
-// If no such profile was previously loaded then it is simply added to the kernel.
-// If there was a profile with the same name before, that profile is replaced.
+// If no such profiles were previously loaded then they are simply added to the kernel.
+// If there were some profiles with the same name before, those profiles are replaced.
 func LoadProfiles(fnames []string) error {
 	return loadProfiles(fnames, dirs.AppArmorCacheDir, 0)
 }
 
-// UnloadProfile removes the named profile from the running kernel.
+// UnloadProfiles removes the named profiles from the running kernel.
 //
-// The operation is done with: apparmor_parser --remove $name
+// The operation is done with: apparmor_parser --remove $names...
 // The binary cache file is removed from /var/cache/apparmor
 func UnloadProfiles(names []string) error {
 	return unloadProfiles(names, dirs.AppArmorCacheDir)
@@ -82,16 +82,19 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 
 	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
 	if err != nil {
-		if len(fnames) > 1 {
-			// Revert possibly applied profiles. Note that this will always return
-			// an error as at least one of the profiles could not be loaded. We do
-			// not log it as this is anyway a paliative solution.
-			args := []string{"--remove"}
-			args = append(args, fnames...)
-			exec.Command("apparmor_parser", args...).Run()
-		}
-		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s",
-			err, string(output))
+		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
+	}
+	return nil
+}
+
+func reloadProfiles(profiles []string, profileDir, cacheDir string) error {
+	files := make([]string, len(profiles))
+	for i, profile := range profiles {
+		files[i] = filepath.Join(profileDir, profile)
+	}
+	err := loadProfiles(files, cacheDir)
+	if err != nil {
+		return fmt.Errorf("cannot load apparmor profiles %q: %s", files, err)
 	}
 	return nil
 }
