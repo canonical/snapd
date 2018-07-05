@@ -31,12 +31,6 @@ prepare: |
 
     EOF
 
-restore: |
-    # This snap is removed because it generates thousands of DENIALS in the journal. Most of those
-    # are sent after the journalctl cursor for following test is determined producing errors while
-    # preparing the test.
-    snap remove network-bind-consumer
-
 execute: |
     echo "The interface is connected by default"
     snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"
