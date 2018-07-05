@@ -149,6 +149,7 @@ func showSections() error {
 
 type cmdFind struct {
 	Private    bool        `long:"private"`
+	Narrow     bool        `long:"narrow"`
 	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified"`
 	Positional struct {
 		Query string
@@ -160,6 +161,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
+		"narrow":  i18n.G("Only search for snaps in 'stable' and for the current architecture"),
 		"section": i18n.G("Restrict the search to a given section"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
@@ -220,6 +222,11 @@ func (x *cmdFind) Execute(args []string) error {
 		Section: string(x.Section),
 		Query:   x.Positional.Query,
 	}
+
+	if !x.Narrow {
+		opts.Scope = "wide"
+	}
+
 	snaps, resInfo, err := cli.Find(opts)
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
 		logger.Debugf("cannot list snaps: %v", e)
