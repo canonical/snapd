@@ -113,7 +113,7 @@ func (x *cmdLogin) Execute(args []string) error {
 
 	//TRANSLATORS: after the "... at" follows a URL in the next line
 	fmt.Fprint(Stdout, i18n.G("Personal information is handled as per our privacy notice at\n"))
-	fmt.Fprintf(Stdout, "https://www.ubuntu.com/legal/dataprivacy/snap-store\n\n")
+	fmt.Fprint(Stdout, "https://www.ubuntu.com/legal/dataprivacy/snap-store\n\n")
 
 	email := x.Positional.Email
 	if email == "" {
