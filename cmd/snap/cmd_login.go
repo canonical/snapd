@@ -111,7 +111,7 @@ func (x *cmdLogin) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	fmt.Fprint(Stdout, i18n.G("Authenticated operation on this device will be under terms of service found at: https://www.ubuntu.com/legal/<some-snap-store-url>")+"\n\n")
+	fmt.Fprint(Stdout, i18n.G("Authenticated operation on this device will be under terms of service found at: https://www.ubuntu.com/legal/dataprivacy/snap-store")+"\n\n")
 
 	email := x.Positional.Email
 	if email == "" {
