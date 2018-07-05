@@ -58,9 +58,10 @@ type snapDetails struct {
 	Type    snap.Type       `json:"content,omitempty"`
 	Version string          `json:"version"`
 
-	Developer     string `json:"origin"`
-	DeveloperID   string `json:"developer_id"`
-	DeveloperName string `json:"developer_name"`
+	Developer           string `json:"origin"`
+	DeveloperID         string `json:"developer_id"`
+	DeveloperName       string `json:"developer_name"`
+	DeveloperValidation string `json:"developer_validation"`
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
@@ -92,6 +93,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 		ID:          d.DeveloperID,
 		Username:    d.Developer,
 		DisplayName: d.DeveloperName,
+		Validation:  d.DeveloperValidation,
 	}
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
