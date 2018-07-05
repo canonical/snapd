@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Definer can be implemented by interfaces that need to create slots in response to hotplug events
@@ -59,7 +60,7 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	if _, ok := h.slots[slotSpec.Name]; ok {
 		return fmt.Errorf("slot %q already exists", slotSpec.Name)
 	}
-	if err := utils.ValidateName(slotSpec.Name); err != nil {
+	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
 		return err
 	}
 	attrs := slotSpec.Attrs
