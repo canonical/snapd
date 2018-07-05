@@ -1,12 +1,13 @@
 summary: Check that a service installed by a snap is reported as active by systemd
 
 environment:
-    SERVICE_NAME: snap.network-bind-consumer.network-consumer.service
+    SERVICE_NAME: snap.test-snapd-service-try.service.service
 
 execute: |
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a service snap is installed"
-    snap pack $TESTSLIB/snaps/network-bind-consumer
-    snap install --dangerous network-bind-consumer_1.0_all.snap
+    install_local test-snapd-service-try-v2
 
     echo "When the service state is reported as active"
     while ! systemctl show -p ActiveState $SERVICE_NAME | grep -Pq "ActiveState=active"; do sleep 0.5; done
@@ -14,5 +15,6 @@ execute: |
     echo "Then systemctl reports the status of the service as loaded, active and running"
     expected="(?s).*?Loaded: loaded .*?Active: active \(running\)"
     systemctl status $SERVICE_NAME | grep -Pqz "$expected"
+
 restore: |
     rm -f *.snap
