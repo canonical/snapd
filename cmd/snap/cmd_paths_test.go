@@ -58,7 +58,7 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 }
 
 func (s *SnapSuite) TestPathsArch(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{IDLike: []string{"archlinux"}})
+	restore := release.MockReleaseInfo(&release.OS{IDLike: []string{"arch"}})
 	defer restore()
 	defer dirs.SetRootDir("/")
 
