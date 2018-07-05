@@ -388,12 +388,11 @@ EOF
         extra_snap=("$IMAGE_HOME"/core_*.snap)
     fi
 
-    # shellcheck disable=SC2128
     # extra_snap should contain only ONE snap
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "$extra_snap" \
+                           --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
 
