@@ -58,7 +58,8 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 		"TYPE": "0/0/0", "BUSNUM": "002",
 	}
 
-	di := NewHotplugDeviceInfo(env)
+	di, err := NewHotplugDeviceInfo(env)
+	c.Assert(err, IsNil)
 
 	c.Assert(di.DeviceName(), Equals, "bus/usb/002/003")
 	c.Assert(di.DeviceType(), Equals, "usb_device")
@@ -81,7 +82,12 @@ func (s *hotplugSuite) TestPropertiesMissing(c *C) {
 		"ACTION":  "add", "SUBSYSTEM": "usb",
 	}
 
-	di := NewHotplugDeviceInfo(env)
+	di, err := NewHotplugDeviceInfo(map[string]string{})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `missing device path attribute`)
+
+	di, err = NewHotplugDeviceInfo(env)
+	c.Assert(err, IsNil)
 
 	c.Assert(di.DeviceName(), Equals, "")
 	c.Assert(di.DeviceType(), Equals, "")
