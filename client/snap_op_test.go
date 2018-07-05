@@ -214,7 +214,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	id, err := cs.cli.InstallPath(snap, nil)
+	id, err := cs.cli.InstallPath(snap, "", nil)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -241,9 +241,7 @@ func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	id, err := cs.cli.InstallPath(snap, &client.SnapOptions{
-		Instance: "foo_bar",
-	})
+	id, err := cs.cli.InstallPath(snap, "foo_bar", nil)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -276,7 +274,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	}
 
 	// InstallPath takes Dangerous
-	_, err = cs.cli.InstallPath(snap, &opts)
+	_, err = cs.cli.InstallPath(snap, "", &opts)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)

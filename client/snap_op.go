@@ -39,7 +39,6 @@ type SnapOptions struct {
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
-	Instance         string `json:"instance,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -197,21 +196,17 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
 }
 
-// InstallPath sideloads the snap with the given path, returning the UUID
-// of the background operation upon success.
-func (client *Client) InstallPath(path string, options *SnapOptions) (changeID string, err error) {
+// InstallPath sideloads the snap with the given path under provided name,
+// returning the UUID of the background operation upon success.
+func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
 	}
 
-	instanceName := ""
-	if options != nil {
-		instanceName = options.Instance
-	}
 	action := actionData{
 		Action:      "install",
-		Name:        instanceName,
+		Name:        name,
 		SnapPath:    path,
 		SnapOptions: options,
 	}
