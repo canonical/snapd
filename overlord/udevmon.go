@@ -144,14 +144,22 @@ func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
 }
 
 func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
-	di := hotplug.NewHotplugDeviceInfo(kobj, env)
+	di, err := hotplug.NewHotplugDeviceInfo(env)
+	if err != nil {
+		logger.Debugf("error processing add device event: %s", err)
+		return
+	}
 	if m.deviceAddedCb != nil {
 		m.deviceAddedCb(di)
 	}
 }
 
 func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
-	di := hotplug.NewHotplugDeviceInfo(kobj, env)
+	di, err := hotplug.NewHotplugDeviceInfo(env)
+	if err != nil {
+		logger.Debugf("error processing remove device event: %s", err)
+		return
+	}
 	if m.deviceRemovedCb != nil {
 		m.deviceRemovedCb(di)
 	}

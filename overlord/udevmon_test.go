@@ -99,14 +99,14 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
 	c.Assert(addInfo.Subsystem(), Equals, "usb")
-	c.Assert(addInfo.Path(), Equals, "/sys/abc")
+	c.Assert(addInfo.DevicePath(), Equals, "/sys/abc")
 	c.Assert(addInfo.Major(), Equals, "2")
 	c.Assert(addInfo.Minor(), Equals, "1")
 
 	c.Assert(remInfo.DeviceName(), Equals, "ghi")
 	c.Assert(remInfo.DeviceType(), Equals, "bzz")
 	c.Assert(remInfo.Subsystem(), Equals, "usb")
-	c.Assert(remInfo.Path(), Equals, "/sys/def")
+	c.Assert(remInfo.DevicePath(), Equals, "/sys/def")
 	c.Assert(remInfo.Major(), Equals, "0")
 	c.Assert(remInfo.Minor(), Equals, "3")
 }
