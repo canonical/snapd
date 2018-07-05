@@ -88,8 +88,9 @@ type warningsSummariser interface {
 
 func newMeta(w warningsSummariser) *Meta {
 	count, stamp := w.WarningsSummary()
-	meta := &Meta{WarningCount: count}
-	if !stamp.IsZero() {
+	meta := &Meta{}
+	if count > 0 {
+		meta.WarningCount = count
 		meta.WarningTimestamp = &stamp
 	}
 
