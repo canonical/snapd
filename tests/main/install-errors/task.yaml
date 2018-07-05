@@ -70,14 +70,14 @@ execute: |
         echo "Installing test-snapd-only-in-edge should fail but did not"
         exit 1
     fi
-    MATCH 'error: snap "test-snapd-only-in-edge" not found in the given context.' < stderr.out
-    MATCH "use 'snap info test-snapd-only-in-edge' to list" < stderr.out
+    MATCH 'error: snap "test-snapd-only-in-edge" is not available on stable but' < stderr.out
+    MATCH "snap install --edge test-snapd-only-in-edge" < stderr.out
 
     echo "Install a snap not available for the given architecture"
     if [ "$(uname -m)" = "x86_64" ]; then
-        if snap install pi3-kernel 2>stderr.out; then
-            echo "Installing pi3-kernel should fail on amd64 systems but did not"
+        if snap install pi2-kernel 2>stderr.out; then
+            echo "Installing pi2-kernel should fail on amd64 systems but did not"
             exit 1
         fi
-        MATCH 'error: snap "pi3-kernel" not found' < stderr.out
+        MATCH 'error: snap "pi2-kernel" is not available on stable for this architecture' < stderr.out
     fi

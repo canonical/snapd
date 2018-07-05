@@ -18,8 +18,13 @@ execute: |
     snap interfaces -i framebuffer | MATCH '^- +test-snapd-framebuffer:framebuffer'
 
     if [ ! -e /dev/fb0 ]; then
-        echo "Framebuffer not available on /dev/fb0"
-        exit 1
+        # ensure this test runs on at least one system
+        if [[ "$SPREAD_SYSTEM" = ubuntu-core-16-arm-* ]]; then
+            echo "ubuntu-core-16-arm-32 must have a framebuffer"
+            exit 1
+        fi
+        echo "SKIP: Framebuffer not available on /dev/fb0"
+        exit 0
     fi
 
     echo "When the interface is connected"
