@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -106,7 +107,7 @@ func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) 
 	return &ConnectedSlot{
 		slotInfo:     slot,
 		staticAttrs:  copyAttributes(slot.Attrs),
-		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
+		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
@@ -115,7 +116,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) 
 	return &ConnectedPlug{
 		plugInfo:     plug,
 		staticAttrs:  copyAttributes(plug.Attrs),
-		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
+		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
@@ -151,7 +152,7 @@ func (plug *ConnectedPlug) SecurityTags() []string {
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.
 func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
-	return getAttribute(plug.Snap().Name(), plug.Interface(), plug.staticAttrs, nil, key, val)
+	return getAttribute(plug.Snap().InstanceName(), plug.Interface(), plug.staticAttrs, nil, key, val)
 }
 
 // StaticAttrs returns all static attributes.
@@ -168,7 +169,7 @@ func (plug *ConnectedPlug) DynamicAttrs() map[string]interface{} {
 // attribute if dynamic one doesn't exist. Error is returned if neither dynamic nor static
 // attribute exist.
 func (plug *ConnectedPlug) Attr(key string, val interface{}) error {
-	return getAttribute(plug.Snap().Name(), plug.Interface(), plug.staticAttrs, plug.dynamicAttrs, key, val)
+	return getAttribute(plug.Snap().InstanceName(), plug.Interface(), plug.staticAttrs, plug.dynamicAttrs, key, val)
 }
 
 func (plug *ConnectedPlug) Lookup(path string) (interface{}, bool) {
@@ -183,13 +184,13 @@ func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
 	if plug.dynamicAttrs == nil {
 		plug.dynamicAttrs = make(map[string]interface{})
 	}
-	plug.dynamicAttrs[key] = normalize(value)
+	plug.dynamicAttrs[key] = utils.NormalizeInterfaceAttributes(value)
 	return nil
 }
 
 // Ref returns the PlugRef for this plug.
 func (plug *ConnectedPlug) Ref() *PlugRef {
-	return &PlugRef{Snap: plug.Snap().Name(), Name: plug.Name()}
+	return &PlugRef{Snap: plug.Snap().InstanceName(), Name: plug.Name()}
 }
 
 // Interface returns the name of the interface for this slot.
@@ -224,7 +225,7 @@ func (slot *ConnectedSlot) SecurityTags() []string {
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.
 func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
-	return getAttribute(slot.Snap().Name(), slot.Interface(), slot.staticAttrs, nil, key, val)
+	return getAttribute(slot.Snap().InstanceName(), slot.Interface(), slot.staticAttrs, nil, key, val)
 }
 
 // StaticAttrs returns all static attributes.
@@ -241,7 +242,7 @@ func (slot *ConnectedSlot) DynamicAttrs() map[string]interface{} {
 // attribute if dynamic one doesn't exist. Error is returned if neither dynamic nor static
 // attribute exist.
 func (slot *ConnectedSlot) Attr(key string, val interface{}) error {
-	return getAttribute(slot.Snap().Name(), slot.Interface(), slot.staticAttrs, slot.dynamicAttrs, key, val)
+	return getAttribute(slot.Snap().InstanceName(), slot.Interface(), slot.staticAttrs, slot.dynamicAttrs, key, val)
 }
 
 func (slot *ConnectedSlot) Lookup(path string) (interface{}, bool) {
@@ -256,13 +257,13 @@ func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	if slot.dynamicAttrs == nil {
 		slot.dynamicAttrs = make(map[string]interface{})
 	}
-	slot.dynamicAttrs[key] = normalize(value)
+	slot.dynamicAttrs[key] = utils.NormalizeInterfaceAttributes(value)
 	return nil
 }
 
 // Ref returns the SlotRef for this slot.
 func (slot *ConnectedSlot) Ref() *SlotRef {
-	return &SlotRef{Snap: slot.Snap().Name(), Name: slot.Name()}
+	return &SlotRef{Snap: slot.Snap().InstanceName(), Name: slot.Name()}
 }
 
 // Interface returns the name of the interface for this connection.
@@ -290,28 +291,6 @@ func copyRecursive(value interface{}) interface{} {
 			mp[key] = copyRecursive(item)
 		}
 		return mp
-	}
-	return value
-}
-
-func normalize(value interface{}) interface{} {
-	// Normalize ints/floats using their 64-bit variants.
-	// That kind of normalization happens in normalizeYamlValue(..) for static attributes
-	// when the yaml is loaded, but it needs to be done here as well because we're also
-	// dealing with dynamic attributes set by the code of interfaces.
-	switch v := value.(type) {
-	case int:
-		return int64(v)
-	case float32:
-		return float64(v)
-	case []interface{}:
-		for i, el := range v {
-			v[i] = normalize(el)
-		}
-	case map[string]interface{}:
-		for key, item := range v {
-			v[key] = normalize(item)
-		}
 	}
 	return value
 }

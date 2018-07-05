@@ -34,23 +34,6 @@ type plugJSON struct {
 	Connections []SlotRef              `json:"connections,omitempty"`
 }
 
-// MarshalJSON returns the JSON encoding of plug.
-func (plug *Plug) MarshalJSON() ([]byte, error) {
-	var names []string
-	for name := range plug.Apps {
-		names = append(names, name)
-	}
-	return json.Marshal(&plugJSON{
-		Snap:        plug.Snap.Name(),
-		Name:        plug.Name,
-		Interface:   plug.Interface,
-		Attrs:       plug.Attrs,
-		Apps:        names,
-		Label:       plug.Label,
-		Connections: plug.Connections,
-	})
-}
-
 // slotJSON aids in marshaling Slot into JSON.
 type slotJSON struct {
 	Snap        string                 `json:"snap"`
@@ -60,23 +43,6 @@ type slotJSON struct {
 	Apps        []string               `json:"apps,omitempty"`
 	Label       string                 `json:"label,omitempty"`
 	Connections []PlugRef              `json:"connections,omitempty"`
-}
-
-// MarshalJSON returns the JSON encoding of slot.
-func (slot *Slot) MarshalJSON() ([]byte, error) {
-	var names []string
-	for name := range slot.Apps {
-		names = append(names, name)
-	}
-	return json.Marshal(&slotJSON{
-		Snap:        slot.Snap.Name(),
-		Name:        slot.Name,
-		Interface:   slot.Interface,
-		Attrs:       slot.Attrs,
-		Apps:        names,
-		Label:       slot.Label,
-		Connections: slot.Connections,
-	})
 }
 
 // interfaceInfoJSON aids in marshaling Info into JSON.
@@ -93,7 +59,7 @@ func (info *Info) MarshalJSON() ([]byte, error) {
 	plugs := make([]*plugJSON, 0, len(info.Plugs))
 	for _, plug := range info.Plugs {
 		plugs = append(plugs, &plugJSON{
-			Snap:  plug.Snap.Name(),
+			Snap:  plug.Snap.InstanceName(),
 			Name:  plug.Name,
 			Attrs: plug.Attrs,
 			Label: plug.Label,
@@ -102,7 +68,7 @@ func (info *Info) MarshalJSON() ([]byte, error) {
 	slots := make([]*slotJSON, 0, len(info.Slots))
 	for _, slot := range info.Slots {
 		slots = append(slots, &slotJSON{
-			Snap:  slot.Snap.Name(),
+			Snap:  slot.Snap.InstanceName(),
 			Name:  slot.Name,
 			Attrs: slot.Attrs,
 			Label: slot.Label,

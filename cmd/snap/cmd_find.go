@@ -97,21 +97,36 @@ func (s SectionName) Complete(match string) []flags.Completion {
 	return ret
 }
 
-func getSections() (sections []string, err error) {
-	if cachedSections, err := os.Open(dirs.SnapSectionsFile); err == nil {
-		// try loading from cached sections file
-		defer cachedSections.Close()
+func cachedSections() (sections []string, err error) {
+	cachedSections, err := os.Open(dirs.SnapSectionsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer cachedSections.Close()
 
-		r := bufio.NewScanner(cachedSections)
-		sections = make([]string, 0, 10)
-		for r.Scan() {
-			sections = append(sections, r.Text())
-		}
-		if r.Err() == nil && len(sections) > 0 {
-			return sections, nil
-		}
+	r := bufio.NewScanner(cachedSections)
+	for r.Scan() {
+		sections = append(sections, r.Text())
+	}
+	if r.Err() != nil {
+		return nil, r.Err()
 	}
 
+	return sections, nil
+}
+
+func getSections() (sections []string, err error) {
+	// try loading from cached sections file
+	sections, err = cachedSections()
+	if err != nil {
+		return nil, err
+	}
+	if sections != nil {
+		return sections, nil
+	}
 	// fallback to listing from the daemon
 	cli := Client()
 	return cli.Sections()
@@ -183,13 +198,20 @@ func (x *cmdFind) Execute(args []string) error {
 	cli := Client()
 
 	if x.Section != "" && x.Section != "featured" {
-		sections, err := getSections()
+		sections, err := cachedSections()
 		if err != nil {
 			return err
 		}
 		if !strutil.ListContains(sections, string(x.Section)) {
-			// TRANSLATORS: the %q is the (quoted) name of the section the user entered
-			return fmt.Errorf(i18n.G("No matching section %q, use --section to list existing sections"), x.Section)
+			// try the store just in case it was added in the last 24 hours
+			sections, err = cli.Sections()
+			if err != nil {
+				return err
+			}
+			if !strutil.ListContains(sections, string(x.Section)) {
+				// TRANSLATORS: the %q is the (quoted) name of the section the user entered
+				return fmt.Errorf(i18n.G("No matching section %q, use --section to list existing sections"), x.Section)
+			}
 		}
 	}
 
@@ -225,10 +247,9 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	w := tabWriter()
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tPublisher\tNotes\tSummary"))
 	for _, snap := range snaps {
-		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, NotesFromRemote(snap, resInfo), snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Publisher.Username, NotesFromRemote(snap, resInfo), snap.Summary)
 	}
 	w.Flush()
 

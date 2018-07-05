@@ -1,6 +1,7 @@
 summary: Checks for special cases of snap install from the store
 
-systems: [ubuntu-*]
+# run on ubuntu-14,16,18,20+ but not on ubuntu-core, fedora etc
+systems: [ubuntu-1*, ubuntu-2*, ubuntu-3*]
 
 environment:
     SNAP_NAME: test-snapd-tools
@@ -12,29 +13,31 @@ environment:
 
 execute: |
     echo "Install from different channels"
-    expected="(?s)$SNAP_NAME .* from 'canonical' installed\n"
+    expected="(?s)$SNAP_NAME .* from 'canonical' installed\\n"
     for channel in edge beta candidate stable
     do
-        snap install $SNAP_NAME --channel=$channel | grep -Pzq "$expected"
-        snap remove $SNAP_NAME
+        snap install "$SNAP_NAME" --channel=$channel | grep -Pzq "$expected"
+        snap remove "$SNAP_NAME"
     done
 
     echo "Install non-devmode snap with devmode option"
-    expected="(?s)$SNAP_NAME .* from 'canonical' installed\n"
-    snap install $SNAP_NAME --devmode | grep -Pzq "$expected"
+    expected="(?s)$SNAP_NAME .* from 'canonical' installed\\n"
+    snap install "$SNAP_NAME" --devmode | grep -Pzq "$expected"
 
     echo "Install devmode snap without devmode option"
     expected="repeat the command including --devmode"
-    ( snap install --channel beta $DEVMODE_SNAP 2>&1 && exit 1 || true ) | MATCH -z "${expected// /[[:space:]]+}"
+    #shellcheck disable=SC2015
+    ( snap install --channel beta "$DEVMODE_SNAP" 2>&1 && exit 1 || true ) | MATCH -z "${expected// /[[:space:]]+}"
 
     echo "Install devmode snap from stable"
-    expected='error: snap "'"$DEVMODE_SNAP"'" not found in the given context.'
-    actual=$(snap install --devmode $DEVMODE_SNAP 2>&1 && exit 1 || true)
+    expected='error: snap "'"$DEVMODE_SNAP"'" is not available on stable but'
+    #shellcheck disable=SC2015
+    actual=$(snap install --devmode "$DEVMODE_SNAP" 2>&1 && exit 1 || true)
     echo "$actual" | grep -Pzq "$expected"
 
     echo "Install devmode snap from beta with devmode option"
     expected="(?s)$DEVMODE_SNAP .*"
-    actual=$(snap install --channel beta --devmode $DEVMODE_SNAP)
+    actual=$(snap install --channel beta --devmode "$DEVMODE_SNAP")
     echo "$actual" | grep -Pzq "$expected"
 
     echo "Install a snap that contains bash-completion scripts"

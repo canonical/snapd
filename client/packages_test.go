@@ -28,6 +28,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
@@ -116,12 +117,19 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"license": "GPL-3.0",
 			"name": "hello-world",
 			"developer": "canonical",
+			"publisher": {
+                            "id": "canonical",
+                            "username": "canonical",
+                            "display-name": "Canonical",
+                            "validation": "verified"
+                        },
 			"resource": "/v2/snaps/hello-world.canonical",
 			"status": "available",
 			"type": "app",
 			"version": "1.0.18",
 			"confinement": "strict",
-			"private": true
+			"private": true,
+                        "common-ids": ["org.funky.snap"]
 		}],
 		"suggested-currency": "GBP"
 	}`
@@ -138,12 +146,19 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		License:       "GPL-3.0",
 		Name:          "hello-world",
 		Developer:     "canonical",
-		Status:        client.StatusAvailable,
-		Type:          client.TypeApp,
-		Version:       "1.0.18",
-		Confinement:   client.StrictConfinement,
-		Private:       true,
-		DevMode:       false,
+		Publisher: &snap.StoreAccount{
+			ID:          "canonical",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "verified",
+		},
+		Status:      client.StatusAvailable,
+		Type:        client.TypeApp,
+		Version:     "1.0.18",
+		Confinement: client.StrictConfinement,
+		Private:     true,
+		DevMode:     false,
+		CommonIDs:   []string{"org.funky.snap"},
 	}})
 }
 
@@ -186,10 +201,17 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"license": "GPL-3.0",
 			"name": "chatroom",
 			"developer": "ogra",
+			"publisher": {
+                            "id": "ogra-id",
+                            "username": "ogra",
+                            "display-name": "Ogra",
+                            "validation": "unproven"
+                        },
 			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
 			"type": "app",
 			"version": "0.1-8",
+                        "revision": 42,
 			"confinement": "strict",
 			"private": true,
 			"devmode": true,
@@ -197,7 +219,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                         "screenshots": [
                             {"url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"url":"http://example.com/shot2.png"}
-                        ]
+                        ],
+                        "common-ids": ["org.funky.snap"]
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -216,17 +239,25 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		License:       "GPL-3.0",
 		Name:          "chatroom",
 		Developer:     "ogra",
-		Status:        client.StatusActive,
-		Type:          client.TypeApp,
-		Version:       "0.1-8",
-		Confinement:   client.StrictConfinement,
-		Private:       true,
-		DevMode:       true,
-		TryMode:       true,
+		Publisher: &snap.StoreAccount{
+			ID:          "ogra-id",
+			Username:    "ogra",
+			DisplayName: "Ogra",
+			Validation:  "unproven",
+		},
+		Status:      client.StatusActive,
+		Type:        client.TypeApp,
+		Version:     "0.1-8",
+		Revision:    snap.R(42),
+		Confinement: client.StrictConfinement,
+		Private:     true,
+		DevMode:     true,
+		TryMode:     true,
 		Screenshots: []client.Screenshot{
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
 			{URL: "http://example.com/shot2.png"},
 		},
+		CommonIDs: []string{"org.funky.snap"},
 	})
 }
 

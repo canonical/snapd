@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -47,6 +47,7 @@ import (
 	"gopkg.in/macaroon.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -106,14 +107,13 @@ type apiBaseSuite struct {
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
 
+	connectivityResult map[string]bool
+
 	restoreSanitize func()
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
-	if !spec.AnyChannel {
-		return nil, fmt.Errorf("api is expected to set AnyChannel")
-	}
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -151,6 +151,10 @@ func (s *apiBaseSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*st
 func (s *apiBaseSuite) ReadyToBuy(user *auth.UserState) error {
 	s.user = user
 	return s.err
+}
+
+func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
+	return s.connectivityResult, s.err
 }
 
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
@@ -500,11 +504,15 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 description: description
 summary: summary
 license: GPL-3.0
+base: base18
 apps:
   cmd:
     command: some.cmd
   cmd2:
     command: other.cmd
+  cmd3:
+    command: other.cmd
+    common-id: org.foo.cmd
   svc1:
     command: somed1
     daemon: simple
@@ -588,14 +596,22 @@ UnitFileState=potatoes
 			Summary:          "summary",
 			Description:      "description",
 			Developer:        "bar",
-			Status:           "active",
-			Icon:             "/v2/icons/foo/icon",
-			Type:             string(snap.TypeApp),
-			Private:          false,
-			DevMode:          false,
-			JailMode:         false,
-			Confinement:      string(snap.StrictConfinement),
-			TryMode:          false,
+			Publisher: &snap.StoreAccount{
+				ID:          "bar-id",
+				Username:    "bar",
+				DisplayName: "Bar",
+				Validation:  "unproven",
+			},
+			Status:      "active",
+			Icon:        "/v2/icons/foo/icon",
+			Type:        string(snap.TypeApp),
+			Base:        "base18",
+			Private:     false,
+			DevMode:     false,
+			JailMode:    false,
+			Confinement: string(snap.StrictConfinement),
+			TryMode:     false,
+			MountedFrom: filepath.Join(dirs.SnapBlobDir, "foo_10.snap"),
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",
@@ -603,6 +619,10 @@ UnitFileState=potatoes
 				}, {
 					// no desktop file
 					Snap: "foo", Name: "cmd2",
+				}, {
+					// has AppStream ID
+					Snap: "foo", Name: "cmd3",
+					CommonID: "org.foo.cmd",
 				}, {
 					// services
 					Snap: "foo", Name: "svc1",
@@ -619,17 +639,17 @@ UnitFileState=potatoes
 					Daemon:  "oneshot",
 					Enabled: true,
 					Active:  true,
-				},
-				{
+				}, {
 					Snap: "foo", Name: "svc4",
 					Daemon:  "notify",
 					Enabled: false,
 					Active:  false,
 				},
 			},
-			Broken:  "",
-			Contact: "",
-			License: "GPL-3.0",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
 		},
 		Meta: meta,
 	}
@@ -680,6 +700,28 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 404)
 	c.Check(rsp.Result, check.NotNil)
+}
+
+func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
+
+	info := snap.Info{SideInfo: snap.SideInfo{RealName: "hello", Revision: snap.R(1)}}
+	snapst := snapstate.SnapState{}
+	mountFile := info.MountFile()
+	about := aboutSnap{info: &info, snapst: &snapst}
+
+	// if not a 'try', then MountedFrom is just MountFile()
+	c.Check(mapLocal(about).MountedFrom, check.Equals, mountFile)
+
+	// if it's a try, then MountedFrom resolves the symlink
+	// (note it doesn't matter, here, whether the target of the link exists)
+	snapst.TryMode = true
+	c.Assert(os.Symlink("/xyzzy", mountFile), check.IsNil)
+	c.Check(mapLocal(about).MountedFrom, check.Equals, "/xyzzy")
+
+	// if the readlink fails, it's unset
+	c.Assert(os.Remove(mountFile), check.IsNil)
+	c.Check(mapLocal(about).MountedFrom, check.Equals, "")
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -1450,7 +1492,12 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1504,7 +1551,12 @@ func (s *apiSuite) TestFind(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 
 	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
@@ -1534,7 +1586,12 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
@@ -1558,7 +1615,12 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 
 	s.mockSnap(c, "name: store\nversion: 1.0")
@@ -1633,6 +1695,33 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestFindCommonID(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "store",
+		},
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
+		CommonIDs: []string{"org.foo"},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["common-ids"], check.DeepEquals, []interface{}{"org.foo"})
+}
+
 func (s *apiSuite) TestFindOne(c *check.C) {
 	s.daemon(c)
 
@@ -1640,7 +1729,13 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Base: "base0",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "verified",
+		},
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
 				Revision: snap.R(42),
@@ -1659,6 +1754,13 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["base"], check.Equals, "base0")
+	c.Check(snaps[0]["publisher"], check.DeepEquals, map[string]interface{}{
+		"id":           "foo-id",
+		"username":     "foo",
+		"display-name": "Foo",
+		"validation":   "verified",
+	})
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
 	c.Check(m["revision"], check.Equals, "42")
@@ -1715,7 +1817,12 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "banana",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 
 	req, err := http.NewRequest("GET", "/v2/find?q=banana&channel=stable", nil)
@@ -1755,7 +1862,12 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "test-screenshot",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 
 	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
@@ -1788,7 +1900,12 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1874,7 +1991,12 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "remote",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1914,7 +2036,12 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "remote",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -1933,7 +2060,12 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "remote",
 		},
-		Publisher: "foo",
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
 
@@ -5095,7 +5227,7 @@ func (s *postCreateUserSuite) setupSigner(accountID string, signerPrivKey assert
 
 	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
 		"account-id":   accountID,
-		"verification": "certified",
+		"verification": "verified",
 	}, "")
 	s.storeSigning.Add(signerAcct)
 	assertAdd(st, signerAcct)
@@ -6003,38 +6135,23 @@ func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
-func (s *apiSuite) TestSnapctlGetUID(c *check.C) {
-	var uid uint32
+func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	_ = s.daemon(c)
 
 	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
-		return 100, uid, dirs.SnapSocket, nil
+		return 100, 9999, dirs.SnapSocket, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
-	ctlcmdRun = func(*hookstate.Context, []string) ([]byte, []byte, error) {
-		return nil, nil, nil
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.ForbiddenCommandError{}
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
-	for _, t := range []struct {
-		uid uint32
-		cmd string
-		arg string
-
-		expectedCode int
-	}{
-		{1000, "get", "something", 200},
-		{0, "get", "something", 200},
-		{1000, "set", "some=thing", 403},
-		{0, "set", "some=thing", 200},
-	} {
-		uid = t.uid
-		buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, t.cmd, t.arg))
-		req, err := http.NewRequest("POST", "/v2/snapctl", buf)
-		c.Assert(err, check.IsNil)
-		rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
-		c.Assert(rsp.Status, check.Equals, t.expectedCode)
-	}
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 403)
 }
 
 var _ = check.Suite(&postDebugSuite{})
@@ -6075,6 +6192,48 @@ func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
+}
+
+func (s *postDebugSuite) TestPostDebugConnectivityHappy(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "connectivity"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	s.connectivityResult = map[string]bool{
+		"good.host.com":         true,
+		"another.good.host.com": true,
+	}
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+		Connectivity: true,
+		Unreachable:  []string(nil),
+	})
+}
+
+func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
+	_ = s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "connectivity"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	s.connectivityResult = map[string]bool{
+		"good.host.com": true,
+		"bad.host.com":  false,
+	}
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+		Connectivity: false,
+		Unreachable:  []string{"bad.host.com"},
+	})
 }
 
 type appSuite struct {
@@ -6681,7 +6840,7 @@ func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	si := &snapInstruction{Action: "frobble"}
 	errors := []error{
 		store.ErrSnapNotFound,
-		store.ErrRevisionNotAvailable,
+		&store.RevisionNotAvailableError{},
 		store.ErrNoUpdateAvailable,
 		store.ErrLocalSnap,
 		&snap.AlreadyInstalledError{Snap: "foo"},
@@ -6702,4 +6861,74 @@ func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 		status := rsp.(*resp).Status
 		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
 	}
+}
+
+func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
+	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
+
+	thisArch := arch.UbuntuArchitecture()
+
+	err := &store.RevisionNotAvailableError{
+		Action:  "install",
+		Channel: "stable",
+		Releases: []snap.Channel{
+			snaptest.MustParseChannel("beta", thisArch),
+		},
+	}
+	rsp := si.errToResponse(err).(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 404,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "no snap revision on specified channel",
+			Kind:    errorKindSnapChannelNotAvailable,
+			Value: map[string]interface{}{
+				"snap-name":    "foo",
+				"action":       "install",
+				"channel":      "stable",
+				"architecture": thisArch,
+				"releases": []map[string]interface{}{
+					{"architecture": thisArch, "channel": "beta"},
+				},
+			},
+		},
+	})
+
+	err = &store.RevisionNotAvailableError{
+		Action:  "install",
+		Channel: "stable",
+		Releases: []snap.Channel{
+			snaptest.MustParseChannel("beta", "other-arch"),
+		},
+	}
+	rsp = si.errToResponse(err).(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 404,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "no snap revision on specified architecture",
+			Kind:    errorKindSnapArchitectureNotAvailable,
+			Value: map[string]interface{}{
+				"snap-name":    "foo",
+				"action":       "install",
+				"channel":      "stable",
+				"architecture": thisArch,
+				"releases": []map[string]interface{}{
+					{"architecture": "other-arch", "channel": "beta"},
+				},
+			},
+		},
+	})
+
+	err = &store.RevisionNotAvailableError{}
+	rsp = si.errToResponse(err).(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 404,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "no snap revision available as specified",
+			Kind:    errorKindSnapRevisionNotAvailable,
+			Value:   "foo",
+		},
+	})
 }

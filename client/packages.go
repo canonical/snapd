@@ -32,18 +32,21 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID               string        `json:"id"`
-	Title            string        `json:"title,omitempty"`
-	Summary          string        `json:"summary"`
-	Description      string        `json:"description"`
-	DownloadSize     int64         `json:"download-size,omitempty"`
-	Icon             string        `json:"icon,omitempty"`
-	InstalledSize    int64         `json:"installed-size,omitempty"`
-	InstallDate      time.Time     `json:"install-date,omitempty"`
-	Name             string        `json:"name"`
+	ID            string             `json:"id"`
+	Title         string             `json:"title,omitempty"`
+	Summary       string             `json:"summary"`
+	Description   string             `json:"description"`
+	DownloadSize  int64              `json:"download-size,omitempty"`
+	Icon          string             `json:"icon,omitempty"`
+	InstalledSize int64              `json:"installed-size,omitempty"`
+	InstallDate   time.Time          `json:"install-date,omitempty"`
+	Name          string             `json:"name"`
+	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
+	// Developer is also the publisher's username for historic reasons.
 	Developer        string        `json:"developer"`
 	Status           string        `json:"status"`
 	Type             string        `json:"type"`
+	Base             string        `json:"base,omitempty"`
 	Version          string        `json:"version"`
 	Channel          string        `json:"channel"`
 	TrackingChannel  string        `json:"tracking-channel,omitempty"`
@@ -58,6 +61,8 @@ type Snap struct {
 	Broken           string        `json:"broken,omitempty"`
 	Contact          string        `json:"contact"`
 	License          string        `json:"license,omitempty"`
+	CommonIDs        []string      `json:"common-ids,omitempty"`
+	MountedFrom      string        `json:"mounted-from,omitempty"`
 
 	Prices      map[string]float64 `json:"prices,omitempty"`
 	Screenshots []Screenshot       `json:"screenshots,omitempty"`

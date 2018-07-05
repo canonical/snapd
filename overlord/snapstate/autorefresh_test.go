@@ -46,15 +46,7 @@ type autoRefreshStore struct {
 
 	ops []string
 
-	listRefreshErr error
-}
-
-func (r *autoRefreshStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
-	if ctx == nil || !auth.IsEnsureContext(ctx) {
-		panic("Ensure marked context required")
-	}
-	r.ops = append(r.ops, "list-refresh")
-	return nil, r.listRefreshErr
+	err error
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
@@ -70,7 +62,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, r.listRefreshErr
+	return nil, r.err
 }
 
 type autoRefreshTestSuite struct {
@@ -106,6 +98,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
 
 	s.state.Set("seed-time", time.Now())
 }
@@ -171,7 +164,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
-	s.store.listRefreshErr = fmt.Errorf("random store error")
+	s.store.err = fmt.Errorf("random store error")
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
@@ -451,4 +444,93 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 	err = tr.Get("core", "refresh.hold", &t2)
 	c.Check(err, IsNil)
 	c.Check(t1.Equal(t2), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	can, err := snapstate.CanRefreshOnMeteredConnection(s.state)
+	c.Assert(can, Equals, true)
+	c.Assert(err, Equals, nil)
+
+	// enable holding refreshes when on metered connection
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "refresh.metered", "hold")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
+	c.Assert(can, Equals, false)
+	c.Assert(err, Equals, nil)
+
+	// explicitly disable holding refreshes when on metered connection
+	tr = config.NewTransaction(s.state)
+	err = tr.Set("core", "refresh.metered", "")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
+	c.Assert(can, Equals, true)
+	c.Assert(err, Equals, nil)
+}
+
+func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
+	// pretend we're on metered connection
+	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
+		return true, nil
+	})
+	defer revert()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.metered", "hold")
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+
+	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
+
+	// last refresh over 60 days ago, new one is launched regardless of
+	// connection being metered
+	s.state.Set("last-refresh", time.Now().Add(-61*24*time.Hour))
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+}
+
+func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
+	// pretend we're on non-metered connection
+	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
+		return false, nil
+	})
+	defer revert()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.metered", "hold")
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 }

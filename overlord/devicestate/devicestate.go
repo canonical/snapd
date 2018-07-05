@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -159,14 +160,14 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	if snapInfo.SnapID != "" {
 		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+			return fmt.Errorf("internal error: cannot find snap declaration for %q: %v", snapInfo.InstanceName(), err)
 		}
 		publisher := snapDecl.PublisherID()
 		if publisher != "canonical" && publisher != model.BrandID() {
-			return fmt.Errorf("cannot install %s %q published by %q for model by %q", kind, snapInfo.Name(), publisher, model.BrandID())
+			return fmt.Errorf("cannot install %s %q published by %q for model by %q", kind, snapInfo.InstanceName(), publisher, model.BrandID())
 		}
 	} else {
-		logger.Noticef("installing unasserted %s %q", kind, snapInfo.Name())
+		logger.Noticef("installing unasserted %s %q", kind, snapInfo.InstanceName())
 	}
 
 	currentSnap, err := currentInfo(st)
@@ -184,8 +185,9 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
-	if snapInfo.Name() != expectedName {
-		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.Name(), expectedName)
+	// TODO parallel-install: use instance name, instance name must match the store name
+	if snapInfo.InstanceName() != expectedName {
+		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}
 
 	return nil
@@ -199,6 +201,8 @@ func delayedCrossMgrInit() {
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
+	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
+	snapstate.Model = Model
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
@@ -256,7 +260,7 @@ func CanManageRefreshes(st *state.State) bool {
 
 		for _, plugInfo := range info.Plugs {
 			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
-				snapName := info.Name()
+				snapName := info.InstanceName()
 				plugName := plugInfo.Name
 				if interfaceConnected(st, snapName, plugName) {
 					return true

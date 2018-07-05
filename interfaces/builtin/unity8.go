@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const unity8Summary = `allows operating as or interacting with Unity 8`
@@ -113,7 +114,7 @@ func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity8Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

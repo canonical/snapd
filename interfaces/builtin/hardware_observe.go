@@ -55,6 +55,10 @@ capability sys_admin,
 # interrupts
 @{PROC}/interrupts r,
 
+# libsensors
+/etc/sensors3.conf r,
+/etc/sensors.d/{,*} r,
+
 # Needed for udevadm
 /run/udev/data/** r,
 network netlink raw,

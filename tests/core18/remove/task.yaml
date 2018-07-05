@@ -1,0 +1,12 @@
+summary: Check that removal of essential snaps does not work
+
+execute: |
+    echo "Try to remove snapd"
+    if snap remove snapd; then
+        echo "The snapd snap should not be removable"
+        exit 1
+    fi
+    if snap remove core18; then
+        echo "The core18 snap should not removable"
+        exit 1
+    fi

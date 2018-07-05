@@ -71,7 +71,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	defer r.m.Unlock()
 
 	interfaceName := i.Name()
-	if err := ValidateName(interfaceName); err != nil {
+	if err := snap.ValidateInterfaceName(interfaceName); err != nil {
 		return err
 	}
 	if _, ok := r.ifaces[interfaceName]; ok {
@@ -79,6 +79,19 @@ func (r *Repository) AddInterface(i Interface) error {
 	}
 	r.ifaces[interfaceName] = i
 	return nil
+}
+
+// AllInterfaces returns all the interfaces added to the repository, ordered by name.
+func (r *Repository) AllInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.ifaces))
+	for _, iface := range r.ifaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
 }
 
 // InfoOptions describes options for Info.
@@ -249,14 +262,14 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := plug.Snap.Name()
+	snapName := plug.Snap.InstanceName()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := ValidateName(plug.Name); err != nil {
+	// Reject plugs with invalid names
+	if err := snap.ValidatePlugName(plug.Name); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -344,14 +357,14 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := slot.Snap.Name()
+	snapName := slot.Snap.InstanceName()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := ValidateName(slot.Name); err != nil {
+	// Reject slots with invalid names
+	if err := snap.ValidateSlotName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct
@@ -588,12 +601,12 @@ func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs ma
 	if policyCheck != nil {
 		if i, ok := iface.(plugValidator); ok {
 			if err := i.BeforeConnectPlug(cplug); err != nil {
-				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.InstanceName(), err)
 			}
 		}
 		if i, ok := iface.(slotValidator); ok {
 			if err := i.BeforeConnectSlot(cslot); err != nil {
-				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.InstanceName(), err)
 			}
 		}
 
@@ -877,7 +890,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
@@ -967,7 +980,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 	result := make([]string, 0, len(seen))
 	for info := range seen {
-		result = append(result, info.Name())
+		result = append(result, info.InstanceName())
 	}
 	sort.Strings(result)
 	return result, nil
@@ -992,16 +1005,13 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
-			plug := &Plug{PlugInfo: plugInfo}
-			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
 			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
 			if !ok || err != nil {
 				continue
 			}
 
-			if r.ifaces[iface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plugInfo, slotInfo) {
 				candidates = append(candidates, slotInfo)
 			}
 		}
@@ -1028,16 +1038,13 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
-			plug := &Plug{PlugInfo: plugInfo}
-			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
 			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
 			if !ok || err != nil {
 				continue
 			}
 
-			if r.ifaces[iface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plugInfo, slotInfo) {
 				candidates = append(candidates, plugInfo)
 			}
 		}

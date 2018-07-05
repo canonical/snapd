@@ -35,12 +35,18 @@ apps:
   browser-support:
     command: bin/run
     plugs: [ browser-support ]
+  calendar-service:
+    command: bin/run
+    plugs: [ calendar-service ]
   camera:
     command: bin/run
     plugs: [ camera ]
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
+  contacts-service:
+    command: bin/run
+    plugs: [ contacts-service ]
   content-read:
     command: bin/run
     plugs: [ content-read ]
@@ -71,6 +77,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  dvb:
+    command: bin/run
+    plugs: [ dvb ]
   firewall-control:
     command: bin/run
     plugs: [ firewall-control ]
@@ -122,6 +131,9 @@ apps:
   joystick:
     command: bin/run
     plugs: [ joystick ]
+  juju-client-observe:
+    command: bin/run
+    plugs: [ juju-client-observe ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -254,6 +266,9 @@ apps:
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
+  can-bus:
+    command: bin/run
+    plugs: [ can-bus ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]

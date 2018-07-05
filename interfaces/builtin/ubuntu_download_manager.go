@@ -230,13 +230,14 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmo
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(downloadConnectedSlotAppArmor, old, new, -1)
 	old = "###PLUG_NAME###"
-	new = plug.Snap().Name()
+	// TODO parallel-install: use of proper instance/store name
+	new = plug.Snap().InstanceName()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *ubuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ubuntuDownloadManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

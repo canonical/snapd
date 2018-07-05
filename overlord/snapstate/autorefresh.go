@@ -43,8 +43,9 @@ const maxPostponement = 60 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (
-	CanAutoRefresh     func(st *state.State) (bool, error)
-	CanManageRefreshes func(st *state.State) bool
+	CanAutoRefresh        func(st *state.State) (bool, error)
+	CanManageRefreshes    func(st *state.State) bool
+	IsOnMeteredConnection func() (bool, error)
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -149,6 +150,44 @@ func (m *autoRefresh) AtSeed() error {
 	return nil
 }
 
+func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	var onMetered string
+	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+
+	return onMetered != "hold", nil
+}
+
+func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (can bool, err error) {
+	can, err = canRefreshOnMeteredConnection(m.state)
+	if err != nil {
+		return false, err
+	}
+	if can {
+		return true, nil
+	}
+
+	// ignore any errors that occurred while checking if we are on a metered
+	// connection
+	metered, _ := IsOnMeteredConnection()
+	if !metered {
+		return true, nil
+	}
+
+	if now.Sub(lastRefresh) >= maxPostponement {
+		// TODO use warnings when the infra becomes available
+		logger.Noticef("Auto refresh disabled while on metered connections, but pending for too long (%s days). Trying to refresh now.", int(maxPostponement.Hours()/24))
+		return true, nil
+	}
+
+	logger.Debugf("Auto refresh disabled on metered connections")
+
+	return false, nil
+}
+
 // Ensure ensures that we refresh all installed snaps periodically
 func (m *autoRefresh) Ensure() error {
 	m.state.Lock()
@@ -237,6 +276,17 @@ func (m *autoRefresh) Ensure() error {
 
 	// do refresh attempt (if needed)
 	if !m.nextRefresh.After(now) {
+		var can bool
+		can, err = m.canRefreshRespectingMetered(now, lastRefresh)
+		if err != nil {
+			return err
+		}
+		if !can {
+			// clear nextRefresh so that another refresh time is calculated
+			m.nextRefresh = time.Time{}
+			return nil
+		}
+
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will

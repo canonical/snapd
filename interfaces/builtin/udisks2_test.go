@@ -28,16 +28,19 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type UDisks2InterfaceSuite struct {
-	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
-	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
-	plug     *interfaces.ConnectedPlug
+	iface           interfaces.Interface
+	slotInfo        *snap.SlotInfo
+	slot            *interfaces.ConnectedSlot
+	classicSlotInfo *snap.SlotInfo
+	classicSlot     *interfaces.ConnectedSlot
+	plugInfo        *snap.PlugInfo
+	plug            *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&UDisks2InterfaceSuite{
@@ -96,9 +99,18 @@ apps:
   slots: [udisks2]
 `
 
+const udisks2ClassicYaml = `name: core
+version: 0
+type: os
+slots:
+ udisks2:
+  interface: udisks2
+`
+
 func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, udisks2ConsumerYaml, nil, "udisks2")
 	s.slot, s.slotInfo = MockConnectedSlot(c, udisks2ProducerYaml, nil, "udisks2")
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, udisks2ClassicYaml, nil, "udisks2")
 }
 
 func (s *UDisks2InterfaceSuite) TestName(c *C) {
@@ -107,9 +119,14 @@ func (s *UDisks2InterfaceSuite) TestName(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.classicSlotInfo), IsNil)
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// The label uses short form when exactly one app is bound to the udisks2 slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -159,7 +176,33 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
 }
 
+func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// connected plug to core slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label=unconfined),`)
+
+	// connected classic slot to plug
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	// permanent classic slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
 func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	spec := &dbus.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -172,7 +215,24 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `send_interface="org.freedesktop.DBus.Introspectable"`)
 }
 
+func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// connected plug to core slot
+	spec := &dbus.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
@@ -184,24 +244,47 @@ SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_producer_app $devpath $major:$minor"`)
 }
 
+func (s *UDisks2InterfaceSuite) TestUDevSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
+}
+
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "mount\n")
 }
 
+func (s *UDisks2InterfaceSuite) TestSecCompSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
 func (s *UDisks2InterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
-	c.Assert(si.ImplicitOnClassic, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows operating as or interacting with the UDisks2 service`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "udisks2")
 }
 
 func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *UDisks2InterfaceSuite) TestInterfaces(c *C) {

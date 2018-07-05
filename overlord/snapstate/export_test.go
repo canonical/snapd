@@ -21,11 +21,13 @@ package snapstate
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -132,6 +134,7 @@ var (
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
+	ValidateFeatureFlags   = validateFeatureFlags
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -155,9 +158,10 @@ var (
 
 // refreshes
 var (
-	NewAutoRefresh    = newAutoRefresh
-	NewRefreshHints   = newRefreshHints
-	NewCatalogRefresh = newCatalogRefresh
+	NewAutoRefresh                = newAutoRefresh
+	NewRefreshHints               = newRefreshHints
+	NewCatalogRefresh             = newCatalogRefresh
+	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -180,7 +184,56 @@ func MockRefreshRetryDelay(d time.Duration) func() {
 	}
 }
 
+func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
+	old := IsOnMeteredConnection
+	IsOnMeteredConnection = mock
+	return func() {
+		IsOnMeteredConnection = old
+	}
+}
+
 func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
 	sort.Sort(byKind(snaps))
 	return snaps
+}
+
+func MockModelWithBase(baseName string) (restore func()) {
+	return mockModel(baseName)
+}
+
+func MockModel() (restore func()) {
+	return mockModel("")
+}
+
+func mockModel(baseName string) (restore func()) {
+	oldModel := Model
+
+	base := ""
+	if baseName != "" {
+		base = fmt.Sprintf("\nbase: %s", baseName)
+	}
+	mod := fmt.Sprintf(`type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel%s
+timestamp: 2018-01-01T08:00:00+00:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`, base)
+	a, err := asserts.Decode([]byte(mod))
+	if err != nil {
+		panic(err)
+	}
+
+	Model = func(*state.State) (*asserts.Model, error) {
+		return a.(*asserts.Model), nil
+	}
+	return func() {
+		Model = oldModel
+	}
 }

@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -457,7 +458,7 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
-	restore := MockUseFuse(false)
+	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
@@ -487,6 +488,9 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
 	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")

@@ -29,6 +29,9 @@ import (
 var (
 	AddImplicitSlots          = addImplicitSlots
 	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
+	CheckConnectConflicts     = checkConnectConflicts
+	FindSymmetricAutoconnect  = findSymmetricAutoconnect
+	ConnectPriv               = connect
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the

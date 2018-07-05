@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1014,24 +1014,24 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")})
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")}, 0)
 		c.Assert(err, IsNil)
 
 		h, err := json.Marshal(map[string]string{
 			"x-extra-header": "extra",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
 		c.Assert(err, IsNil)
 
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")}, 0)
 		c.Assert(err, IsNil)
 
 		d, err := yaml.Marshal(map[string]string{
 			"mac": "00:00:00:00:ff:00",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
 		c.Assert(err, IsNil)
 
 		return nil, nil
@@ -2121,8 +2121,8 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
 	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
@@ -2134,7 +2134,7 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-name":    info.Name(),
+		"snap-name":    info.SnapName(),
 		"snap-id":      info.SideInfo.SnapID,
 		"publisher-id": "canonical",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),

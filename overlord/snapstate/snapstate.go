@@ -47,8 +47,7 @@ import (
 
 // control flags for doInstall
 const (
-	maybeCore = 1 << iota
-	skipConfigure
+	skipConfigure = 1 << iota
 )
 
 // control flags for "Configure()"
@@ -58,16 +57,18 @@ const (
 	UseConfigDefaults
 )
 
-func needsMaybeCore(typ snap.Type) int {
-	if typ == snap.TypeOS {
-		return maybeCore
-	}
-	return 0
-}
-
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.Name() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
+	}
+	if snapsup.Name() == "snapd" {
+		model, err := Model(st)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if model == nil || model.Base() == "" {
+			return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
@@ -86,6 +87,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 	}
+
+	// TODO parallel-install: block parallel installation of core, kernel,
+	// gadget and snapd snaps
 
 	if err := CheckChangeConflict(st, snapsup.Name(), nil, snapst); err != nil {
 		return nil, err
@@ -182,14 +186,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(linkSnap)
 	prev = linkSnap
 
-	// security: phase 2, no-op unless core
-	if flags&maybeCore != 0 {
-		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
-		setupSecurityPhase2.Set("core-phase-2", true)
-		addTask(setupSecurityPhase2)
-		prev = setupSecurityPhase2
-	}
-
 	// auto-connections
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
 	addTask(autoConnect)
@@ -224,6 +220,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+		var retain int
+		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
+			retain = 3
+		}
+		retain-- //  we're adding one
+
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -255,7 +257,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
-		for i := 0; i <= currentIndex-2; i++ {
+		for i := 0; i <= currentIndex-retain; i++ {
 			si := seq[i]
 			if boot.InUse(snapsup.Name(), si.Revision) {
 				continue
@@ -284,9 +286,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		confFlags |= UseConfigDefaults
 	}
 
-	configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
-	configSet.WaitAll(ts)
-	ts.AddAll(configSet)
+	// we do not support configuration for bases or the "snapd" snap yet
+	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
+		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
+		configSet.WaitAll(ts)
+		ts.AddAll(configSet)
+	}
 
 	return ts, nil
 }
@@ -465,37 +470,65 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
-// GuardCoreSetupProfilesPhase2 decides for a setup-profiles task that
-// is a phase 2 security setup for core whether to proceed, wait
-// (via Retry) or there is nothing to do. Helper for ifacestate.
-func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (proceed bool, err error) {
-	// phase 2 setup-profiles
-	if snapInfo.Type != snap.TypeOS {
-		// not the core snap, nothing to do
-		return false, nil
-	}
+// WaitRestart will return a Retry error if there is a pending restart
+// and a real error if anything went wrong (like a rollback across
+// restarts)
+func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for restart...")
-		return false, &state.Retry{}
+		return &state.Retry{}
 	}
-	// if not on classic check there was no rollback
+
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	// If not on classic check there was no rollback. A reboot
+	// can be triggered by:
+	// - core (old core16 world, system-reboot)
+	// - bootable base snap (new core18 world, system-reboot)
+	//
+	// TODO: Detect "snapd" snap daemon-restarts here that
+	//       fallback into the old version (once we have
+	//       better snapd rollback support in core18).
 	if !release.OnClassic {
 		// TODO: double check that we really rebooted
 		// otherwise this could be just a spurious restart
 		// of snapd
-		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
+
+		model, err := Model(task.State())
+		if err != nil {
+			return err
+		}
+		bootName := "core"
+		typ := snap.TypeOS
+		if model.Base() != "" {
+			bootName = model.Base()
+			typ = snap.TypeBase
+		}
+		// if it is not a bootable snap we are not interested
+		if snapsup.Name() != bootName {
+			return nil
+		}
+
+		name, rev, err := CurrentBootNameAndRevision(typ)
 		if err == ErrBootNameAndRevisionAgain {
-			return false, &state.Retry{After: 5 * time.Second}
+			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
-			return false, err
+			return err
 		}
+
 		if snapsup.Name() != name || snapInfo.Revision != rev {
-			return false, fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+			// TODO: make sure this revision gets ignored for
+			//       automatic refreshes
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.Name())
 		}
 	}
-	return true, nil
+
+	return nil
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -549,20 +582,29 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
-	if len(info.Layout) == 0 {
-		return nil
-	}
-
 	tr := config.NewTransaction(st)
-	var featureFlagLayouts bool
-	if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
-		return err
-	}
-	if featureFlagLayouts {
-		return nil
+
+	if len(info.Layout) > 0 {
+		var flag bool
+		if err := tr.GetMaybe("core", "experimental.layouts", &flag); err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.layouts' to true")
+		}
 	}
 
-	return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+	if info.InstanceKey != "" {
+		var flag bool
+		if err := tr.GetMaybe("core", "experimental.parallel-instances", &flag); err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+		}
+	}
+
+	return nil
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.
@@ -588,7 +630,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
-	instFlags := maybeCore
+	var instFlags int
 	if flags.SkipConfigure {
 		// extract it as a doInstall flag, this is not passed
 		// into SnapSetup
@@ -616,6 +658,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    flags.ForSnapSetup(),
+		Type:     info.Type,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -665,9 +708,10 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
+		Type:         info.Type,
 	}
 
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -779,7 +823,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		reportUpdated[snapName] = true
 	}
 
-	// first core, bases, then rest
+	// first snapd, core, bases, then rest
 	sort.Sort(byKind(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
@@ -796,14 +840,14 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
 			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
 		}
 		if err := validateFeatureFlags(st, update); err != nil {
 			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
@@ -822,13 +866,14 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
+			Type:         update.Type,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
+		ts, err := doInstall(st, snapst, snapsup, 0)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
-				logger.Noticef("cannot refresh snap %q: %v", update.Name(), err)
+				logger.Noticef("cannot refresh snap %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
@@ -842,7 +887,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core
-			prereqs[update.Name()] = ts
+			prereqs[update.InstanceName()] = ts
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
@@ -853,7 +898,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			}
 		}
 
-		scheduleUpdate(update.Name(), ts)
+		scheduleUpdate(update.InstanceName(), ts)
 		tasksets = append(tasksets, ts)
 	}
 
@@ -884,6 +929,15 @@ var kindRevOrder = map[snap.Type]int{
 }
 
 func (bk byKind) Less(i, j int) bool {
+	// snapd sorts first to ensure that on all refrehses it is the first
+	// snap package that gets refreshed.
+	if bk[i].SnapName() == "snapd" {
+		return true
+	}
+	if bk[j].SnapName() == "snapd" {
+		return false
+	}
+
 	iRevOrd := kindRevOrder[bk[i].Type]
 	jRevOrd := kindRevOrder[bk[j].Type]
 	return iRevOrd >= jRevOrd
@@ -972,7 +1026,7 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, info := range updates {
-		updating[info.Name()] = true
+		updating[info.InstanceName()] = true
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
@@ -1301,7 +1355,7 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
 		return true
@@ -1331,8 +1385,20 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	//
 	// Once the ubuntu-core -> core transition has landed for some
 	// time we can remove the two lines below.
-	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
+	if si.InstanceName() == "ubuntu-core" && si.Type == snap.TypeOS {
 		return true
+	}
+
+	// Allow snap.TypeOS removals if a different base is in use
+	//
+	// Note that removal of the boot base itself is prevented
+	// via the snapst.Required flag that is set on firstboot.
+	if si.Type == snap.TypeOS {
+		if model, err := Model(st); err == nil {
+			if model.Base() != "" {
+				return true
+			}
+		}
 	}
 
 	// You never want to remove a kernel or OS. Do not remove their
@@ -1341,10 +1407,13 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return false
 	}
 
+	// TODO: ensure that you cannot remove bases/core if those are
+	//       needed by one of the installed snaps.
+
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
 	// never remove anything that is used for booting
-	if boot.InUse(si.Name(), si.Revision) {
+	if boot.InUse(si.InstanceName(), si.Revision) {
 		return false
 	}
 
@@ -1398,7 +1467,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, &snapst, removeAll) {
+	if !canRemove(st, info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -1557,10 +1626,6 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
-	typ, err := snapst.Type()
-	if err != nil {
-		return nil, err
-	}
 	flags.Revert = true
 	// TODO: make flags be per revision to avoid this logic (that
 	//       leaves corner cases all over the place)
@@ -1579,7 +1644,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
 	}
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(typ))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1619,7 +1684,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-		}, maybeCore)
+			Type:         newInfo.Type,
+		}, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1861,13 +1927,13 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	// some systems have two cores: ubuntu-core/core
 	// we always return "core" in this case
 	if len(res) == 2 {
-		if res[0].Name() == defaultCoreSnapName && res[1].Name() == "ubuntu-core" {
+		if res[0].InstanceName() == defaultCoreSnapName && res[1].InstanceName() == "ubuntu-core" {
 			return res[0], nil
 		}
-		if res[0].Name() == "ubuntu-core" && res[1].Name() == defaultCoreSnapName {
+		if res[0].InstanceName() == "ubuntu-core" && res[1].InstanceName() == defaultCoreSnapName {
 			return res[1], nil
 		}
-		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
+		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].InstanceName(), res[1].InstanceName())
 	}
 
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
@@ -1891,7 +1957,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	if err != nil {
 		return nil, err
 	}
-	isCoreDefaults := core.Name() == snapName
+	isCoreDefaults := core.InstanceName() == snapName
 
 	si := snapst.CurrentSideInfo()
 	// core snaps can be addressed even without a snap-id via the special
@@ -1923,4 +1989,20 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	}
 
 	return defaults, nil
+}
+
+// GadgetConnections returns the interface connection instructions
+// specified in the gadget. If gadget is absent it returns ErrNoState.
+func GadgetConnections(st *state.State) ([]snap.GadgetConnection, error) {
+	gadget, err := GadgetInfo(st)
+	if err != nil {
+		return nil, err
+	}
+
+	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	if err != nil {
+		return nil, err
+	}
+
+	return gadgetInfo.Connections, nil
 }

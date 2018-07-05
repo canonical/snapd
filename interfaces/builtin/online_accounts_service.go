@@ -134,7 +134,7 @@ func (iface *onlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.
 	return nil
 }
 
-func (iface *onlineAccountsServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *onlineAccountsServiceInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return true
 }
 
