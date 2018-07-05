@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2137,7 +2138,8 @@ const mockInfoJSON = `{
         "publisher": {
             "display-name": "Canonical",
             "id": "canonical",
-            "username": "canonical"
+            "username": "canonical",
+            "validation": "verified"
         },
         "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
         "summary": "The 'hello-world' of snaps",
@@ -2197,6 +2199,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		ID:          "canonical",
 		Username:    "canonical",
 		DisplayName: "Canonical",
+		Validation:  "verified",
 	})
 	c.Check(result.Version, Equals, "6.3")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
@@ -2720,7 +2723,7 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 }
 
 /* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
 Add base and prices.
 */
 const MockSearchJSON = `{
@@ -2741,6 +2744,7 @@ const MockSearchJSON = `{
                 "description": "This is a simple hello world example.",
                 "developer_id": "canonical",
                 "developer_name": "Canonical",
+                "developer_validation": "verified",
                 "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
                 "download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
                 "epoch": "0",
@@ -3077,6 +3081,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 		ID:          "canonical",
 		Username:    "canonical",
 		DisplayName: "Canonical",
+		Validation:  "verified",
 	})
 	c.Check(snp.Version, Equals, "6.3")
 	c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
@@ -5650,7 +5655,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
-		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
@@ -5658,20 +5663,32 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
-		c.Assert(req.Actions, HasLen, 3)
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          "snap2-id",
+			"instance-key":     "snap2-id",
+			"revision":         float64(2),
+			"tracking-channel": "edge",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 4)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
-			"channel":      "stable",
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": "snap2-id",
+			"snap-id":      "snap2-id",
+			"channel":      "candidate",
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
 		})
-		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[3], DeepEquals, map[string]interface{}{
 			"action":       "download",
 			"instance-key": "download-1",
 			"name":         "bar",
@@ -5687,6 +5704,19 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
      "error": {
        "code": "revision-not-found",
        "message": "msg1"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "snap2-id",
+     "snap-id": "snap2-id",
+     "name": "snap2",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg1",
+       "extra": {
+         "releases": [{"architecture": "amd64", "channel": "beta"},
+                      {"architecture": "arm64", "channel": "beta"}]
+       }
      }
   }, {
      "result": "error",
@@ -5728,11 +5758,21 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
+		{
+			Name:            "snap2",
+			SnapID:          "snap2-id",
+			TrackingChannel: "edge",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
 	}, []*SnapAction{
 		{
+			Action: "refresh",
+			SnapID: helloWorldSnapID,
+		}, {
 			Action:  "refresh",
-			SnapID:  helloWorldSnapID,
-			Channel: "stable",
+			SnapID:  "snap2-id",
+			Channel: "candidate",
 		}, {
 			Action:  "install",
 			Name:    "foo",
@@ -5746,13 +5786,30 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrRevisionNotAvailable,
+			"hello-world": &RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "stable",
+			},
+			"snap2": &RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "candidate",
+				Releases: []snap.Channel{
+					snaptest.MustParseChannel("beta", "amd64"),
+					snaptest.MustParseChannel("beta", "arm64"),
+				},
+			},
 		},
 		Install: map[string]error{
-			"foo": ErrRevisionNotAvailable,
+			"foo": &RevisionNotAvailableError{
+				Action:  "install",
+				Channel: "stable",
+			},
 		},
 		Download: map[string]error{
-			"bar": ErrRevisionNotAvailable,
+			"bar": &RevisionNotAvailableError{
+				Action:  "download",
+				Channel: "",
+			},
 		},
 	})
 }
