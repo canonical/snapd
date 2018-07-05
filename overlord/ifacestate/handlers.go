@@ -60,7 +60,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		addImplicitSlots(st, affectedSnapInfo)
+		m.addImplicitSlots(affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
@@ -102,7 +102,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
-	addImplicitSlots(task.State(), snapInfo)
+	m.addImplicitSlots(snapInfo)
 	snapName := snapInfo.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
@@ -721,7 +721,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto"})
+		ts, err := m.connect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto"})
 		if err != nil {
 			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
@@ -877,7 +877,7 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-gadget"})
+		ts, err := m.connect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-gadget"})
 		if err != nil {
 			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
 		}

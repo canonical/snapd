@@ -104,8 +104,17 @@ func (m *InterfaceManager) addSnaps() error {
 	if err != nil {
 		return err
 	}
+	// Before adding any snap scan the set of snaps we know about. If any of
+	// those is snapd then for the duration of this process always add
+	// implicit slots to snapd and not to any other type: os snap.
 	for _, snapInfo := range snaps {
-		addImplicitSlots(m.state, snapInfo)
+		if snapInfo.SnapName() == "snapd" {
+			m.implicitSlotsOnSnapd = true
+			break
+		}
+	}
+	for _, snapInfo := range snaps {
+		m.addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
@@ -134,7 +143,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	}
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		addImplicitSlots(m.state, snapInfo)
+		m.addImplicitSlots(snapInfo)
 	}
 
 	// For each snap:

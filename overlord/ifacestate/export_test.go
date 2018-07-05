@@ -24,15 +24,22 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
-	AddImplicitSlots          = addImplicitSlots
 	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
 	CheckConnectConflicts     = checkConnectConflicts
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
-	ConnectPriv               = connect
 )
+
+func (m *InterfaceManager) ConnectPriv(plugSnap, plugName, slotSnap, slotName string, flags []string) (*state.TaskSet, error) {
+	return m.connect(plugSnap, plugName, slotSnap, slotName, flags)
+}
+
+func (m *InterfaceManager) AddImplicitSlots(snapInfo *snap.Info) {
+	m.addImplicitSlots(snapInfo)
+}
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
 // InterfaceManager.

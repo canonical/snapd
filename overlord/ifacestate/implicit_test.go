@@ -21,10 +21,12 @@ package ifacestate_test
 
 import (
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/ifacestate"
+	/*
+		"github.com/snapcore/snapd/overlord/ifacestate"
+		"github.com/snapcore/snapd/release"
+		"github.com/snapcore/snapd/snap/snaptest"
+	*/
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -41,6 +43,7 @@ func (s *implicitSuite) SetUpTest(c *C) {
 	s.state = s.o.State()
 }
 
+/*
 func (s *implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -85,3 +88,4 @@ func (s *implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
 }
+*/
