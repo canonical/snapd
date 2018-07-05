@@ -266,11 +266,6 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 		return nil, err
 	}
 
-	// attrs-task not present, look for attributes in hook's own task
-	if hookTask, ok := context.Task(); ok {
-		return hookTask, nil
-	}
-
 	return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
 }
 

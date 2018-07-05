@@ -732,24 +732,6 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true, IgnoreError: false})
 
-	// verify connection attributes are present in the disconnect hooks
-	var plugStaticAttrs1, plugDynamicAttrs1, slotStaticAttrs1, slotDynamicAttrs1 map[string]interface{}
-	var plugStaticAttrs2, plugDynamicAttrs2, slotStaticAttrs2, slotDynamicAttrs2 map[string]interface{}
-
-	err = task.Get("plug-static", &plugStaticAttrs1)
-	c.Assert(err, IsNil)
-	c.Assert(plugStaticAttrs1, DeepEquals, map[string]interface{}{"attr1": "value1"})
-	err = task.Get("plug-dynamic", &plugDynamicAttrs1)
-	c.Assert(err, IsNil)
-	c.Assert(plugDynamicAttrs1, DeepEquals, map[string]interface{}{"attr3": "value3"})
-
-	err = task.Get("slot-static", &slotStaticAttrs1)
-	c.Assert(err, IsNil)
-	c.Assert(slotStaticAttrs1, DeepEquals, map[string]interface{}{"attr2": "value2"})
-	err = task.Get("slot-dynamic", &slotDynamicAttrs1)
-	c.Assert(err, IsNil)
-	c.Assert(slotDynamicAttrs1, DeepEquals, map[string]interface{}{"attr4": "value4"})
-
 	task = ts.Tasks()[1]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hookSetup)
@@ -757,20 +739,6 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true})
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true, IgnoreError: false})
-
-	err = task.Get("plug-static", &plugStaticAttrs2)
-	c.Assert(err, IsNil)
-	c.Assert(plugStaticAttrs2, DeepEquals, map[string]interface{}{"attr1": "value1"})
-	err = task.Get("plug-dynamic", &plugDynamicAttrs2)
-	c.Assert(err, IsNil)
-	c.Assert(plugDynamicAttrs2, DeepEquals, map[string]interface{}{"attr3": "value3"})
-
-	err = task.Get("slot-static", &slotStaticAttrs2)
-	c.Assert(err, IsNil)
-	c.Assert(slotStaticAttrs2, DeepEquals, map[string]interface{}{"attr2": "value2"})
-	err = task.Get("slot-dynamic", &slotDynamicAttrs2)
-	c.Assert(err, IsNil)
-	c.Assert(slotDynamicAttrs2, DeepEquals, map[string]interface{}{"attr4": "value4"})
 
 	task = ts.Tasks()[2]
 	c.Assert(task.Kind(), Equals, "disconnect")
@@ -788,6 +756,19 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+
+	// verify connection attributes are present in the disconnect task
+	var plugStaticAttrs1, plugDynamicAttrs1, slotStaticAttrs1, slotDynamicAttrs1 map[string]interface{}
+
+	c.Assert(task.Get("plug-static", &plugStaticAttrs1), IsNil)
+	c.Assert(plugStaticAttrs1, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(task.Get("plug-dynamic", &plugDynamicAttrs1), IsNil)
+	c.Assert(plugDynamicAttrs1, DeepEquals, map[string]interface{}{"attr3": "value3"})
+
+	c.Assert(task.Get("slot-static", &slotStaticAttrs1), IsNil)
+	c.Assert(slotStaticAttrs1, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(task.Get("slot-dynamic", &slotDynamicAttrs1), IsNil)
+	c.Assert(slotDynamicAttrs1, DeepEquals, map[string]interface{}{"attr4": "value4"})
 }
 
 // Disconnect works when both plug and slot are specified
@@ -3194,6 +3175,16 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	var autoDisconnect bool
 	c.Assert(ht[2].Get("automatic-disconnect", &autoDisconnect), IsNil)
 	c.Assert(autoDisconnect, Equals, true)
+	var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]interface{}
+	c.Assert(ht[2].Get("plug-static", &plugStatic), IsNil)
+	c.Assert(ht[2].Get("plug-dynamic", &plugDynamic), IsNil)
+	c.Assert(ht[2].Get("slot-static", &slotStatic), IsNil)
+	c.Assert(ht[2].Get("slot-dynamic", &slotDynamic), IsNil)
+
+	c.Assert(plugStatic, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(slotStatic, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(plugDynamic, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(slotDynamic, DeepEquals, map[string]interface{}{"attr4": "value4"})
 
 	var expectedHooks = []struct{ snap, hook string }{
 		{snap: "producer", hook: "disconnect-slot-slot"},
@@ -3207,17 +3198,6 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 		c.Assert(hsup.Snap, Equals, expectedHooks[i].snap)
 		c.Assert(hsup.Hook, Equals, expectedHooks[i].hook)
-
-		var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]interface{}
-		c.Assert(ht[i].Get("plug-static", &plugStatic), IsNil)
-		c.Assert(ht[i].Get("plug-dynamic", &plugDynamic), IsNil)
-		c.Assert(ht[i].Get("slot-static", &slotStatic), IsNil)
-		c.Assert(ht[i].Get("slot-dynamic", &slotDynamic), IsNil)
-
-		c.Assert(plugStatic, DeepEquals, map[string]interface{}{"attr1": "value1"})
-		c.Assert(slotStatic, DeepEquals, map[string]interface{}{"attr2": "value2"})
-		c.Assert(plugDynamic, DeepEquals, map[string]interface{}{"attr3": "value3"})
-		c.Assert(slotDynamic, DeepEquals, map[string]interface{}{"attr4": "value4"})
 	}
 }
 
