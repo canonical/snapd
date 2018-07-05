@@ -724,12 +724,13 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 3)
 
-	var hookSetup hookstate.HookSetup
+	var hookSetup, undoHookSetup hookstate.HookSetup
 	task := ts.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "run-hook")
-	err = task.Get("hook-setup", &hookSetup)
-	c.Assert(err, IsNil)
-	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true})
+	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: false})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true, IgnoreError: false})
 
 	// verify connection attributes are present in the disconnect hooks
 	var plugStaticAttrs1, plugDynamicAttrs1, slotStaticAttrs1, slotDynamicAttrs1 map[string]interface{}
@@ -754,6 +755,8 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	err = task.Get("hook-setup", &hookSetup)
 	c.Assert(err, IsNil)
 	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true, IgnoreError: false})
 
 	err = task.Get("plug-static", &plugStaticAttrs2)
 	c.Assert(err, IsNil)
@@ -869,6 +872,65 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
+}
+
+func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	connState := map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":    "test",
+			"slot-static":  map[string]interface{}{"attr1": "value1"},
+			"slot-dynamic": map[string]interface{}{"attr2": "value2"},
+			"plug-static":  map[string]interface{}{"attr3": "value3"},
+			"plug-dynamic": map[string]interface{}{"attr4": "value4"},
+		},
+	}
+
+	s.state.Lock()
+	s.state.Set("conns", connState)
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both snaps and reloads the connection.
+	_ = s.manager(c)
+
+	conn := s.getConnection(c, "consumer", "plug", "producer", "slot")
+
+	// Run the disconnect task and let it finish.
+	s.state.Lock()
+	change := s.state.NewChange("disconnect", "...")
+	ts, err := ifacestate.Disconnect(s.state, conn)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	c.Assert(err, IsNil)
+	change.AddAll(ts)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitAll(ts)
+	change.AddTask(terr)
+	c.Assert(change.Tasks(), HasLen, 4)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that disconnect tasks were undone
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Status(), Equals, state.UndoneStatus)
+	}
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, connState)
+
+	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
 }
 
 func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
