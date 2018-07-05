@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -61,10 +63,18 @@ var (
 
 	// ErrNoUpdateAvailable is returned when an update is attempetd for a snap that has no update available.
 	ErrNoUpdateAvailable = errors.New("snap has no updates available")
-
-	// ErrRevisionNotAvailable is returned when an install is attempted for a snap but the/a revision is not available (given install constraints)
-	ErrRevisionNotAvailable = errors.New("no snap revision given constraints")
 )
+
+// RevisionNotAvailableError is returned when an install is attempted for a snap but the/a revision is not available (given install constraints).
+type RevisionNotAvailableError struct {
+	Action   string
+	Channel  string
+	Releases []snap.Channel
+}
+
+func (e *RevisionNotAvailableError) Error() string {
+	return "no snap revision available as specified"
+}
 
 // DownloadError represents a download error
 type DownloadError struct {
@@ -204,10 +214,26 @@ var (
 	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
 )
 
-func translateSnapActionError(action, code, message string) error {
+func translateSnapActionError(action, channel, code, message string, releases []snapRelease) error {
 	switch code {
 	case "revision-not-found":
-		return ErrRevisionNotAvailable
+		e := &RevisionNotAvailableError{
+			Action:  action,
+			Channel: channel,
+		}
+		if len(releases) != 0 {
+			parsedReleases := make([]snap.Channel, len(releases))
+			for i := 0; i < len(releases); i++ {
+				var err error
+				parsedReleases[i], err = snap.ParseChannel(releases[i].Channel, releases[i].Architecture)
+				if err != nil {
+					// shouldn't happen, return error without Releases
+					return e
+				}
+			}
+			e.Releases = parsedReleases
+		}
+		return e
 	case "id-not-found", "name-not-found":
 		return ErrSnapNotFound
 	case "user-authorization-needs-refresh":
