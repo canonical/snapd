@@ -31,6 +31,7 @@ var (
 	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
 	CheckConnectConflicts     = checkConnectConflicts
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
+	HasSnapdSnap              = hasSnapdSnap
 )
 
 func (m *InterfaceManager) ConnectPriv(plugSnap, plugName, slotSnap, slotName string, flags []string) (*state.TaskSet, error) {

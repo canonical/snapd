@@ -134,7 +134,6 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 }
 
 // Connect returns a set of tasks for connecting an interface.
-//
 func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	const auto = false
 	if err := checkConnectConflicts(m.state, plugSnap, slotSnap, auto); err != nil {
