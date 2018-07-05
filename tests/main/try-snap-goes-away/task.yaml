@@ -5,7 +5,7 @@ details: |
 
 environment:
     SNAP_NAME/test_snapd_tools: test-snapd-tools
-    SNAP_NAME/test-snapd-service-try-v2: test-snapd-service-try-v2
+    SNAP_NAME/test_snapd_service_try_v2: test-snapd-service-try-v2
     TRYDIR: $(pwd)/trydir
 
 restore: |
