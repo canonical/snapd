@@ -73,6 +73,3 @@ execute: |
         exit 1
     fi
     snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
-
-    echo "Ensure interfaces are connected"
-    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"
