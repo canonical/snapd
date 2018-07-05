@@ -145,7 +145,8 @@ const mockInfoJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -182,7 +183,8 @@ const mockInfoJSONWithChannels = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -260,7 +262,8 @@ const mockInfoJSONOtherLicense = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
@@ -291,7 +294,8 @@ const mockInfoJSONNoLicense = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",

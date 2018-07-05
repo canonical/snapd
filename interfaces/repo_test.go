@@ -36,10 +36,13 @@ type RepositorySuite struct {
 	iface     Interface
 	plug      *snap.PlugInfo
 	slot      *snap.SlotInfo
-	coreSnap  *snap.Info
 	emptyRepo *Repository
 	// Repository pre-populated with s.iface
 	testRepo *Repository
+
+	// "Core"-like snaps with the same set of interfaces.
+	coreSnap       *snap.Info
+	ubuntuCoreSnap *snap.Info
 }
 
 var _ = Suite(&RepositorySuite{
@@ -80,15 +83,23 @@ slots:
         attr: value
 `, nil)
 	s.slot = producer.Slots["slot"]
-	// NOTE: The core snap has a slot so that it shows up in the
-	// repository. The repository doesn't record snaps unless they
-	// have at least one interface.
+
+	// NOTE: Each of the snaps below have one slot so that they can be picked
+	// up by the repository. Some tests rename the "slot" slot as appropriate.
+	s.ubuntuCoreSnap = snaptest.MockInfo(c, `
+name: ubuntu-core
+version: 0
+type: os
+slots:
+    slot:
+        interface: interface
+`, nil)
 	s.coreSnap = snaptest.MockInfo(c, `
 name: core
 version: 0
 type: os
 slots:
-    network:
+    slot:
         interface: interface
 `, nil)
 	s.emptyRepo = NewRepository()
@@ -267,7 +278,7 @@ func (s *RepositorySuite) TestAddPlugFailsWithInvalidPlugName(c *C) {
 		Interface: "interface",
 	}
 	err := s.testRepo.AddPlug(plug)
-	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
+	c.Assert(err, ErrorMatches, `invalid plug name: "bad-name-"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 0)
 }
 
@@ -500,7 +511,7 @@ func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 		Interface: "interface",
 	}
 	err := s.emptyRepo.AddSlot(slot)
-	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
+	c.Assert(err, ErrorMatches, `invalid slot name: "bad-name-"`)
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 
@@ -603,15 +614,7 @@ func (s *RepositorySuite) TestResolveConnectExplicit(c *C) {
 
 // ResolveConnect uses the "core" snap when slot snap name is empty
 func (s *RepositorySuite) TestResolveConnectImplicitCoreSlot(c *C) {
-	coreSnap := snaptest.MockInfo(c, `
-name: core
-version: 0
-type: os
-slots:
-    slot:
-        interface: interface
-`, nil)
-	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
+	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
@@ -623,15 +626,7 @@ slots:
 
 // ResolveConnect uses the "ubuntu-core" snap when slot snap name is empty
 func (s *RepositorySuite) TestResolveConnectImplicitUbuntuCoreSlot(c *C) {
-	ubuntuCoreSnap := snaptest.MockInfo(c, `
-name: ubuntu-core
-version: 0
-type: os
-slots:
-    slot:
-        interface: interface
-`, nil)
-	c.Assert(s.testRepo.AddSnap(ubuntuCoreSnap), IsNil)
+	c.Assert(s.testRepo.AddSnap(s.ubuntuCoreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
@@ -641,26 +636,10 @@ slots:
 	})
 }
 
-// ResolveConnect prefers the "core" snap if (by any chance) both are available
-func (s *RepositorySuite) TestResolveConnectImplicitSlotPrefersCore(c *C) {
-	coreSnap := snaptest.MockInfo(c, `
-name: core
-version: 0
-type: os
-slots:
-    slot:
-        interface: interface
-`, nil)
-	ubuntuCoreSnap := snaptest.MockInfo(c, `
-name: ubuntu-core
-version: 0
-type: os
-slots:
-    slot:
-        interface: interface
-`, nil)
-	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
-	c.Assert(s.testRepo.AddSnap(ubuntuCoreSnap), IsNil)
+// ResolveConnect prefers the "core" snap if "core" and "ubuntu-core" are available
+func (s *RepositorySuite) TestResolveConnectImplicitSlotPrefersCoreOverUbuntuCore(c *C) {
+	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
+	c.Assert(s.testRepo.AddSnap(s.ubuntuCoreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
@@ -671,15 +650,9 @@ slots:
 func (s *RepositorySuite) TestResolveConnectNoImplicitCandidates(c *C) {
 	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
-	coreSnap := snaptest.MockInfo(c, `
-name: core
-version: 0
-type: os
-slots:
-    slot:
-        interface: other-interface
-`, nil)
-	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
+	// Tweak the "slot" slot so that it has an incompatible interface type.
+	s.coreSnap.Slots["slot"].Interface = "other-interface"
+	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "")
 	c.Check(err, ErrorMatches, `snap "core" has no "interface" interface slots`)
@@ -843,6 +816,8 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 // All the was to resolve a 'snap disconnect' between two snaps.
 // The actual snaps are not installed though but a core snap is.
 func (s *RepositorySuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
+	// Rename the "slot" from the core snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.coreSnap, "slot", "unused"), IsNil)
 	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
 	scenarios := []struct {
 		plugSnapName, plugName, slotSnapName, slotName string
@@ -914,6 +889,8 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 // The actual snaps as well as the core snap are installed.
 // The snaps are not connected.
 func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
+	// Rename the "slot" from the core snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.coreSnap, "slot", "unused"), IsNil)
 	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
@@ -992,6 +969,8 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
 // The actual snaps as well as the core snap are installed.
 // The snaps are connected.
 func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
+	// Rename the "slot" from the core snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.coreSnap, "slot", "unused"), IsNil)
 	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
