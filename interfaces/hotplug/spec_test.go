@@ -52,7 +52,7 @@ func (s *hotplugSpecSuite) TestAddSlot(c *C) {
 		{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}},
 	})
 
-	c.Assert(spec.AddSlot(&SlotSpec{Name: "---", Label: "A slot", Attrs: map[string]interface{}{}}), ErrorMatches, `invalid interface name: "---"`)
+	c.Assert(spec.AddSlot(&SlotSpec{Name: "---", Label: "A slot", Attrs: map[string]interface{}{}}), ErrorMatches, `invalid slot name: "---"`)
 }
 
 func (s *hotplugSpecSuite) TestAddSlotDuplicate(c *C) {
