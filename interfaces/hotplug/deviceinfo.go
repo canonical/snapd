@@ -20,6 +20,7 @@
 package hotplug
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -32,10 +33,13 @@ type HotplugDeviceInfo struct {
 }
 
 // NewHotplugDeviceInfo creates HotplugDeviceInfo structure related to udev add or remove event.
-func NewHotplugDeviceInfo(env map[string]string) *HotplugDeviceInfo {
+func NewHotplugDeviceInfo(env map[string]string) (*HotplugDeviceInfo, error) {
+	if _, ok := env["DEVPATH"]; !ok {
+		return nil, fmt.Errorf("missing device path attribute")
+	}
 	return &HotplugDeviceInfo{
 		data: env,
-	}
+	}, nil
 }
 
 // Returns the value of "SUBSYSTEM" attribute of the udev event associated with the device, e.g. "usb".
@@ -47,11 +51,9 @@ func (h *HotplugDeviceInfo) Subsystem() string {
 // Returns full device path under /sysfs, e.g /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2.
 // The path is derived from DEVPATH attribute of the udev event.
 func (h *HotplugDeviceInfo) DevicePath() string {
-	path, ok := h.Attribute("DEVPATH")
-	if ok {
-		return filepath.Join(dirs.SysfsDir, path)
-	}
-	return ""
+	// DEVPATH is guaranteed to exist (checked in the ctor).
+	path, _ := h.Attribute("DEVPATH")
+	return filepath.Join(dirs.SysfsDir, path)
 }
 
 // Returns the value of "MINOR" attribute of the udev event associated with the device.
