@@ -19,7 +19,7 @@
 
 package builtin
 
-const coreSupportSummary = `formerly special permissions for the core snap`
+const coreSupportSummary = `special permissions for the core snap`
 
 const coreSupportBaseDeclarationPlugs = `
   core-support:
