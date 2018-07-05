@@ -64,11 +64,7 @@ execute: |
         DISCONNECTED_PATTERN="$slot_iface +-"
 
         echo "When slot $slot_iface is connected"
-        if snap interfaces | MATCH "$DISCONNECTED_PATTERN" ; then
-            snap connect "$plug_iface" "$slot_iface"
-        else
-            echo "$plug_iface already connected"
-        fi
+        snap connect "$plug_iface" "$slot_iface"
         snap interfaces | MATCH "$CONNECTED_PATTERN"
 
         echo "Then $slotcmd_bn should succeed"
