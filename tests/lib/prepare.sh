@@ -389,6 +389,11 @@ EOF
     fi
 
     # extra_snap should contain only ONE snap
+    if "${#extra_snap[@]}" -ne 1; then
+        echo "unexpected number of globbed snaps: ${extra_snap[*]}"
+        exit 1
+    fi
+
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
