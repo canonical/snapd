@@ -5,13 +5,13 @@ execute: |
     . "$TESTSLIB/journalctl.sh"
 
     echo "We count how many catalog refreshes are logged before starting snapd"
-    refreshes_before="$(get_journalctl_log -u snapd | grep -c 'Catalog refresh')"
+    refreshes_before="$(get_journalctl_log -u snapd | grep -c 'Catalog refresh' || true)"
 
     systemctl restart snapd.{socket,service}
 
     echo "Ensure that catalog refresh happens on startup"
     for _ in $(seq 60); do
-        refreshes_after="$(get_journalctl_log -u snapd | grep -c 'Catalog refresh')"
+        refreshes_after="$(get_journalctl_log -u snapd | grep -c 'Catalog refresh' || true)"
         if [ "$refreshes_after" -gt "$refreshes_before" ]; then
             break
         fi
