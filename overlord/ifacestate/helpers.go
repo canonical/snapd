@@ -483,7 +483,7 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		if err != nil {
 			return nil, err
 		}
-		RemapIncomingConnRef(st, cref)
+		RemapIncomingConnRef(cref)
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -500,7 +500,7 @@ func setConns(st *state.State, conns map[string]connState) {
 			// We cannot fail here
 			panic(err)
 		}
-		RemapOutgoingConnRef(st, cref)
+		RemapOutgoingConnRef(cref)
 		remapped[cref.ID()] = cstate
 	}
 	st.Set("conns", remapped)
@@ -583,14 +583,14 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 // Data coming from the state and from API requests is changed so that slots on "core"
 // become slots on "snapd" (but only when "snapd" snap itself is being used). When
 // data is about to hit the state again it is re-mapped back.
-func RemapIncomingConnRef(st *state.State, cref *interfaces.ConnRef) {
+func RemapIncomingConnRef(cref *interfaces.ConnRef) {
 	if cref.SlotRef.Snap == "core" && implicitSlotsOnSnapd {
 		cref.SlotRef.Snap = "snapd"
 	}
 }
 
 // remapIncomingConnRef potentially re-maps connection reference being saved to store.
-func RemapOutgoingConnRef(st *state.State, cref *interfaces.ConnRef) {
+func RemapOutgoingConnRef(cref *interfaces.ConnRef) {
 	if cref.SlotRef.Snap == "snapd" && implicitSlotsOnSnapd {
 		cref.SlotRef.Snap = "core"
 	}

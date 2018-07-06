@@ -50,7 +50,7 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	}
-	ifacestate.RemapIncomingConnRef(s.st, cref)
+	ifacestate.RemapIncomingConnRef(cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
@@ -64,7 +64,7 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	}
-	ifacestate.RemapIncomingConnRef(s.st, cref)
+	ifacestate.RemapIncomingConnRef(cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
@@ -82,7 +82,7 @@ func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
 	// Outgoing connection references are re-mapped when snapd is the host of
 	// implicit slots so that on the outside, it seems that core is the host
 	// (consistently with pre-snapd behavior).
-	ifacestate.RemapOutgoingConnRef(s.st, cref)
+	ifacestate.RemapOutgoingConnRef(cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
