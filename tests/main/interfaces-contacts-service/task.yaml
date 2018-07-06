@@ -7,7 +7,7 @@ systems:
     - -ubuntu-14.04-*
 
 environment:
-    XDG: $(pwd)/xdg
+    XDG: $(mktemp -d -p $(pwd) xdgXXXXXXXX)
     XDG_CONFIG_HOME: $XDG/config
     XDG_DATA_HOME: $XDG/share
     XDG_CACHE_HOME: $XDG/cache
