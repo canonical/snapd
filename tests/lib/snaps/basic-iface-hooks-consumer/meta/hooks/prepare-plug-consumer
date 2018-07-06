@@ -34,8 +34,8 @@ fi
 
 # Count executions of the hook using snap config; store exec-count in the config and in the dynamic attribute of the interface
 count=$(snapctl get exec-count)
-count=$(expr $count + 1)
-snapctl set exec-count=$count
-snapctl set :consumer exec-count=$count
+count=$((count + 1))
+snapctl set "exec-count=$count"
+snapctl set :consumer "exec-count=$count"
 
 touch "$SNAP_COMMON/prepare-plug-consumer-done"

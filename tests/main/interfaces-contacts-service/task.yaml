@@ -12,11 +12,6 @@ environment:
     XDG_DATA_HOME: $XDG/share
     XDG_CACHE_HOME: $XDG/cache
 
-prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package evolution-data-server
-
 restore: |
     if [ -e dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"

@@ -5,11 +5,8 @@ details: |
     permissions sufficient for NFS to operate.
 systems: [ubuntu-16.04-64]  # TODO: expand this list
 prepare: |
-    . "$TESTSLIB/pkgdb.sh"
     . "$TESTSLIB/snaps.sh"
 
-    # Install NFS server and a simple shell snap.
-    distro_install_package nfs-kernel-server
     install_local test-snapd-sh
 execute: |
     ensure_extra_perms() {
@@ -117,7 +114,6 @@ restore: |
     rm -f /etc/exports.d/test.exports
     rm -f -d /etc/exports.d
     exportfs -r
-    distro_purge_package nfs-kernel-server bsdgames
 
-    # Restart snapd in to ensure it doesn't know about NFS anymore.
+    # Restart snapd in to ensure it doesn't know about NFS configuration anymore.
     systemctl restart snapd.service
