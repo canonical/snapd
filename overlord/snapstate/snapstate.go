@@ -1361,9 +1361,6 @@ func baseInUse(st *state.State, base *snap.Info) bool {
 		return false
 	}
 	for _, snapst := range snapStates {
-		if !snapst.Active {
-			continue
-		}
 		if snapInfo, err := snapst.CurrentInfo(); err == nil {
 			if snapInfo.Base == base.SnapName() {
 				return true
@@ -1381,9 +1378,6 @@ func coreInUse(st *state.State) bool {
 		return false
 	}
 	for _, snapst := range snapStates {
-		if !snapst.Active {
-			continue
-		}
 		if snapInfo, err := snapst.CurrentInfo(); err == nil {
 			if snapInfo.Type != snap.TypeApp || snapInfo.SnapName() == "snapd" {
 				continue
