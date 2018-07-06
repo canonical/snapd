@@ -14,7 +14,7 @@ make_snap() {
     if [ -f "$SNAP_FILE" ]; then
         echo "$SNAP_FILE"
     else
-        find "$TESTSLIB/snaps/${SNAP_NAME}" -name *.snap | head -n1
+        find "$TESTSLIB/snaps/${SNAP_NAME}" -name '*.snap' | head -n1
     fi
 }
 
