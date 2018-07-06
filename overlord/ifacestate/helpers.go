@@ -584,14 +584,14 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 // become slots on "snapd" (but only when "snapd" snap itself is being used). When
 // data is about to hit the state again it is re-mapped back.
 func RemapIncomingConnRef(st *state.State, cref *interfaces.ConnRef) {
-	if cref.SlotRef.Snap == "core" && hasSnapdSnap(st) {
+	if cref.SlotRef.Snap == "core" && implicitSlotsOnSnapd {
 		cref.SlotRef.Snap = "snapd"
 	}
 }
 
 // remapIncomingConnRef potentially re-maps connection reference being saved to store.
 func RemapOutgoingConnRef(st *state.State, cref *interfaces.ConnRef) {
-	if cref.SlotRef.Snap == "snapd" && hasSnapdSnap(st) {
+	if cref.SlotRef.Snap == "snapd" && implicitSlotsOnSnapd {
 		cref.SlotRef.Snap = "core"
 	}
 }

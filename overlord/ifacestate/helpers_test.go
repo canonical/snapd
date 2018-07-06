@@ -101,12 +101,9 @@ func (s *helpersSuite) TestHasSnapdSnap(c *C) {
 }
 
 func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// When "snapd" snap is present, incoming requests re-map "core" snap
-	// to "snapd" snap for interface connections.
-	restore := MockSnapdPresence(c, s.st, true)
+	// When "snapd" snap is the host for implicit slots then slots on core are
+	// re-mapped to slots on snapd.
+	restore := ifacestate.MockImplicitSlotsOnSnapd(true)
 	defer restore()
 
 	cref := &interfaces.ConnRef{
@@ -119,8 +116,8 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
 	})
 
-	// When "snapd" snap is absent, requests are not changed in any way.
-	restore = MockSnapdPresence(c, s.st, false)
+	// When "snapd" is not the host for implicit slots then nothing is changed.
+	restore = ifacestate.MockImplicitSlotsOnSnapd(false)
 	defer restore()
 
 	cref = &interfaces.ConnRef{
@@ -135,18 +132,16 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 }
 
 func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// When "snapd" snap is present, outgoing requests re-map "snapd" snap
-	// to "core" snap for on-disk data.
-	restore := MockSnapdPresence(c, s.st, true)
+	restore := ifacestate.MockImplicitSlotsOnSnapd(true)
 	defer restore()
 
 	cref := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
 	}
+	// Outgoing connection references are re-mapped when snapd is the host of
+	// implicit slots so that on the outside, it seems that core is the host
+	// (consistently with pre-snapd behavior).
 	ifacestate.RemapOutgoingConnRef(s.st, cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
