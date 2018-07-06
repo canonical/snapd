@@ -2169,6 +2169,15 @@ func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 	// manage schedules
 	s.makeSnapDeclaration(c, st, info11)
 	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+
+	// works if the snap is not active as well (to fix race when a
+	// snap is refreshed)
+	var sideInfo11 snapstate.SnapState
+	err := snapstate.Get(st, "snap-with-snapd-control", &sideInfo11)
+	c.Assert(err, IsNil)
+	sideInfo11.Active = false
+	snapstate.Set(st, "snap-with-snapd-control", &sideInfo11)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
