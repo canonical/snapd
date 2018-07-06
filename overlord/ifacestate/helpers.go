@@ -104,6 +104,15 @@ func (m *InterfaceManager) addSnaps() error {
 	if err != nil {
 		return err
 	}
+	// Before adding any snap scan the set of snaps we know about. If any of
+	// those is snapd then for the duration of this process always add
+	// implicit slots to snapd and not to any other type: os snap.
+	for _, snapInfo := range snaps {
+		if snapInfo.SnapName() == "snapd" {
+			implicitSlotsOnSnapd = true
+			break
+		}
+	}
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
@@ -474,7 +483,7 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		if err != nil {
 			return nil, err
 		}
-		RemapIncomingConnRef(st, cref)
+		RemapIncomingConnRef(cref)
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -491,7 +500,7 @@ func setConns(st *state.State, conns map[string]connState) {
 			// We cannot fail here
 			panic(err)
 		}
-		RemapOutgoingConnRef(st, cref)
+		RemapOutgoingConnRef(cref)
 		remapped[cref.ID()] = cstate
 	}
 	st.Set("conns", remapped)
@@ -574,22 +583,15 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 // Data coming from the state and from API requests is changed so that slots on "core"
 // become slots on "snapd" (but only when "snapd" snap itself is being used). When
 // data is about to hit the state again it is re-mapped back.
-func RemapIncomingConnRef(st *state.State, cref *interfaces.ConnRef) {
-	if cref.SlotRef.Snap == "core" && hasSnapdSnap(st) {
+func RemapIncomingConnRef(cref *interfaces.ConnRef) {
+	if cref.SlotRef.Snap == "core" && implicitSlotsOnSnapd {
 		cref.SlotRef.Snap = "snapd"
 	}
 }
 
 // remapIncomingConnRef potentially re-maps connection reference being saved to store.
-func RemapOutgoingConnRef(st *state.State, cref *interfaces.ConnRef) {
-	if cref.SlotRef.Snap == "snapd" && hasSnapdSnap(st) {
+func RemapOutgoingConnRef(cref *interfaces.ConnRef) {
+	if cref.SlotRef.Snap == "snapd" && implicitSlotsOnSnapd {
 		cref.SlotRef.Snap = "core"
 	}
-}
-
-// hasSnapdSnap returns true if there snapd snap is represented in the state.
-func hasSnapdSnap(st *state.State) bool {
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "snapd", &snapst)
-	return err == nil
 }

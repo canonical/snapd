@@ -1917,7 +1917,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		// "core" but about "snapd" snap, where applicable. This re-mapping
 		// doesn't persist in the system state but does persist in per-task
 		// state.
-		ifacestate.RemapIncomingConnRef(st, cref)
+		ifacestate.RemapIncomingConnRef(cref)
 
 		// Resolve the connection, yeah some API skew here.
 		cref, err = repo.ResolveConnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
@@ -1937,7 +1937,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 
 		// Re-map the connection (e.g. core => snapd), same as above.
-		ifacestate.RemapIncomingConnRef(st, cref)
+		ifacestate.RemapIncomingConnRef(cref)
 
 		var conns []*interfaces.ConnRef
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)

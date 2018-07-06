@@ -32,7 +32,6 @@ var (
 	CheckConnectConflicts     = checkConnectConflicts
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
 	ConnectPriv               = connect
-	HasSnapdSnap              = hasSnapdSnap
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
@@ -55,4 +54,10 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
+}
+
+func MockImplicitSlotsOnSnapd(yesNo bool) (restore func()) {
+	old := implicitSlotsOnSnapd
+	implicitSlotsOnSnapd = yesNo
+	return func() { implicitSlotsOnSnapd = old }
 }

@@ -24,9 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type helpersSuite struct {
@@ -42,92 +40,31 @@ func (s *helpersSuite) SetUpTest(c *C) {
 func (s *helpersSuite) TearDownTest(c *C) {
 }
 
-// MockSnapdPresence arranges for state to have the required presence of "snapd" snap.
-func MockSnapdPresence(c *C, st *state.State, isPresent bool) (restore func()) {
-	var origState snapstate.SnapState
-
-	err := snapstate.Get(st, "snapd", &origState)
-	if err != state.ErrNoState {
-		c.Assert(err, IsNil)
-	}
-
-	if isPresent {
-		snapstate.Set(st, "snapd", &snapstate.SnapState{
-			SnapType: string(snap.TypeApp),
-			Sequence: []*snap.SideInfo{{
-				Revision: snap.R(1),
-			}},
-			Active:  true,
-			Current: snap.R(1),
-		})
-	} else {
-		snapstate.Set(st, "snapd", nil)
-	}
-
-	return func() {
-		// Restoring a snap state with empty sequence is just like removing it
-		// so we don't need to special-case or remember if ErrNoState happened.
-		snapstate.Set(st, "snapd", &origState)
-	}
-}
-
-func (s *helpersSuite) TestHasSnapdSnap(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// Not having any state means we don't "have" snapd snap
-	c.Assert(ifacestate.HasSnapdSnap(s.st), Equals, false)
-
-	// Having an active "snapd" snap means we have it.
-	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
-		SnapType: string(snap.TypeApp),
-		Sequence: []*snap.SideInfo{{
-			Revision: snap.R(1),
-		}},
-		Active:  true,
-		Current: snap.R(1),
-	})
-	c.Assert(ifacestate.HasSnapdSnap(s.st), Equals, true)
-
-	// Having an inactive "snapd" snap also means we have it.
-	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
-		SnapType: string(snap.TypeApp),
-		Sequence: []*snap.SideInfo{{
-			Revision: snap.R(1),
-		}},
-		Current: snap.R(1),
-	})
-	c.Assert(ifacestate.HasSnapdSnap(s.st), Equals, true)
-}
-
 func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// When "snapd" snap is present, incoming requests re-map "core" snap
-	// to "snapd" snap for interface connections.
-	restore := MockSnapdPresence(c, s.st, true)
+	// When "snapd" snap is the host for implicit slots then slots on core are
+	// re-mapped to slots on snapd.
+	restore := ifacestate.MockImplicitSlotsOnSnapd(true)
 	defer restore()
 
 	cref := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	}
-	ifacestate.RemapIncomingConnRef(s.st, cref)
+	ifacestate.RemapIncomingConnRef(cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
 	})
 
-	// When "snapd" snap is absent, requests are not changed in any way.
-	restore = MockSnapdPresence(c, s.st, false)
+	// When "snapd" is not the host for implicit slots then nothing is changed.
+	restore = ifacestate.MockImplicitSlotsOnSnapd(false)
 	defer restore()
 
 	cref = &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	}
-	ifacestate.RemapIncomingConnRef(s.st, cref)
+	ifacestate.RemapIncomingConnRef(cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
@@ -135,19 +72,17 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 }
 
 func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// When "snapd" snap is present, outgoing requests re-map "snapd" snap
-	// to "core" snap for on-disk data.
-	restore := MockSnapdPresence(c, s.st, true)
+	restore := ifacestate.MockImplicitSlotsOnSnapd(true)
 	defer restore()
 
 	cref := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
 	}
-	ifacestate.RemapOutgoingConnRef(s.st, cref)
+	// Outgoing connection references are re-mapped when snapd is the host of
+	// implicit slots so that on the outside, it seems that core is the host
+	// (consistently with pre-snapd behavior).
+	ifacestate.RemapOutgoingConnRef(cref)
 	c.Assert(cref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
