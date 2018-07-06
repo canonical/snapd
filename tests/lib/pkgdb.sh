@@ -571,6 +571,7 @@ pkg_dependencies_arch(){
     jq
     git
     openbsd-netcat
+    strace
     xdg-user-dirs
     expect
     libx11
