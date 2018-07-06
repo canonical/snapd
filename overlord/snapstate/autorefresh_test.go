@@ -163,6 +163,35 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 	}
 }
 
+func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
+	snapstate.CanManageRefreshes = func(st *state.State) bool {
+		return true
+	}
+	defer func() { snapstate.CanManageRefreshes = nil }()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	// the "refresh.timer" setting always takes precedence over
+	// refresh.schedule
+	tr.Set("core", "refresh.timer", "00:00-12:00")
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	refreshScheduleStr, legacy, err := af.RefreshSchedule()
+	c.Check(refreshScheduleStr, Equals, "00:00-12:00")
+	c.Check(legacy, Equals, false)
+	c.Check(err, IsNil)
+}
+
 func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("last-refresh", time.Now())
