@@ -1,6 +1,23 @@
-snapd (2.34~pre1) xenial; urgency=medium
+snapd (2.34) xenial; urgency=medium
 
   * New upstream release, LP: #1779403
+    - store, daemon, client, cmd/snap: expose "scope", default to wide*
+    - tests: fix arch tests
+    - snapstate: make sure all *link-*snap tasks carry a snap type and
+      further hints
+    - snapstate: allow setting "refresh.timer=managed"
+    - cmd/snap: display a link to data privacy notice for interactive
+      snap login
+    - devicestate: fix race when refreshing a snap with snapd-control
+    - tests: skip interfaces-framebuffer when no /dev/fb0 is found
+    - tests: run interfaces-contacts-service only where test-snapd-eds
+      is available
+    - many: expose publisher's validation throughout the API
+    - many: use extra "releases" information on store "revision-not-
+      found" errors to produce better errors
+    - dirs: improve distro detection for Antegros
+    - Revert "dirs: improve identification of Arch Linux like systems"
+    - devicestate: fix panic in firstboot code when no snaps are seeded
     - i18n: use xgettext-go --files-from to avoid running into cmdline
       size limits
     - interfaces: move ValidateName helper to utils
@@ -232,7 +249,7 @@ snapd (2.34~pre1) xenial; urgency=medium
     - packaging: fix description
     - snapcraft.yaml: add minimal snapcraft.yaml with custom build
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 29 Jun 2018 20:52:11 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 06 Jul 2018 16:08:17 +0200
 
 snapd (2.33.1) xenial; urgency=medium
 
