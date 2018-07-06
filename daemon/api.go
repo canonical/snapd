@@ -1754,7 +1754,17 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		Connected: pselect == "connected",
 	}
 	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Info(opts), nil)
+	// Re-map outgoing plug and slot information.
+	infos := repo.Info(opts)
+	for _, info := range infos {
+		for i, plug := range info.Plugs {
+			info.Plugs[i] = ifacestate.RemapOutgoingPlug(plug)
+		}
+		for i, slot := range info.Slots {
+			info.Slots[i] = ifacestate.RemapOutgoingSlot(slot)
+		}
+	}
+	return SyncResponse(infos, nil)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
