@@ -2800,18 +2800,22 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 		case 0:
 			c.Check(name, Equals, "hello")
 			c.Check(q, Equals, "")
+			c.Check(query.Get("scope"), Equals, "")
 			c.Check(section, Equals, "")
 		case 1:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
+			c.Check(query.Get("scope"), Equals, "maastricht")
 			c.Check(section, Equals, "")
 		case 2:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "")
+			c.Check(query.Get("scope"), Equals, "")
 			c.Check(section, Equals, "db")
 		case 3:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
+			c.Check(query.Get("scope"), Equals, "")
 			c.Check(section, Equals, "db")
 		default:
 			c.Fatalf("what? %d", n)
@@ -2832,7 +2836,7 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 
 	for _, query := range []Search{
 		{Query: "hello", Prefix: true},
-		{Query: "hello"},
+		{Query: "hello", Scope: "maastricht"},
 		{Section: "db"},
 		{Query: "hello", Section: "db"},
 	} {
