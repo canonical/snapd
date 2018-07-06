@@ -597,6 +597,7 @@ pkg_dependencies_arch(){
     python3-yaml
     squashfs-tools
     shellcheck
+    strace
     xdg-user-dirs
     xfsprogs
     "
