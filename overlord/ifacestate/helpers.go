@@ -595,3 +595,29 @@ func RemapOutgoingConnRef(cref *interfaces.ConnRef) {
 		cref.SlotRef.Snap = "core"
 	}
 }
+
+// RemapOutgoingPlug potentially re-maps the snap name of a plug information.
+//
+// This function doesn't perform any alterations at this stage. It exists for
+// completeness and API consistency.
+func RemapOutgoingPlug(plugInfo *snap.PlugInfo) *snap.PlugInfo {
+	return plugInfo
+}
+
+// RemapOutgoingSlot potentially re-maps the snap name of a slot information.
+//
+// The original object is never altered in place. Instead a new slot info
+// object is returned. The object contains a shallow copy of the original plus
+// another shallow copy of the associated snap info. The snap info is
+// re-mapped.
+func RemapOutgoingSlot(slotInfo *snap.SlotInfo) *snap.SlotInfo {
+	if slotInfo.Snap.SnapName() == "snapd" && implicitSlotsOnSnapd {
+		var remappedSnapInfo snap.Info = *slotInfo.Snap
+		var remappedSlotInfo snap.SlotInfo = *slotInfo
+		remappedSlotInfo.Snap = &remappedSnapInfo
+		remappedSnapInfo.SideInfo.RealName = "core"
+		remappedSnapInfo.SuggestedName = "core"
+		return &remappedSlotInfo
+	}
+	return slotInfo
+}
