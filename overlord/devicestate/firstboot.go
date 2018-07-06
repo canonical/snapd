@@ -67,7 +67,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 		sideInfo.Contact = sn.Contact
 	}
 
-	return snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
+	return snapstate.InstallPath(st, &sideInfo, path, "", sn.Channel, flags)
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
