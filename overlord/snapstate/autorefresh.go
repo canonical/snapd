@@ -442,9 +442,7 @@ func refreshScheduleManaged(st *state.State) (managed bool, legacy bool) {
 	}
 	// if not set, fallback to refresh.schedule
 	if confStr == "" {
-		tr := config.NewTransaction(st)
-		err := tr.Get("core", "refresh.schedule", &confStr)
-		if err != nil {
+		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil {
 			return false, legacy
 		}
 		legacy = true
