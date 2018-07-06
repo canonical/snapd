@@ -19,6 +19,8 @@ execute: |
 
     echo "When the service snap is installed"
     install_local test-snapd-service
+    # give services a bit of time to setup signal handlers
+    sleep 1
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
@@ -31,6 +33,8 @@ execute: |
 
     echo "When it is re-installed"
     install_local test-snapd-service
+    # give services a bit of time to setup signal handlers
+    sleep 1
 
     # note that sigterm{,-all} is tested separately
     for s in $stop_modes; do
@@ -39,7 +43,6 @@ execute: |
 
         echo "and it got the right signal"
         echo "checking that the right signal was sent"
-        sleep 1
         get_journalctl_log -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
     done
 
