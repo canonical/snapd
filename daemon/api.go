@@ -1902,30 +1902,57 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		a.Slots[i].Snap = snap.DropNick(a.Slots[i].Snap)
 	}
 
+	mgr := c.d.overlord.InterfaceManager()
+	repo := mgr.Repository()
+
 	switch a.Action {
 	case "connect":
-		var connRef *interfaces.ConnRef
-		repo := c.d.overlord.InterfaceManager().Repository()
-		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		// Pack the connection arguments into a connection reference for a
+		// moment. We need this for the re-mapping API.
+		cref := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: a.Plugs[0].Snap, Name: a.Plugs[0].Name},
+			SlotRef: interfaces.SlotRef{Snap: a.Slots[0].Snap, Name: a.Slots[0].Name},
+		}
+
+		// Re-map the connection (e.g. core => snapd). Now we don't talk about
+		// "core" but about "snapd" snap, where applicable. This re-mapping
+		// doesn't persist in the system state but does persist in per-task
+		// state.
+		ifacestate.RemapIncomingConnRef(st, cref)
+
+		// Resolve the connection, yeah some API skew here.
+		cref, err = repo.ResolveConnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 		if err == nil {
 			var ts *state.TaskSet
-			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			summary = fmt.Sprintf("Connect %s:%s to %s:%s", cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
+			ts, err = mgr.Connect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
+			affected = snapNamesFromConns([]*interfaces.ConnRef{cref})
 		}
 	case "disconnect":
+		// Pack the connection arguments into a connection reference for a
+		// moment. We need this for the re-mapping API.
+		cref := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: a.Plugs[0].Snap, Name: a.Plugs[0].Name},
+			SlotRef: interfaces.SlotRef{Snap: a.Slots[0].Snap, Name: a.Slots[0].Name},
+		}
+
+		// Re-map the connection (e.g. core => snapd), same as above.
+		ifacestate.RemapIncomingConnRef(st, cref)
+
 		var conns []*interfaces.ConnRef
-		repo := c.d.overlord.InterfaceManager().Repository()
-		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
+		conns, err = repo.ResolveDisconnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")
 			}
-			for _, connRef := range conns {
+			for _, cref := range conns {
+				ifacestate.RemapIncomingConnRef(st, cref)
+				// NOTE: now we don't talk about "core" but about "snapd" snap, where applicable.
+				// This persists in the state through tasks but not in the connection state.
 				var ts *state.TaskSet
-				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+				ts, err = mgr.Disconnect(cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
 				if err != nil {
 					break
 				}
