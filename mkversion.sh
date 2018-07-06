@@ -34,7 +34,7 @@ fi
 
 if [ -z "$v" ]; then
     # Let's try to derive the version from git..
-    if which git >/dev/null; then
+    if command -v git >/dev/null; then
         v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
         o=git
     fi
