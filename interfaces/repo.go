@@ -429,6 +429,8 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	if slotSnapName == "" {
 		// Use the core snap if the slot-side snap name is empty
 		switch {
+		case r.slots["snapd"] != nil:
+			slotSnapName = "snapd"
 		case r.slots["core"] != nil:
 			slotSnapName = "core"
 		case r.slots["ubuntu-core"] != nil:
@@ -491,7 +493,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	coreSnapName, _ := r.guessCoreSnapName()
+	coreSnapName, _ := r.guessSystemSnapName()
 	if coreSnapName == "" {
 		// This is not strictly speaking true BUT when there's no core snap the
 		// produced error messages are consistent to when the is a core snap
@@ -684,7 +686,7 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 
 func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, error) {
 	if snapName == "" {
-		snapName, _ = r.guessCoreSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
@@ -721,7 +723,7 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	defer r.m.Unlock()
 
 	if snapName == "" {
-		snapName, _ = r.guessCoreSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
@@ -745,8 +747,10 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 }
 
 // coreSnapName returns the name of the core snap if one exists
-func (r *Repository) guessCoreSnapName() (string, error) {
+func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
+	case r.slots["snapd"] != nil:
+		return "snapd", nil
 	case r.slots["core"] != nil:
 		return "core", nil
 	case r.slots["ubuntu-core"] != nil:
