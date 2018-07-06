@@ -32,7 +32,6 @@ var (
 	CheckConnectConflicts     = checkConnectConflicts
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
 	ConnectPriv               = connect
-	HasSnapdSnap              = hasSnapdSnap
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the

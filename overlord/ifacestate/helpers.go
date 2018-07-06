@@ -595,10 +595,3 @@ func RemapOutgoingConnRef(st *state.State, cref *interfaces.ConnRef) {
 		cref.SlotRef.Snap = "core"
 	}
 }
-
-// hasSnapdSnap returns true if there snapd snap is represented in the state.
-func hasSnapdSnap(st *state.State) bool {
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "snapd", &snapst)
-	return err == nil
-}

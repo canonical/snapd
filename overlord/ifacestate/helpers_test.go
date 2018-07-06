@@ -24,9 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type helpersSuite struct {
@@ -40,64 +38,6 @@ func (s *helpersSuite) SetUpTest(c *C) {
 }
 
 func (s *helpersSuite) TearDownTest(c *C) {
-}
-
-// MockSnapdPresence arranges for state to have the required presence of "snapd" snap.
-func MockSnapdPresence(c *C, st *state.State, isPresent bool) (restore func()) {
-	var origState snapstate.SnapState
-
-	err := snapstate.Get(st, "snapd", &origState)
-	if err != state.ErrNoState {
-		c.Assert(err, IsNil)
-	}
-
-	if isPresent {
-		snapstate.Set(st, "snapd", &snapstate.SnapState{
-			SnapType: string(snap.TypeApp),
-			Sequence: []*snap.SideInfo{{
-				Revision: snap.R(1),
-			}},
-			Active:  true,
-			Current: snap.R(1),
-		})
-	} else {
-		snapstate.Set(st, "snapd", nil)
-	}
-
-	return func() {
-		// Restoring a snap state with empty sequence is just like removing it
-		// so we don't need to special-case or remember if ErrNoState happened.
-		snapstate.Set(st, "snapd", &origState)
-	}
-}
-
-func (s *helpersSuite) TestHasSnapdSnap(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// Not having any state means we don't "have" snapd snap
-	c.Assert(ifacestate.HasSnapdSnap(s.st), Equals, false)
-
-	// Having an active "snapd" snap means we have it.
-	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
-		SnapType: string(snap.TypeApp),
-		Sequence: []*snap.SideInfo{{
-			Revision: snap.R(1),
-		}},
-		Active:  true,
-		Current: snap.R(1),
-	})
-	c.Assert(ifacestate.HasSnapdSnap(s.st), Equals, true)
-
-	// Having an inactive "snapd" snap also means we have it.
-	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
-		SnapType: string(snap.TypeApp),
-		Sequence: []*snap.SideInfo{{
-			Revision: snap.R(1),
-		}},
-		Current: snap.R(1),
-	})
-	c.Assert(ifacestate.HasSnapdSnap(s.st), Equals, true)
 }
 
 func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
