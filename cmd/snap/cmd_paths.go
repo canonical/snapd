@@ -46,9 +46,6 @@ func (cmd cmdPaths) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	w := tabWriter()
-	defer w.Flush()
-
 	// TODO: include paths reported by snap-confine
 	for _, p := range []struct {
 		name string
@@ -58,7 +55,7 @@ func (cmd cmdPaths) Execute(args []string) error {
 		{"SNAPD_BIN", dirs.SnapBinariesDir},
 		{"SNAPD_LIBEXEC", dirs.DistroLibExecDir},
 	} {
-		fmt.Fprintf(w, "%s=%s\n", p.name, p.path)
+		fmt.Fprintf(Stdout, "%s=%s\n", p.name, p.path)
 	}
 
 	return nil
