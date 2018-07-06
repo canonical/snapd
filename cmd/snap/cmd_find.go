@@ -161,7 +161,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
-		"narrow":  i18n.G("Only search for snaps in 'stable' and for the current architecture"),
+		"narrow":  i18n.G("Only search for snaps in “stable”"),
 		"section": i18n.G("Restrict the search to a given section"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
