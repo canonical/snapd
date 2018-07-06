@@ -214,3 +214,47 @@ func MustParseChannel(s string, architecture string) snap.Channel {
 	}
 	return c
 }
+
+// RenameSlot renames gives an existing slot a new name.
+//
+// The new slot name cannot clash with an existing plug or slot and must
+// be a valid slot name.
+func RenameSlot(snapInfo *snap.Info, oldName, newName string) error {
+	if snapInfo.Slots[oldName] == nil {
+		return fmt.Errorf("cannot rename slot %q to %q: no such slot", oldName, newName)
+	}
+	if err := snap.ValidateSlotName(newName); err != nil {
+		return fmt.Errorf("cannot rename slot %q to %q: %s", oldName, newName, err)
+	}
+	if oldName == newName {
+		return nil
+	}
+	if snapInfo.Slots[newName] != nil {
+		return fmt.Errorf("cannot rename slot %q to %q: existing slot with that name", oldName, newName)
+	}
+	if snapInfo.Plugs[newName] != nil {
+		return fmt.Errorf("cannot rename slot %q to %q: existing plug with that name", oldName, newName)
+	}
+
+	// Rename the slot.
+	slotInfo := snapInfo.Slots[oldName]
+	snapInfo.Slots[newName] = slotInfo
+	delete(snapInfo.Slots, oldName)
+	slotInfo.Name = newName
+
+	// Update references to the slot in all applications and hooks.
+	for _, appInfo := range snapInfo.Apps {
+		if _, ok := appInfo.Slots[oldName]; ok {
+			delete(appInfo.Slots, oldName)
+			appInfo.Slots[newName] = slotInfo
+		}
+	}
+	for _, hookInfo := range snapInfo.Hooks {
+		if _, ok := hookInfo.Slots[oldName]; ok {
+			delete(hookInfo.Slots, oldName)
+			hookInfo.Slots[newName] = slotInfo
+		}
+	}
+
+	return nil
+}
