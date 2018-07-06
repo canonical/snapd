@@ -14,7 +14,7 @@ prepare: |
 
 execute: |
     expected="(?s)Slot +Plug\\n\
-    :$PLUG .*$SNAP_NAME"
+    [a-z]*?:$PLUG .*$SNAP_NAME"
 
     echo "When the interfaces list is restricted by slot"
     echo "Then only the requested slots are shown"
