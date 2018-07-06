@@ -1695,6 +1695,22 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestFindScope(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&scope=creep", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{
+		Query: "foo",
+		Scope: "creep",
+	})
+}
+
 func (s *apiSuite) TestFindCommonID(c *check.C) {
 	s.daemon(c)
 
