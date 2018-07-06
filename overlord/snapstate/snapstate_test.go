@@ -6712,7 +6712,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
 }
 
-func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
+func (s *snapmgrTestSuite) testEnsureRefreshesDisabledViaSnapdControl(c *C, confSet func(*config.Transaction)) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -6743,8 +6743,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 		return true
 	}
 	defer func() { snapstate.CanManageRefreshes = oldCanManageRefreshes }()
+
 	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", "managed")
+	confSet(tr)
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -6764,6 +6765,30 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 	var lastRefreshHints time.Time
 	st.Get("last-refresh-hints", &lastRefreshHints)
 	c.Check(lastRefreshHints.Year(), Equals, time.Now().Year())
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshDisableLegacy(c *C) {
+	f := func(tr *config.Transaction) {
+		tr.Set("core", "refresh.timer", "")
+		tr.Set("core", "refresh.schedule", "managed")
+	}
+	s.testEnsureRefreshesDisabledViaSnapdControl(c, f)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshDisableNew(c *C) {
+	f := func(tr *config.Transaction) {
+		tr.Set("core", "refresh.timer", "managed")
+		tr.Set("core", "refresh.schedule", "")
+	}
+	s.testEnsureRefreshesDisabledViaSnapdControl(c, f)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshDisableNewTrumpsOld(c *C) {
+	f := func(tr *config.Transaction) {
+		tr.Set("core", "refresh.timer", "managed")
+		tr.Set("core", "refresh.schedule", "00:00-12:00")
+	}
+	s.testEnsureRefreshesDisabledViaSnapdControl(c, f)
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
