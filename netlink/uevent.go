@@ -3,6 +3,7 @@ package netlink
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // See: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
@@ -80,7 +81,46 @@ func (e UEvent) Equal(e2 UEvent) (bool, error) {
 	return true, nil
 }
 
+func parseUdevEvent(raw []byte) (e *UEvent, err error) {
+	fields := bytes.Split(raw[40:], []byte{0x00}) // 0x00 = end of string
+
+	if len(fields) == 0 {
+		err = fmt.Errorf("Wrong libudev format")
+		return
+	}
+
+	envdata := make(map[string]string, 0)
+	for _, envs := range fields[0 : len(fields)-1] {
+		env := bytes.Split(envs, []byte("="))
+		if len(env) != 2 {
+			err = fmt.Errorf("Wrong libudev env")
+			return
+		}
+		envdata[string(env[0])] = string(env[1])
+	}
+
+	var action KObjAction
+	action, err = ParseKObjAction(strings.ToLower(envdata["ACTION"]))
+	if err != nil {
+		return
+	}
+
+	// XXX: do we need kobj?
+	kobj := envdata["DEVPATH"]
+
+	e = &UEvent{
+		Action: action,
+		KObj:   kobj,
+		Env:    envdata,
+	}
+
+	return
+}
+
 func ParseUEvent(raw []byte) (e *UEvent, err error) {
+	if bytes.Compare(raw[:7], []byte("libudev")) == 0 {
+		return parseUdevEvent(raw)
+	}
 	fields := bytes.Split(raw, []byte{0x00}) // 0x00 = end of string
 
 	if len(fields) == 0 {
