@@ -21,46 +21,74 @@ package hotplug
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/interfaces/utils"
+
+	"github.com/snapcore/snapd/snap"
 )
 
+// Definer can be implemented by interfaces that need to create slots in response to hotplug events
+type Definer interface {
+	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
+}
+
+// SlotSpec is a definition of the slot to create in response to udev event.
 type SlotSpec struct {
+	// XXX: Name is the name the interface wants to give to the slot; we
+	// might want to mediate this though (e.g. generate automatically), so this
+	// may change/go away.
 	Name  string
 	Label string
 	Attrs map[string]interface{}
 }
 
+// Specification contains data about all slots that a hotplug interface wants to have created in response to uevent.
 type Specification struct {
-	deviceKey string
-	slots     []SlotSpec
+	// slots are indexed by slot name to ensure unique names
+	slots map[string]*SlotSpec
 }
 
-func NewSpecification(deviceKey string) (*Specification, error) {
-	if deviceKey == "" {
-		return nil, fmt.Errorf("invalid device key %q", deviceKey)
-	}
+// NewSpecification creates an empty hotplug Specification.
+func NewSpecification() *Specification {
 	return &Specification{
-		deviceKey: deviceKey,
-	}, nil
+		slots: make(map[string]*SlotSpec),
+	}
 }
 
-func (h *Specification) AddSlot(name, label string, attrs map[string]interface{}) {
-	h.slots = append(h.slots, SlotSpec{
-		Name:  name,
-		Label: label,
+// AddSlot adds a specification of a slot.
+func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
+	if _, ok := h.slots[slotSpec.Name]; ok {
+		return fmt.Errorf("slot %q already exists", slotSpec.Name)
+	}
+	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
+		return err
+	}
+	attrs := slotSpec.Attrs
+	if attrs == nil {
+		attrs = make(map[string]interface{})
+	} else {
+		attrs = utils.CopyAttributes(slotSpec.Attrs)
+	}
+	h.slots[slotSpec.Name] = &SlotSpec{
+		Name:  slotSpec.Name,
+		Label: slotSpec.Label,
 		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
-	})
+	}
+	return nil
 }
 
-func (h *Specification) Slots() []SlotSpec {
-	slots := make([]SlotSpec, len(h.slots))
-	for _, s := range h.slots {
-		slots = append(slots, SlotSpec{
-			Name:  s.Name,
-			Label: s.Label,
-			Attrs: s.Attrs,
-		})
+// Slots returns specifications of all slots created by given interface.
+func (h *Specification) Slots() []*SlotSpec {
+	keys := make([]string, 0, len(h.slots))
+	for k := range h.slots {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	slots := make([]*SlotSpec, 0, len(h.slots))
+	for _, k := range keys {
+		slots = append(slots, h.slots[k])
 	}
 	return slots
 }

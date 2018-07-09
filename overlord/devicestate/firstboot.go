@@ -200,9 +200,11 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
-	configTss[0].WaitAll(tsAll[last])
-	tsAll = append(tsAll, configTss...)
-	last += len(configTss)
+	if len(configTss) > 0 {
+		configTss[0].WaitAll(tsAll[last])
+		tsAll = append(tsAll, configTss...)
+		last += len(configTss)
+	}
 
 	for _, sn := range seed.Snaps {
 		if alreadySeeded[sn.Name] {

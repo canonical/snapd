@@ -78,8 +78,8 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization
 
-	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
-		return &overlord.UDevMonitorMock{}
+	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
+		return nil
 	})
 }
 
