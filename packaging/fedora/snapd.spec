@@ -688,7 +688,7 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
-%{_datadir}/applications/snap-uri-handler.desktop
+%{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy

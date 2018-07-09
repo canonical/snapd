@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Handler for snap:// URIs
 Comment=Prompt the user to install gnome-software then pass control to it
-Exec=@bindir@/snap snap-uri-handler %U
+Exec=@bindir@/snap handle-link %U
 MimeType=x-scheme-handler/snap;
 NoDisplay=true
 Type=Application
