@@ -26,6 +26,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// Flag indicating if implicit slots should be added to "snapd" snap. This
+// is here because the interface manager is the only entity adding such
+// slots and must ensure that: ubuntu-core -> core transition can run as
+// before (both snaps have the implicit slots but that case is handled
+// directly) and so that once "snapd" snap is installed only one snap in
+// the system will hold implicit interfaces.
+//
+// This is set on startup of the interface manager, based on the presence
+// of "snapd" snap in the state.
+var implicitSlotsOnSnapd bool
+
 // addImplicitSlots adds implicitly defined slots to a given snap.
 //
 // Only the OS snap has implicit slots.
@@ -33,10 +44,20 @@ import (
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
 func addImplicitSlots(snapInfo *snap.Info) {
-	if snapInfo.Type != snap.TypeOS {
+	// Implicit slots can be added to the special "snapd" snap or to snaps with
+	// type "os". Currently there are no other snaps that gain implicit
+	// interfaces.
+	if snapInfo.Type != snap.TypeOS && snapInfo.InstanceName() != "snapd" {
 		return
 	}
-	// Ask each interface if it wants to be implcitly added.
+
+	// If the manager has chosen to put implicit slots on the "snapd" snap
+	// then stop adding them to any other core snaps.
+	if implicitSlotsOnSnapd && snapInfo.InstanceName() != "snapd" {
+		return
+	}
+
+	// Ask each interface if it wants to be implicitly added.
 	for _, iface := range builtin.Interfaces() {
 		si := interfaces.StaticInfoOf(iface)
 		if (release.OnClassic && si.ImplicitOnClassic) || (!release.OnClassic && si.ImplicitOnCore) {
