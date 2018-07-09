@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/userd/ui"
 )
 
-type cmdSnapUriHandler struct {
+type cmdHandleLink struct {
 	waitMixin
 
 	Positional struct {
@@ -41,15 +41,15 @@ type cmdSnapUriHandler struct {
 }
 
 func init() {
-	addCommand("snap-uri-handler",
+	addCommand("handle-link",
 		i18n.G("Handle a snap:// URI"),
-		i18n.G("The snap-uri-handler command installs the gnome-software snap and then invokes it."),
+		i18n.G("The handle-link command installs the gnome-software snap and then invokes it."),
 		func() flags.Commander {
-			return &cmdSnapUriHandler{}
+			return &cmdHandleLink{}
 		}, nil, nil)
 }
 
-func (x *cmdSnapUriHandler) ensureGnomeSoftwareInstalled(cli *client.Client) error {
+func (x *cmdHandleLink) ensureGnomeSoftwareInstalled(cli *client.Client) error {
 	// If the gnome-software snap is installed, our work is done
 	if _, _, err := cli.Snap("gnome-software"); err == nil {
 		return nil
@@ -85,7 +85,7 @@ func (x *cmdSnapUriHandler) ensureGnomeSoftwareInstalled(cli *client.Client) err
 	return nil
 }
 
-func (x *cmdSnapUriHandler) Execute([]string) error {
+func (x *cmdHandleLink) Execute([]string) error {
 	cli := Client()
 
 	if err := x.ensureGnomeSoftwareInstalled(cli); err != nil {

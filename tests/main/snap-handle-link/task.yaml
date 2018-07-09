@@ -1,4 +1,4 @@
-summary: Ensure the "snap snap-uri-handler" command works
+summary: Ensure the "snap handle-link" command works
 
 # We don't run on ubuntu-core, since we are testing the behaviour of
 # xdg-open on the host system.
@@ -30,7 +30,7 @@ execute: |
 
     echo "URI Handler fails if gnome-software is not installed and user refuses to install it"
     mount --bind /bin/false /usr/bin/zenity
-    if snap snap-uri-handler snap://package 2>errors.log; then
+    if snap handle-link snap://package 2>errors.log; then
         cat errors.log >&2
         echo "Expected URI handler to fail"
         exit 1
@@ -39,7 +39,7 @@ execute: |
 
     echo "Now with gnome-software installed"
     install_local gnome-software
-    snap snap-uri-handler snap://package | MATCH "Open URI: snap://package"
+    snap handle-link snap://package | MATCH "Fake snap got snap://package"
 
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         # Ubuntu 14.04 ships with an ancient xdg-open shell script
@@ -47,5 +47,5 @@ execute: |
         # implementations on the system (e.g. GLib) should be fine
         # though.
         echo "The same should work with xdg-open"
-        xdg-open snap://package | MATCH "Open URI: snap://package"
+        xdg-open snap://package | MATCH "Fake snap got snap://package"
     fi

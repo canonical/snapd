@@ -1,2 +1,2 @@
 #!/bin/sh
-echo "Open URI: $1"
+echo "Fake snap got $1"

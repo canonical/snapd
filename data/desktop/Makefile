@@ -17,7 +17,7 @@ BINDIR = /usr/bin
 SYSCONFXDGAUTOSTARTDIR = /etc/xdg/autostart
 APPLICATIONSDIR = /usr/share/applications
 
-DESKTOP_SOURCES = snap-uri-handler.desktop.in
+DESKTOP_SOURCES = snap-handle-link.desktop.in
 DESKTOP_FILES = $(DESKTOP_SOURCES:.in=)
 
 AUTOSTART_SOURCES = snap-userd-autostart.desktop.in
