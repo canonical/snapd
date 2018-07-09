@@ -100,9 +100,9 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 				if err != nil {
 					return err
 				}
-				if plugRef.Snap == plugSnap || plugRef.Snap == slotSnap ||
-					slotRef.Snap == plugSnap || slotRef.Snap == slotSnap {
-					return &state.Retry{After: connectRetryTimeout}
+				if (plugRef.Snap == plugSnap || plugRef.Snap == slotSnap) &&
+					(slotRef.Snap == plugSnap || slotRef.Snap == slotSnap) {
+					return snapstate.ChangeConflictError(plugRef.Snap, task.Change().Kind())
 				}
 			}
 		}
