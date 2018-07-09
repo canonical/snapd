@@ -202,6 +202,7 @@ distro_install_package() {
         ;;
     esac
 
+    # shellcheck disable=SC2207
     pkg_names=($(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
@@ -597,6 +598,7 @@ pkg_dependencies_arch(){
     python3-yaml
     squashfs-tools
     shellcheck
+    strace
     xdg-user-dirs
     xfsprogs
     "

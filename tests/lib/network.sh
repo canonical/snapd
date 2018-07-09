@@ -8,7 +8,7 @@ wait_listen_port(){
     PORT="$1"
 
     for _ in $(seq 120); do
-        if ss -lnt | grep -Pq "LISTEN.*?:$PORT +.*?\n*"; then
+        if ss -lnt | grep -Pq "LISTEN.*?:$PORT +.*?\\n*"; then
             break
         fi
         sleep 0.5
@@ -16,5 +16,5 @@ wait_listen_port(){
 
     # Ensure we really have the listen port, this will fail with an
     # exit code if the port is not available.
-    ss -lnt | grep -Pq "LISTEN.*?:$PORT +.*?\n*"
+    ss -lnt | grep -Pq "LISTEN.*?:$PORT +.*?\\n*"
 }
