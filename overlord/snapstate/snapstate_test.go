@@ -4950,6 +4950,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
+		if t.Kind() == "disconnect-interfaces" {
+			expSnapSetup.PlugsOnly = true
+			expSnapSetup.Type = "app"
+		}
 
 		c.Check(snapsup, DeepEquals, expSnapSetup, Commentf(t.Kind()))
 	}
