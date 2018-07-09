@@ -540,3 +540,167 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 	}
 	return decl.SnapName(), nil
 }
+
+// InterfaceMapper offers APIs for re-mapping plugs and slots in interface
+// connections. The mapper is designed to apply transformations around the
+// edges of snapd (state interactions and API interactions) to offer one view
+// on the inside of snapd and another view on the outside.
+type InterfaceMapper interface {
+	RemapIncomingPlugRef(plugRef *interfaces.PlugRef) (changed bool)
+	RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) (changed bool)
+	RemapIncomingSlotRef(slotRef *interfaces.SlotRef) (changed bool)
+	RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) (changed bool)
+}
+
+// NilMapper implements InterfaceMapper and performs no transformations at all.
+type NilMapper struct{}
+
+// RemapIncomingPlugRef doesn't change the plug in any way.
+func (m *NilMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+	return false
+}
+
+// RemapOutgoingPlugRef doesn't change the plug in any way.
+func (m *NilMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+	return false
+}
+
+// RemapIncomingSlotRef doesn't change the slot in any way.
+func (m *NilMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+	return false
+}
+
+// RemapOutgoingSlotRef doesn't change the slot in any way.
+func (m *NilMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+	return false
+}
+
+// mapper contains the currently active interface mapper.
+var mapper InterfaceMapper = &NilMapper{}
+
+// MockInterfaceMapper mocks the currently used interface mapper.
+func MockInterfaceMapper(new InterfaceMapper) (restore func()) {
+	old := mapper
+	mapper = new
+	return func() { mapper = old }
+}
+
+// CoreSnapdMapper implements InterfaceMapper and makes implicit slots
+// appear to be on "core" while they are on "snapd" in reality.
+type CoreSnapdMapper struct{}
+
+// RemapIncomingSlotRef make slots appear on "snapd" rather than "core".
+func (m *CoreSnapdMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+	if slotRef.Snap == "core" {
+		slotRef.Snap = "snapd"
+		return true
+	}
+	return false
+}
+
+// RemapOutgoingSlotRef make slots appear on "core" rather than "snapd".
+func (m *CoreSnapdMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+	if slotRef.Snap == "snapd" {
+		slotRef.Snap = "core"
+		return true
+	}
+	return false
+}
+
+// RemapIncomingPlugRef doesn't change the plug in any way.
+func (m *CoreSnapdMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+	return false
+}
+
+// RemapOutgoingPlugRef doesn't change the plug in any way.
+func (m *CoreSnapdMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+	return false
+}
+
+// Remapping functions for incoming transfers ({state,wire}=>memory)
+
+// RemapIncomingConnRef potentially re-maps connection reference from an API request or being loaded from state.
+//
+// The operation done by remapIncomingConnRef must be symmetric with remapIncomingConnRef.
+// In practice the pair of functions are used to make "snapd" snap the host of implicit
+// interfaces and connections without altering the state in a backwards incompatible way.
+//
+// Data coming from the state and from API requests is changed so that slots on "core"
+// become slots on "snapd" (but only when "snapd" snap itself is being used). When
+// data is about to hit the state again it is re-mapped back.
+func RemapIncomingConnRef(cref *interfaces.ConnRef) (changed bool) {
+	changedPlug := mapper.RemapIncomingPlugRef(&cref.PlugRef)
+	changedSlot := mapper.RemapIncomingSlotRef(&cref.SlotRef)
+	return changedPlug || changedSlot
+}
+
+// RemapIncomingPlugRef potentially re-maps the snap name of a plug reference.
+func RemapIncomingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+	return mapper.RemapIncomingPlugRef(plugRef)
+}
+
+// RemapIncomingSlotRef potentially re-maps the snap name of a slot reference.
+func RemapIncomingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+	return mapper.RemapIncomingSlotRef(slotRef)
+}
+
+// Remapping functions for outgoing transfers (memory=>{state,wire})
+
+// RemapOutgoingConnRef potentially re-maps connection reference before being saved to store or returned in an API response.
+//
+// This function is symmetric with RemapIncomingConnRef.
+func RemapOutgoingConnRef(cref *interfaces.ConnRef) (changed bool) {
+	changedPlug := mapper.RemapOutgoingPlugRef(&cref.PlugRef)
+	changedSlot := mapper.RemapOutgoingSlotRef(&cref.SlotRef)
+	return changedPlug || changedSlot
+}
+
+// RemapOutgoingPlugRef potentially re-maps the snap name of a plug reference.
+func RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+	return mapper.RemapOutgoingPlugRef(plugRef)
+}
+
+// RemapOutgoingSlotRef potentially re-maps the snap name of a slot reference.
+func RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+	return mapper.RemapOutgoingSlotRef(slotRef)
+}
+
+// RemapOutgoingPlugInfo potentially re-maps the snap name of a plug information.
+//
+// The original object is never altered in place. Instead a new plug info
+// object is returned. The object contains a shallow copy of the original, plus
+// another shallow copy of the associated snap info. The snap info is
+// re-mapped.
+func RemapOutgoingPlugInfo(plugInfo *snap.PlugInfo) *snap.PlugInfo {
+	plugRef := interfaces.PlugRef{Snap: plugInfo.Snap.SnapName(), Name: plugInfo.Name}
+	if changed := mapper.RemapOutgoingPlugRef(&plugRef); changed {
+		remappedSnapInfo := *plugInfo.Snap
+		remappedPlugInfo := *plugInfo
+		remappedPlugInfo.Snap = &remappedSnapInfo
+		remappedSnapInfo.SideInfo.RealName = plugRef.Snap
+		remappedSnapInfo.SuggestedName = plugRef.Snap
+		remappedPlugInfo.Name = plugRef.Name
+		return &remappedPlugInfo
+	}
+	return plugInfo
+}
+
+// RemapOutgoingSlotInfo potentially re-maps the snap name of a slot information.
+//
+// The original object is never altered in place. Instead a new slot info
+// object is returned. The object contains a shallow copy of the original, plus
+// another shallow copy of the associated snap info. The snap info is
+// re-mapped.
+func RemapOutgoingSlotInfo(slotInfo *snap.SlotInfo) *snap.SlotInfo {
+	slotRef := interfaces.SlotRef{Snap: slotInfo.Snap.SnapName(), Name: slotInfo.Name}
+	if changed := mapper.RemapOutgoingSlotRef(&slotRef); changed {
+		remappedSnapInfo := *slotInfo.Snap
+		remappedSlotInfo := *slotInfo
+		remappedSlotInfo.Snap = &remappedSnapInfo
+		remappedSnapInfo.SideInfo.RealName = slotRef.Snap
+		remappedSnapInfo.SuggestedName = slotRef.Snap
+		remappedSlotInfo.Name = slotRef.Name
+		return &remappedSlotInfo
+	}
+	return slotInfo
+}
