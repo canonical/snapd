@@ -1,8 +1,8 @@
-snapd (2.34~pre1) xenial; urgency=medium
+snapd (2.34) xenial; urgency=medium
 
   * placeholder changelog
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 29 Jun 2018 21:14:45 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 06 Jul 2018 16:25:01 +0200
 
 snapd (2.33.1) xenial; urgency=medium
 

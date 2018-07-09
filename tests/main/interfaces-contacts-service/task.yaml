@@ -13,15 +13,12 @@ environment:
     XDG_CACHE_HOME: $XDG/cache
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package evolution-data-server
-    snap install --edge test-snapd-eds
-    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
 restore: |
-    kill "$(cat dbus-launch.pid)"
-    rm -f dbus-launch.pid
+    if [ -e dbus-launch.pid ]; then
+        kill "$(cat dbus-launch.pid)"
+        rm -f dbus-launch.pid
+    fi
 
     # In case the process gvfsd-metadata does not finish by itself, it is manually stopped
     # The reason is that gvfsd-metadata locks the xdg/share/gvfs-metadata directory content
@@ -32,6 +29,16 @@ restore: |
     rm -rf "$XDG"
 
 execute: |
+    if ! snap install --edge test-snapd-eds ; then
+        if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+            echo "The test-snapd-eds must be available on ubuntu-16.04-64"
+            exit 1
+        fi
+        echo "SKIP: test-snapd-eds not available"
+        exit 0
+    fi
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+
     echo "Setting up D-Bus session bus"
     eval "$(dbus-launch --sh-syntax)"
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid

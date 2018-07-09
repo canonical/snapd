@@ -74,8 +74,7 @@ func (c BySlotInfo) Swap(i, j int)      { bySlotInfo(c).Swap(i, j) }
 func (c BySlotInfo) Less(i, j int) bool { return bySlotInfo(c).Less(i, j) }
 
 var (
-	CopyAttributes = copyAttributes
-	FindSnapdPath  = findSnapdPath
+	FindSnapdPath = findSnapdPath
 )
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS

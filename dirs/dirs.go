@@ -107,6 +107,7 @@ var (
 	SnapshotsDir     string
 
 	ErrtrackerDbDir string
+	SysfsDir        string
 )
 
 const (
@@ -179,7 +180,7 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	if release.DistroLike("fedora", "arch", "manjaro", "antegros") {
+	if release.DistroLike("fedora", "arch", "manjaro", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -267,4 +268,5 @@ func SetRootDir(rootdir string) {
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
+	SysfsDir = filepath.Join(rootdir, "/sys")
 }

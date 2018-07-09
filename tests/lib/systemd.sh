@@ -2,7 +2,7 @@
 
 # Use like systemd_create_and_start_unit(fakestore, "$(which fakestore) -start -dir $top_dir -addr localhost:11028 $@")
 systemd_create_and_start_unit() {
-    printf "[Unit]\nDescription=For testing purposes\n[Service]\nType=simple\nExecStart=%s\n" "$2" > "/run/systemd/system/$1.service"
+    printf '[Unit]\nDescription=For testing purposes\n[Service]\nType=simple\nExecStart=%s\n' "$2" > "/run/systemd/system/$1.service"
     if [ -n "${3:-}" ]; then
         echo "Environment=$3" >> "/run/systemd/system/$1.service"
     fi
@@ -55,4 +55,8 @@ systemd_stop_units() {
             systemctl stop "$unit"
         fi
     done
+}
+
+systemd_get_active_snapd_units() {
+    systemctl list-units --plain --state=active|grep -Eo '^snapd\..*(socket|service|timer)' || true
 }

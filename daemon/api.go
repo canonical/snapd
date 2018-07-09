@@ -622,6 +622,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	q := query.Get("q")
 	section := query.Get("section")
 	name := query.Get("name")
+	scope := query.Get("scope")
 	private := false
 	prefix := false
 
@@ -659,6 +660,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Section: section,
 		Private: private,
 		Prefix:  prefix,
+		Scope:   scope,
 	}, user)
 	switch err {
 	case nil:

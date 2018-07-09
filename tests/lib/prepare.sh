@@ -28,7 +28,7 @@ disable_kernel_rate_limiting() {
 }
 
 ensure_jq() {
-    if which jq; then
+    if command -v jq; then
         return
     fi
 
@@ -318,14 +318,18 @@ setup_reflash_magic() {
         # We can do this once https://forum.snapcraft.io/t/5947 is
         # answered.
         echo "Added needed assertions so that core-amd64-18.model works"
+        # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
-        export STORE_DIR="$(pwd)/fake-store-blobdir"
-        export STORE_ADDR="localhost:11028"
+        STORE_DIR="$(pwd)/fake-store-blobdir"
+        export STORE_DIR
+        STORE_ADDR="localhost:11028"
+        export STORE_ADDR
         setup_fake_store "$STORE_DIR"
         cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR"/asserts
         cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR"/asserts
         # have snap use the fakestore for assertions (but nothing else)
-        export SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
+        SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
+        export SNAPPY_FORCE_SAS_URL
         # -----------------------8<----------------------------
     else
         # modify the core snap so that the current root-pw works there
@@ -379,15 +383,21 @@ EOF
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
     if is_core18_system; then
-        extra_snap="$IMAGE_HOME"/snapd_*.snap
+        extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
-        extra_snap="$IMAGE_HOME"/core_*.snap
+        extra_snap=("$IMAGE_HOME"/core_*.snap)
+    fi
+
+    # extra_snap should contain only ONE snap
+    if "${#extra_snap[@]}" -ne 1; then
+        echo "unexpected number of globbed snaps: ${extra_snap[*]}"
+        exit 1
     fi
 
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "$extra_snap" \
+                           --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
 
@@ -580,7 +590,7 @@ prepare_ubuntu_core() {
     fi
 
     echo "Ensure rsync is available"
-    if ! which rsync; then
+    if ! command -v rsync; then
         rsync_snap="test-snapd-rsync"
         if is_core18_system; then
             rsync_snap="test-snapd-rsync-core18"
