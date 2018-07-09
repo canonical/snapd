@@ -127,6 +127,7 @@ type FindOptions struct {
 	Prefix  bool
 	Query   string
 	Section string
+	Scope   string
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
@@ -195,6 +196,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 	if opts.Section != "" {
 		q.Set("section", opts.Section)
+	}
+	if opts.Scope != "" {
+		q.Set("scope", opts.Scope)
 	}
 
 	return client.snapsFromPath("/v2/find", q)

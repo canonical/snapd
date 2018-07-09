@@ -62,6 +62,10 @@ type SnapSetup struct {
 	UserID  int       `json:"user-id,omitempty"`
 	Base    string    `json:"base,omitempty"`
 	Type    snap.Type `json:"type,omitempty"`
+	// PlugsOnly indicates whether the relevant revisions for the
+	// operation have only plugs (#plugs >= 0), and absolutely no
+	// slots (#slots == 0).
+	PlugsOnly bool `json:"plugs-only,omitempty"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
