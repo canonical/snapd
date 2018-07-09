@@ -84,33 +84,26 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 		}
 
 		k := task.Kind()
-		if auto && k == "connect" {
-			var autoConnect bool
-			// the auto flag is set for connect tasks created as part of auto-connect
-			if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
-				return err
-			}
-			// wait for connect task with "auto" flag if they affect our snap
-			if autoConnect {
-				plugRef, slotRef, err := getPlugAndSlotRefs(task)
-				if err != nil {
-					return err
-				}
-				if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
-					return &state.Retry{After: connectRetryTimeout}
-				}
-			}
-		}
-
-		if k == "connect" || k == "disconnect" {
-			// retry if we found another connect/disconnect affecting same snap
+		if auto && (k == "connect" || k == "disconnect") {
 			plugRef, slotRef, err := getPlugAndSlotRefs(task)
 			if err != nil {
 				return err
 			}
-			if plugRef.Snap == plugSnap || plugRef.Snap == slotSnap ||
-				slotRef.Snap == plugSnap || slotRef.Snap == slotSnap {
+			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
 				return &state.Retry{After: connectRetryTimeout}
+			}
+		} else {
+			// FIXME: revisit this check for normal connects
+			if k == "connect" || k == "disconnect" {
+				// retry if we found another connect/disconnect affecting same snap
+				plugRef, slotRef, err := getPlugAndSlotRefs(task)
+				if err != nil {
+					return err
+				}
+				if plugRef.Snap == plugSnap || plugRef.Snap == slotSnap ||
+					slotRef.Snap == plugSnap || slotRef.Snap == slotSnap {
+					return &state.Retry{After: connectRetryTimeout}
+				}
 			}
 		}
 
