@@ -167,3 +167,44 @@ func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	})
 }
+
+func (s *helpersSuite) TestGetConns(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+	s.st.Set("conns", map[string]interface{}{
+		"app:network core:network": map[string]interface{}{
+			"auto":      true,
+			"interface": "network",
+		},
+	})
+
+	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
+	defer restore()
+
+	conns, err := ifacestate.GetConns(s.st)
+	c.Assert(err, IsNil)
+	for id, connState := range conns {
+		c.Assert(id, Equals, "APP:NETWORK CORE:NETWORK")
+		c.Assert(connState.Auto, Equals, true)
+		c.Assert(connState.Interface, Equals, "network")
+	}
+}
+
+func (s *helpersSuite) TestSetConns(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
+	defer restore()
+
+	// This has upper-case data internally, see export_test.go
+	ifacestate.SetConns(s.st, ifacestate.UpperCaseConnState())
+	var conns map[string]interface{}
+	err := s.st.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"app:network core:network": map[string]interface{}{
+			"auto":      true,
+			"interface": "network",
+		}})
+}

@@ -457,7 +457,9 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 	return plugRef, slotRef, nil
 }
 
-// Get information about connections from the state
+// getConns returns information about connections from the state.
+//
+// Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]connState, err error) {
 	err = st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
@@ -466,11 +468,33 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 	if conns == nil {
 		conns = make(map[string]connState)
 	}
-	return conns, nil
+	remapped := make(map[string]connState, len(conns))
+	for id, cstate := range conns {
+		cref, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return nil, err
+		}
+		RemapIncomingConnRef(cref)
+		remapped[cref.ID()] = cstate
+	}
+	return remapped, nil
 }
 
+// setConns sets information about connections in the state.
+//
+// Connections are transparently re-mapped according to remapOutgoingConnRef
 func setConns(st *state.State, conns map[string]connState) {
-	st.Set("conns", conns)
+	remapped := make(map[string]connState, len(conns))
+	for id, cstate := range conns {
+		cref, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			// We cannot fail here
+			panic(err)
+		}
+		RemapOutgoingConnRef(cref)
+		remapped[cref.ID()] = cstate
+	}
+	st.Set("conns", remapped)
 }
 
 // snapsWithSecurityProfiles returns all snaps that have active
