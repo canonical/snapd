@@ -12,8 +12,6 @@ environment:
     XDG_DATA_HOME: $XDG/share
     XDG_CACHE_HOME: $XDG/cache
 
-prepare: |
-
 restore: |
     if [ -e dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
