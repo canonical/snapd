@@ -118,9 +118,6 @@ execute: |
     echo "Ensure the webserver is working after a snap restart"
     curl http://localhost | MATCH "XKCD rocks"
 
-    echo "Ensure interfaces are connected"
-    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"
-
     echo "Ensure snap set core works"
     snap set core system.power-key-action=ignore
     if [ "$(snap get core system.power-key-action)" != "ignore" ]; then

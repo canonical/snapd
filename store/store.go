@@ -1078,6 +1078,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 type Search struct {
 	Query   string
 	Section string
+	Scope   string
 	Private bool
 	Prefix  bool
 }
@@ -1122,6 +1123,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 	if search.Section != "" {
 		q.Set("section", search.Section)
+	}
+	if search.Scope != "" {
+		q.Set("scope", search.Scope)
 	}
 
 	if release.OnClassic {

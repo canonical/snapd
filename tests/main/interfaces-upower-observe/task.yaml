@@ -21,20 +21,15 @@ prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
     snap install --edge test-snapd-upower-observe-consumer
 
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+    if is_core_system; then
         echo "And a snap providing a upower-observe slot is installed"
         snap install upower
-    else
-        . "$TESTSLIB/pkgdb.sh"
-        distro_install_package upower
     fi
 
 restore: |
     rm -f upower.error
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
-        . "$TESTSLIB/pkgdb.sh"
-        distro_purge_package upower
-    fi
 
 execute: |
     SLOT_PROVIDER=
