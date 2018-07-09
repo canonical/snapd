@@ -84,7 +84,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	}
 	r.ifaces[interfaceName] = i
 
-	if _, ok := i.(hotplug.HotplugDeviceHandler); ok {
+	if _, ok := i.(hotplug.Definer); ok {
 		r.hotplugIfaces[interfaceName] = i
 	}
 

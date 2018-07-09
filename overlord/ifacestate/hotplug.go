@@ -58,7 +58,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 
 	// Iterate over all hotplug interfaces
 	for _, iface := range m.repo.AllHotplugInterfaces() {
-		hotplugHandler := iface.(hotplug.HotplugDeviceHandler)
+		hotplugHandler := iface.(hotplug.Definer)
 		key, err := deviceKey(defaultDeviceKey, devinfo, iface)
 		if err != nil {
 			logger.Debugf(err.Error())
@@ -67,11 +67,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		if key == "" {
 			continue
 		}
-		spec, err := hotplug.NewSpecification(key)
-		if err != nil {
-			logger.Debugf("Failed to create HotplugSpec for device key %q: %s", key, err)
-			continue
-		}
+		spec := hotplug.NewSpecification()
 		if hotplugHandler.HotplugDeviceDetected(devinfo, spec) != nil {
 			logger.Debugf("Failed to process hotplug event by the rule of interface %q: %s", iface.Name(), err)
 			continue
@@ -110,7 +106,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		}
 
 		if !m.hotplug {
-			logger.Debugf("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.Path(), iface.Name())
+			logger.Debugf("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
 
@@ -135,8 +131,8 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				logger.Noticef("Failed to create slot %q for interface %s", slot.Name, slot.Interface)
 				continue
 			}
-			slots[ss.Name] = &ss
-			logger.Debugf("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
+			slots[ss.Name] = ss
+			logger.Noticef("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
 		}
 
 		// we see this device for the first time (or it didn't have any connected slots before)
@@ -180,7 +176,7 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		// is maintained in connState.
 
 		if !m.hotplug {
-			logger.Debugf("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.Path(), iface.Name())
+			logger.Debugf("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
 	}
