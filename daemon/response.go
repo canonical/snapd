@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
@@ -74,9 +75,26 @@ func (r *resp) transmitMaintenance(kind errorKind, message string) {
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
 type Meta struct {
-	Sources           []string `json:"sources,omitempty"`
-	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
-	Change            string   `json:"change,omitempty"`
+	Sources           []string   `json:"sources,omitempty"`
+	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
+	Change            string     `json:"change,omitempty"`
+	WarningTimestamp  *time.Time `json:"warning-timestamp,omitempty"`
+	WarningCount      int        `json:"warning-count,omitempty"`
+}
+
+type warningsSummariser interface {
+	WarningsSummary() (int, time.Time)
+}
+
+func newMeta(w warningsSummariser) *Meta {
+	count, stamp := w.WarningsSummary()
+	meta := &Meta{}
+	if count > 0 {
+		meta.WarningCount = count
+		meta.WarningTimestamp = &stamp
+	}
+
+	return meta
 }
 
 type respJSON struct {
