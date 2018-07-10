@@ -40,6 +40,7 @@ import (
 )
 
 type infoCmd struct {
+	colorMixin
 	timeMixin
 
 	Verbose    bool `long:"verbose"`
@@ -64,7 +65,7 @@ func init() {
 		longInfoHelp,
 		func() flags.Commander {
 			return &infoCmd{}
-		}, timeDescs.also(map[string]string{
+		}, colorDescs.also(timeDescs).also(map[string]string{
 			"verbose": i18n.G("Include more details on the snap (expanded notes, base, etc.)"),
 		}), nil)
 }
@@ -318,7 +319,7 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, chantpl string, remote *client.Snap) {
+func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap) {
 	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
 
 	// order by tracks
@@ -339,9 +340,9 @@ func displayChannels(w io.Writer, chantpl string, remote *client.Snap) {
 				trackHasOpenChannel = true
 			} else {
 				if trackHasOpenChannel {
-					version = "↑"
+					version = esc.uparrow
 				} else {
-					version = "–" // that's an en dash (so yaml is happy)
+					version = esc.dash
 				}
 			}
 			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
@@ -367,6 +368,7 @@ func (x *infoCmd) Execute([]string) error {
 		termWidth = 100
 	}
 
+	esc := x.getEscapes()
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 
 	noneOK := true
@@ -401,11 +403,7 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		publisher := "–" // that's an en dash (so yaml is happy)
-		if both.Publisher != nil {
-			publisher = both.Publisher.Username
-		}
-		fmt.Fprintf(w, "publisher:\t%s\n", publisher)
+		fmt.Fprintf(w, "publisher:\t%s\n", esc.longPublisher(both.Publisher))
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
@@ -464,7 +462,7 @@ func (x *infoCmd) Execute([]string) error {
 			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
 
 			w.Flush()
-			displayChannels(w, chantpl, remote)
+			displayChannels(w, chantpl, esc, remote)
 		}
 		if local != nil {
 			revstr := fmt.Sprintf("(%s)", local.Revision)
