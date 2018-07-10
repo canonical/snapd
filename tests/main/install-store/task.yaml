@@ -42,3 +42,6 @@ execute: |
 
     echo "Install a snap that contains bash-completion scripts"
     snap install --edge test-snapd-complexion
+
+    echo "All snap blobs are 0600"
+    test "$(find /var/lib/snapd/ \( -name \*.snap -o -path /var/lib/snapd/cache/\* \) -printf '%#m\n' | sort -u | xargs)" = "0600"
