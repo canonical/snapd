@@ -13,7 +13,7 @@ prepare: |
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
     snap download --edge test-snapd-with-configure
-    unsquashfs /var/lib/snapd/snaps/pc_*.snap
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
     # fill in defaults
     TEST_SNAP_ID=
     if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
@@ -32,7 +32,7 @@ prepare: |
            rsyslog:
              disable: true
     EOF
-    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     cp test-snapd-with-configure_*.snap /var/lib/snapd/seed/snaps/

@@ -105,7 +105,7 @@ update_core_snap_for_classic_reexec() {
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
-    unsquashfs "$snap"
+    unsquashfs -no-progress "$snap"
     # clean the old snapd binaries, just in case
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
     # and copy in the current libexec
@@ -305,7 +305,7 @@ setup_reflash_magic() {
     if is_core18_system; then
         # modify the snapd snap so that it has our snapd
         UNPACK_DIR="/tmp/snapd-snap"
-        unsquashfs -d "$UNPACK_DIR" snapd_*.snap
+        unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
         
@@ -340,7 +340,7 @@ setup_reflash_magic() {
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
         UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -431,7 +431,7 @@ EOF
     # now modify the image
     if is_core18_system; then
         UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
     fi
 
     # create test user and ubuntu user inside the writable partition
@@ -516,7 +516,7 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
-    (cd /tmp ; unsquashfs -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
+    (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
     umount /mnt
     kpartx -d  "$IMAGE_HOME/$IMAGE"
