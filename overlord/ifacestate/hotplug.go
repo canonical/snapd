@@ -54,10 +54,12 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		return
 	}
 
+	hotplugIfaces := m.repo.AllHotplugInterfaces()
 	defaultDeviceKey := fmt.Sprintf("%s:%s:%s", devinfo.IdVendor(), devinfo.IdProduct(), devinfo.Serial())
+	logger.Noticef("HotplugDeviceAdded: %s (default key: %q, devicename %s, hotplug ifaces #%d)", devinfo.DevicePath(), defaultDeviceKey, devinfo.DeviceName(), len(hotplugIfaces))
 
 	// Iterate over all hotplug interfaces
-	for _, iface := range m.repo.AllHotplugInterfaces() {
+	for _, iface := range hotplugIfaces {
 		hotplugHandler := iface.(hotplug.Definer)
 		key, err := deviceKey(defaultDeviceKey, devinfo, iface)
 		if err != nil {

@@ -83,7 +83,7 @@ func (m *UDevMonitor) Connect() error {
 	}
 
 	var deviceFilter netlink.Matcher
-	deviceFilter = &netlink.RuleDefinitions{
+	/*deviceFilter = &netlink.RuleDefinitions{
 		Rules: []netlink.RuleDefinition{
 			{
 				Env: map[string]string{
@@ -91,7 +91,7 @@ func (m *UDevMonitor) Connect() error {
 				},
 			},
 		},
-	}
+	}*/
 
 	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, deviceFilter)
 	m.crawlerStop = crawler.ExistingDevices(m.crawlerDevices, m.crawlerErrors, deviceFilter)
