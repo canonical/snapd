@@ -70,6 +70,9 @@ execute: |
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
 
+    echo "All snap blobs are 0600"
+    test "$(find /var/lib/snapd/ \( -name \*.snap -o -path /var/lib/snapd/cache/\* \) -printf '%#m\n' | sort -u | xargs)" = "0600"
+
     # TODO: check we copy the data directory over
 
     echo "Remove --revision works"
