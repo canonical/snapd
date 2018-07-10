@@ -85,6 +85,7 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 
 		k := task.Kind()
 		if auto && (k == "connect" || k == "disconnect") {
+			// retry if we found another connect/disconnect affecting same snap
 			plugRef, slotRef, err := getPlugAndSlotRefs(task)
 			if err != nil {
 				return err
@@ -93,9 +94,7 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 				return &state.Retry{After: connectRetryTimeout}
 			}
 		} else {
-			// FIXME: revisit this check for normal connects
 			if k == "connect" || k == "disconnect" {
-				// retry if we found another connect/disconnect affecting same snap
 				plugRef, slotRef, err := getPlugAndSlotRefs(task)
 				if err != nil {
 					return err
