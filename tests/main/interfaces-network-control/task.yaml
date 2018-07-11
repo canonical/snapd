@@ -73,21 +73,24 @@ execute: |
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
 
-    echo "Then the snap command can modify the network configuration"
-    network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
-    expected="(?s)br0.*?state UP.*?bridge.*?foo@bar.*?veth.*?bar@foo.*?veth"
-    arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
+    # core18 has no "arp" utility
+    if [ "$(comamnd -v arp)" != "" ]; then
+        echo "Then the snap command can modify the network configuration"
+        network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
+        expected="(?s)br0.*?state UP.*?bridge.*?foo@bar.*?veth.*?bar@foo.*?veth"
+        arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect network-control-consumer:network-control
+        if [ "$(snap debug confinement)" = strict ] ; then
+            echo "When the plug is disconnected"
+            snap disconnect network-control-consumer:network-control
 
-        echo "Then the snap command can not modify the network configuration"
-        if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
-            echo "Expected error calling command with disconnected plug"
-            exit 1
+            echo "Then the snap command can not modify the network configuration"
+            if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
+                echo "Expected error calling command with disconnected plug"
+                exit 1
+            fi
+            cat net-command.output | MATCH "Permission denied"
         fi
-        cat net-command.output | MATCH "Permission denied"
     fi
 
     echo "When the plug is connected"

@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -94,8 +95,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
-	// ensure core gets installed. if it is already installed return
-	// an empty task set
+	if snapst.IsInstalled() {
+		// consider also the current revision to set plugs-only hint
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+	}
+
 	ts := state.NewTaskSet()
 
 	targetRevision := snapsup.Revision()
@@ -469,6 +477,67 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
+// WaitRestart will return a Retry error if there is a pending restart
+// and a real error if anything went wrong (like a rollback across
+// restarts)
+func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if ok, _ := task.State().Restarting(); ok {
+		// don't continue until we are in the restarted snapd
+		task.Logf("Waiting for restart...")
+		return &state.Retry{}
+	}
+
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	// If not on classic check there was no rollback. A reboot
+	// can be triggered by:
+	// - core (old core16 world, system-reboot)
+	// - bootable base snap (new core18 world, system-reboot)
+	//
+	// TODO: Detect "snapd" snap daemon-restarts here that
+	//       fallback into the old version (once we have
+	//       better snapd rollback support in core18).
+	if !release.OnClassic {
+		// TODO: double check that we really rebooted
+		// otherwise this could be just a spurious restart
+		// of snapd
+
+		model, err := Model(task.State())
+		if err != nil {
+			return err
+		}
+		bootName := "core"
+		typ := snap.TypeOS
+		if model.Base() != "" {
+			bootName = model.Base()
+			typ = snap.TypeBase
+		}
+		// if it is not a bootable snap we are not interested
+		if snapsup.Name() != bootName {
+			return nil
+		}
+
+		name, rev, err := CurrentBootNameAndRevision(typ)
+		if err == ErrBootNameAndRevisionAgain {
+			return &state.Retry{After: 5 * time.Second}
+		}
+		if err != nil {
+			return err
+		}
+
+		if snapsup.Name() != name || snapInfo.Revision != rev {
+			// TODO: make sure this revision gets ignored for
+			//       automatic refreshes
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.Name())
+		}
+	}
+
+	return nil
+}
+
 func contentAttr(attrer interfaces.Attrer) string {
 	var s string
 	err := attrer.Attr("content", &s)
@@ -590,13 +659,14 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	}
 
 	snapsup := &SnapSetup{
-		Base:     info.Base,
-		Prereq:   defaultContentPlugProviders(st, info),
-		SideInfo: si,
-		SnapPath: path,
-		Channel:  channel,
-		Flags:    flags.ForSnapSetup(),
-		Type:     info.Type,
+		Base:      info.Base,
+		Prereq:    defaultContentPlugProviders(st, info),
+		SideInfo:  si,
+		SnapPath:  path,
+		Channel:   channel,
+		Flags:     flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -647,6 +717,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
 		Type:         info.Type,
+		PlugsOnly:    len(info.Slots) == 0,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -805,6 +876,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 			Type:         update.Type,
+			PlugsOnly:    len(update.Slots) == 0,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -1201,9 +1273,16 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
-		SideInfo: snapst.CurrentSideInfo(),
-		Flags:    snapst.Flags.ForSnapSetup(),
+		SideInfo:  snapst.CurrentSideInfo(),
+		Flags:     snapst.Flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.Name(), snapst.Current))
@@ -1260,6 +1339,8 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: name,
 			Revision: snapst.Current,
 		},
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
@@ -1293,7 +1374,7 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
 		return true
@@ -1327,11 +1408,26 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return true
 	}
 
+	// Allow snap.TypeOS removals if a different base is in use
+	//
+	// Note that removal of the boot base itself is prevented
+	// via the snapst.Required flag that is set on firstboot.
+	if si.Type == snap.TypeOS {
+		if model, err := Model(st); err == nil {
+			if model.Base() != "" {
+				return true
+			}
+		}
+	}
+
 	// You never want to remove a kernel or OS. Do not remove their
 	// last revision left.
 	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
+
+	// TODO: ensure that you cannot remove bases/core if those are
+	//       needed by one of the installed snaps.
 
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
@@ -1390,7 +1486,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, &snapst, removeAll) {
+	if !canRemove(st, info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -1400,6 +1496,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			RealName: name,
 			Revision: revision,
 		},
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	// trigger remove
@@ -1508,6 +1606,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 			return nil, nil, err
 		}
 		removed = append(removed, name)
+		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 
@@ -1563,9 +1662,17 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 			flags.Classic = true
 		}
 	}
+
+	info, err := Info(st, name, rev)
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
-		SideInfo: snapst.Sequence[i],
-		Flags:    flags.ForSnapSetup(),
+		SideInfo:  snapst.Sequence[i],
+		Flags:     flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 	return doInstall(st, &snapst, snapsup, 0)
 }
