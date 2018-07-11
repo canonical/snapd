@@ -386,6 +386,10 @@ EOF
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
+    # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
+    # maybe we should fix one or both of those, but for now this'll do
+    chmod 0600 "$IMAGE_HOME"/*.snap
+
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
     if is_core18_system; then
