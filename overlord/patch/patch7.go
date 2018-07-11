@@ -40,6 +40,9 @@ func init() {
 	patches[7] = patch7
 }
 
+// processConns updates conns map and augments it with plug-static and slot-static attributes from current snap info.
+// NOTE: missing snap or missing plugs/slots are ignored and not reported as errors as we might have stale connections
+// and ifacemgr deals with them (i.e. discards) on startup; we want to process all good slots and plugs here.
 func processConns(conns map[string]connStatePatch7, infos map[string]*snap.Info) (bool, error) {
 	var updated bool
 	for id, conn := range conns {
@@ -47,7 +50,7 @@ func processConns(conns map[string]connStatePatch7, infos map[string]*snap.Info)
 			continue
 		}
 
-		// undesired connections have all their attributes dropped
+		// undesired connections have all their attributes dropped, so don't set them
 		if conn.Undesired {
 			continue
 		}
@@ -57,32 +60,36 @@ func processConns(conns map[string]connStatePatch7, infos map[string]*snap.Info)
 			return false, err
 		}
 
+		var ok bool
 		var plugSnapInfo, slotSnapInfo *snap.Info
-		if plugSnapInfo, ok := infos[connRef.PlugRef.Snap]; !ok {
+
+		// read current snap info from disk and keep it around in infos map
+		if plugSnapInfo, ok = infos[connRef.PlugRef.Snap]; !ok {
 			plugSnapInfo, err = snap.ReadCurrentInfo(connRef.PlugRef.Snap)
-			if err != nil {
-				return false, err
+			if err == nil {
+				infos[connRef.PlugRef.Snap] = plugSnapInfo
 			}
-			infos[connRef.PlugRef.Snap] = plugSnapInfo
 		}
-
-		if slotSnapInfo, ok := infos[connRef.SlotRef.Snap]; !ok {
+		if slotSnapInfo, ok = infos[connRef.SlotRef.Snap]; !ok {
 			slotSnapInfo, err = snap.ReadCurrentInfo(connRef.SlotRef.Snap)
-			if err != nil {
-				return false, err
+			if err == nil {
+				infos[connRef.SlotRef.Snap] = slotSnapInfo
 			}
-			infos[connRef.SlotRef.Snap] = slotSnapInfo
 		}
 
-		if slot, ok := slotSnapInfo.Slots[connRef.SlotRef.Name]; ok && slot.Attrs != nil {
-			conn.StaticSlotAttrs = slot.Attrs
-			updated = true
-		} // else: slot is missing, ignore it as ifacemgr drops stale connections
+		if slotSnapInfo != nil {
+			if slot, ok := slotSnapInfo.Slots[connRef.SlotRef.Name]; ok && slot.Attrs != nil {
+				conn.StaticSlotAttrs = slot.Attrs
+				updated = true
+			}
+		}
 
-		if plug, ok := plugSnapInfo.Plugs[connRef.PlugRef.Name]; ok && plug.Attrs != nil {
-			conn.StaticPlugAttrs = plug.Attrs
-			updated = true
-		} // else: plug is missing, ignore it as ifacemgr drops stale connections
+		if plugSnapInfo != nil {
+			if plug, ok := plugSnapInfo.Plugs[connRef.PlugRef.Name]; ok && plug.Attrs != nil {
+				conn.StaticPlugAttrs = plug.Attrs
+				updated = true
+			}
+		}
 
 		conns[id] = conn
 	}
@@ -93,24 +100,9 @@ func processConns(conns map[string]connStatePatch7, infos map[string]*snap.Info)
 // patch7:
 //  - add static plug and slot attributes to connections that miss them. Attributes are read from current snap info.
 func patch7(st *state.State) error {
-	var conns map[string]connStatePatch7
-	err := st.Get("conns", &conns)
-	if err == state.ErrNoState {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
 	infos := make(map[string]*snap.Info)
-	updated, err := processConns(conns, infos)
-	if err != nil {
-		return err
-	}
-	if updated {
-		st.Set("conns", conns)
-	}
 
+	// update all pending "discard-conns" tasks as they may keep connection data in "removed".
 	for _, task := range st.Tasks() {
 		if task.Change().Status().Ready() {
 			continue
@@ -135,6 +127,25 @@ func patch7(st *state.State) error {
 		if updated {
 			task.Set("removed", removed)
 		}
+	}
+
+	// update conns
+	var conns map[string]connStatePatch7
+	err := st.Get("conns", &conns)
+	if err == state.ErrNoState {
+		// no connections to process
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	updated, err := processConns(conns, infos)
+	if err != nil {
+		return err
+	}
+	if updated {
+		st.Set("conns", conns)
 	}
 
 	return nil
