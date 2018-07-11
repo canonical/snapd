@@ -1757,9 +1757,9 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	// Query the interface repository (this returns []*interface.Info).
 	infos := c.d.overlord.InterfaceManager().Repository().Info(opts)
-	infoJSONs := make([]*interfaceInfoJSON, 0, len(infos))
+	infoJSONs := make([]*interfaceJSON, 0, len(infos))
 	for _, info := range infos {
-		// Convert interfaces.Info into interfaceInfoJSON
+		// Convert interfaces.Info into interfaceJSON
 		plugs := make([]*plugJSON, 0, len(info.Plugs))
 		for _, plug := range info.Plugs {
 			plugs = append(plugs, &plugJSON{
@@ -1778,7 +1778,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 				Label: slot.Label,
 			})
 		}
-		infoJSONs = append(infoJSONs, &interfaceInfoJSON{
+		infoJSONs = append(infoJSONs, &interfaceJSON{
 			Name:    info.Name,
 			Summary: info.Summary,
 			DocURL:  info.DocURL,
@@ -1793,7 +1793,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	repo := c.d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 
-	var ifjson interfacesJSON
+	var ifjson interfaceJSON
 
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
@@ -1810,7 +1810,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
-		pj := plugJSON{
+		pj := &plugJSON{
 			Snap:        plug.Snap.InstanceName(),
 			Name:        plug.Name,
 			Interface:   plug.Interface,
@@ -1827,7 +1827,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			apps = append(apps, app.Name)
 		}
 
-		sj := slotJSON{
+		sj := &slotJSON{
 			Snap:        slot.Snap.InstanceName(),
 			Name:        slot.Name,
 			Interface:   slot.Interface,
