@@ -139,6 +139,7 @@ update_core_snap_for_classic_reexec() {
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
+    chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
@@ -384,6 +385,10 @@ EOF
         EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
+
+    # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
+    # maybe we should fix one or both of those, but for now this'll do
+    chmod 0600 "$IMAGE_HOME"/*.snap
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
