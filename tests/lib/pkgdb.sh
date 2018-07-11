@@ -202,6 +202,7 @@ distro_install_package() {
         ;;
     esac
 
+    # shellcheck disable=SC2207
     pkg_names=($(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
@@ -300,6 +301,9 @@ distro_clean_package_cache() {
         ubuntu-*|debian-*)
             quiet apt-get clean
             ;;
+        fedora-*)
+            dnf clean all
+            ;;
         opensuse-*)
             zypper -q clean --all
             ;;
@@ -345,6 +349,10 @@ distro_query_package_info() {
             ;;
         arch-*)
             pacman -Si "$1"
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
             ;;
     esac
 }
@@ -428,6 +436,7 @@ pkg_dependencies_ubuntu_generic(){
         automake
         autotools-dev
         build-essential
+        clang
         curl
         devscripts
         expect
@@ -446,12 +455,14 @@ pkg_dependencies_ubuntu_generic(){
         pkg-config
         python3-docutils
         udev
+        upower
         uuid-runtime
         "
 }
 
 pkg_dependencies_ubuntu_classic(){
     echo "
+        avahi-daemon
         cups
         dbus-x11
         gnome-keyring
@@ -473,15 +484,20 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-32)
             echo "
+                evolution-data-server
+                gnome-online-accounts
                 linux-image-extra-$(uname -r)
                 "
             ;;
         ubuntu-16.04-64)
             echo "
+                evolution-data-server
                 gccgo-6
+                gnome-online-accounts
                 kpartx
                 libvirt-bin
                 linux-image-extra-$(uname -r)
+                nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
@@ -492,6 +508,11 @@ pkg_dependencies_ubuntu_classic(){
                 linux-image-extra-4.13.0-16-generic
                 "
             ;;
+        ubuntu-18.04-64)
+            echo "
+                evolution-data-server
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
@@ -499,6 +520,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                evolution-data-server
                 net-tools
                 "
             ;;
@@ -514,8 +536,10 @@ pkg_dependencies_ubuntu_core(){
 
 pkg_dependencies_fedora(){
     echo "
+        clang
         curl
         dbus-x11
+        evolution-data-server
         expect
         git
         golang
@@ -524,6 +548,7 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
+        python3-yaml
         redhat-lsb-core
         rpm-build
         xdg-user-dirs
@@ -533,13 +558,16 @@ pkg_dependencies_fedora(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        clang
         curl
+        evolution-data-server
         expect
         git
         golang-packaging
         jq
         lsb-release
         man
+        python3-yaml
         netcat-openbsd
         osc
         uuidd
@@ -550,25 +578,29 @@ pkg_dependencies_opensuse(){
 
 pkg_dependencies_arch(){
     echo "
-    curl
     base-devel
+    bash-completion
+    clang
+    curl
+    evolution-data-server
+    expect
+    git
     go
     go-tools
+    jq
     libseccomp
     libcap
+    libx11
+    net-tools
+    openbsd-netcat
+    python
     python-docutils
-    xfsprogs
+    python3-yaml
     squashfs-tools
     shellcheck
-    python
-    jq
-    git
-    openbsd-netcat
+    strace
     xdg-user-dirs
-    expect
-    libx11
-    bash-completion
-    net-tools
+    xfsprogs
     "
 }
 

@@ -53,26 +53,42 @@ func touch(c *C, path string) {
 func (s *brokenSuite) TestGuessAppsForBrokenBinaries(c *C) {
 	touch(c, filepath.Join(dirs.SnapBinariesDir, "foo"))
 	touch(c, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
+	touch(c, filepath.Join(dirs.SnapBinariesDir, "foo_instance"))
+	touch(c, filepath.Join(dirs.SnapBinariesDir, "foo_instance.baz"))
 
 	info := &snap.Info{SuggestedName: "foo"}
 	apps := snap.GuessAppsForBroken(info)
 	c.Check(apps, HasLen, 2)
 	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo"})
 	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar"})
+
+	info = &snap.Info{SuggestedName: "foo", InstanceKey: "instance"}
+	apps = snap.GuessAppsForBroken(info)
+	c.Check(apps, HasLen, 2)
+	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo"})
+	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz"})
 }
 
 func (s *brokenSuite) TestGuessAppsForBrokenServices(c *C) {
 	touch(c, filepath.Join(dirs.SnapServicesDir, "snap.foo.foo.service"))
 	touch(c, filepath.Join(dirs.SnapServicesDir, "snap.foo.bar.service"))
+	touch(c, filepath.Join(dirs.SnapServicesDir, "snap.foo_instance.foo.service"))
+	touch(c, filepath.Join(dirs.SnapServicesDir, "snap.foo_instance.baz.service"))
 
 	info := &snap.Info{SuggestedName: "foo"}
 	apps := snap.GuessAppsForBroken(info)
 	c.Check(apps, HasLen, 2)
 	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple"})
 	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar", Daemon: "simple"})
+
+	info = &snap.Info{SuggestedName: "foo", InstanceKey: "instance"}
+	apps = snap.GuessAppsForBroken(info)
+	c.Check(apps, HasLen, 2)
+	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple"})
+	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz", Daemon: "simple"})
 }
 
-func (s *brokenSuite) TestRenamePlug(c *C) {
+func (s *brokenSuite) TestForceRenamePlug(c *C) {
 	snapInfo := snaptest.MockInvalidInfo(c, `name: core
 version: 0
 plugs:
@@ -95,7 +111,7 @@ hooks:
 	c.Assert(snapInfo.Hooks["configure"].Plugs["old"], DeepEquals, snapInfo.Plugs["old"])
 
 	// Rename the plug now.
-	snapInfo.RenamePlug("old", "new")
+	snapInfo.ForceRenamePlug("old", "new")
 
 	// Check that there's no trace of the old plug name.
 	c.Assert(snapInfo.Plugs["old"], IsNil)

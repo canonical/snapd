@@ -27,7 +27,6 @@ tests/main/interfaces-ssh-keys/task.yaml
 tests/main/interfaces-ssh-public-keys/task.yaml
 tests/main/interfaces-system-observe/task.yaml
 tests/main/interfaces-time-control/task.yaml
-tests/main/interfaces-timeserver-control/task.yaml
 tests/main/interfaces-timezone-control/task.yaml
 tests/main/interfaces-udev/task.yaml
 tests/main/interfaces-uhid/task.yaml
@@ -80,7 +79,6 @@ tests/main/snap-advise-command/task.yaml
 tests/main/snap-auto-import-asserts-spools/task.yaml
 tests/main/snap-auto-import-asserts/task.yaml
 tests/main/snap-auto-mount/task.yaml
-tests/main/snap-confine-from-core/task.yaml
 tests/main/snap-confine-privs/task.yaml
 tests/main/snap-confine/task.yaml
 tests/main/snap-connect/task.yaml

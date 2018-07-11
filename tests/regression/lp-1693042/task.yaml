@@ -12,5 +12,5 @@ execute: |
   if [[ "$revno" =~ x[0-9]+ ]]; then
       MATCH "error: local snap \"$core_name\" is unknown to the store" <<< "$out"
   else
-      MATCH not.found <<< "$out"
+      MATCH not.available <<< "$out"
   fi

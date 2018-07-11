@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -622,6 +622,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	q := query.Get("q")
 	section := query.Get("section")
 	name := query.Get("name")
+	scope := query.Get("scope")
 	private := false
 	prefix := false
 
@@ -659,6 +660,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Section: section,
 		Private: private,
 		Prefix:  prefix,
+		Scope:   scope,
 	}, user)
 	switch err {
 	case nil:
@@ -1216,17 +1218,6 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
 		}
-	case store.ErrRevisionNotAvailable:
-		// store.ErrRevisionNotAvailable should only be returned for
-		// individual snap queries; in all other cases something's wrong
-		switch len(inst.Snaps) {
-		case 1:
-			return SnapRevisionNotAvailable(inst.Snaps[0], err)
-		case 0:
-			return InternalError("store.RevisionNotAvailable with no snap given")
-		default:
-			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
-		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1234,6 +1225,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	default:
 		handled := true
 		switch err := err.(type) {
+		case *store.RevisionNotAvailableError:
+			// store.ErrRevisionNotAvailable should only be returned for
+			// individual snap queries; in all other cases something's wrong
+			switch len(inst.Snaps) {
+			case 1:
+				return SnapRevisionNotAvailable(inst.Snaps[0], err)
+			case 0:
+				return InternalError("store.RevisionNotAvailable with no snap given")
+			default:
+				return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
+			}
 		case *snap.AlreadyInstalledError:
 			kind = errorKindSnapAlreadyInstalled
 			snapName = err.Snap
@@ -2591,16 +2593,15 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
-	// we only allow "get" from regular users in snapctl
-	if uid != 0 && snapctlOptions.Args[0] != "get" {
-		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
-	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
 	if err != nil {
+		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
+			return Forbidden(e.Error())
+		}
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {

@@ -25,6 +25,7 @@
 
 # Compat macros
 %{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 
 # This is fixed in SUSE Linux 15
 # Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
@@ -60,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.33.1
+Version:        2.34
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -397,6 +398,7 @@ fi
 %if %{with apparmor}
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
+%{_environmentdir}/990-snapd.conf
 
 %changelog
 

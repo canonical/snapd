@@ -65,7 +65,8 @@ const (
   "publisher": {
      "id": "canonical",
      "username": "canonical",
-     "display-name": "Canonical"
+     "display-name": "Canonical",
+     "validation": "verified"
   },
   "revision": 3887,
   "snap-id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
@@ -112,7 +113,8 @@ const (
   "publisher": {
      "id": "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
      "username": "thingyinc",
-     "display-name": "Thingy Inc."
+     "display-name": "Thingy Inc.",
+     "validation": "unproven"
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
@@ -168,6 +170,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			ID:          "canonical",
 			Username:    "canonical",
 			DisplayName: "Canonical",
+			Validation:  "verified",
 		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/99T7MUlRhtI3U0QFgl5mXXESAiSwt776_3887.snap",
@@ -219,6 +222,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			ID:          "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
 			Username:    "thingyinc",
 			DisplayName: "Thingy Inc.",
+			Validation:  "unproven",
 		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap",
@@ -358,6 +362,7 @@ func fillStruct(a interface{}, c *C) {
 				ID:          "foo-id",
 				Username:    "foo",
 				DisplayName: "Foo Bar",
+				Validation:  "VALIDATION",
 			}
 		case int:
 			x = 42
