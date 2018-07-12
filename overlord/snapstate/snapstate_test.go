@@ -1291,7 +1291,7 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
 	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
@@ -4148,7 +4148,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		// conflict checks are triggered
 		chg := s.state.NewChange("update", "...")
 		chg.AddAll(ts)
-		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil, nil)
+		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil)
 		c.Check(err, ErrorMatches, `.* has "update" change in progress`)
 		chg.SetStatus(state.DoneStatus)
 	}
@@ -8952,7 +8952,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 		{"c-snap"},
 		{"c-snap", "d-snap", "e-snap", "f-snap"},
 	} {
-		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), IsNil)
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, ""), IsNil)
 	}
 
 	// things that should not be ok:
@@ -8962,7 +8962,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 		{"a-snap", "c-snap"},
 		{"b-snap", "c-snap"},
 	} {
-		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has "enable" change in progress`)
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, ""), ErrorMatches, `snap "[^"]*" has "enable" change in progress`)
 	}
 }
 
