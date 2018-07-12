@@ -30,9 +30,14 @@ import (
 type ChangeConflictError struct {
 	Snap       string
 	ChangeKind string
+	// a Message is optional, otherwise one is composed from the other information
+	Message string
 }
 
 func (e *ChangeConflictError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
 	if e.ChangeKind != "" {
 		return fmt.Sprintf("snap %q has %q change in progress", e.Snap, e.ChangeKind)
 	}
@@ -115,7 +120,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, ignoreChangeID
 			continue
 		}
 		if chg.Kind() == "transition-ubuntu-core" {
-			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+			return &ChangeConflictError{Message: "ubuntu-core to core transition in progress, no other changes allowed until this is done", ChangeKind: "transition-ubuntu-core"}
 		}
 	}
 
