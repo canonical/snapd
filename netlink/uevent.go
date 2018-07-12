@@ -138,7 +138,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 }
 
 func ParseUEvent(raw []byte) (e *UEvent, err error) {
-	if bytes.Compare(raw[:7], []byte("libudev")) == 0 {
+	if len(raw) > 40 && bytes.Compare(raw[:8], []byte("libudev\x00")) == 0 {
 		return parseUdevEvent(raw)
 	}
 	fields := bytes.Split(raw, []byte{0x00}) // 0x00 = end of string
