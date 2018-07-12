@@ -1609,44 +1609,6 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 }
 
-func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "producer", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "producer", SnapID: "producer-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "app",
-	})
-	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "consumer", SnapID: "consumer-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "app",
-	})
-
-	chg := s.state.NewChange("another change", "...")
-	t := s.state.NewTask(kind, "...")
-	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
-	chg.AddTask(t)
-
-	_, err := snapstate.Update(s.state, "producer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "producer" has "another change" change in progress`)
-
-	_, err = snapstate.Update(s.state, "consumer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "consumer" has "another change" change in progress`)
-}
-
-func (s *snapmgrTestSuite) TestUpdateConflictWithConnect(c *C) {
-	s.testChangeConflict(c, "connect")
-}
-
-func (s *snapmgrTestSuite) TestUpdateConflictWithDisconnect(c *C) {
-	s.testChangeConflict(c, "disconnect")
-}
-
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

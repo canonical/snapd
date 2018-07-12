@@ -3240,3 +3240,41 @@ volumes:
 		},
 	})
 }
+
+func (s *interfaceManagerSuite) testChangeConflict(c *C, kind string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "producer", SnapID: "producer-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "consumer", SnapID: "consumer-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("another change", "...")
+	t := s.state.NewTask(kind, "...")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	chg.AddTask(t)
+
+	_, err := snapstate.Disable(s.state, "producer")
+	c.Assert(err, ErrorMatches, `snap "producer" has "another change" change in progress`)
+
+	_, err = snapstate.Disable(s.state, "consumer")
+	c.Assert(err, ErrorMatches, `snap "consumer" has "another change" change in progress`)
+}
+
+func (s *interfaceManagerSuite) TestSnapstateOpConflictWithConnect(c *C) {
+	s.testChangeConflict(c, "connect")
+}
+
+func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
+	s.testChangeConflict(c, "disconnect")
+}
