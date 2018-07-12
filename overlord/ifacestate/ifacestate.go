@@ -309,10 +309,15 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 var once sync.Once
 
 func delayedCrossMgrInit() {
-	// hook interface checks into snapstate installation logic
 	once.Do(func() {
+		// hook interface checks into snapstate installation logic
+
 		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
 			return CheckInterfaces(st, snapInfo)
 		})
+
+		// hook into conflict checks mechanisms
+		snapstate.AddAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
+		snapstate.AddAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
 	})
 }

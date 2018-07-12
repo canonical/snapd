@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -38,6 +37,47 @@ func (e *ChangeConflictError) Error() string {
 		return fmt.Sprintf("snap %q has %q change in progress", e.Snap, e.ChangeKind)
 	}
 	return fmt.Sprintf("snap %q has changes in progress", e.Snap)
+}
+
+// An AffectedSnapsFunc returns a list of affected snap names for the given supported task.
+type AffectedSnapsFunc func(*state.Task) ([]string, error)
+
+var (
+	affectedSnapsByAttr = make(map[string]AffectedSnapsFunc)
+	affectedSnapsByKind = make(map[string]AffectedSnapsFunc)
+)
+
+// AddAffectedSnapsByAttrs registers an AffectedSnapsFunc for returning the affected snaps for tasks sporting the given identifying attribute, to use in conflicts detection.
+func AddAffectedSnapsByAttr(attr string, f AffectedSnapsFunc) {
+	affectedSnapsByAttr[attr] = f
+}
+
+// AddAffectedSnapsByKind registers an AffectedSnapsFunc for returning the affected snaps for tasks of the given kind, to use in conflicts detection. Whenever possible using AddAffectedSnapsByAttr should be preferred.
+func AddAffectedSnapsByKind(kind string, f AffectedSnapsFunc) {
+	affectedSnapsByKind[kind] = f
+}
+
+func affectedSnaps(t *state.Task) ([]string, error) {
+	// snapstate's own styled tasks
+	if t.Has("snap-setup") || t.Has("snap-setup-task") {
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", t.Summary())
+		}
+		return []string{snapsup.Name()}, nil
+	}
+
+	if f := affectedSnapsByKind[t.Kind()]; f != nil {
+		return f(t)
+	}
+
+	for attrKey, f := range affectedSnapsByAttr {
+		if t.Has(attrKey) {
+			return f(t)
+		}
+	}
+
+	return nil, nil
 }
 
 // snapTopicalTasks are tasks that characterize changes on a snap that
@@ -80,39 +120,45 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, ignoreChangeID
 	}
 
 	for _, task := range st.Tasks() {
-		k := task.Kind()
 		chg := task.Change()
-		chgID := chg.ID()
-		if snapTopicalTasks[k] && (chg == nil || !chg.Status().Ready()) {
-			if k == "connect" || k == "disconnect" {
-				plugRef, slotRef, err := getPlugAndSlotRefs(task)
-				if err != nil {
-					return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
-				}
-				if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (ignoreChangeID == "" || chgID != ignoreChangeID) {
-					var snapName string
-					if snapMap[plugRef.Snap] {
-						snapName = plugRef.Snap
-					} else {
-						snapName = slotRef.Snap
-					}
-					return &ChangeConflictError{snapName, chg.Kind()}
-				}
-			} else {
-				snapsup, err := TaskSnapSetup(task)
-				if err != nil {
-					return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
-				}
-				snapName := snapsup.Name()
-				if (snapMap[snapName]) && (ignoreChangeID == "" || chgID != ignoreChangeID) {
-					return &ChangeConflictError{snapName, chg.Kind()}
-				}
+		if chg == nil || chg.Status().Ready() {
+			continue
+		}
+		if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+			continue
+		}
+
+		snaps, err := affectedSnaps(task)
+		if err != nil {
+			return err
+		}
+
+		for _, snap := range snaps {
+			if snapMap[snap] {
+				return &ChangeConflictError{Snap: snap, ChangeKind: chg.Kind()}
 			}
 		}
 	}
 
 	return nil
 }
+
+/*
+	if k == "connect" || k == "disconnect" {
+			plugRef, slotRef, err := getPlugAndSlotRefs(task)
+			if err != nil {
+				return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
+			}
+			if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (ignoreChangeID == "" || chgID != ignoreChangeID) {
+				var snapName string
+				if snapMap[plugRef.Snap] {
+					snapName = plugRef.Snap
+				} else {
+					snapName = slotRef.Snap
+				}
+
+			}
+*/
 
 // CheckChangeConflict ensures that for the given snapName no other
 // changes that alters the snap (like remove, install, refresh) are in
@@ -142,16 +188,4 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	}
 
 	return nil
-}
-
-func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
-	var plugRef interfaces.PlugRef
-	var slotRef interfaces.SlotRef
-	if err := task.Get("plug", &plugRef); err != nil {
-		return nil, nil, err
-	}
-	if err := task.Get("slot", &slotRef); err != nil {
-		return nil, nil, err
-	}
-	return &plugRef, &slotRef, nil
 }
