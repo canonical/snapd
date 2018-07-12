@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type helpersSuite struct {
@@ -166,65 +165,5 @@ func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
 	c.Assert(cref, DeepEquals, interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
-	})
-}
-
-func (s *helpersSuite) TestRemapOutgoingPlugInfo(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	plugInfo := &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "EXAMPLE",
-			SideInfo:      snap.SideInfo{RealName: "EXAMPLE"},
-		},
-		Name: "NETWORK",
-	}
-	remapped := ifacestate.RemapOutgoingPlugInfo(plugInfo)
-	// The re-mapped plug is now lower case.
-	c.Assert(remapped, DeepEquals, &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "example",
-			SideInfo:      snap.SideInfo{RealName: "example"},
-		},
-		Name: "network",
-	})
-	// The original is unchanged.
-	c.Assert(plugInfo, DeepEquals, &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "EXAMPLE",
-			SideInfo:      snap.SideInfo{RealName: "EXAMPLE"},
-		},
-		Name: "NETWORK",
-	})
-}
-
-func (s *helpersSuite) TestRemapOutgoingSlotInfo(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	slotInfo := &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "EXAMPLE",
-			SideInfo:      snap.SideInfo{RealName: "EXAMPLE"},
-		},
-		Name: "NETWORK",
-	}
-	remapped := ifacestate.RemapOutgoingSlotInfo(slotInfo)
-	// The re-mapped slot is now lower case.
-	c.Assert(remapped, DeepEquals, &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "example",
-			SideInfo:      snap.SideInfo{RealName: "example"},
-		},
-		Name: "network",
-	})
-	// The original is unchanged.
-	c.Assert(slotInfo, DeepEquals, &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "EXAMPLE",
-			SideInfo:      snap.SideInfo{RealName: "EXAMPLE"},
-		},
-		Name: "NETWORK",
 	})
 }
