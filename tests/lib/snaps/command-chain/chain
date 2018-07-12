@@ -1,0 +1,19 @@
+#!/bin/sh
+
+while getopts ":i:" opt; do
+    case $opt in
+        i)
+            id="$OPTARG"
+            ;;
+    esac
+done
+shift $((OPTIND -1))
+
+if [ -z "$id" ]; then
+    echo "Expected an ID"
+    exit 1
+fi
+
+eval "export CHAIN_${id}_RAN=1"
+printf "chain%s " "$id"
+exec "$@"

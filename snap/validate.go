@@ -621,6 +621,13 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
+	// Also validate the command chain in the same manner
+	for _, value := range app.CommandChain {
+		if err := validateField("command-chain", value, appContentWhitelist); err != nil {
+			return err
+		}
+	}
+
 	// Socket activation requires the "network-bind" plug
 	if len(app.Sockets) > 0 {
 		if _, ok := app.Plugs["network-bind"]; !ok {
