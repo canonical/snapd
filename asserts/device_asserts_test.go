@@ -222,6 +222,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
+		{"kernel-track: 4.15\n", "kernel-track:\n  - 123\n", `"kernel-track" header must be a string`},
 		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
@@ -301,6 +302,7 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"architecture: amd64\n", "architecture:\n  - foo\n", `"architecture" header must be a string`},
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
 		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
+		{"gadget: brand-gadget\n", "kernel-track: edge\n", `cannot specify kernel-track with a classic model`},
 		{"gadget: brand-gadget\n", "base: some-base\n", `cannot specify a base with a classic model`},
 	}
 
