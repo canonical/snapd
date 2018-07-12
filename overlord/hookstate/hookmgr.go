@@ -89,6 +89,8 @@ type HookSetup struct {
 
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
+	delayedCrossMgrInit()
+
 	runner := state.NewTaskRunner(s)
 
 	// Make sure we only run 1 hook task for given snap at a time
@@ -466,4 +468,13 @@ func trackHookError(context *Context, output []byte, err error) {
 			logger.Debugf("Cannot report hook failure: %s", err)
 		}
 	}
+}
+
+func hookAffectedSnaps(t *state.Task) ([]string, error) {
+	var hooksup HookSetup
+	if err := t.Get("hook-setup", &hooksup); err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain hook data from task: %s", t.Summary())
+
+	}
+	return []string{hooksup.Snap}, nil
 }
