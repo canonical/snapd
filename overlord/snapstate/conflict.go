@@ -85,24 +85,6 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 	return nil, nil
 }
 
-// snapTopicalTasks are tasks that characterize changes on a snap that
-// cannot be run concurrently and should conflict with each other.
-var snapTopicalTasks = map[string]bool{
-	"link-snap":           true,
-	"unlink-snap":         true,
-	"switch-snap":         true,
-	"switch-snap-channel": true,
-	"toggle-snap-flags":   true,
-	"refresh-aliases":     true,
-	"prune-auto-aliases":  true,
-	"alias":               true,
-	"unalias":             true,
-	"disable-aliases":     true,
-	"prefer-aliases":      true,
-	"connect":             true,
-	"disconnect":          true,
-}
-
 // CheckChangeConflictMany ensures that for the given snapNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
@@ -147,23 +129,6 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, ignoreChangeID
 
 	return nil
 }
-
-/*
-	if k == "connect" || k == "disconnect" {
-			plugRef, slotRef, err := getPlugAndSlotRefs(task)
-			if err != nil {
-				return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
-			}
-			if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (ignoreChangeID == "" || chgID != ignoreChangeID) {
-				var snapName string
-				if snapMap[plugRef.Snap] {
-					snapName = plugRef.Snap
-				} else {
-					snapName = slotRef.Snap
-				}
-
-			}
-*/
 
 // CheckChangeConflict ensures that for the given snapName no other
 // changes that alters the snap (like remove, install, refresh) are in
