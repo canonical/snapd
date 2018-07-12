@@ -127,7 +127,7 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 				return &state.Retry{After: connectRetryTimeout}
 			}
 			// for connect it's a conflict
-			return snapstate.ChangeConflictError(snapName, task.Change().Kind())
+			return &snapstate.ChangeConflictError{Snap: snapName, ChangeKind: task.Change().Kind()}
 		}
 	}
 	return nil
@@ -136,8 +136,7 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	const auto = false
-	if err := checkConnectConflicts(st, plugSnap, slotSnap, auto); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
 		return nil, err
 	}
 
@@ -266,10 +265,7 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
-		return nil, err
-	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
 		return nil, err
 	}
 

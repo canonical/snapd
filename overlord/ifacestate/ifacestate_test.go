@@ -300,7 +300,7 @@ func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnapOnLink(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
+func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -315,10 +315,10 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 	chg.AddTask(t)
 
 	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 
 	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDifferentSnap(c *C) {
