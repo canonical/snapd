@@ -44,7 +44,6 @@ execute: |
 
     # Set the ntp value and check the status
     test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp yes
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP '(Network time on|systemd-timesyncd.service active): \K(.*)')" = "yes" ]
     for _ in $(seq 10); do
         if [ "$(get_ntp_status)" = "yes" ] ; then
             break
