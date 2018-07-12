@@ -246,6 +246,8 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		if app.Timer != nil || len(app.Sockets) != 0 {
 			// service is socket or timer activated, not during the
 			// boot
+			logger.Noticef("Unit %s", app.ServiceName())
+			units = append(units, app.ServiceName())
 			continue
 		}
 
