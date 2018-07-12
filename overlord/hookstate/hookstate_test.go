@@ -1127,3 +1127,10 @@ func (s *hookManagerSuite) TestGracefullyWaitRunningHooksTimeout(c *C) {
 		c.Fatal("timeout should have expired")
 	}
 }
+
+func (s *hookManagerSuite) TestSnapstateOpConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	_, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "kind" change in progress`)
+}
