@@ -199,6 +199,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		}
 	}()
 
+	reload := false
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
@@ -246,8 +247,8 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		if app.Timer != nil || len(app.Sockets) != 0 {
 			// service is socket or timer activated, not during the
 			// boot
-			logger.Noticef("Unit %s", app.ServiceName())
-			units = append(units, app.ServiceName())
+			// 14.04
+			reload = true
 			continue
 		}
 
@@ -260,8 +261,14 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		units = append(units, filepath.Base(svcName))
 	}
 
-	if err := sysd.DaemonReloadIfNeeded(true, units...); err != nil {
-		return err
+	if reload {
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+	} else {
+		if err := sysd.DaemonReloadIfNeeded(true, units...); err != nil {
+			return err
+		}
 	}
 
 	return nil
