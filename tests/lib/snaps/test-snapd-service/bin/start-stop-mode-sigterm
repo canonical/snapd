@@ -1,8 +1,11 @@
-#!/bin/sh
+#!/usr/bin/python3
+import signal
 
-set -e
+def main() -> None:
+	print("start-refresh-mode-sigkill")
+	print("running a process")
+	signal.pause()
 
-echo "start-refresh-mode-sigkill"
 
-echo "running a process"
-sleep 3133731337
+if __name__ == "__main__":
+    main()
