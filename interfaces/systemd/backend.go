@@ -111,13 +111,14 @@ func (b *Backend) Remove(snapName string) error {
 			logger.Noticef("cannot stop service %q: %s", service, err)
 		}
 	}
-	// Reload systemd whenever something is removed
-	if len(removed) > 0 {
-		err := systemd.DaemonReload()
-		if err != nil {
-			logger.Noticef("cannot reload systemd state: %s", err)
-		}
+	if err := systemd.ResetFailedIfNeeded(removed...); err != nil {
+		logger.Noticef("cannot reset failed services %q when removing snap: %s", removed, err)
 	}
+	// Reload systemd configuration if necessary
+	if err := systemd.DaemonReloadIfNeeded(false, removed...); err != nil {
+		logger.Noticef("cannot do daemon-reload for %q when removing snap: %s", removed, err)
+	}
+
 	return errEnsure
 }
 
