@@ -161,7 +161,8 @@ func (*systemd) DaemonReload() error {
 func (s *systemd) DaemonReloadIfNeeded(shouldExist bool, serviceNames ...string) error {
 	bs, err := systemctlCmd(append([]string{"show", "--property=NeedDaemonReload,LoadState"}, serviceNames...)...)
 	if err != nil {
-		return err
+		logger.Noticef("RELOADING XXX")
+		return s.DaemonReload()
 	}
 
 	logger.Noticef("CONTENT %v", string(bs))
