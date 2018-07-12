@@ -28,9 +28,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-const daemoNotifySummary = `allows sending daemon status changes to service manager`
+const daemonNotifySummary = `allows sending daemon status changes to service manager`
 
-const daemoNotifyBaseDeclarationSlots = `
+const daemonNotifyBaseDeclarationSlots = `
   daemon-notify:
     allow-installation:
       slot-snap-type:
@@ -38,7 +38,7 @@ const daemoNotifyBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const daemoNotifyConnectedPlugAppArmorTemplate = `
+const daemonNotifyConnectedPlugAppArmorTemplate = `
 # Allow sending notification messages to systemd through the notify socket
 {{notify-socket-rule}},
 `
@@ -86,7 +86,7 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		return fmt.Errorf("cannot use %q as notify socket path", notifySocket)
 	}
 
-	snippet := strings.Replace(daemoNotifyConnectedPlugAppArmorTemplate,
+	snippet := strings.Replace(daemonNotifyConnectedPlugAppArmorTemplate,
 		"{{notify-socket-rule}}", rule, 1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -95,10 +95,10 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 func init() {
 	registerIface(&daemoNotifyInterface{commonInterface: commonInterface{
 		name:                 "daemon-notify",
-		summary:              daemoNotifySummary,
+		summary:              daemonNotifySummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationSlots: daemoNotifyBaseDeclarationSlots,
+		baseDeclarationSlots: daemonNotifyBaseDeclarationSlots,
 		reservedForOS:        true,
 	}})
 }
