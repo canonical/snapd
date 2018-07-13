@@ -62,6 +62,12 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	// and back in the API requests.
 	c.Assert(m.RemapSnapFromRequest("system"), Equals, "core")
 	c.Assert(m.RemapSnapToResponse("core"), Equals, "system")
+
+	// Other snap names are unchanged.
+	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
+	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
+	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+	c.Assert(m.RemapSnapToResponse("potato"), Equals, "potato")
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -80,6 +86,12 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	// The "core" snap is also renamed to "snapd" in API requests, for
 	// compatibility.
 	c.Assert(m.RemapSnapFromRequest("core"), Equals, "snapd")
+
+	// Other snap names are unchanged.
+	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
+	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
+	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+	c.Assert(m.RemapSnapToResponse("potato"), Equals, "potato")
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
