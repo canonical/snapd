@@ -1799,12 +1799,12 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	slotConns := map[string][]interfaces.PlugRef{}
 
 	for _, cref := range ifaces.Connections {
-		cref.PlugRef.Snap = ifacestate.RemapSnapToResponse(cref.PlugRef.Snap)
-		cref.SlotRef.Snap = ifacestate.RemapSnapToResponse(cref.SlotRef.Snap)
-		plugID := cref.PlugRef.String()
-		slotID := cref.SlotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], cref.SlotRef)
-		slotConns[slotID] = append(slotConns[slotID], cref.PlugRef)
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(cref.PlugRef.Snap), Name: cref.PlugRef.Name}
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(cref.SlotRef.Snap), Name: cref.SlotRef.Name}
+		plugID := plugRef.String()
+		slotID := slotRef.String()
+		plugConns[plugID] = append(plugConns[plugID], slotRef)
+		slotConns[slotID] = append(slotConns[slotID], plugRef)
 	}
 
 	for _, plug := range ifaces.Plugs {
