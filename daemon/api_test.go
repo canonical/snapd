@@ -3666,24 +3666,26 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 }
 
 // inverseCaseMapper implements InterfaceMapper to use lower case internally and upper case externally.
-type inverseCaseMapper struct{}
+type inverseCaseMapper struct {
+	ifacestate.NilMapper // Embed the nil mapper to reuse empty state mapping functions.
+}
 
-func (m *inverseCaseMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) {
+func (m *inverseCaseMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToLower(plugRef.Snap)
 	plugRef.Name = strings.ToLower(plugRef.Name)
 }
 
-func (m *inverseCaseMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) {
+func (m *inverseCaseMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToUpper(plugRef.Snap)
 	plugRef.Name = strings.ToUpper(plugRef.Name)
 }
 
-func (m *inverseCaseMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) {
+func (m *inverseCaseMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
 	slotRef.Snap = strings.ToLower(slotRef.Snap)
 	slotRef.Name = strings.ToLower(slotRef.Name)
 }
 
-func (m *inverseCaseMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) {
+func (m *inverseCaseMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
 	slotRef.Snap = strings.ToUpper(slotRef.Snap)
 	slotRef.Name = strings.ToUpper(slotRef.Name)
 }
