@@ -22,9 +22,6 @@
 package hookstate
 
 import (
-	"sync"
-
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -48,13 +45,4 @@ func HookTaskWithUndo(st *state.State, summary string, setup *HookSetup, undo *H
 // initial context must properly marshal and unmarshal with encoding/json.
 func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
 	return HookTaskWithUndo(st, summary, setup, nil, contextData)
-}
-
-var once sync.Once
-
-func delayedCrossMgrInit() {
-	once.Do(func() {
-		// hook into conflict check mechanisms
-		snapstate.AddAffectedSnapsByAttr("hook-setup", hookAffectedSnaps)
-	})
 }
