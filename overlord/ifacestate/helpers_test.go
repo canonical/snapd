@@ -42,8 +42,8 @@ func (s *helpersSuite) SetUpTest(c *C) {
 func (s *helpersSuite) TearDownTest(c *C) {
 }
 
-func (s *helpersSuite) TestNilMapper(c *C) {
-	var m ifacestate.InterfaceMapper = &ifacestate.NilMapper{}
+func (s *helpersSuite) TestIdentityMapper(c *C) {
+	var m ifacestate.InterfaceMapper = &ifacestate.IdentityMapper{}
 
 	// Nothing is altered.
 	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}

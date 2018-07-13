@@ -585,32 +585,32 @@ type InterfaceMapper interface {
 	RemapSlotRefToResponse(slotRef *interfaces.SlotRef)
 }
 
-// NilMapper implements InterfaceMapper and performs no transformations at all.
-type NilMapper struct{}
+// IdentityMapper implements InterfaceMapper and performs no transformations at all.
+type IdentityMapper struct{}
 
 // RemapPlugRefFromState doesn't change the plug in any way.
-func (m *NilMapper) RemapPlugRefFromState(plugRef *interfaces.PlugRef) {}
+func (m *IdentityMapper) RemapPlugRefFromState(plugRef *interfaces.PlugRef) {}
 
 // RemapSlotRefFromState doesn't change the plug in any way.
-func (m *NilMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRef) {}
+func (m *IdentityMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRef) {}
 
 // RemapPlugRefToState doesn't change the plug in any way.
-func (m *NilMapper) RemapPlugRefToState(plugRef *interfaces.PlugRef) {}
+func (m *IdentityMapper) RemapPlugRefToState(plugRef *interfaces.PlugRef) {}
 
 // RemapSlotRefToState doesn't change the plug in any way.
-func (m *NilMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {}
+func (m *IdentityMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {}
 
 // RemapPlugRefFromRequest doesn't change the plug in any way.
-func (m *NilMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {}
+func (m *IdentityMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {}
 
 // RemapSlotRefFromRequest doesn't change the plug in any way.
-func (m *NilMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {}
+func (m *IdentityMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {}
 
 // RemapPlugRefToResponse doesn't change the plug in any way.
-func (m *NilMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {}
+func (m *IdentityMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {}
 
 // RemapSlotRefToResponse doesn't change the plug in any way.
-func (m *NilMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {}
+func (m *IdentityMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {}
 
 // CoreCoreSystemMapper implements InterfaceMapper and makes implicit slots
 // appear to be on "core" in the state and in memory but as "system" in the API.
@@ -620,7 +620,7 @@ func (m *NilMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {}
 // exactly the same as with the "snapd" mapper. This can be used to make any
 // necessary adjustments the test suite.
 type CoreCoreSystemMapper struct {
-	NilMapper // Embedding the nil mapper allows us to cut on boilerplate.
+	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
 }
 
 // RemapSlotRefFromRequest moves slots from "system" snaps to the "core" snap.
@@ -648,7 +648,7 @@ func (m *CoreCoreSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRe
 // appear to be on "core" in the state and on "system" in the API while they
 // are on "snapd" in memory.
 type CoreSnapdSystemMapper struct {
-	NilMapper // Embedding the nil mapper allows us to cut on boilerplate.
+	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
 }
 
 // RemapSlotRefFromState moves slots from the "core" snap to the "snapd" snap.
@@ -699,7 +699,7 @@ func (m *CoreSnapdSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotR
 }
 
 // mapper contains the currently active interface mapper.
-var mapper InterfaceMapper = &NilMapper{}
+var mapper InterfaceMapper = &IdentityMapper{}
 
 // MockInterfaceMapper mocks the currently used interface mapper.
 func MockInterfaceMapper(new InterfaceMapper) (restore func()) {
