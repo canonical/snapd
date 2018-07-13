@@ -46,10 +46,17 @@ func (s *helpersSuite) TestNilMapper(c *C) {
 	var m ifacestate.InterfaceMapper = &ifacestate.NilMapper{}
 
 	// Nothing is altered.
-	c.Assert(m.RemapIncomingPlugRef(&interfaces.PlugRef{}), Equals, false)
-	c.Assert(m.RemapOutgoingPlugRef(&interfaces.PlugRef{}), Equals, false)
-	c.Assert(m.RemapIncomingSlotRef(&interfaces.SlotRef{}), Equals, false)
-	c.Assert(m.RemapOutgoingSlotRef(&interfaces.SlotRef{}), Equals, false)
+	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
+	m.RemapIncomingPlugRef(&plugRef)
+	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
+	m.RemapOutgoingPlugRef(&plugRef)
+	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
+
+	slotRef := interfaces.SlotRef{Snap: "core", Name: "network"}
+	m.RemapIncomingSlotRef(&slotRef)
+	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
+	m.RemapOutgoingSlotRef(&slotRef)
+	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
 }
 
 func (s *helpersSuite) TestCoreSnapdMapper(c *C) {
@@ -57,49 +64,47 @@ func (s *helpersSuite) TestCoreSnapdMapper(c *C) {
 
 	// Plugs are not altered.
 	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	c.Assert(m.RemapIncomingPlugRef(&plugRef), Equals, false)
-	c.Assert(m.RemapOutgoingPlugRef(&plugRef), Equals, false)
+	m.RemapIncomingPlugRef(&plugRef)
+	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
+	m.RemapOutgoingPlugRef(&plugRef)
+	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
 
 	// The "snapd" snap is used on the inside while appearing as "core" on the outside.
 	slotRef := interfaces.SlotRef{Snap: "core", Name: "network"}
-	c.Assert(m.RemapIncomingSlotRef(&slotRef), Equals, true)
+	m.RemapIncomingSlotRef(&slotRef)
 	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snapd", Name: "network"})
-	c.Assert(m.RemapOutgoingSlotRef(&slotRef), Equals, true)
+	m.RemapOutgoingSlotRef(&slotRef)
 	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
 
 	// Other slots are unchanged.
 	slotRef = interfaces.SlotRef{Snap: "snap", Name: "slot"}
-	c.Assert(m.RemapIncomingSlotRef(&slotRef), Equals, false)
+	m.RemapIncomingSlotRef(&slotRef)
 	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	c.Assert(m.RemapOutgoingSlotRef(&slotRef), Equals, false)
+	m.RemapOutgoingSlotRef(&slotRef)
 	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
 }
 
 // caseMapper implements InterfaceMapper to use upper case internally and lower case externally.
 type caseMapper struct{}
 
-func (m *caseMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+func (m *caseMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToUpper(plugRef.Snap)
 	plugRef.Name = strings.ToUpper(plugRef.Name)
-	return true
 }
 
-func (m *caseMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+func (m *caseMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToLower(plugRef.Snap)
 	plugRef.Name = strings.ToLower(plugRef.Name)
-	return true
 }
 
-func (m *caseMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+func (m *caseMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) {
 	slotRef.Snap = strings.ToUpper(slotRef.Snap)
 	slotRef.Name = strings.ToUpper(slotRef.Name)
-	return true
 }
 
-func (m *caseMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+func (m *caseMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) {
 	slotRef.Snap = strings.ToLower(slotRef.Snap)
 	slotRef.Name = strings.ToLower(slotRef.Name)
-	return true
 }
 
 func (s *helpersSuite) TestRemapIncomingPlugRef(c *C) {
@@ -107,7 +112,7 @@ func (s *helpersSuite) TestRemapIncomingPlugRef(c *C) {
 	defer restore()
 
 	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	c.Assert(ifacestate.RemapIncomingPlugRef(&plugRef), Equals, true)
+	ifacestate.RemapIncomingPlugRef(&plugRef)
 	c.Assert(plugRef, DeepEquals, interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"})
 }
 
@@ -116,7 +121,7 @@ func (s *helpersSuite) TestRemapOutgoingPlugRef(c *C) {
 	defer restore()
 
 	plugRef := interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	c.Assert(ifacestate.RemapOutgoingPlugRef(&plugRef), Equals, true)
+	ifacestate.RemapOutgoingPlugRef(&plugRef)
 	c.Assert(plugRef, DeepEquals, interfaces.PlugRef{Snap: "example", Name: "network"})
 }
 
@@ -125,7 +130,7 @@ func (s *helpersSuite) TestRemapIncomingSlotRef(c *C) {
 	defer restore()
 
 	slotRef := interfaces.SlotRef{Snap: "example", Name: "network"}
-	c.Assert(ifacestate.RemapIncomingSlotRef(&slotRef), Equals, true)
+	ifacestate.RemapIncomingSlotRef(&slotRef)
 	c.Assert(slotRef, DeepEquals, interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"})
 }
 
@@ -134,7 +139,7 @@ func (s *helpersSuite) TestRemapOutgoingSlotRef(c *C) {
 	defer restore()
 
 	slotRef := interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	c.Assert(ifacestate.RemapOutgoingSlotRef(&slotRef), Equals, true)
+	ifacestate.RemapOutgoingSlotRef(&slotRef)
 	c.Assert(slotRef, DeepEquals, interfaces.SlotRef{Snap: "example", Name: "network"})
 }
 
@@ -146,7 +151,7 @@ func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	}
-	c.Assert(ifacestate.RemapIncomingConnRef(&cref), Equals, true)
+	ifacestate.RemapIncomingConnRef(&cref)
 	c.Assert(cref, DeepEquals, interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"},
 		SlotRef: interfaces.SlotRef{Snap: "CORE", Name: "NETWORK"},
@@ -161,7 +166,7 @@ func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
 		PlugRef: interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"},
 		SlotRef: interfaces.SlotRef{Snap: "CORE", Name: "NETWORK"},
 	}
-	c.Assert(ifacestate.RemapOutgoingConnRef(&cref), Equals, true)
+	ifacestate.RemapOutgoingConnRef(&cref)
 	c.Assert(cref, DeepEquals, interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},

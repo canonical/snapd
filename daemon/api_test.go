@@ -3668,28 +3668,24 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 // inverseCaseMapper implements InterfaceMapper to use lower case internally and upper case externally.
 type inverseCaseMapper struct{}
 
-func (m *inverseCaseMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+func (m *inverseCaseMapper) RemapIncomingPlugRef(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToLower(plugRef.Snap)
 	plugRef.Name = strings.ToLower(plugRef.Name)
-	return true
 }
 
-func (m *inverseCaseMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) (changed bool) {
+func (m *inverseCaseMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToUpper(plugRef.Snap)
 	plugRef.Name = strings.ToUpper(plugRef.Name)
-	return true
 }
 
-func (m *inverseCaseMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+func (m *inverseCaseMapper) RemapIncomingSlotRef(slotRef *interfaces.SlotRef) {
 	slotRef.Snap = strings.ToLower(slotRef.Snap)
 	slotRef.Name = strings.ToLower(slotRef.Name)
-	return true
 }
 
-func (m *inverseCaseMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) (changed bool) {
+func (m *inverseCaseMapper) RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) {
 	slotRef.Snap = strings.ToUpper(slotRef.Snap)
 	slotRef.Name = strings.ToUpper(slotRef.Name)
-	return true
 }
 
 // Tests for GET /v2/interfaces
