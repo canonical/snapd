@@ -111,48 +111,48 @@ func (s *helpersSuite) TestRemapIncomingPlugRef(c *C) {
 	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
 	defer restore()
 
-	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	ifacestate.RemapIncomingPlugRef(&plugRef)
-	c.Assert(plugRef, DeepEquals, interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"})
+	origPlugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
+	chndPlugRef := ifacestate.RemapIncomingPlugRef(origPlugRef)
+	c.Assert(chndPlugRef, DeepEquals, interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"})
 }
 
 func (s *helpersSuite) TestRemapOutgoingPlugRef(c *C) {
 	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
 	defer restore()
 
-	plugRef := interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	ifacestate.RemapOutgoingPlugRef(&plugRef)
-	c.Assert(plugRef, DeepEquals, interfaces.PlugRef{Snap: "example", Name: "network"})
+	origPlugRef := interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"}
+	chndPlugRef := ifacestate.RemapOutgoingPlugRef(origPlugRef)
+	c.Assert(chndPlugRef, DeepEquals, interfaces.PlugRef{Snap: "example", Name: "network"})
 }
 
 func (s *helpersSuite) TestRemapIncomingSlotRef(c *C) {
 	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
 	defer restore()
 
-	slotRef := interfaces.SlotRef{Snap: "example", Name: "network"}
-	ifacestate.RemapIncomingSlotRef(&slotRef)
-	c.Assert(slotRef, DeepEquals, interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"})
+	origSlotRef := interfaces.SlotRef{Snap: "example", Name: "network"}
+	chndSlotRef := ifacestate.RemapIncomingSlotRef(origSlotRef)
+	c.Assert(chndSlotRef, DeepEquals, interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"})
 }
 
 func (s *helpersSuite) TestRemapOutgoingSlotRef(c *C) {
 	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
 	defer restore()
 
-	slotRef := interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	ifacestate.RemapOutgoingSlotRef(&slotRef)
-	c.Assert(slotRef, DeepEquals, interfaces.SlotRef{Snap: "example", Name: "network"})
+	origSlotRef := interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"}
+	chndSlotRef := ifacestate.RemapOutgoingSlotRef(origSlotRef)
+	c.Assert(chndSlotRef, DeepEquals, interfaces.SlotRef{Snap: "example", Name: "network"})
 }
 
 func (s *helpersSuite) TestRemapIncomingConnRef(c *C) {
 	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
 	defer restore()
 
-	cref := interfaces.ConnRef{
+	origCref := interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	}
-	ifacestate.RemapIncomingConnRef(&cref)
-	c.Assert(cref, DeepEquals, interfaces.ConnRef{
+	chndCref := ifacestate.RemapIncomingConnRef(origCref)
+	c.Assert(chndCref, DeepEquals, interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"},
 		SlotRef: interfaces.SlotRef{Snap: "CORE", Name: "NETWORK"},
 	})
@@ -162,12 +162,12 @@ func (s *helpersSuite) TestRemapOutgoingConnRef(c *C) {
 	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
 	defer restore()
 
-	cref := interfaces.ConnRef{
+	origCref := interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"},
 		SlotRef: interfaces.SlotRef{Snap: "CORE", Name: "NETWORK"},
 	}
-	ifacestate.RemapOutgoingConnRef(&cref)
-	c.Assert(cref, DeepEquals, interfaces.ConnRef{
+	chndCref := ifacestate.RemapOutgoingConnRef(origCref)
+	c.Assert(chndCref, DeepEquals, interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "example", Name: "network"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"},
 	})

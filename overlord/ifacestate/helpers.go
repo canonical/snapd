@@ -474,7 +474,7 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		if err != nil {
 			return nil, err
 		}
-		RemapIncomingConnRef(cref)
+		*cref = RemapIncomingConnRef(*cref)
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -491,7 +491,7 @@ func setConns(st *state.State, conns map[string]connState) {
 			// We cannot fail here
 			panic(err)
 		}
-		RemapOutgoingConnRef(cref)
+		*cref = RemapOutgoingConnRef(*cref)
 		remapped[cref.ID()] = cstate
 	}
 	st.Set("conns", remapped)
@@ -642,19 +642,22 @@ func (m *CoreSnapdMapper) RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) {
 // Data coming from the state and from API requests is changed so that slots on "core"
 // become slots on "snapd" (but only when "snapd" snap itself is being used). When
 // data is about to hit the state again it is re-mapped back.
-func RemapIncomingConnRef(cref *interfaces.ConnRef) {
+func RemapIncomingConnRef(cref interfaces.ConnRef) interfaces.ConnRef {
 	mapper.RemapIncomingPlugRef(&cref.PlugRef)
 	mapper.RemapIncomingSlotRef(&cref.SlotRef)
+	return cref
 }
 
 // RemapIncomingPlugRef potentially re-maps the snap name of a plug reference.
-func RemapIncomingPlugRef(plugRef *interfaces.PlugRef) {
-	mapper.RemapIncomingPlugRef(plugRef)
+func RemapIncomingPlugRef(plugRef interfaces.PlugRef) interfaces.PlugRef {
+	mapper.RemapIncomingPlugRef(&plugRef)
+	return plugRef
 }
 
 // RemapIncomingSlotRef potentially re-maps the snap name of a slot reference.
-func RemapIncomingSlotRef(slotRef *interfaces.SlotRef) {
-	mapper.RemapIncomingSlotRef(slotRef)
+func RemapIncomingSlotRef(slotRef interfaces.SlotRef) interfaces.SlotRef {
+	mapper.RemapIncomingSlotRef(&slotRef)
+	return slotRef
 }
 
 // Remapping functions for outgoing transfers (memory=>{state,wire})
@@ -662,17 +665,20 @@ func RemapIncomingSlotRef(slotRef *interfaces.SlotRef) {
 // RemapOutgoingConnRef potentially re-maps connection reference before being saved to store or returned in an API response.
 //
 // This function is symmetric with RemapIncomingConnRef.
-func RemapOutgoingConnRef(cref *interfaces.ConnRef) {
+func RemapOutgoingConnRef(cref interfaces.ConnRef) interfaces.ConnRef {
 	mapper.RemapOutgoingPlugRef(&cref.PlugRef)
 	mapper.RemapOutgoingSlotRef(&cref.SlotRef)
+	return cref
 }
 
 // RemapOutgoingPlugRef potentially re-maps the snap name of a plug reference.
-func RemapOutgoingPlugRef(plugRef *interfaces.PlugRef) {
-	mapper.RemapOutgoingPlugRef(plugRef)
+func RemapOutgoingPlugRef(plugRef interfaces.PlugRef) interfaces.PlugRef {
+	mapper.RemapOutgoingPlugRef(&plugRef)
+	return plugRef
 }
 
 // RemapOutgoingSlotRef potentially re-maps the snap name of a slot reference.
-func RemapOutgoingSlotRef(slotRef *interfaces.SlotRef) {
-	mapper.RemapOutgoingSlotRef(slotRef)
+func RemapOutgoingSlotRef(slotRef interfaces.SlotRef) interfaces.SlotRef {
+	mapper.RemapOutgoingSlotRef(&slotRef)
+	return slotRef
 }
