@@ -27,58 +27,84 @@ import (
 	"strings"
 )
 
-const udevadmBin = `/sbin/udevadm`
-
+var udevadmBin = `/sbin/udevadm`
 var udevadmRe = regexp.MustCompile("^([A-Z]): (.*)$")
 
 // RunUdevadm enumerates all devices by parsing 'udevadm info -e' command output and reports them
-// via devices channel. Parsing errors are reported to parseErrors channel. Any fatal errors
-// encountered when starting/stopping udevadm are reported by the error return value.
+// via devices channel. The devices channel gets closed to indicate that all devices were processed.
+// Parsing errors are reported to parseErrors channel. Fatal errors encountered when starting udevadm
+// are reported by the error return value.
 func RunUdevadm(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) error {
 	cmd := exec.Command(udevadmBin, "info", "-e")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		close(devices)
 		return err
 	}
 
 	rd := bufio.NewScanner(stdout)
 	if err := cmd.Start(); err != nil {
+		close(devices)
 		return err
 	}
 
-	env := make(map[string]string)
-	for rd.Scan() {
-		line := rd.Text()
-		if line == "" {
-			if len(env) > 0 {
-				dev, err := NewHotplugDeviceInfo(env)
-				if err != nil {
-					parseErrors <- err
-				} else {
-					devices <- dev
-				}
-				env = make(map[string]string)
-			}
-		}
-		m := udevadmRe.FindStringSubmatch(line)
-		if len(m) > 0 {
-			if m[1] == "E" {
-				kv := strings.SplitN(m[2], "=", 2)
-				if len(kv) == 2 {
-					env[kv[0]] = env[kv[1]]
-				} else {
-					parseErrors <- fmt.Errorf("failed to parse udevadm output")
-				}
-			}
-		}
-	}
+	go func() {
+		defer close(devices)
 
-	if err := rd.Err(); err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		return err
-	}
+		env := make(map[string]string)
+		for rd.Scan() {
+			line := rd.Text()
+			if line == "" {
+				if len(env) > 0 {
+					outputDevice(env, devices, parseErrors)
+					env = make(map[string]string)
+				}
+				continue
+			}
+			match := udevadmRe.FindStringSubmatch(line)
+			if len(match) > 0 {
+				// possible udevadm line prefixes are:
+				//  'P' - device path (e.g /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0)
+				//  'N' - device node (e.g. "/dev/ttyUSB0")
+				//  'L' - devlink priority (unclear)
+				//  'S' - devlinks (e.g. serial/by-path/pci-0000:00:14.0-usb-0:2:1.0-port0)
+				//  'E' - property (key=value format)
+				// We are only interested in 'E' properties as they carry all the interesting data,
+				// including DEVPATH and DEVNAME which seem to mirror the 'P' and 'N' values.
+				if match[1] == "E" {
+					kv := strings.SplitN(match[2], "=", 2)
+					if len(kv) == 2 {
+						env[kv[0]] = kv[1]
+					} else {
+						parseErrors <- fmt.Errorf("failed to parse udevadm output %q", line)
+					}
+				}
+			} else {
+				parseErrors <- fmt.Errorf("failed to parse udevadm output %q", line)
+			}
+		}
+
+		// eof, flush remaing device
+		if len(env) > 0 {
+			outputDevice(env, devices, parseErrors)
+		}
+
+		if err := rd.Err(); err != nil {
+			parseErrors <- fmt.Errorf("udevadm command failed: %s", err)
+		}
+		if err := cmd.Wait(); err != nil {
+			parseErrors <- fmt.Errorf("udevadm command failed: %s", err)
+		}
+	}()
 
 	return nil
+}
+
+func outputDevice(env map[string]string, devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) {
+	dev, err := NewHotplugDeviceInfo(env)
+	if err != nil {
+		parseErrors <- err
+	} else {
+		devices <- dev
+	}
 }
