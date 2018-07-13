@@ -3667,7 +3667,7 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 
 // inverseCaseMapper implements InterfaceMapper to use lower case internally and upper case externally.
 type inverseCaseMapper struct {
-	ifacestate.NilMapper // Embed the nil mapper to reuse empty state mapping functions.
+	ifacestate.IdentityMapper // Embed the identity mapper to reuse empty state mapping functions.
 }
 
 func (m *inverseCaseMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {
