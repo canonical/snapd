@@ -84,7 +84,7 @@ func RunUdevadm(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) err
 			}
 		}
 
-		// eof, flush remaing device
+		// eof, flush remaining device
 		if len(env) > 0 {
 			outputDevice(env, devices, parseErrors)
 		}

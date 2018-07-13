@@ -148,7 +148,7 @@ __END__
 	c.Assert(parseErrors[0], ErrorMatches, `failed to parse udevadm output "E: DEVPATH"`)
 	c.Assert(parseErrors[1], ErrorMatches, `failed to parse udevadm output "EXX: K=V"`)
 
-	// succesfully parsed devices are still reported
+	// successfully parsed devices are still reported
 	c.Assert(devices, HasLen, 1)
 	v, _ := devices[0].Attribute("DEVPATH")
 	c.Assert(v, Equals, "foo")
