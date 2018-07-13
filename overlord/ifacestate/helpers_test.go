@@ -38,9 +38,6 @@ func (s *helpersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 }
 
-func (s *helpersSuite) TearDownTest(c *C) {
-}
-
 func (s *helpersSuite) TestIdentityMapper(c *C) {
 	var m ifacestate.SnapMapper = &ifacestate.IdentityMapper{}
 
