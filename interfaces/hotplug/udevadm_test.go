@@ -153,3 +153,13 @@ __END__
 	v, _ := devices[0].Attribute("DEVPATH")
 	c.Assert(v, Equals, "foo")
 }
+
+func (s *udevadmSuite) TestUdevadmFailure(c *C) {
+	restore, err := MockUdevadmbin(c, []byte(``))
+	c.Assert(err, IsNil)
+	defer restore()
+
+	devs := make(chan *HotplugDeviceInfo)
+	errors := make(chan error)
+	c.Assert(RunUdevadm(devs, errors), ErrorMatches, `.*exec format error`)
+}
