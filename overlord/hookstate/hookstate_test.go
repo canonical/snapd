@@ -1134,3 +1134,18 @@ func (s *hookManagerSuite) TestSnapstateOpConflict(c *C) {
 	_, err := snapstate.Disable(s.state, "test-snap")
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "kind" change in progress`)
 }
+
+func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var hijackedContext *hookstate.Context
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		hijackedContext = ctx
+		return nil
+	})
+
+	// no conflict on hijacked hooks
+	_, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, IsNil)
+}
