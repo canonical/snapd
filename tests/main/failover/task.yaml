@@ -79,7 +79,7 @@ execute: |
         snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d "$BUILD_DIR/unpack" "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
+        unsquashfs -no-progress -d "$BUILD_DIR/unpack" "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
 
         # set failure condition
         eval "${INJECT_FAILURE}"

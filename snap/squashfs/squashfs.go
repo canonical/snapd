@@ -142,8 +142,9 @@ func (u *unsquashfsStderrWriter) Err() error {
 func (s *Snap) Unpack(src, dstDir string) error {
 	usw := newUnsquashfsStderrWriter()
 
-	cmd := exec.Command("unsquashfs", "-f", "-d", dstDir, s.path, src)
+	cmd := exec.Command("unsquashfs", "-n", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = usw
+	cmd.Stdout = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -172,7 +173,7 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
+	if err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
 		return nil, err
 	}
 
@@ -311,6 +312,7 @@ func (s *Snap) Build(buildDir string) error {
 			"-comp", "xz",
 			"-no-xattrs",
 			"-no-fragments",
+			"-no-progress",
 		).Run()
 	})
 }
@@ -330,7 +332,7 @@ func BuildDate(path string) time.Time {
 		N:      1,
 	}
 
-	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd := exec.Command("unsquashfs", "-n", "-s", path)
 	cmd.Env = []string{"TZ=UTC"}
 	cmd.Stdout = m
 	cmd.Stderr = m
