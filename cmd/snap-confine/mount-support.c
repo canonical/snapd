@@ -313,6 +313,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 				// snap or missing mount source on the host.
 				continue;
 			}
+			// Non-optional mount failed. Create a useful error message.
 			char mount_cmd_buf[10000] = { 0 };
 			const char *mount_cmd = NULL;
 			// Save errno as ensure can clobber it.
