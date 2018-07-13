@@ -103,8 +103,18 @@ __END__
 	}
 
 	c.Assert(devices, HasLen, 2)
+
 	v, _ := devices[0].Attribute("DEVPATH")
 	c.Assert(v, Equals, "/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0")
+
+	v, _ = devices[1].Attribute("DEVPATH")
+	c.Assert(v, Equals, "/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0")
+
+	v, _ = devices[1].Attribute("MAJOR")
+	c.Assert(v, Equals, "188")
+
+	v, _ = devices[1].Attribute("TAGS")
+	c.Assert(v, Equals, ":systemd:")
 }
 
 func (s *udevadmSuite) TestParsingError(c *C) {
