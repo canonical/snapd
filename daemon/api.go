@@ -1895,8 +1895,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.Lock()
 	defer st.Unlock()
 
-	repo := c.d.overlord.InterfaceManager().Repository()
-
 	for i := range a.Plugs {
 		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
 	}
@@ -1906,26 +1904,28 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	switch a.Action {
 	case "connect":
-		var cref *interfaces.ConnRef
-		cref, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		var connRef *interfaces.ConnRef
+		repo := c.d.overlord.InterfaceManager().Repository()
+		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
 			var ts *state.TaskSet
-			summary = fmt.Sprintf("Connect %s:%s to %s:%s", cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
-			ts, err = ifacestate.Connect(st, cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
+			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]*interfaces.ConnRef{cref})
+			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
-		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		var conns []*interfaces.ConnRef
+		repo := c.d.overlord.InterfaceManager().Repository()
+		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")
 			}
-			for _, cref := range conns {
+			for _, connRef := range conns {
 				var ts *state.TaskSet
-				ts, err = ifacestate.Disconnect(st, cref.PlugRef.Snap, cref.PlugRef.Name, cref.SlotRef.Snap, cref.SlotRef.Name)
+				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 				if err != nil {
 					break
 				}
