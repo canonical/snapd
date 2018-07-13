@@ -1743,7 +1743,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	if pselect != "all" && pselect != "connected" {
 		return BadRequest("unsupported select qualifier")
 	}
-	var names []string
+	var names []string // Interface names
 	namesStr := q.Get("names")
 	if namesStr != "" {
 		names = strings.Split(namesStr, ",")
@@ -1764,7 +1764,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		plugs := make([]*plugJSON, 0, len(info.Plugs))
 		for _, plug := range info.Plugs {
 			// Re-map outgoing plug information.
-			plugRef := ifacestate.RemapOutgoingPlugRef(interfaces.PlugRef{
+			plugRef := ifacestate.RemapPlugRefToResponse(interfaces.PlugRef{
 				Snap: plug.Snap.InstanceName(), Name: plug.Name})
 			plugs = append(plugs, &plugJSON{
 				Snap:  plugRef.Snap,
@@ -1776,7 +1776,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		slots := make([]*slotJSON, 0, len(info.Slots))
 		for _, slot := range info.Slots {
 			// Re-map outgoing slot information.
-			slotRef := ifacestate.RemapOutgoingSlotRef(interfaces.SlotRef{
+			slotRef := ifacestate.RemapSlotRefToResponse(interfaces.SlotRef{
 				Snap: slot.Snap.InstanceName(), Name: slot.Name})
 			slots = append(slots, &slotJSON{
 				Snap:  slotRef.Snap,
@@ -1806,16 +1806,17 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 
 	for _, cref := range ifaces.Connections {
 		// Re-map outgoing connection information.
-		*cref = ifacestate.RemapOutgoingConnRef(*cref)
-		plugRef := cref.PlugRef.String()
-		slotRef := cref.SlotRef.String()
-		plugConns[plugRef] = append(plugConns[plugRef], cref.SlotRef)
-		slotConns[slotRef] = append(slotConns[slotRef], cref.PlugRef)
+		cref.PlugRef = ifacestate.RemapPlugRefToResponse(cref.PlugRef)
+		cref.SlotRef = ifacestate.RemapSlotRefToResponse(cref.SlotRef)
+		plugID := cref.PlugRef.String()
+		slotID := cref.SlotRef.String()
+		plugConns[plugID] = append(plugConns[plugID], cref.SlotRef)
+		slotConns[slotID] = append(slotConns[slotID], cref.PlugRef)
 	}
 
 	for _, plug := range ifaces.Plugs {
 		// Re-map outgoing plug information.
-		plugRef := ifacestate.RemapOutgoingPlugRef(interfaces.PlugRef{
+		plugRef := ifacestate.RemapPlugRefToResponse(interfaces.PlugRef{
 			Snap: plug.Snap.InstanceName(), Name: plug.Name})
 		var apps []string
 		for _, app := range plug.Apps {
@@ -1834,7 +1835,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	}
 	for _, slot := range ifaces.Slots {
 		// Re-map outgoing slot information.
-		slotRef := ifacestate.RemapOutgoingSlotRef(interfaces.SlotRef{
+		slotRef := ifacestate.RemapSlotRefToResponse(interfaces.SlotRef{
 			Snap: slot.Snap.InstanceName(), Name: slot.Name})
 		var apps []string
 		for _, app := range slot.Apps {
@@ -1922,8 +1923,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		// to "core" but to "snapd" snap, where applicable. This re-mapping
 		// doesn't persist in the system state but does persist in per-task
 		// state.
-		plugRef := ifacestate.RemapIncomingPlugRef(interfaces.PlugRef{Snap: a.Plugs[0].Snap, Name: a.Plugs[0].Name})
-		slotRef := ifacestate.RemapIncomingSlotRef(interfaces.SlotRef{Snap: a.Slots[0].Snap, Name: a.Slots[0].Name})
+		plugRef := ifacestate.RemapPlugRefFromRequest(interfaces.PlugRef{Snap: a.Plugs[0].Snap, Name: a.Plugs[0].Name})
+		slotRef := ifacestate.RemapSlotRefFromRequest(interfaces.SlotRef{Snap: a.Slots[0].Snap, Name: a.Slots[0].Name})
 		var cref *interfaces.ConnRef
 		cref, err = repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 		if err == nil {
@@ -1935,8 +1936,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 	case "disconnect":
 		// Re-map the connection (e.g. core => snapd), same as above.
-		plugRef := ifacestate.RemapIncomingPlugRef(interfaces.PlugRef{Snap: a.Plugs[0].Snap, Name: a.Plugs[0].Name})
-		slotRef := ifacestate.RemapIncomingSlotRef(interfaces.SlotRef{Snap: a.Slots[0].Snap, Name: a.Slots[0].Name})
+		plugRef := ifacestate.RemapPlugRefFromRequest(interfaces.PlugRef{Snap: a.Plugs[0].Snap, Name: a.Plugs[0].Name})
+		slotRef := ifacestate.RemapSlotRefFromRequest(interfaces.SlotRef{Snap: a.Slots[0].Snap, Name: a.Slots[0].Name})
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 		var conns []*interfaces.ConnRef
 		conns, err = repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
