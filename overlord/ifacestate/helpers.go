@@ -474,8 +474,8 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		if err != nil {
 			return nil, err
 		}
-		cref.PlugRef = RemapPlugRefFromState(cref.PlugRef)
-		cref.SlotRef = RemapSlotRefFromState(cref.SlotRef)
+		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
+		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -492,8 +492,8 @@ func setConns(st *state.State, conns map[string]connState) {
 			// We cannot fail here
 			panic(err)
 		}
-		cref.PlugRef = RemapPlugRefToState(cref.PlugRef)
-		cref.SlotRef = RemapSlotRefToState(cref.SlotRef)
+		cref.PlugRef.Snap = RemapSnapToState(cref.PlugRef.Snap)
+		cref.SlotRef.Snap = RemapSnapToState(cref.SlotRef.Snap)
 		remapped[cref.ID()] = cstate
 	}
 	st.Set("conns", remapped)
@@ -581,28 +581,7 @@ type SnapMapper interface {
 	RemapSnapToResponse(snapName string) string
 }
 
-// InterfaceMapper offers APIs for re-mapping plugs and slots in interface
-// connections. The mapper is designed to apply transformations around the
-// edges of snapd (state interactions and API interactions) to offer one view
-// on the inside of snapd and another view on the outside.
-type InterfaceMapper interface {
-	// Every interface mapper is also a snap mapper.
-	SnapMapper
-
-	// re-map functions for loading and saving objects in the state.
-	RemapPlugRefFromState(plugRef *interfaces.PlugRef)
-	RemapSlotRefFromState(slotRef *interfaces.SlotRef)
-	RemapPlugRefToState(plugRef *interfaces.PlugRef)
-	RemapSlotRefToState(slotRef *interfaces.SlotRef)
-
-	// re-map functions for API requests/responses.
-	RemapPlugRefFromRequest(plugRef *interfaces.PlugRef)
-	RemapSlotRefFromRequest(slotRef *interfaces.SlotRef)
-	RemapPlugRefToResponse(plugRef *interfaces.PlugRef)
-	RemapSlotRefToResponse(slotRef *interfaces.SlotRef)
-}
-
-// IdentityMapper implements InterfaceMapper and performs no transformations at all.
+// IdentityMapper implements SnapMapper and performs no transformations at all.
 type IdentityMapper struct{}
 
 // RemapSnapFromState doesn't change the snap name in any way.
@@ -625,31 +604,7 @@ func (m *IdentityMapper) RemapSnapToResponse(snapName string) string {
 	return snapName
 }
 
-// RemapPlugRefFromState doesn't change the plug in any way.
-func (m *IdentityMapper) RemapPlugRefFromState(plugRef *interfaces.PlugRef) {}
-
-// RemapSlotRefFromState doesn't change the plug in any way.
-func (m *IdentityMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRef) {}
-
-// RemapPlugRefToState doesn't change the plug in any way.
-func (m *IdentityMapper) RemapPlugRefToState(plugRef *interfaces.PlugRef) {}
-
-// RemapSlotRefToState doesn't change the plug in any way.
-func (m *IdentityMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {}
-
-// RemapPlugRefFromRequest doesn't change the plug in any way.
-func (m *IdentityMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {}
-
-// RemapSlotRefFromRequest doesn't change the plug in any way.
-func (m *IdentityMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {}
-
-// RemapPlugRefToResponse doesn't change the plug in any way.
-func (m *IdentityMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {}
-
-// RemapSlotRefToResponse doesn't change the plug in any way.
-func (m *IdentityMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {}
-
-// CoreCoreSystemMapper implements InterfaceMapper and makes implicit slots
+// CoreCoreSystemMapper implements SnapMapper and makes implicit slots
 // appear to be on "core" in the state and in memory but as "system" in the API.
 //
 // NOTE: This mapper can be used to prepare, as an intermediate step, for the
@@ -660,6 +615,10 @@ type CoreCoreSystemMapper struct {
 	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
 }
 
+// RemapSnapFromRequest renames the "system" snap to the "core" snap.
+//
+// This allows us to accept connection and disconnection requests that
+// explicitly refer to "core" or using the "system" nickname.
 func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" {
 		return "core"
@@ -667,6 +626,11 @@ func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
+// RemapSnapToResponse renames the "core" snap to the "system" snap.
+//
+// This allows us to make all the implicitly defined slots, that are really
+// associated with the "core" snap to seemingly occupy the "system" snap
+// instead.
 func (m *CoreCoreSystemMapper) RemapSnapToResponse(snapName string) string {
 	if snapName == "core" {
 		return "system"
@@ -674,30 +638,18 @@ func (m *CoreCoreSystemMapper) RemapSnapToResponse(snapName string) string {
 	return snapName
 }
 
-// RemapSlotRefFromRequest moves slots from "system" snaps to the "core" snap.
-//
-// This allows us to accept connection and disconnection requests that
-// explicitly refer to "core" or using the "system" nickname.
-func (m *CoreCoreSystemMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = m.RemapSnapFromRequest(slotRef.Snap)
-}
-
-// RemapSlotRefToResponse makes slots from "core" snap to the "system" snap.
-//
-// This allows us to make all the implicitly defined slots, that are really
-// associated with the "core" snap to seemingly occupy the "system" snap
-// instead.
-func (m *CoreCoreSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = m.RemapSnapToResponse(slotRef.Snap)
-}
-
-// CoreSnapdSystemMapper implements InterfaceMapper and makes implicit slots
+// CoreSnapdSystemMapper implements SnapMapper and makes implicit slots
 // appear to be on "core" in the state and on "system" in the API while they
 // are on "snapd" in memory.
 type CoreSnapdSystemMapper struct {
 	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
 }
 
+// RemapSnapFromState renames the "core" snap to the "snapd" snap.
+//
+// This allows modern snapd to load an old state that remembers connections
+// between slots on the "core" snap and other snaps. In memory we are actually
+// using "snapd" snap for hosting those slots and this lets us stay compatible.
 func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
 	if snapName == "core" {
 		return "snapd"
@@ -705,6 +657,11 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
 	return snapName
 }
 
+// RemapSnapToState renames the "snapd" snap to the "core" snap.
+//
+// This allows the state to stay backwards compatible as all the connections
+// seem to refer to the "core" snap, as in pre core{16,18} days where there was
+// only one core snap.
 func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
 	if snapName == "snapd" {
 		return "core"
@@ -712,6 +669,13 @@ func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
 	return snapName
 }
 
+// RemapSnapFromRequest renames the "core" or "system" snaps to the "snapd" snap.
+//
+// This allows us to accept connection and disconnection requests that
+// explicitly refer to "core" or "system" even though we really want them to
+// refer to "snapd". Note that this is not fully symmetric with
+// RemapSnapToResponse as we explicitly always talk about "system" snap,
+// even if the request used "core".
 func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" || snapName == "core" {
 		return "snapd"
@@ -719,6 +683,12 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
+// RemapSnapToResponse renames the "snapd" snap to the "system" snap.
+//
+// This allows us to make all the implicitly defined slots, that are really
+// associated with the "snapd" snap to seemingly occupy the "system" snap
+// instead. This ties into the concept of using "system" as a nickname (e.g. in
+// gadget snap connections).
 func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
 	if snapName == "snapd" {
 		return "system"
@@ -726,107 +696,32 @@ func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
 	return snapName
 }
 
-// RemapSlotRefFromState moves slots from the "core" snap to the "snapd" snap.
-//
-// This allows modern snapd to load an old state that remembers connections
-// between slots on the "core" snap and other snaps. In memory we are actually
-// using "snapd" snap for hosting those slots and this lets us stay compatible.
-func (m *CoreSnapdSystemMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = m.RemapSnapFromRequest(slotRef.Snap)
-}
+// mapper contains the currently active snap mapper.
+var mapper SnapMapper = &CoreCoreSystemMapper{}
 
-// RemapSlotRefToState moves slots from the "snapd" snap to the "core" snap.
-//
-// This allows the state to stay backwards compatible as all the connections
-// seem to refer to the "core" snap, as in pre core{16,18} days where there was
-// only one core snap.
-func (m *CoreSnapdSystemMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = m.RemapSnapToState(slotRef.Snap)
-}
-
-// RemapSlotRefFromRequest moves slots from "core" or "system" snaps to the "snapd" snap.
-//
-// This allows us to accept connection and disconnection requests that
-// explicitly refer to "core" or "system" even though we really want them to
-// refer to "snapd". Note that this is not fully symmetric with
-// RemapSlotRefToResponse as we explicitly always talk about "system" snap,
-// even if the request used "core".
-func (m *CoreSnapdSystemMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = m.RemapSnapFromRequest(slotRef.Snap)
-}
-
-// RemapSlotRefToResponse makes slots from "snapd" snap to the "system" snap.
-//
-// This allows us to make all the implicitly defined slots, that are really
-// associated with the "snapd" snap to seemingly occupy the "system" snap
-// instead. This ties into the concept of using "system" as a nickname (e.g. in
-// gadget snap connections).
-func (m *CoreSnapdSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = m.RemapSnapToResponse(slotRef.Snap)
-}
-
-// mapper contains the currently active interface mapper.
-var mapper InterfaceMapper = &CoreCoreSystemMapper{}
-
-// MockInterfaceMapper mocks the currently used interface mapper.
-func MockInterfaceMapper(new InterfaceMapper) (restore func()) {
+// MockSnapMapper mocks the currently used snap mapper.
+func MockSnapMapper(new SnapMapper) (restore func()) {
 	old := mapper
 	mapper = new
 	return func() { mapper = old }
 }
 
-// Remapping functions for state => memory transitions.
-
-func RemapPlugRefFromState(plugRef interfaces.PlugRef) interfaces.PlugRef {
-	mapper.RemapPlugRefFromState(&plugRef)
-	return plugRef
+// RemapSnapFromState renames a snap when loaded from state according to the current mapper.
+func RemapSnapFromState(snapName string) string {
+	return mapper.RemapSnapFromState(snapName)
 }
 
-func RemapSlotRefFromState(slotRef interfaces.SlotRef) interfaces.SlotRef {
-	mapper.RemapSlotRefFromState(&slotRef)
-	return slotRef
+// RemapSnapToState renames a snap when saving to state according to the current mapper.
+func RemapSnapToState(snapName string) string {
+	return mapper.RemapSnapToState(snapName)
 }
 
-// Remapping functions for memory => state transitions.
-
-func RemapPlugRefToState(plugRef interfaces.PlugRef) interfaces.PlugRef {
-	mapper.RemapPlugRefToState(&plugRef)
-	return plugRef
-}
-
-func RemapSlotRefToState(slotRef interfaces.SlotRef) interfaces.SlotRef {
-	mapper.RemapSlotRefToState(&slotRef)
-	return slotRef
-}
-
-// Remapping functions for wire => memory (API requests)
-
-func RemapSnapNameFromRequest(snapName string) string {
+// RemapSnapFromRequest  renames a snap as received from an API request according to the current mapper.
+func RemapSnapFromRequest(snapName string) string {
 	return mapper.RemapSnapFromRequest(snapName)
 }
 
-func RemapPlugRefFromRequest(plugRef interfaces.PlugRef) interfaces.PlugRef {
-	mapper.RemapPlugRefFromRequest(&plugRef)
-	return plugRef
-}
-
-func RemapSlotRefFromRequest(slotRef interfaces.SlotRef) interfaces.SlotRef {
-	mapper.RemapSlotRefFromRequest(&slotRef)
-	return slotRef
-}
-
-// Remapping functions for memory => wire (API responses)
-
-func RemapSnapNameToResponse(snapName string) string {
+// RemapSnapToResponse renames a snap as about to be sent from an API response according to the current mapper.
+func RemapSnapToResponse(snapName string) string {
 	return mapper.RemapSnapToResponse(snapName)
-}
-
-func RemapPlugRefToResponse(plugRef interfaces.PlugRef) interfaces.PlugRef {
-	mapper.RemapPlugRefToResponse(&plugRef)
-	return plugRef
-}
-
-func RemapSlotRefToResponse(slotRef interfaces.SlotRef) interfaces.SlotRef {
-	mapper.RemapSlotRefToResponse(&slotRef)
-	return slotRef
 }

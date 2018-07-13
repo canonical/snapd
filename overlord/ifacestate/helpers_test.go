@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -43,123 +42,48 @@ func (s *helpersSuite) TearDownTest(c *C) {
 }
 
 func (s *helpersSuite) TestIdentityMapper(c *C) {
-	var m ifacestate.InterfaceMapper = &ifacestate.IdentityMapper{}
+	var m ifacestate.SnapMapper = &ifacestate.IdentityMapper{}
 
 	// Nothing is altered.
-	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	m.RemapPlugRefFromState(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefToState(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefFromRequest(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefToResponse(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-
-	slotRef := interfaces.SlotRef{Snap: "core", Name: "network"}
-	m.RemapSlotRefFromState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
-	m.RemapSlotRefToState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
-	m.RemapSlotRefFromRequest(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
-	m.RemapSlotRefToResponse(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
+	c.Assert(m.RemapSnapFromState("example"), Equals, "example")
+	c.Assert(m.RemapSnapToState("example"), Equals, "example")
+	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
+	c.Assert(m.RemapSnapToResponse("example"), Equals, "example")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
-	var m ifacestate.InterfaceMapper = &ifacestate.CoreCoreSystemMapper{}
+	var m ifacestate.SnapMapper = &ifacestate.CoreCoreSystemMapper{}
 
-	// Plugs are not altered in any way.
-	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	m.RemapPlugRefFromState(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefToState(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefFromRequest(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefToResponse(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
+	// Snaps are not renamed when interacting with the state.
+	c.Assert(m.RemapSnapFromState("core"), Equals, "core")
+	c.Assert(m.RemapSnapToState("core"), Equals, "core")
 
-	// Slots are not altered when interacting with the state.
-	slotRef := interfaces.SlotRef{Snap: "core", Name: "network"}
-	m.RemapSlotRefFromState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
-	m.RemapSlotRefToState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
-
-	// When a slot referring to "core" is returned in API response it is
-	// re-mapped to "system" and symmetrically back in API requests.
-	slotRef = interfaces.SlotRef{Snap: "core", Name: "network"}
-	m.RemapSlotRefToResponse(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "system", Name: "network"})
-	m.RemapSlotRefFromRequest(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
-
-	// Other slots are unchanged.
-	slotRef = interfaces.SlotRef{Snap: "snap", Name: "slot"}
-	m.RemapSlotRefFromState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	m.RemapSlotRefToState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	m.RemapSlotRefFromRequest(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	m.RemapSlotRefToResponse(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
+	// The "core" snap is renamed to the "system" in API response
+	// and back in the API requests.
+	c.Assert(m.RemapSnapFromRequest("system"), Equals, "core")
+	c.Assert(m.RemapSnapToResponse("core"), Equals, "system")
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
-	var m ifacestate.InterfaceMapper = &ifacestate.CoreSnapdSystemMapper{}
+	var m ifacestate.SnapMapper = &ifacestate.CoreSnapdSystemMapper{}
 
-	// Plugs are not altered.
-	plugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	m.RemapPlugRefFromState(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefToState(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefFromRequest(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
-	m.RemapPlugRefToResponse(&plugRef)
-	c.Assert(plugRef, Equals, interfaces.PlugRef{Snap: "example", Name: "network"})
+	// The "snapd" snap is renamed to the "core" in when saving the state
+	// and back when loading the state.
+	c.Assert(m.RemapSnapFromState("core"), Equals, "snapd")
+	c.Assert(m.RemapSnapToState("snapd"), Equals, "core")
 
-	// When a slot referring to "core" is loaded from the state it re-mapped to "snapd".
-	// Symmetrically when said slot is saved to state it is re-mapped back.
-	slotRef := interfaces.SlotRef{Snap: "core", Name: "network"}
-	m.RemapSlotRefFromState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snapd", Name: "network"})
-	m.RemapSlotRefToState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "core", Name: "network"})
+	// The "snapd" snap is renamed to the "system" in API response and back in
+	// the API requests.
+	c.Assert(m.RemapSnapFromRequest("system"), Equals, "snapd")
+	c.Assert(m.RemapSnapToResponse("snapd"), Equals, "system")
 
-	// When a slot referring to "snapd" is returned in API response it is
-	// re-mapped to "system". Not fully symmetrically API requests referring to
-	// either "core" or "system" are re-mapped to "snapd".
-	slotRef = interfaces.SlotRef{Snap: "snapd", Name: "network"}
-	m.RemapSlotRefToResponse(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "system", Name: "network"})
-
-	slotRef = interfaces.SlotRef{Snap: "system", Name: "network"}
-	m.RemapSlotRefFromRequest(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snapd", Name: "network"})
-	slotRef = interfaces.SlotRef{Snap: "core", Name: "network"}
-	m.RemapSlotRefFromRequest(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snapd", Name: "network"})
-
-	// Other slots are unchanged.
-	slotRef = interfaces.SlotRef{Snap: "snap", Name: "slot"}
-	m.RemapSlotRefFromState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	m.RemapSlotRefToState(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	m.RemapSlotRefFromRequest(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
-	m.RemapSlotRefToResponse(&slotRef)
-	c.Assert(slotRef, Equals, interfaces.SlotRef{Snap: "snap", Name: "slot"})
+	// The "core" snap is also renamed to "snapd" in API requests, for
+	// compatibility.
+	c.Assert(m.RemapSnapFromRequest("core"), Equals, "snapd")
 }
 
-// caseMapper implements InterfaceMapper to use upper case internally and lower case externally.
+// caseMapper implements SnapMapper to use upper case internally and lower case externally.
 type caseMapper struct{}
-
-// memory <=> state
 
 func (m *caseMapper) RemapSnapFromState(snapName string) string {
 	return strings.ToUpper(snapName)
@@ -169,28 +93,6 @@ func (m *caseMapper) RemapSnapToState(snapName string) string {
 	return strings.ToLower(snapName)
 }
 
-func (m *caseMapper) RemapPlugRefFromState(plugRef *interfaces.PlugRef) {
-	plugRef.Snap = strings.ToUpper(plugRef.Snap)
-	plugRef.Name = strings.ToUpper(plugRef.Name)
-}
-
-func (m *caseMapper) RemapPlugRefToState(plugRef *interfaces.PlugRef) {
-	plugRef.Snap = strings.ToLower(plugRef.Snap)
-	plugRef.Name = strings.ToLower(plugRef.Name)
-}
-
-func (m *caseMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = strings.ToUpper(slotRef.Snap)
-	slotRef.Name = strings.ToUpper(slotRef.Name)
-}
-
-func (m *caseMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = strings.ToLower(slotRef.Snap)
-	slotRef.Name = strings.ToLower(slotRef.Name)
-}
-
-// memory <=> request
-
 func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
@@ -199,96 +101,14 @@ func (m *caseMapper) RemapSnapToResponse(snapName string) string {
 	return strings.ToLower(snapName)
 }
 
-func (m *caseMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {
-	plugRef.Snap = strings.ToUpper(plugRef.Snap)
-	plugRef.Name = strings.ToUpper(plugRef.Name)
-}
-
-func (m *caseMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {
-	plugRef.Snap = strings.ToLower(plugRef.Snap)
-	plugRef.Name = strings.ToLower(plugRef.Name)
-}
-
-func (m *caseMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = strings.ToUpper(slotRef.Snap)
-	slotRef.Name = strings.ToUpper(slotRef.Name)
-}
-
-func (m *caseMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = strings.ToLower(slotRef.Snap)
-	slotRef.Name = strings.ToLower(slotRef.Name)
-}
-
-func (s *helpersSuite) TestRemapPlugRefFromState(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
+func (s *helpersSuite) TestMappingFunctions(c *C) {
+	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
 
-	origPlugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	chndPlugRef := ifacestate.RemapPlugRefFromState(origPlugRef)
-	c.Assert(chndPlugRef, DeepEquals, interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"})
-}
-
-func (s *helpersSuite) TestRemapPlugRefToState(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origPlugRef := interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	chndPlugRef := ifacestate.RemapPlugRefToState(origPlugRef)
-	c.Assert(chndPlugRef, DeepEquals, interfaces.PlugRef{Snap: "example", Name: "network"})
-}
-
-func (s *helpersSuite) TestRemapSlotRefFromState(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origSlotRef := interfaces.SlotRef{Snap: "example", Name: "network"}
-	chndSlotRef := ifacestate.RemapSlotRefFromState(origSlotRef)
-	c.Assert(chndSlotRef, DeepEquals, interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"})
-}
-
-func (s *helpersSuite) TestSlotRefToState(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origSlotRef := interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	chndSlotRef := ifacestate.RemapSlotRefToState(origSlotRef)
-	c.Assert(chndSlotRef, DeepEquals, interfaces.SlotRef{Snap: "example", Name: "network"})
-}
-
-func (s *helpersSuite) TestRemapPlugRefFromRequest(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origPlugRef := interfaces.PlugRef{Snap: "example", Name: "network"}
-	chndPlugRef := ifacestate.RemapPlugRefFromRequest(origPlugRef)
-	c.Assert(chndPlugRef, DeepEquals, interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"})
-}
-
-func (s *helpersSuite) TestRemapPlugRefToResponse(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origPlugRef := interfaces.PlugRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	chndPlugRef := ifacestate.RemapPlugRefToResponse(origPlugRef)
-	c.Assert(chndPlugRef, DeepEquals, interfaces.PlugRef{Snap: "example", Name: "network"})
-}
-
-func (s *helpersSuite) TestRemapSlotRefFromRequest(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origSlotRef := interfaces.SlotRef{Snap: "example", Name: "network"}
-	chndSlotRef := ifacestate.RemapSlotRefFromRequest(origSlotRef)
-	c.Assert(chndSlotRef, DeepEquals, interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"})
-}
-
-func (s *helpersSuite) TestSlotRefToResponse(c *C) {
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
-	defer restore()
-
-	origSlotRef := interfaces.SlotRef{Snap: "EXAMPLE", Name: "NETWORK"}
-	chndSlotRef := ifacestate.RemapSlotRefToResponse(origSlotRef)
-	c.Assert(chndSlotRef, DeepEquals, interfaces.SlotRef{Snap: "example", Name: "network"})
+	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
+	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
+	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
+	c.Assert(ifacestate.RemapSnapToResponse("EXAMPLE"), Equals, "example")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {
@@ -301,13 +121,13 @@ func (s *helpersSuite) TestGetConns(c *C) {
 		},
 	})
 
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
+	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
 
 	conns, err := ifacestate.GetConns(s.st)
 	c.Assert(err, IsNil)
 	for id, connState := range conns {
-		c.Assert(id, Equals, "APP:NETWORK CORE:NETWORK")
+		c.Assert(id, Equals, "APP:network CORE:network")
 		c.Assert(connState.Auto, Equals, true)
 		c.Assert(connState.Interface, Equals, "network")
 	}
@@ -317,7 +137,7 @@ func (s *helpersSuite) TestSetConns(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	restore := ifacestate.MockInterfaceMapper(&caseMapper{})
+	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
 
 	// This has upper-case data internally, see export_test.go

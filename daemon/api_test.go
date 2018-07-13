@@ -3665,29 +3665,17 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 	return snaps
 }
 
-// inverseCaseMapper implements InterfaceMapper to use lower case internally and upper case externally.
+// inverseCaseMapper implements SnapMapper to use lower case internally and upper case externally.
 type inverseCaseMapper struct {
 	ifacestate.IdentityMapper // Embed the identity mapper to reuse empty state mapping functions.
 }
 
-func (m *inverseCaseMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {
-	plugRef.Snap = strings.ToLower(plugRef.Snap)
-	plugRef.Name = strings.ToLower(plugRef.Name)
+func (m *inverseCaseMapper) RemapSnapFromRequest(snapName string) string {
+	return strings.ToLower(snapName)
 }
 
-func (m *inverseCaseMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {
-	plugRef.Snap = strings.ToUpper(plugRef.Snap)
-	plugRef.Name = strings.ToUpper(plugRef.Name)
-}
-
-func (m *inverseCaseMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = strings.ToLower(slotRef.Snap)
-	slotRef.Name = strings.ToLower(slotRef.Name)
-}
-
-func (m *inverseCaseMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
-	slotRef.Snap = strings.ToUpper(slotRef.Snap)
-	slotRef.Name = strings.ToUpper(slotRef.Name)
+func (m *inverseCaseMapper) RemapSnapToResponse(snapName string) string {
+	return strings.ToUpper(snapName)
 }
 
 // Tests for GET /v2/interfaces
@@ -3696,7 +3684,7 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockInterfaceMapper(&inverseCaseMapper{})
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 
 	d := s.daemon(c)
@@ -3725,26 +3713,26 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 			"plugs": []interface{}{
 				map[string]interface{}{
 					"snap":      "CONSUMER",
-					"plug":      "PLUG",
+					"plug":      "plug",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "PRODUCER", "slot": "SLOT"},
+						map[string]interface{}{"snap": "PRODUCER", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
 					"snap":      "PRODUCER",
-					"slot":      "SLOT",
+					"slot":      "slot",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "CONSUMER", "plug": "PLUG"},
+						map[string]interface{}{"snap": "CONSUMER", "plug": "plug"},
 					},
 				},
 			},
@@ -3759,7 +3747,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockInterfaceMapper(&inverseCaseMapper{})
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 
 	d := s.daemon(c)
@@ -3790,7 +3778,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 				"plugs": []interface{}{
 					map[string]interface{}{
 						"snap":  "CONSUMER",
-						"plug":  "PLUG",
+						"plug":  "plug",
 						"label": "label",
 						"attrs": map[string]interface{}{
 							"key": "value",
@@ -3799,7 +3787,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 				"slots": []interface{}{
 					map[string]interface{}{
 						"snap":  "PRODUCER",
-						"slot":  "SLOT",
+						"slot":  "slot",
 						"label": "label",
 						"attrs": map[string]interface{}{
 							"key": "value",
@@ -3820,7 +3808,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockInterfaceMapper(&inverseCaseMapper{})
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 
 	d := s.daemon(c)
@@ -3833,8 +3821,8 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "CONSUMER", Name: "PLUG"}},
-		Slots:  []slotJSON{{Snap: "PRODUCER", Name: "SLOT"}},
+		Plugs:  []plugJSON{{Snap: "CONSUMER", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "PRODUCER", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -4035,7 +4023,7 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockInterfaceMapper(&inverseCaseMapper{})
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 	d := s.daemon(c)
 
@@ -4089,15 +4077,15 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	s.testDisconnect(c, "CONSUMER", "PLUG", "PRODUCER", "SLOT")
+	s.testDisconnect(c, "CONSUMER", "plug", "PRODUCER", "slot")
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccessWithEmptyPlug(c *check.C) {
-	s.testDisconnect(c, "", "", "PRODUCER", "SLOT")
+	s.testDisconnect(c, "", "", "PRODUCER", "slot")
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
-	s.testDisconnect(c, "CONSUMER", "PLUG", "", "")
+	s.testDisconnect(c, "CONSUMER", "plug", "", "")
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {

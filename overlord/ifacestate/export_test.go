@@ -62,6 +62,6 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 // This allows us to keep connState private and still write some tests for it.
 func UpperCaseConnState() map[string]connState {
 	return map[string]connState{
-		"APP:NETWORK CORE:NETWORK": {Auto: true, Interface: "network"},
+		"APP:network CORE:network": {Auto: true, Interface: "network"},
 	}
 }
