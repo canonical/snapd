@@ -612,16 +612,6 @@ func (m *NilMapper) RemapPlugRefToResponse(plugRef *interfaces.PlugRef) {}
 // RemapSlotRefToResponse doesn't change the plug in any way.
 func (m *NilMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {}
 
-// mapper contains the currently active interface mapper.
-var mapper InterfaceMapper = &NilMapper{}
-
-// MockInterfaceMapper mocks the currently used interface mapper.
-func MockInterfaceMapper(new InterfaceMapper) (restore func()) {
-	old := mapper
-	mapper = new
-	return func() { mapper = old }
-}
-
 // CoreCoreSystemMapper implements InterfaceMapper and makes implicit slots
 // appear to be on "core" in the state and in memory but as "system" in the API.
 //
@@ -706,6 +696,16 @@ func (m *CoreSnapdSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotR
 	if slotRef.Snap == "snapd" {
 		slotRef.Snap = "system"
 	}
+}
+
+// mapper contains the currently active interface mapper.
+var mapper InterfaceMapper = &NilMapper{}
+
+// MockInterfaceMapper mocks the currently used interface mapper.
+func MockInterfaceMapper(new InterfaceMapper) (restore func()) {
+	old := mapper
+	mapper = new
+	return func() { mapper = old }
 }
 
 // Remapping functions for state => memory transitions.
