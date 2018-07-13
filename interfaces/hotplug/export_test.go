@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 )
 
+// MockUdevadmbin mocks 'udevadm' executable used by RunUdevadm method with a provided script.
 func MockUdevadmbin(c *check.C, script []byte) (restore func(), err error) {
 	old := udevadmBin
 	restore = func() {
