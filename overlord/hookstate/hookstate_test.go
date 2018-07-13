@@ -1139,9 +1139,7 @@ func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var hijackedContext *hookstate.Context
 	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
-		hijackedContext = ctx
 		return nil
 	})
 
