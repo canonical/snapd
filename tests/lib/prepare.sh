@@ -28,7 +28,7 @@ disable_kernel_rate_limiting() {
 }
 
 ensure_jq() {
-    if which jq; then
+    if command -v jq; then
         return
     fi
 
@@ -106,12 +106,17 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    # clean the old snapd libexec binaries, just in case
-    rm squashfs-root/usr/lib/snapd/*
-    # and copy in the current ones
+    # clean the old snapd binaries, just in case
+    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
+    # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    # make sure bin/snapctl is a symlink to lib/
+    if [ ! -L squashfs-root/usr/bin/snapctl ]; then
+        mv squashfs-root/usr/bin/snapctl squashfs-root/usr/lib/snapd
+        ln -s ../lib/snapd/snapctl squashfs-root/usr/bin/snapctl
+    fi
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -134,6 +139,7 @@ update_core_snap_for_classic_reexec() {
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
+    chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
@@ -318,14 +324,18 @@ setup_reflash_magic() {
         # We can do this once https://forum.snapcraft.io/t/5947 is
         # answered.
         echo "Added needed assertions so that core-amd64-18.model works"
+        # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
-        export STORE_DIR="$(pwd)/fake-store-blobdir"
-        export STORE_ADDR="localhost:11028"
+        STORE_DIR="$(pwd)/fake-store-blobdir"
+        export STORE_DIR
+        STORE_ADDR="localhost:11028"
+        export STORE_ADDR
         setup_fake_store "$STORE_DIR"
         cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR"/asserts
         cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR"/asserts
         # have snap use the fakestore for assertions (but nothing else)
-        export SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
+        SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
+        export SNAPPY_FORCE_SAS_URL
         # -----------------------8<----------------------------
     else
         # modify the core snap so that the current root-pw works there
@@ -376,18 +386,28 @@ EOF
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
+    # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
+    # maybe we should fix one or both of those, but for now this'll do
+    chmod 0600 "$IMAGE_HOME"/*.snap
+
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
     if is_core18_system; then
-        extra_snap="$IMAGE_HOME"/snapd_*.snap
+        extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
-        extra_snap="$IMAGE_HOME"/core_*.snap
+        extra_snap=("$IMAGE_HOME"/core_*.snap)
+    fi
+
+    # extra_snap should contain only ONE snap
+    if "${#extra_snap[@]}" -ne 1; then
+        echo "unexpected number of globbed snaps: ${extra_snap[*]}"
+        exit 1
     fi
 
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "$extra_snap" \
+                           --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
 
@@ -580,7 +600,7 @@ prepare_ubuntu_core() {
     fi
 
     echo "Ensure rsync is available"
-    if ! which rsync; then
+    if ! command -v rsync; then
         rsync_snap="test-snapd-rsync"
         if is_core18_system; then
             rsync_snap="test-snapd-rsync-core18"
