@@ -1647,7 +1647,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := snap.DropNick(vars["name"])
+	snapName := ifacestate.RemapSnapNameFromRequest(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1698,7 +1698,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := snap.DropNick(vars["name"])
+	snapName := ifacestate.RemapSnapNameFromRequest(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1905,13 +1905,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-
-	for i := range a.Plugs {
-		a.Plugs[i].Snap = snap.DropNick(a.Plugs[i].Snap)
-	}
-	for i := range a.Slots {
-		a.Slots[i].Snap = snap.DropNick(a.Slots[i].Snap)
-	}
 
 	repo := c.d.overlord.InterfaceManager().Repository()
 

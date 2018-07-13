@@ -555,7 +555,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 
 func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {
 	if snapID == "system" {
-		return snap.DropNick(snapID), nil
+		// Resolve the system nickname to a concrete snap.
+		return mapper.RemapSnapFromRequest(snapID), nil
 	}
 	decl, err := assertstate.SnapDeclaration(st, snapID)
 	if asserts.IsNotFound(err) {
@@ -567,11 +568,27 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 	return decl.SnapName(), nil
 }
 
+// SnapMapper offers APIs for re-mapping snap names in interfaces and the
+// configuration system. The mapper is designed to apply transformations around
+// the edges of snapd (state interactions and API interactions) to offer one
+// view on the inside of snapd and another view on the outside.
+type SnapMapper interface {
+	// re-map functions for loading and saving objects in the state.
+	RemapSnapFromState(snapName string) string
+	RemapSnapToState(snapName string) string
+	// re-map functions for API requests/responses.
+	RemapSnapFromRequest(snapName string) string
+	RemapSnapToResponse(snapName string) string
+}
+
 // InterfaceMapper offers APIs for re-mapping plugs and slots in interface
 // connections. The mapper is designed to apply transformations around the
 // edges of snapd (state interactions and API interactions) to offer one view
 // on the inside of snapd and another view on the outside.
 type InterfaceMapper interface {
+	// Every interface mapper is also a snap mapper.
+	SnapMapper
+
 	// re-map functions for loading and saving objects in the state.
 	RemapPlugRefFromState(plugRef *interfaces.PlugRef)
 	RemapSlotRefFromState(slotRef *interfaces.SlotRef)
@@ -587,6 +604,26 @@ type InterfaceMapper interface {
 
 // IdentityMapper implements InterfaceMapper and performs no transformations at all.
 type IdentityMapper struct{}
+
+// RemapSnapFromState doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapFromState(snapName string) string {
+	return snapName
+}
+
+// RemapSnapToState doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapToState(snapName string) string {
+	return snapName
+}
+
+// RemapSnapFromRequest  doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapFromRequest(snapName string) string {
+	return snapName
+}
+
+// RemapSnapToResponse doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapToResponse(snapName string) string {
+	return snapName
+}
 
 // RemapPlugRefFromState doesn't change the plug in any way.
 func (m *IdentityMapper) RemapPlugRefFromState(plugRef *interfaces.PlugRef) {}
@@ -623,14 +660,26 @@ type CoreCoreSystemMapper struct {
 	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
 }
 
+func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
+func (m *CoreCoreSystemMapper) RemapSnapToResponse(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
+}
+
 // RemapSlotRefFromRequest moves slots from "system" snaps to the "core" snap.
 //
 // This allows us to accept connection and disconnection requests that
 // explicitly refer to "core" or using the "system" nickname.
 func (m *CoreCoreSystemMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
-	if slotRef.Snap == "system" {
-		slotRef.Snap = "core"
-	}
+	slotRef.Snap = m.RemapSnapFromRequest(slotRef.Snap)
 }
 
 // RemapSlotRefToResponse makes slots from "core" snap to the "system" snap.
@@ -639,9 +688,7 @@ func (m *CoreCoreSystemMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotR
 // associated with the "core" snap to seemingly occupy the "system" snap
 // instead.
 func (m *CoreCoreSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
-	if slotRef.Snap == "core" {
-		slotRef.Snap = "system"
-	}
+	slotRef.Snap = m.RemapSnapToResponse(slotRef.Snap)
 }
 
 // CoreSnapdSystemMapper implements InterfaceMapper and makes implicit slots
@@ -651,15 +698,41 @@ type CoreSnapdSystemMapper struct {
 	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
 }
 
+func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
+	if snapName == "core" {
+		return "snapd"
+	}
+	return snapName
+}
+
+func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
+	if snapName == "snapd" {
+		return "core"
+	}
+	return snapName
+}
+
+func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" || snapName == "core" {
+		return "snapd"
+	}
+	return snapName
+}
+
+func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
+	if snapName == "snapd" {
+		return "system"
+	}
+	return snapName
+}
+
 // RemapSlotRefFromState moves slots from the "core" snap to the "snapd" snap.
 //
 // This allows modern snapd to load an old state that remembers connections
 // between slots on the "core" snap and other snaps. In memory we are actually
 // using "snapd" snap for hosting those slots and this lets us stay compatible.
 func (m *CoreSnapdSystemMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRef) {
-	if slotRef.Snap == "core" {
-		slotRef.Snap = "snapd"
-	}
+	slotRef.Snap = m.RemapSnapFromRequest(slotRef.Snap)
 }
 
 // RemapSlotRefToState moves slots from the "snapd" snap to the "core" snap.
@@ -668,9 +741,7 @@ func (m *CoreSnapdSystemMapper) RemapSlotRefFromState(slotRef *interfaces.SlotRe
 // seem to refer to the "core" snap, as in pre core{16,18} days where there was
 // only one core snap.
 func (m *CoreSnapdSystemMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {
-	if slotRef.Snap == "snapd" {
-		slotRef.Snap = "core"
-	}
+	slotRef.Snap = m.RemapSnapToState(slotRef.Snap)
 }
 
 // RemapSlotRefFromRequest moves slots from "core" or "system" snaps to the "snapd" snap.
@@ -681,9 +752,7 @@ func (m *CoreSnapdSystemMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef)
 // RemapSlotRefToResponse as we explicitly always talk about "system" snap,
 // even if the request used "core".
 func (m *CoreSnapdSystemMapper) RemapSlotRefFromRequest(slotRef *interfaces.SlotRef) {
-	if slotRef.Snap == "core" || slotRef.Snap == "system" {
-		slotRef.Snap = "snapd"
-	}
+	slotRef.Snap = m.RemapSnapFromRequest(slotRef.Snap)
 }
 
 // RemapSlotRefToResponse makes slots from "snapd" snap to the "system" snap.
@@ -693,13 +762,11 @@ func (m *CoreSnapdSystemMapper) RemapSlotRefFromRequest(slotRef *interfaces.Slot
 // instead. This ties into the concept of using "system" as a nickname (e.g. in
 // gadget snap connections).
 func (m *CoreSnapdSystemMapper) RemapSlotRefToResponse(slotRef *interfaces.SlotRef) {
-	if slotRef.Snap == "snapd" {
-		slotRef.Snap = "system"
-	}
+	slotRef.Snap = m.RemapSnapToResponse(slotRef.Snap)
 }
 
 // mapper contains the currently active interface mapper.
-var mapper InterfaceMapper = &IdentityMapper{}
+var mapper InterfaceMapper = &CoreCoreSystemMapper{}
 
 // MockInterfaceMapper mocks the currently used interface mapper.
 func MockInterfaceMapper(new InterfaceMapper) (restore func()) {
@@ -734,6 +801,10 @@ func RemapSlotRefToState(slotRef interfaces.SlotRef) interfaces.SlotRef {
 
 // Remapping functions for wire => memory (API requests)
 
+func RemapSnapNameFromRequest(snapName string) string {
+	return mapper.RemapSnapFromRequest(snapName)
+}
+
 func RemapPlugRefFromRequest(plugRef interfaces.PlugRef) interfaces.PlugRef {
 	mapper.RemapPlugRefFromRequest(&plugRef)
 	return plugRef
@@ -745,6 +816,10 @@ func RemapSlotRefFromRequest(slotRef interfaces.SlotRef) interfaces.SlotRef {
 }
 
 // Remapping functions for memory => wire (API responses)
+
+func RemapSnapNameToResponse(snapName string) string {
+	return mapper.RemapSnapToResponse(snapName)
+}
 
 func RemapPlugRefToResponse(plugRef interfaces.PlugRef) interfaces.PlugRef {
 	mapper.RemapPlugRefToResponse(&plugRef)

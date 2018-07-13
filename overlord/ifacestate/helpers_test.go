@@ -161,6 +161,14 @@ type caseMapper struct{}
 
 // memory <=> state
 
+func (m *caseMapper) RemapSnapFromState(snapName string) string {
+	return strings.ToUpper(snapName)
+}
+
+func (m *caseMapper) RemapSnapToState(snapName string) string {
+	return strings.ToLower(snapName)
+}
+
 func (m *caseMapper) RemapPlugRefFromState(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToUpper(plugRef.Snap)
 	plugRef.Name = strings.ToUpper(plugRef.Name)
@@ -182,6 +190,14 @@ func (m *caseMapper) RemapSlotRefToState(slotRef *interfaces.SlotRef) {
 }
 
 // memory <=> request
+
+func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
+	return strings.ToUpper(snapName)
+}
+
+func (m *caseMapper) RemapSnapToResponse(snapName string) string {
+	return strings.ToLower(snapName)
+}
 
 func (m *caseMapper) RemapPlugRefFromRequest(plugRef *interfaces.PlugRef) {
 	plugRef.Snap = strings.ToUpper(plugRef.Snap)
