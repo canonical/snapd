@@ -104,6 +104,17 @@ func (m *InterfaceManager) addSnaps() error {
 	if err != nil {
 		return err
 	}
+	// Before adding any snap scan the set of snaps we know about. If any of
+	// those is snapd then for the duration of this process always add implicit
+	// slots to snapd and not to any other type: os snap and use a mapper to
+	// use names core-snapd-system on state, in memory and in API responses,
+	// respectively.
+	for _, snapInfo := range snaps {
+		if snapInfo.SnapName() == "snapd" {
+			mapper = &CoreSnapdSystemMapper{}
+			break
+		}
+	}
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
