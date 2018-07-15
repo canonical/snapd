@@ -94,6 +94,7 @@ var api = []*Command{
 	aliasesCmd,
 	appsCmd,
 	logsCmd,
+	warningsCmd,
 	debugCmd,
 }
 
@@ -247,6 +248,14 @@ var (
 		UserOK: true,
 		GET:    getAliases,
 		POST:   changeAliases,
+	}
+
+	warningsCmd = &Command{
+		Path:     "/v2/warnings",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getWarnings,
+		POST:     ackWarnings,
 	}
 
 	buildID = "unknown"
@@ -2557,6 +2566,12 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 
 	switch a.Action {
+	case "add-warning":
+		st.AddWarning(a.Message)
+		return SyncResponse(true, newMeta(st))
+	case "unshow-warnings":
+		st.UnshowAllWarnings()
+		return SyncResponse(true, newMeta(st))
 	case "ensure-state-soon":
 		ensureStateSoon(st)
 		return SyncResponse(true, newMeta(st))
@@ -2953,4 +2968,63 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+var (
+	stateOkayWarnings   = (*state.State).OkayWarnings
+	stateAllWarnings    = (*state.State).AllWarnings
+	stateWarningsToShow = (*state.State).WarningsToShow
+)
+
+func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
+	defer r.Body.Close()
+	var op struct {
+		Action    string    `json:"action"`
+		Timestamp time.Time `json:"timestamp"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&op); err != nil {
+		return BadRequest("cannot decode request body into warnings operation: %v", err)
+	}
+	if op.Action != "okay" {
+		return BadRequest("unknown warning action %q", op.Action)
+	}
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	// make sure you Ok the warnings before calling newMeta
+	n := stateOkayWarnings(st, op.Timestamp)
+
+	return SyncResponse(n, newMeta(st))
+}
+
+func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
+	query := r.URL.Query()
+	var all bool
+	sel := query.Get("select")
+	switch sel {
+	case "all":
+		all = true
+	case "to-show", "":
+		all = false
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var ws []*state.Warning
+	meta := newMeta(st)
+	if all {
+		ws = stateAllWarnings(st)
+	} else {
+		ws, _ = stateWarningsToShow(st)
+	}
+	if len(ws) == 0 {
+		// no need to confuse the issue
+		return SyncResponse([]state.Warning{}, nil)
+	}
+
+	return SyncResponse(ws, meta)
 }
