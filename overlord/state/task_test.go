@@ -88,15 +88,12 @@ func (ts *taskSuite) TestHas(c *C) {
 	defer st.Unlock()
 
 	t := st.NewTask("download", "1...")
-
 	c.Check(t.Has("a"), Equals, false)
 
 	t.Set("a", 1)
-
 	c.Check(t.Has("a"), Equals, true)
 
 	t.Set("a", nil)
-
 	c.Check(t.Has("a"), Equals, false)
 }
 
