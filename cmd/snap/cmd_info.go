@@ -403,7 +403,7 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		fmt.Fprintf(w, "publisher:\t%s\n", esc.longPublisher(both.Publisher))
+		fmt.Fprintf(w, "publisher:\t%s\n", longPublisher(esc, both.Publisher))
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}

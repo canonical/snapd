@@ -127,8 +127,8 @@ func (x *cmdList) Execute(args []string) error {
 	esc := x.getEscapes()
 	w := tabWriter()
 
-	// TRANSLATORS: the %s is to insert a filler escape sequence (careful with the spacing please)
-	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher%s\tNotes\n"), esc.filler())
+	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher%s\tNotes\n"), fillerPublisher(esc))
 
 	for _, snap := range snaps {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
@@ -137,7 +137,7 @@ func (x *cmdList) Execute(args []string) error {
 			snap.Version,
 			snap.Revision.String(),
 			fmtChannel(snap.TrackingChannel),
-			esc.shortPublisher(snap.Publisher),
+			shortPublisher(esc, snap.Publisher),
 			NotesFromLocal(snap).String(),
 		}
 		fmt.Fprintln(w, strings.Join(line, "\t"))

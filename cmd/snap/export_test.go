@@ -45,15 +45,15 @@ var (
 	PrintDescr         = printDescr
 	TrueishJSON        = trueishJSON
 
-	CanUnicode            = canUnicode
-	ColorTable            = colorTable
-	MonoColorTable        = mono
-	ColorColorTable       = color
-	NoEscColorTable       = noesc
-	ColorMixinGetEscapes  = (colorMixin).getEscapes
-	EscapesFiller         = (*escapes).filler
-	EscapesLongPublisher  = (*escapes).longPublisher
-	EscapesShortPublisher = (*escapes).shortPublisher
+	CanUnicode           = canUnicode
+	ColorTable           = colorTable
+	MonoColorTable       = mono
+	ColorColorTable      = color
+	NoEscColorTable      = noesc
+	ColorMixinGetEscapes = (colorMixin).getEscapes
+	FillerPublisher      = fillerPublisher
+	LongPublisher        = longPublisher
+	ShortPublisher       = shortPublisher
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

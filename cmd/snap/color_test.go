@@ -118,56 +118,56 @@ func (s *SnapSuite) TestColorTable(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestGetEscapes(c *check.C) {
+func (s *SnapSuite) TestPublisherEscapes(c *check.C) {
 	// just check never/always; for auto checks look above
 	type T struct {
 		color, unicode    bool
 		username, display string
 		verified          bool
-		short, long       string
+		short, long, fill string
 	}
 	for _, t := range []T{
 		// non-verified equal under fold:
 		{color: false, unicode: false, username: "potato", display: "Potato",
-			short: "potato", long: "Potato"},
+			short: "potato", long: "Potato", fill: ""},
 		{color: false, unicode: true, username: "potato", display: "Potato",
-			short: "potato", long: "Potato"},
+			short: "potato", long: "Potato", fill: ""},
 		{color: true, unicode: false, username: "potato", display: "Potato",
-			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m"},
+			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m", fill: "\x1b[32m\x1b[0m"},
 		{color: true, unicode: true, username: "potato", display: "Potato",
-			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m"},
+			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m", fill: "\x1b[32m\x1b[0m"},
 		// verified equal under fold:
 		{color: false, unicode: false, username: "potato", display: "Potato", verified: true,
-			short: "potato*", long: "Potato*"},
+			short: "potato*", long: "Potato*", fill: ""},
 		{color: false, unicode: true, username: "potato", display: "Potato", verified: true,
-			short: "potato✓", long: "Potato✓"},
+			short: "potato✓", long: "Potato✓", fill: ""},
 		{color: true, unicode: false, username: "potato", display: "Potato", verified: true,
-			short: "potato\x1b[32m*\x1b[0m", long: "Potato\x1b[32m*\x1b[0m"},
+			short: "potato\x1b[32m*\x1b[0m", long: "Potato\x1b[32m*\x1b[0m", fill: "\x1b[32m\x1b[0m"},
 		{color: true, unicode: true, username: "potato", display: "Potato", verified: true,
-			short: "potato\x1b[32m✓\x1b[0m", long: "Potato\x1b[32m✓\x1b[0m"},
+			short: "potato\x1b[32m✓\x1b[0m", long: "Potato\x1b[32m✓\x1b[0m", fill: "\x1b[32m\x1b[0m"},
 		// non-verified, different
 		{color: false, unicode: false, username: "potato", display: "Carrot",
-			short: "potato", long: "Carrot (potato)"},
+			short: "potato", long: "Carrot (potato)", fill: ""},
 		{color: false, unicode: true, username: "potato", display: "Carrot",
-			short: "potato", long: "Carrot (potato)"},
+			short: "potato", long: "Carrot (potato)", fill: ""},
 		{color: true, unicode: false, username: "potato", display: "Carrot",
-			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)"},
+			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
 		{color: true, unicode: true, username: "potato", display: "Carrot",
-			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)"},
+			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
 		// verified, different
 		{color: false, unicode: false, username: "potato", display: "Carrot", verified: true,
-			short: "potato*", long: "Carrot (potato*)"},
+			short: "potato*", long: "Carrot (potato*)", fill: ""},
 		{color: false, unicode: true, username: "potato", display: "Carrot", verified: true,
-			short: "potato✓", long: "Carrot (potato✓)"},
+			short: "potato✓", long: "Carrot (potato✓)", fill: ""},
 		{color: true, unicode: false, username: "potato", display: "Carrot", verified: true,
-			short: "potato\x1b[32m*\x1b[0m", long: "Carrot (potato\x1b[32m*\x1b[0m)"},
+			short: "potato\x1b[32m*\x1b[0m", long: "Carrot (potato\x1b[32m*\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
 		{color: true, unicode: true, username: "potato", display: "Carrot", verified: true,
-			short: "potato\x1b[32m✓\x1b[0m", long: "Carrot (potato\x1b[32m✓\x1b[0m)"},
+			short: "potato\x1b[32m✓\x1b[0m", long: "Carrot (potato\x1b[32m✓\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
 		// some interesting equal-under-folds:
 		{color: false, unicode: false, username: "potato", display: "PoTaTo",
-			short: "potato", long: "PoTaTo"},
+			short: "potato", long: "PoTaTo", fill: ""},
 		{color: false, unicode: false, username: "potato-team", display: "Potato Team",
-			short: "potato-team", long: "Potato Team"},
+			short: "potato-team", long: "Potato Team", fill: ""},
 	} {
 		pub := &snap.StoreAccount{Username: t.username, DisplayName: t.display}
 		if t.verified {
@@ -185,7 +185,8 @@ func (s *SnapSuite) TestGetEscapes(c *check.C) {
 		mx := cmdsnap.ColorMixin(color, unicode)
 		esc := cmdsnap.ColorMixinGetEscapes(mx)
 
-		c.Check(cmdsnap.EscapesShortPublisher(esc, pub), check.Equals, t.short)
-		c.Check(cmdsnap.EscapesLongPublisher(esc, pub), check.Equals, t.long)
+		c.Check(cmdsnap.ShortPublisher(esc, pub), check.Equals, t.short)
+		c.Check(cmdsnap.LongPublisher(esc, pub), check.Equals, t.long)
+		c.Check(cmdsnap.FillerPublisher(esc), check.Equals, t.fill)
 	}
 }
