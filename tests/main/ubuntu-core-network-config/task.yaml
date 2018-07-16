@@ -11,6 +11,7 @@ execute: |
     ip addr | MATCH inet6
     
     echo "Disable ipv6"
+    # shellcheck disable=SC2154
     snap set "$snap_nick" network.disable-ipv6=true
     MATCH "net.ipv6.conf.all.disable_ipv6=1" < /etc/sysctl.d/10-snapd-network.conf
     if ip addr | grep -q inet6; then
