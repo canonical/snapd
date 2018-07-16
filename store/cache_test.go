@@ -97,11 +97,10 @@ func (s *cacheSuite) TestGet(c *C) {
 	c.Assert(targetPath, testutil.FileEquals, canary)
 }
 
-func (s *cacheSuite) TestClenaup(c *C) {
-	// add files, add more than
-	cacheKeys := make([]string, s.maxItems+2)
-	testFiles := make([]string, s.maxItems+2)
-	for i := 0; i < s.maxItems+2; i++ {
+func (s *cacheSuite) makeTestFiles(c *C, n int) (cacheKeys []string, testFiles []string) {
+	cacheKeys = make([]string, n)
+	testFiles = make([]string, n)
+	for i := 0; i < n; i++ {
 		p := s.makeTestFile(c, fmt.Sprintf("f%d", i), strconv.Itoa(i))
 		cacheKey := fmt.Sprintf("cacheKey-%d", i)
 		cacheKeys[i] = cacheKey
@@ -113,6 +112,12 @@ func (s *cacheSuite) TestClenaup(c *C) {
 		// mtime is not very granular
 		time.Sleep(10 * time.Millisecond)
 	}
+	return cacheKeys, testFiles
+}
+
+func (s *cacheSuite) TestClenaup(c *C) {
+	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
+
 	// Nothing was removed at this point because the test files are
 	// still in place and we just hardlink to them. The cache cleanup
 	// will only clean files with a link-count of 1.
@@ -132,4 +137,31 @@ func (s *cacheSuite) TestClenaup(c *C) {
 	// the newest files are still there
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[2])), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-1])), Equals, true)
+}
+
+func (s *cacheSuite) TestClenaupContinuesOnError(c *C) {
+	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
+	for _, p := range testFiles {
+		err := os.Remove(p)
+		c.Assert(err, IsNil)
+	}
+
+	// simulate error with the removal of a file in cachedir
+	restore := store.MockOsRemove(func(name string) error {
+		if name == filepath.Join(s.cm.CacheDir(), cacheKeys[0]) {
+			return fmt.Errorf("simulated error")
+		}
+		return os.Remove(name)
+	})
+	defer restore()
+
+	// verify that cleanup returns the last error
+	err := s.cm.Cleanup()
+	c.Check(err, ErrorMatches, "simulated error")
+
+	// and also verify that the cache still got cleaned up
+	c.Check(s.cm.Count(), Equals, s.maxItems)
+
+	// even though the "unremovable" file is still in the cache
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
 }
