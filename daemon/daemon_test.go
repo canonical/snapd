@@ -193,6 +193,43 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	})
 }
 
+func (s *daemonSuite) TestFillsWarnings(c *check.C) {
+	d := newTestDaemon(c)
+
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var rst struct {
+		WarningTimestamp *time.Time `json:"warning-timestamp,omitempty"`
+		WarningCount     int        `json:"warning-count,omitempty"`
+	}
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.WarningCount, check.Equals, 0)
+	c.Check(rst.WarningTimestamp, check.IsNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.AddWarning("hello world")
+	st.Unlock()
+
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.WarningCount, check.Equals, 1)
+	c.Check(rst.WarningTimestamp, check.NotNil)
+}
+
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	get := &http.Request{Method: "GET"}
 	put := &http.Request{Method: "PUT"}

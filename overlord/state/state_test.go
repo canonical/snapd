@@ -693,6 +693,9 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
 		func() { st.NewLane() },
+		func() { st.AddWarning("hello") },
+		func() { st.OkayWarnings(time.Time{}) },
+		func() { st.UnshowAllWarnings() },
 	}
 
 	reads := []func(){
@@ -706,6 +709,10 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.MarshalJSON() },
 		func() { st.Prune(time.Hour, time.Hour, 100) },
 		func() { st.TaskCount() },
+		func() { st.AllWarnings() },
+		func() { st.WarningsToShow() },
+		func() { st.WarningsSummary() },
+		func() { st.DeleteOldWarnings() }, // only reading, because no warnings are too old
 	}
 
 	for i, f := range reads {

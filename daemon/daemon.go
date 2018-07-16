@@ -184,10 +184,6 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	return accessUnauthorized
 }
 
-type maintenanceTransmitter interface {
-	transmitMaintenance(kind errorKind, message string)
-}
-
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	st := c.d.overlord.State()
 	st.Lock()
@@ -224,13 +220,18 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rsp = rspf(c, r, user)
 	}
 
-	if maintTransmitter, ok := rsp.(maintenanceTransmitter); ok {
+	if rsp, ok := rsp.(*resp); ok {
 		_, rst := st.Restarting()
 		switch rst {
 		case state.RestartSystem:
-			maintTransmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
+			rsp.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
-			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+		}
+		if rsp.Type != ResponseTypeError {
+			st.Lock()
+			rsp.addWarningsToMeta(st.WarningsSummary)
+			st.Unlock()
 		}
 	}
 
