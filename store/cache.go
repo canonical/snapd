@@ -32,6 +32,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// overriden in the unit tests
+var osRemove = os.Remove
+
 // downloadCache is the interface that a store download cache must provide
 type downloadCache interface {
 	// Get gets the given cacheKey content and puts it into targetPath
@@ -151,16 +154,20 @@ func (cm *CacheManager) cleanup() error {
 		path := cm.path(fi.Name())
 		n, err := hardLinkCount(path)
 		if err != nil {
-			lastErr = err
-			continue
+			logger.Noticef("cannot inspect cache: %s", err)
 		}
 		// If the file is referenced in the filesystem somewhere
-		// else our copy is "free" so skip it.
+		// else our copy is "free" so skip it. If there is any
+		// error we cleanup the file (it is just a cache afterall).
 		if n > 1 {
 			continue
 		}
-		if err := os.Remove(path); err != nil && os.IsNotExist(err) {
-			return err
+		if err := osRemove(path); err != nil {
+			if !os.IsNotExist(err) {
+				logger.Noticef("cannot cleanup cache: %s", err)
+				lastErr = err
+			}
+			continue
 		}
 		deleted++
 		if len(fil)-deleted <= cm.maxItems {
@@ -181,5 +188,5 @@ func hardLinkCount(path string) (uint64, error) {
 			return uint64(stat.Nlink), nil
 		}
 	}
-	return 0, fmt.Errorf("internal error: cannot get hardLinkCount for %s", path)
+	return 0, fmt.Errorf("internal error: cannot read hardlink count from %s", path)
 }

@@ -41,3 +41,11 @@ func (cm *CacheManager) CacheDir() string {
 func (cm *CacheManager) Cleanup() error {
 	return cm.cleanup()
 }
+
+func MockOsRemove(f func(name string) error) func() {
+	oldOsRemove := osRemove
+	osRemove = f
+	return func() {
+		osRemove = oldOsRemove
+	}
+}
