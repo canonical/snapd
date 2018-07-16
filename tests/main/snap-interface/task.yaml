@@ -4,11 +4,17 @@ details: |
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
     install_local network-consumer
     snap interface | MATCH 'network\s+ allows access to the network'
     snap interface --all | MATCH 'classic-support\s+ special permissions for the classic snap'
     snap interface network > out.yaml
-    diff -u out.yaml snap-interface-network.yaml
+    if is_core18_system; then
+        diff -u out.yaml <(sed 's/- system/- snapd/' snap-interface-network.yaml)
+    else
+        diff -u out.yaml snap-interface-network.yaml
+    fi
 restore: |
     rm -f out.yaml
 

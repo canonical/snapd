@@ -55,3 +55,9 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
 }
+
+func MockImplicitSlotsOnSnapd(yesNo bool) (restore func()) {
+	old := implicitSlotsOnSnapd
+	implicitSlotsOnSnapd = yesNo
+	return func() { implicitSlotsOnSnapd = old }
+}
