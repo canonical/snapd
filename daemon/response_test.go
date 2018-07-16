@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/check.v1"
 )
@@ -106,4 +107,34 @@ func (s *responseSuite) TestRespJSONWithNullResult(c *check.C) {
 	data, err := json.Marshal(rj)
 	c.Assert(err, check.IsNil)
 	c.Check(string(data), check.Equals, `{"type":"","status-code":0,"status":"","result":null}`)
+}
+
+type xT struct {
+	called int
+	count  int
+	stamp  time.Time
+}
+
+func (x *xT) WarningsSummary() (int, time.Time) {
+	x.called++
+	return x.count, x.stamp
+}
+
+func (s *responseSuite) TestNewMetaNoWarnings(c *check.C) {
+	x := xT{}
+	m := newMeta(&x)
+	c.Check(x.called, check.Equals, 1)
+	// time was zero, so timestamp should be nil
+	c.Check(m.WarningCount, check.Equals, 0)
+	c.Check(m.WarningTimestamp, check.IsNil)
+}
+
+func (s *responseSuite) TestNewMetaSomeWarnings(c *check.C) {
+	t := time.Now()
+	x := xT{count: 42, stamp: t}
+	m := newMeta(&x)
+	c.Check(x.called, check.Equals, 1)
+	// time was zero, so timestamp should be nil
+	c.Check(m.WarningCount, check.Equals, 42)
+	c.Check(m.WarningTimestamp, check.DeepEquals, &t)
 }

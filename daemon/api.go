@@ -94,6 +94,7 @@ var api = []*Command{
 	aliasesCmd,
 	appsCmd,
 	logsCmd,
+	warningsCmd,
 	debugCmd,
 }
 
@@ -249,6 +250,14 @@ var (
 		POST:   changeAliases,
 	}
 
+	warningsCmd = &Command{
+		Path:     "/v2/warnings",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getWarnings,
+		POST:     ackWarnings,
+	}
+
 	buildID = "unknown"
 )
 
@@ -329,7 +338,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["sandbox-features"] = features
 	}
 
-	return SyncResponse(m, nil)
+	return SyncResponse(m, newMeta(st))
 }
 
 func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
@@ -456,6 +465,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
+	defer state.Unlock()
 	if user != nil {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
@@ -466,7 +476,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	} else {
 		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
-	state.Unlock()
+	meta := newMeta(state)
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
@@ -478,7 +488,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
-	return SyncResponse(result, nil)
+	return SyncResponse(result, meta)
 }
 
 func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -494,7 +504,7 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError(err.Error())
 	}
 
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil, newMeta(state))
 }
 
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
@@ -557,7 +567,12 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	result := webify(mapLocal(about), url.String())
 
-	return SyncResponse(result, nil)
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(result, meta)
 }
 
 func webify(result *client.Snap, resource string) *client.Snap {
@@ -610,7 +625,12 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	return SyncResponse(sections, &Meta{})
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(sections, meta)
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -685,10 +705,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	meta := &Meta{
-		SuggestedCurrency: theStore.SuggestedCurrency(),
-		Sources:           []string{"store"},
-	}
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	meta.SuggestedCurrency = theStore.SuggestedCurrency()
+	meta.Sources = []string{"store"}
 
 	return sendStorePackages(route, meta, found)
 }
@@ -714,10 +737,13 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		return InternalError("%v", err)
 	}
 
-	meta := &Meta{
-		SuggestedCurrency: theStore.SuggestedCurrency(),
-		Sources:           []string{"store"},
-	}
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	meta.SuggestedCurrency = theStore.SuggestedCurrency()
+	meta.Sources = []string{"store"}
 
 	results := make([]*json.RawMessage, 1)
 	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
@@ -758,13 +784,14 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	state := c.d.overlord.State()
 	state.Lock()
+	defer state.Unlock()
 	updates, err := snapstateRefreshCandidates(state, user)
-	state.Unlock()
+	meta := newMeta(state)
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
 
-	return sendStorePackages(route, nil, updates)
+	return sendStorePackages(route, meta, updates)
 }
 
 func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
@@ -820,7 +847,8 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
+	state := c.d.overlord.State()
+	found, err := allLocalSnapInfos(state, all, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
@@ -845,7 +873,12 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		results[i] = &raw
 	}
 
-	return SyncResponse(results, &Meta{Sources: []string{"local"}})
+	state.Lock()
+	meta := newMeta(state)
+	state.Unlock()
+	meta.Sources = []string{"local"}
+
+	return SyncResponse(results, meta)
 }
 
 func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
@@ -1654,6 +1687,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := c.d.overlord.State()
 	s.Lock()
 	tr := config.NewTransaction(s)
+	meta := newMeta(s)
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
@@ -1687,13 +1721,13 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			if len(keys) > 1 {
 				return BadRequest("keys contains zero-length string")
 			}
-			return SyncResponse(value, nil)
+			return SyncResponse(value, meta)
 		}
 
 		currentConfValues[key] = value
 	}
 
-	return SyncResponse(currentConfValues, nil)
+	return SyncResponse(currentConfValues, meta)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1786,7 +1820,12 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 			Slots:   slots,
 		})
 	}
-	return SyncResponse(infoJSONs, nil)
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(infoJSONs, meta)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1839,7 +1878,12 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		ifjson.Slots = append(ifjson.Slots, sj)
 	}
 
-	return SyncResponse(ifjson, nil)
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(ifjson, meta)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
@@ -1943,9 +1987,14 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
 	return SyncResponse(map[string][]string{
 		"types": asserts.TypeNames(),
-	}, nil)
+	}, meta)
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2091,7 +2140,7 @@ func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return NotFound("cannot find change with id %q", chID)
 	}
 
-	return SyncResponse(change2changeInfo(chg), nil)
+	return SyncResponse(change2changeInfo(chg), newMeta(state))
 }
 
 func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2146,7 +2195,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		chgInfos = append(chgInfos, change2changeInfo(chg))
 	}
-	return SyncResponse(chgInfos, nil)
+	return SyncResponse(chgInfos, newMeta(state))
 }
 
 func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2182,7 +2231,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	// actually ask to proceed with the abort
 	ensureStateSoon(state)
 
-	return SyncResponse(change2changeInfo(chg), nil)
+	return SyncResponse(change2changeInfo(chg), newMeta(state))
 }
 
 var (
@@ -2261,7 +2310,11 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 		})
 	}
 
-	return SyncResponse(createdUsers, nil)
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(createdUsers, meta)
 }
 
 func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
@@ -2434,10 +2487,14 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return InternalError("%s", err)
 	}
 
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
 	return SyncResponse(&userResponseData{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
-	}, nil)
+	}, meta)
 }
 
 func convertBuyError(err error) Response {
@@ -2488,7 +2545,8 @@ func convertBuyError(err error) Response {
 }
 
 type debugAction struct {
-	Action string `json:"action"`
+	Action  string `json:"action"`
+	Message string `json:"message"`
 }
 
 type ConnectivityStatus struct {
@@ -2508,9 +2566,15 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 
 	switch a.Action {
+	case "add-warning":
+		st.AddWarning(a.Message)
+		return SyncResponse(true, newMeta(st))
+	case "unshow-warnings":
+		st.UnshowAllWarnings()
+		return SyncResponse(true, newMeta(st))
 	case "ensure-state-soon":
 		ensureStateSoon(st)
-		return SyncResponse(true, nil)
+		return SyncResponse(true, newMeta(st))
 	case "get-base-declaration":
 		bd, err := assertstate.BaseDeclaration(st)
 		if err != nil {
@@ -2518,9 +2582,9 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return SyncResponse(map[string]interface{}{
 			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
+		}, newMeta(st))
 	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
+		return SyncResponse(devicestate.CanManageRefreshes(st), newMeta(st))
 	case "connectivity":
 		s := snapstate.Store(st)
 		st.Unlock()
@@ -2538,7 +2602,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		sort.Strings(status.Unreachable)
 
-		return SyncResponse(status, nil)
+		return SyncResponse(status, newMeta(st))
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
@@ -2561,7 +2625,12 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return resp
 	}
 
-	return SyncResponse(buyResult, nil)
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(buyResult, meta)
 }
 
 func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2571,7 +2640,12 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return resp
 	}
 
-	return SyncResponse(true, nil)
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(true, meta)
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2645,7 +2719,12 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 			ID:       u.ID,
 		}
 	}
-	return SyncResponse(resp, nil)
+
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(resp, meta)
 }
 
 // aliasAction is an action performed on aliases
@@ -2775,7 +2854,7 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	return SyncResponse(res, nil)
+	return SyncResponse(res, newMeta(state))
 }
 
 func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2796,7 +2875,12 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+	st := c.d.overlord.State()
+	st.Lock()
+	meta := newMeta(st)
+	st.Unlock()
+
+	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), meta)
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2884,4 +2968,63 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+var (
+	stateOkayWarnings   = (*state.State).OkayWarnings
+	stateAllWarnings    = (*state.State).AllWarnings
+	stateWarningsToShow = (*state.State).WarningsToShow
+)
+
+func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
+	defer r.Body.Close()
+	var op struct {
+		Action    string    `json:"action"`
+		Timestamp time.Time `json:"timestamp"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&op); err != nil {
+		return BadRequest("cannot decode request body into warnings operation: %v", err)
+	}
+	if op.Action != "okay" {
+		return BadRequest("unknown warning action %q", op.Action)
+	}
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	// make sure you Ok the warnings before calling newMeta
+	n := stateOkayWarnings(st, op.Timestamp)
+
+	return SyncResponse(n, newMeta(st))
+}
+
+func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
+	query := r.URL.Query()
+	var all bool
+	sel := query.Get("select")
+	switch sel {
+	case "all":
+		all = true
+	case "to-show", "":
+		all = false
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var ws []*state.Warning
+	meta := newMeta(st)
+	if all {
+		ws = stateAllWarnings(st)
+	} else {
+		ws, _ = stateWarningsToShow(st)
+	}
+	if len(ws) == 0 {
+		// no need to confuse the issue
+		return SyncResponse([]state.Warning{}, nil)
+	}
+
+	return SyncResponse(ws, meta)
 }
