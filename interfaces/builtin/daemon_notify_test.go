@@ -41,17 +41,17 @@ var _ = Suite(&daemoNotifySuite{
 	iface: builtin.MustInterface("daemon-notify"),
 })
 
-const daemoNotifyMockSlotSnapInfoYaml = `name: daemon-notify
+const daemoNotifyMockSlotSnapInfoYaml = `name: provider
 version: 1.0
 type: os
 slots:
   daemon-notify:
     interface: daemon-notify
 `
-const daemoNotifyMockPlugSnapInfoYaml = `name: daemon-notify-client
+const daemoNotifyMockPlugSnapInfoYaml = `name: consumer
 version: 1.0
 apps:
- app2:
+ app:
   command: foo
   plugs: [daemon-notify]
 `
@@ -90,11 +90,11 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {
@@ -105,11 +105,12 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpeci
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/[0-9]*\"),")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
+		"\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/[0-9]*\"),")
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {
@@ -120,11 +121,12 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@foo/bar\"),")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
+		"\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@foo/bar\"),")
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) {
@@ -135,11 +137,11 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) 
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\n\"/foo/bar\" w,")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "\n\"/foo/bar\" w,")
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *C) {
@@ -162,8 +164,8 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *
 		c.Logf("trying %d: %v", idx, tc)
 		socketPath = tc.format
 		// connected plugs have a non-nil security snippet for apparmor
-		apparmorSpec := &apparmor.Specification{}
-		err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+		spec := &apparmor.Specification{}
+		err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 		c.Assert(err, ErrorMatches, tc.error)
 	}
 }
