@@ -79,6 +79,10 @@ type Meta struct {
 	Change            string   `json:"change,omitempty"`
 }
 
+func newMeta(_ interface{}) *Meta {
+	return &Meta{}
+}
+
 type respJSON struct {
 	Type       ResponseType `json:"type"`
 	Status     int          `json:"status-code"`
