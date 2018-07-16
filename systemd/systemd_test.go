@@ -370,6 +370,19 @@ func (s *SystemdTestSuite) TestUnmask(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
 }
 
+// func (s *SystemdTestSuite) TestIsFailed(c *C) {
+// 	failedUnits, err := New("xyzzy", s.rep).isFailed("foo")
+// 	c.Assert(err, IsNil)
+// 	c.Assert(failedUnits, IsNil)
+// 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-failed", "foo"}})
+// }
+
+// func (s *SystemdTestSuite) TestResetFailed(c *C) {
+// 	err := New("xyzzy", s.rep).resetFailed("foo")
+// 	c.Assert(err, IsNil)
+// 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "reset-failed", "foo"}})
+// }
+
 func (s *SystemdTestSuite) TestRestart(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()

@@ -20,6 +20,7 @@
 package systemd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,7 @@ import (
 	_ "github.com/snapcore/squashfuse"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -104,6 +106,7 @@ func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser,
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	DaemonReload() error
+	DaemonReloadIfNeeded(shouldExist bool, serviceNames ...string) error
 	Enable(service string) error
 	Disable(service string) error
 	Start(service ...string) error
@@ -115,6 +118,7 @@ type Systemd interface {
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
 	Unmask(service string) error
+	ResetFailedIfNeeded(serviceNames ...string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -154,6 +158,30 @@ func (*systemd) DaemonReload() error {
 	return err
 }
 
+func (s *systemd) DaemonReloadIfNeeded(shouldExist bool, serviceNames ...string) error {
+	bs, err := systemctlCmd(append([]string{"show", "--property=NeedDaemonReload,LoadState"}, serviceNames...)...)
+	if err != nil {
+		logger.Noticef("RELOADING XXX")
+		return s.DaemonReload()
+	}
+
+	logger.Noticef("CONTENT %v", string(bs))
+	reload := bytes.Contains(bs, []byte("NeedDaemonReload=yes"))
+	// LoadState=error happens for older systemd versions (Ubuntu 14.04)
+	detected := !(bytes.Contains(bs, []byte("LoadState=not-found")) ||
+		bytes.Contains(bs, []byte("LoadState=error")))
+	if shouldExist != detected {
+		reload = true
+	}
+
+	if reload {
+		logger.Noticef("RELOADING %v", serviceNames)
+		return s.DaemonReload()
+	}
+
+	return nil
+}
+
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "enable", serviceName)
@@ -182,6 +210,49 @@ func (s *systemd) Mask(serviceName string) error {
 func (*systemd) Start(serviceNames ...string) error {
 	_, err := systemctlCmd(append([]string{"start"}, serviceNames...)...)
 	return err
+}
+
+// Check if unit is in failed state
+func (s *systemd) isFailed(serviceNames ...string) ([]string, error) {
+	var failedServices []string
+
+	bs, err := systemctlCmd(append([]string{"--root", s.rootDir, "is-failed"}, serviceNames...)...)
+	if err != nil {
+		// No failed units, return empty list
+		return nil, nil
+	}
+
+	lines := bytes.Split(bs, []byte("\n"))
+	if len(lines) < len(serviceNames) {
+		return nil, fmt.Errorf("bad output from systemctl is-failed")
+	}
+	for i := 0; i < len(serviceNames); i++ {
+		if bytes.Equal(lines[i], []byte("failed")) {
+			failedServices = append(failedServices, serviceNames[i])
+		}
+	}
+
+	return failedServices, nil
+}
+
+// Clean failed state of unit
+func (s *systemd) resetFailed(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "reset-failed"}, serviceNames...)...)
+	return err
+}
+
+func (s *systemd) ResetFailedIfNeeded(serviceNames ...string) error {
+	failedServices, err := s.isFailed(serviceNames...)
+	if err != nil {
+		return err
+	}
+
+	if len(failedServices) > 0 {
+		logger.Noticef("ResetFailedIfNeeded - resetting the \"failed\" state for %q", failedServices)
+		return s.resetFailed(failedServices...)
+	}
+
+	return nil
 }
 
 // LogReader for the given services
