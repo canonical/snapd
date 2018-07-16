@@ -110,7 +110,6 @@ type apiBaseSuite struct {
 	connectivityResult map[string]bool
 
 	restoreSanitize func()
-	restoreUDevMon  func()
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -225,10 +224,6 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
-	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
-
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
 	s.storeSearch = store.Search{}
@@ -267,8 +262,6 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
-
-	s.restoreUDevMon()
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateInstall = snapstate.Install
