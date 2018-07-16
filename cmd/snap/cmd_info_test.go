@@ -374,7 +374,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
-license:   unknown
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
@@ -410,7 +410,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
-license:   unknown
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
@@ -455,7 +455,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
-license:   unknown
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
