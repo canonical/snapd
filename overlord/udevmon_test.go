@@ -21,9 +21,9 @@ package overlord_test
 
 import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
-	"github.com/snapcore/snapd/osutil/udev/crawler"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 	"github.com/snapcore/snapd/overlord"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -56,14 +56,12 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 
 	// stop channels are normally created by netlink crawler/monitor, but since
 	// we don't create them with Connect(), they must be mocked.
-	cstop := make(chan struct{})
 	mstop := make(chan struct{})
 
-	crawl := make(chan crawler.Device)
 	event := make(chan netlink.UEvent)
 
-	overlord.MockUDevMonitorStopChannels(udevmon, cstop, mstop)
-	overlord.MockUDevMonitorChannels(udevmon, crawl, event)
+	overlord.MockUDevMonitorStopChannels(udevmon, mstop)
+	overlord.MockUDevMonitorChannels(udevmon, event)
 
 	c.Assert(udevmon.Run(), IsNil)
 
