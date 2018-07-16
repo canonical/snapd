@@ -775,9 +775,9 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	state := c.d.overlord.State()
 	state.Lock()
-	defer state.Unlock()
 	updates, err := snapstateRefreshCandidates(state, user)
 	meta := newMeta(state)
+	state.Unlock()
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
