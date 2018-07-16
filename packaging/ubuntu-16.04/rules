@@ -222,8 +222,8 @@ override_dh_install:
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
 
 	# On Ubuntu and Debian we don't need to install the apparmor helper service.
-	rm -f $(CURDIR)/debian/tmp/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
-	rm -f $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
+	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
 	dh_install
 
