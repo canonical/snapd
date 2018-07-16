@@ -1647,7 +1647,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := ifacestate.RemapSnapFromRequest(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1698,7 +1698,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := ifacestate.RemapSnapFromRequest(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
