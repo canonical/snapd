@@ -261,7 +261,7 @@ func showDone(names []string, op string, esc *escapes) error {
 		case "install":
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, esc.longPublisher(snap.Publisher))
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
@@ -269,7 +269,7 @@ func showDone(names []string, op string, esc *escapes) error {
 		case "refresh":
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s refreshed\n"), snap.Name, channelStr, snap.Version, esc.longPublisher(snap.Publisher))
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s refreshed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
@@ -598,10 +598,10 @@ func (x *cmdRefresh) listRefresh() error {
 	w := tabWriter()
 	defer w.Flush()
 
-	// TRANSLATORS: the %s is to insert a filler escape sequence (careful with the spacing please)
-	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tPublisher%s\tNotes\n"), esc.filler())
+	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tPublisher%s\tNotes\n"), fillerPublisher(esc))
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, esc.shortPublisher(snap.Publisher), NotesFromRemote(snap, nil))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, shortPublisher(esc, snap.Publisher), NotesFromRemote(snap, nil))
 	}
 
 	return nil

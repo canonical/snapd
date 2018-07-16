@@ -125,11 +125,22 @@ var (
 	noesc = escapes{}
 )
 
-func (esc *escapes) filler() string {
+// fillerPublisher is used to add an no-op escape sequence to a header in a
+// tabwriter table, so that things line up.
+func fillerPublisher(esc *escapes) string {
 	return esc.green + esc.end
 }
 
-func (esc *escapes) longPublisher(storeAccount *snap.StoreAccount) string {
+// longPublisher returns a string that'll present the publisher of a snap to the
+// terminal user:
+//
+// * if the publisher's username and display name match, it's just the display
+//   name; otherwise, it'll include the username in parentheses
+//
+// * if the publisher is verified, it'll include a green check mark; otherwise,
+//   it'll include a no-op escape sequence of the same length as the escape
+//   sequence used to make it green (this so that tabwriter gets things right).
+func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 	if storeAccount == nil {
 		return esc.dash + esc.green + esc.end
 	}
@@ -145,7 +156,15 @@ func (esc *escapes) longPublisher(storeAccount *snap.StoreAccount) string {
 	return fmt.Sprintf("%s (%s%s%s%s)", storeAccount.DisplayName, storeAccount.Username, esc.green, badge, esc.end)
 }
 
-func (esc *escapes) shortPublisher(storeAccount *snap.StoreAccount) string {
+// longPublisher returns a string that'll present the publisher of a snap to the
+// terminal user:
+//
+// * it'll always be just the username
+//
+// * if the publisher is verified, it'll include a green check mark; otherwise,
+//   it'll include a no-op escape sequence of the same length as the escape
+//   sequence used to make it green (this so that tabwriter gets things right).
+func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 	if storeAccount == nil {
 		return "-" + esc.green + esc.end
 	}
