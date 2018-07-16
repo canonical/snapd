@@ -75,18 +75,8 @@ func (m *UDevMonitor) Connect() error {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
-	var deviceFilter netlink.Matcher
-	deviceFilter = &netlink.RuleDefinitions{
-		Rules: []netlink.RuleDefinition{
-			{
-				Env: map[string]string{
-					"DEVTYPE": "usb_device",
-				},
-			},
-		},
-	}
-
-	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, deviceFilter)
+	// TODO: consider passing a device filter to reduce noise from irrelevant devices.
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
 
 	return nil
 }
