@@ -2536,8 +2536,7 @@ func convertBuyError(err error) Response {
 }
 
 type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
+	Action string `json:"action"`
 }
 
 type ConnectivityStatus struct {
