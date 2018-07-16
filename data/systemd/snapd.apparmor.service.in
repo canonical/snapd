@@ -7,7 +7,7 @@
 [Unit]
 Description=Load AppArmor profiles managed internally by snapd
 DefaultDependencies=no
-Before=sysinit.target
+Before=snapd.service
 Requisite=snapd.service
 # This dependency is meant to ensure that apparmor initialization (whatever that might entail) is complete.
 After=apparmor.service
