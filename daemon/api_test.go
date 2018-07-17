@@ -3665,11 +3665,28 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 	return snaps
 }
 
+// inverseCaseMapper implements SnapMapper to use lower case internally and upper case externally.
+type inverseCaseMapper struct {
+	ifacestate.IdentityMapper // Embed the identity mapper to reuse empty state mapping functions.
+}
+
+func (m *inverseCaseMapper) RemapSnapFromRequest(snapName string) string {
+	return strings.ToLower(snapName)
+}
+
+func (m *inverseCaseMapper) RemapSnapToResponse(snapName string) string {
+	return strings.ToUpper(snapName)
+}
+
 // Tests for GET /v2/interfaces
 
-func (s *apiSuite) TestInterfaces(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
+func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+	// Install an inverse case mapper to exercise the interface mapping at the same time.
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
+	defer restore()
+
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3695,27 +3712,27 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
-					"snap":      "consumer",
+					"snap":      "CONSUMER",
 					"plug":      "plug",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
+						map[string]interface{}{"snap": "PRODUCER", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "producer",
+					"snap":      "PRODUCER",
 					"slot":      "slot",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+						map[string]interface{}{"snap": "CONSUMER", "plug": "plug"},
 					},
 				},
 			},
@@ -3726,93 +3743,58 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	})
 }
 
-/**
-// Tests for GET /v2/interface (note: singular!)
+func (s *apiSuite) TestInterfacesModern(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+	// Install an inverse case mapper to exercise the interface mapping at the same time.
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
+	defer restore()
 
-func (s *apiSuite) TestInterfaceIndex(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{
-		InterfaceName: "test",
-		InterfaceStaticInfo: interfaces.StaticInfo{
-			Summary: "summary",
-		},
-	})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/interface", nil)
+	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	interfaceIndexCmd.GET(interfaceIndexCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	// The body contains large number of interface names, ensure that just the
-	// test one,  added above, exists.
-	c.Check(body["result"], testutil.DeepContains, map[string]interface{}{
-		"name":    "test",
-		"summary": "summary",
-		"used":    true,
-	})
-	c.Check(body["status"], check.Equals, "OK")
-	c.Check(body["status-code"], check.Equals, 200.0)
-	c.Check(body["type"], check.Equals, "sync")
-}
-
-// Tests for GET /v2/interface/test
-
-func (s *apiSuite) TestInterfaceDetail(c *check.C) {
-	_ = s.daemon(c)
-
-	s.mockIface(c, &ifacetest.TestInterface{
-		InterfaceName: "test",
-		InterfaceStaticInfo: interfaces.StaticInfo{
-			Summary: "summary",
-		},
-	})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	// NOTE: this is confusing, we must set s.vars manually,
-	s.vars = map[string]string{"name": "test"}
-	req, err := http.NewRequest("GET", "/v2/interface/test", nil)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfaceDetailCmd.GET(interfaceDetailCmd, req, nil).ServeHTTP(rec, req)
+	interfacesCmd.GET(interfacesCmd, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"name":    "test",
-			"summary": "summary",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap":  "consumer",
-					"plug":  "plug",
-					"label": "label",
-					"attrs": map[string]interface{}{"key": "value"},
+		"result": []interface{}{
+			map[string]interface{}{
+				"name": "test",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap":  "CONSUMER",
+						"plug":  "plug",
+						"label": "label",
+						"attrs": map[string]interface{}{
+							"key": "value",
+						},
+					}},
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap":  "PRODUCER",
+						"slot":  "slot",
+						"label": "label",
+						"attrs": map[string]interface{}{
+							"key": "value",
+						},
+					},
 				},
 			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap":  "producer",
-					"slot":  "slot",
-					"label": "label",
-					"attrs": map[string]interface{}{"key": "value"},
-				},
-			},
-			"used": true,
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -3820,36 +3802,15 @@ func (s *apiSuite) TestInterfaceDetail(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
-	_ = s.daemon(c)
-
-	// NOTE: this is confusing, we must set s.vars manually,
-	s.vars = map[string]string{"name": "test"}
-	req, err := http.NewRequest("GET", "/v2/interface/test", nil)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfaceDetailCmd.GET(interfaceDetailCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 404)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot find interface named "test"`,
-		},
-		"status":      "Not Found",
-		"status-code": 404.0,
-		"type":        "error",
-	})
-}
-
-**/
-
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+	// Install an inverse case mapper to exercise the interface mapping at the same time.
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
+	defer restore()
+
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3860,8 +3821,8 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "CONSUMER", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "PRODUCER", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -4059,8 +4020,11 @@ func (s *apiSuite) TestConnectCoreSystemAlias(c *check.C) {
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+	// Install an inverse case mapper to exercise the interface mapping at the same time.
+	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
+	defer restore()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -4113,15 +4077,15 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
+	s.testDisconnect(c, "CONSUMER", "plug", "PRODUCER", "slot")
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccessWithEmptyPlug(c *check.C) {
-	s.testDisconnect(c, "", "", "producer", "slot")
+	s.testDisconnect(c, "", "", "PRODUCER", "slot")
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
-	s.testDisconnect(c, "consumer", "plug", "", "")
+	s.testDisconnect(c, "CONSUMER", "plug", "", "")
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
