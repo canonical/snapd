@@ -135,6 +135,8 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
+
+	DefaultContentPlugProviders = defaultContentPlugProviders
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
