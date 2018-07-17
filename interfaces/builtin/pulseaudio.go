@@ -41,6 +41,8 @@ const pulseaudioBaseDeclarationSlots = `
 `
 
 const pulseaudioConnectedPlugAppArmor = `
+# Allow communicating with pulseaudio service for playback and, on some
+# distributions, recording.
 /{run,dev}/shm/pulse-shm-* mrwk,
 
 owner /{,var/}run/pulse/ r,

@@ -82,11 +82,9 @@ backends:
                 workers: 4
                 manual: true
             - fedora-28-64:
-                image: fedora-28-64-selinux-permissive
                 workers: 4
 
             - opensuse-42.3-64:
-                image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
             - arch-linux-64:
                 workers: 4
@@ -99,6 +97,8 @@ backends:
             - ubuntu-14.04-64:
                 workers: 4
             - ubuntu-16.04-64:
+                workers: 4
+            - ubuntu-17.10-64:
                 workers: 4
             - ubuntu-18.04-64:
                 workers: 4

@@ -13,10 +13,10 @@ prepare: |
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
-    unsquashfs /var/lib/snapd/snaps/pc_*.snap
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
     mkdir -p squashfs-root/meta/hooks
     cp prepare-device squashfs-root/meta/hooks
-    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     mv /var/lib/snapd/seed/assertions/model model.bak
