@@ -100,7 +100,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 
 	// the payload offset int is stored in native byte order.
 	payloadoff := *(*uint32)(unsafe.Pointer(&raw[16]))
-	if int(payloadoff) >= len(raw) {
+	if payloadoff >= uint32(len(raw)) {
 		return nil, fmt.Errorf("cannot parse libudev event: invalid data offset")
 	}
 
