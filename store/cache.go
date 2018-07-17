@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// overriden in the unit tests
+// overridden in the unit tests
 var osRemove = os.Remove
 
 // downloadCache is the interface that a store download cache must provide
