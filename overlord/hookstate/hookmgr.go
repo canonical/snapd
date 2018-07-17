@@ -133,6 +133,8 @@ func Manager(s *state.State) (*HookManager, error) {
 
 	setupHooks(manager)
 
+	snapstate.AddAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
+
 	return manager, nil
 }
 
@@ -171,6 +173,22 @@ func (m *HookManager) RegisterHijack(hookName, snapName string, f hijackFunc) {
 		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, snapName))
 	}
 	m.hijackMap[hijackKey{hookName, snapName}] = f
+}
+
+func (m *HookManager) hookAffectedSnaps(t *state.Task) ([]string, error) {
+	var hooksup HookSetup
+	if err := t.Get("hook-setup", &hooksup); err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain hook data from task: %s", t.Summary())
+
+	}
+
+	if m.hijacked(hooksup.Hook, hooksup.Snap) != nil {
+		// assume being these internal they should not
+		// generate conflicts
+		return nil, nil
+	}
+
+	return []string{hooksup.Snap}, nil
 }
 
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
