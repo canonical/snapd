@@ -1,8 +1,14 @@
 snapd (2.34.1) xenial; urgency=medium
 
-  * placeholder for the real 2.34.1 changelog
+  * New upstream release, LP: #1779403
+    - tests: cherry-pick test fixes from master for 2.34
+    - coreconfig: add support for `snap set system network.disable-
+      ipv6`
+    - debian: do not ship snapd.apparmor.service on ubuntu
+    - overlord/snapstate: dedupe default content providers
+    - interfaces/builtin: create can-bus interface
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 17 Jul 2018 20:06:47 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 17 Jul 2018 19:46:56 +0200
 
 snapd (2.34) xenial; urgency=medium
 
