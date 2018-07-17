@@ -696,6 +696,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.AddWarning("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
+		func() { st.DeleteOldWarnings() },
 	}
 
 	reads := []func(){
@@ -712,7 +713,6 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.AllWarnings() },
 		func() { st.WarningsToShow() },
 		func() { st.WarningsSummary() },
-		func() { st.DeleteOldWarnings() }, // only reading, because no warnings are too old
 	}
 
 	for i, f := range reads {

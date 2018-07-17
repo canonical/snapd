@@ -148,9 +148,9 @@ func (s *State) addWarningFull(w Warning, t time.Time) {
 	s.warnings[w.message].lastSeen = t
 }
 
-// DeleteOldWarnings delets warnings that up for deletion.
+// DeleteOldWarnings delets warnings that are up for deletion.
 func (s *State) DeleteOldWarnings() int {
-	s.reading()
+	s.writing()
 
 	now := time.Now().UTC()
 
@@ -158,7 +158,6 @@ func (s *State) DeleteOldWarnings() int {
 	for k, w := range s.warnings {
 		if w.IsDeletable(now) {
 			delete(s.warnings, k)
-			s.modified = true
 			n++
 		}
 	}
