@@ -20,12 +20,9 @@
 package snapstate
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"time"
-
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,54 +33,6 @@ type ManagerBackend managerBackend
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
-}
-
-type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *SnapSetup)
-}
-
-// AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
-func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
-	// Add fake handlers for tasks handled by interfaces manager
-	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		kind := task.Kind()
-		status := task.Status()
-		snapsup, err := TaskSnapSetup(task)
-		task.State().Unlock()
-		if err != nil {
-			return err
-		}
-
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
-	}
-	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	m.runner.AddHandler("auto-connect", fakeHandler, nil)
-	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
-	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
-	m.runner.AddHandler("validate-snap", fakeHandler, nil)
-	m.runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
-
-	// Add handler to test full aborting of changes
-	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return errors.New("error out")
-	}
-	m.runner.AddHandler("error-trigger", erroringHandler, nil)
-
-	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-	m.runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-
-}
-
-// AddAdhocTaskHandlers registers handlers for ad hoc test handler
-func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
-	m.runner.AddHandler(adhoc, do, undo)
 }
 
 func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
