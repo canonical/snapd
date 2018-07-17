@@ -68,6 +68,3 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-
-    echo "Ensure interfaces are connected"
-    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"
