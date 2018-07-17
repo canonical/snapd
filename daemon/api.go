@@ -1251,6 +1251,8 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
 			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
 			snapName = err.Snap

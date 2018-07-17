@@ -1127,3 +1127,23 @@ func (s *hookManagerSuite) TestGracefullyWaitRunningHooksTimeout(c *C) {
 		c.Fatal("timeout should have expired")
 	}
 }
+
+func (s *hookManagerSuite) TestSnapstateOpConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	_, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "kind" change in progress`)
+}
+
+func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		return nil
+	})
+
+	// no conflict on hijacked hooks
+	_, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, IsNil)
+}
