@@ -82,6 +82,17 @@ func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	c.Check(cs.req.URL.Query().Get("select"), check.Equals, "private")
 }
 
+func (cs *clientSuite) TestClientFindWithScopeSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Scope: "mouthwash",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"q": []string{""}, "scope": []string{"mouthwash"},
+	})
+}
+
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
@@ -120,7 +131,8 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"publisher": {
                             "id": "canonical",
                             "username": "canonical",
-                            "display-name": "Canonical"
+                            "display-name": "Canonical",
+                            "validation": "verified"
                         },
 			"resource": "/v2/snaps/hello-world.canonical",
 			"status": "available",
@@ -149,6 +161,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			ID:          "canonical",
 			Username:    "canonical",
 			DisplayName: "Canonical",
+			Validation:  "verified",
 		},
 		Status:      client.StatusAvailable,
 		Type:        client.TypeApp,
@@ -202,7 +215,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"publisher": {
                             "id": "ogra-id",
                             "username": "ogra",
-                            "display-name": "Ogra"
+                            "display-name": "Ogra",
+                            "validation": "unproven"
                         },
 			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
@@ -240,6 +254,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			ID:          "ogra-id",
 			Username:    "ogra",
 			DisplayName: "Ogra",
+			Validation:  "unproven",
 		},
 		Status:      client.StatusActive,
 		Type:        client.TypeApp,

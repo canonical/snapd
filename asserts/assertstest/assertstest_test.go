@@ -78,13 +78,13 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	store := assertstest.NewStoreStack("super", nil)
 
 	c.Check(store.TrustedAccount.AccountID(), Equals, "super")
-	c.Check(store.TrustedAccount.IsCertified(), Equals, true)
+	c.Check(store.TrustedAccount.Validation(), Equals, "verified")
 
 	c.Check(store.TrustedKey.AccountID(), Equals, "super")
 	c.Check(store.TrustedKey.Name(), Equals, "root")
 
 	c.Check(store.GenericAccount.AccountID(), Equals, "generic")
-	c.Check(store.GenericAccount.IsCertified(), Equals, true)
+	c.Check(store.GenericAccount.Validation(), Equals, "verified")
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
@@ -128,7 +128,7 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	acct := assertstest.NewAccount(store, "devel1", nil, "")
 	c.Check(acct.Username(), Equals, "devel1")
 	c.Check(acct.AccountID(), HasLen, 32)
-	c.Check(acct.IsCertified(), Equals, false)
+	c.Check(acct.Validation(), Equals, "unproven")
 
 	err = db.Add(storeAccKey)
 	c.Assert(err, IsNil)

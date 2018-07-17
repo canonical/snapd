@@ -47,7 +47,8 @@ const findJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -69,7 +70,8 @@ const findJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 20480,
       "icon": "",
@@ -91,7 +93,8 @@ const findJSON = `
       "publisher": {
          "id": "noise-id",
          "username": "noise",
-         "display-name": "Bret"
+         "display-name": "Bret",
+         "validation": "unproven"
       },
       "download-size": 512004096,
       "icon": "",
@@ -163,7 +166,8 @@ const findHelloJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -185,7 +189,8 @@ const findHelloJSON = `
       "publisher": {
          "id": "noise-id",
          "username": "noise",
-         "display-name": "Bret"
+         "display-name": "Bret",
+         "validation": "unproven"
       },
       "download-size": 512004096,
       "icon": "",
@@ -215,7 +220,9 @@ func (s *SnapSuite) TestFindHello(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			q := r.URL.Query()
+			c.Check(q, check.HasLen, 2)
 			c.Check(q.Get("q"), check.Equals, "hello")
+			c.Check(q.Get("scope"), check.Equals, "wide")
 			fmt.Fprintln(w, findHelloJSON)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
@@ -224,6 +231,33 @@ func (s *SnapSuite) TestFindHello(c *check.C) {
 		n++
 	})
 	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
+hello +2.10 +canonical +- +GNU Hello, the "hello world" snap
+hello-huge +1.0 +noise +- +a really big snap
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestFindHelloNarrow(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			c.Check(q, check.HasLen, 1)
+			c.Check(q.Get("q"), check.Equals, "hello")
+			fmt.Fprintln(w, findHelloJSON)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"find", "--narrow", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
@@ -247,7 +281,8 @@ const findPricedJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -308,7 +343,8 @@ const findPricedAndBoughtJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",

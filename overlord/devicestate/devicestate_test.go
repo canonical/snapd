@@ -1014,24 +1014,24 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")})
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")}, 0)
 		c.Assert(err, IsNil)
 
 		h, err := json.Marshal(map[string]string{
 			"x-extra-header": "extra",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
 		c.Assert(err, IsNil)
 
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")}, 0)
 		c.Assert(err, IsNil)
 
 		d, err := yaml.Marshal(map[string]string{
 			"mac": "00:00:00:00:ff:00",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
 		c.Assert(err, IsNil)
 
 		return nil, nil
@@ -2168,6 +2168,15 @@ func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 	// if all of the above plus a snap declaration are in place we can
 	// manage schedules
 	s.makeSnapDeclaration(c, st, info11)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+
+	// works if the snap is not active as well (to fix race when a
+	// snap is refreshed)
+	var sideInfo11 snapstate.SnapState
+	err := snapstate.Get(st, "snap-with-snapd-control", &sideInfo11)
+	c.Assert(err, IsNil)
+	sideInfo11.Active = false
+	snapstate.Set(st, "snap-with-snapd-control", &sideInfo11)
 	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
 }
 

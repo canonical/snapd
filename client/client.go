@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -374,6 +374,7 @@ const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
 	ErrorKindLoginRequired     = "login-required"
+	ErrorKindInvalidAuthData   = "invalid-auth-data"
 	ErrorKindTermsNotAccepted  = "terms-not-accepted"
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
 	ErrorKindPaymentDeclined   = "payment-declined"
@@ -382,18 +383,26 @@ const (
 	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
 	ErrorKindSnapNotInstalled       = "snap-not-installed"
 	ErrorKindSnapNotFound           = "snap-not-found"
+	ErrorKindAppNotFound            = "app-not-found"
 	ErrorKindSnapLocal              = "snap-local"
 	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
-	ErrorKindRevisionNotAvailable   = "snap-revision-not-available"
+
+	ErrorKindRevisionNotAvailable     = "snap-revision-not-available"
+	ErrorKindChannelNotAvailable      = "snap-channel-not-available"
+	ErrorKindArchitectureNotAvailable = "snap-architecture-not-available"
+
+	ErrorKindChangeConflict = "snap-change-conflict"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
-	ErrorKindNetworkTimeout      = "network-timeout"
+	ErrorKindNetworkTimeout = "network-timeout"
+
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
 
+	ErrorKindBadQuery           = "bad-query"
 	ErrorKindConfigNoSuchOption = "option-not-found"
 
 	ErrorKindSystemRestart = "system-restart"

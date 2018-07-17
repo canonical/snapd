@@ -28,46 +28,15 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type mountSnapSuite struct {
-	state   *state.State
-	snapmgr *snapstate.SnapManager
-
-	fakeBackend *fakeSnappyBackend
-
-	reset func()
+	baseHandlerSuite
 }
 
 var _ = Suite(&mountSnapSuite{})
-
-func (s *mountSnapSuite) SetUpTest(c *C) {
-	oldDir := dirs.GlobalRootDir
-	dirs.SetRootDir(c.MkDir())
-
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
-
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	reset1 := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
-	s.reset = func() {
-		reset1()
-		dirs.SetRootDir(oldDir)
-	}
-}
-
-func (s *mountSnapSuite) TearDownTest(c *C) {
-	s.reset()
-}
 
 func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
@@ -88,8 +57,8 @@ func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	c.Assert(osutil.FileExists(testSnap), Equals, true)
 }
@@ -129,8 +98,8 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -143,12 +112,12 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.SnapMountDir, "core/2"),
+			path:  filepath.Join(dirs.SnapMountDir, "core/2"),
 			stype: "os",
 		},
 	})
@@ -186,8 +155,8 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -201,12 +170,12 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.SnapMountDir, "borken/2"),
+			path:  filepath.Join(dirs.SnapMountDir, "borken/2"),
 			stype: "app",
 		},
 	})
@@ -246,8 +215,8 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -261,12 +230,12 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
+			path:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
 			stype: "app",
 		},
 	})
@@ -319,8 +288,8 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -335,7 +304,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 	})

@@ -79,7 +79,7 @@ execute: |
         snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d "$BUILD_DIR/unpack" "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
+        unsquashfs -no-progress -d "$BUILD_DIR/unpack" "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
 
         # set failure condition
         eval "${INJECT_FAILURE}"
@@ -109,6 +109,10 @@ execute: |
         fi
         sleep 1
     done
+
+    # ensure the last install change failed as expected
+    snap change --last=install | MATCH "cannot finish core installation, there was a rollback across reboot"
+    snap change --last=install | MATCH "^Error.*Automatically connect"
 
     # and the boot env vars are correctly set
     echo "Waiting for snapd to clean snap_mode"
