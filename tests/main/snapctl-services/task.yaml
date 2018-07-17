@@ -9,7 +9,9 @@ restore: |
     rm -f $SERVICEOPTIONFILE
 
 execute: |
-    wait_for_service() {
+    # there is wait_for_service defined in systemd.sh, use a different name to
+    # avoid redefining or being obscured by the other one
+    _wait_for_service() {
         retry=5
         while ! snap services $1 | MATCH $2; do
             retry=$(( retry - 1 ))
@@ -42,31 +44,31 @@ execute: |
     install_local test-snapd-service
 
     echo "We can see it running"
-    wait_for_service "test-snapd-service.test-snapd-service" " active"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
 
     echo "When we stop the service via configure hook"
     snap set test-snapd-service command=stop
 
     echo "It's stopped"
-    wait_for_service "test-snapd-service.test-snapd-service" " inactive"
+    _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
 
     echo "When we start the service via configure hook"
     snap set test-snapd-service command=start
 
     echo "It's running again"
-    wait_for_service "test-snapd-service.test-snapd-service" " active"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
 
     echo "When we stop it again"
     snap set test-snapd-service command=stop
 
     echo "It's stopped"
-    wait_for_service "test-snapd-service.test-snapd-service" " inactive"
+    _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
 
     echo "And then restart"
     snap set test-snapd-service service-option-source=foo command=restart
 
     echo "It's running"
-    wait_for_service "test-snapd-service.test-snapd-service" " active"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
 
     echo "And restart command was executed as part of configure hook change"
     snap tasks --last=configure|MATCH -z "restart of .test-snapd-service.test-snapd-service.+restart of .test-snapd-service.test-snapd-other-service"

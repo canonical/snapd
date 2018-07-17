@@ -101,6 +101,41 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// Regular expression describing correct plug, slot and interface names.
+var validPlugSlotIfaceName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+
+// ValidatePlugName checks if a string can be used as a slot name.
+//
+// Slot names and plug names within one snap must have unique names.
+// This is not enforced by this function but is enforced by snap-level
+// validation.
+func ValidatePlugName(name string) error {
+	if !validPlugSlotIfaceName.MatchString(name) {
+		return fmt.Errorf("invalid plug name: %q", name)
+	}
+	return nil
+}
+
+// ValidateSlotName checks if a string can be used as a slot name.
+//
+// Slot names and plug names within one snap must have unique names.
+// This is not enforced by this function but is enforced by snap-level
+// validation.
+func ValidateSlotName(name string) error {
+	if !validPlugSlotIfaceName.MatchString(name) {
+		return fmt.Errorf("invalid slot name: %q", name)
+	}
+	return nil
+}
+
+// ValidateInterfaceName checks if a string can be used as an interface name.
+func ValidateInterfaceName(name string) error {
+	if !validPlugSlotIfaceName.MatchString(name) {
+		return fmt.Errorf("invalid interface name: %q", name)
+	}
+	return nil
+}
+
 // NB keep this in sync with snapcraft and the review tools :-)
 var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~-]{0,30}[a-zA-Z0-9+~])?$").MatchString
 
