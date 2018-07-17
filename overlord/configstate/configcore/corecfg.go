@@ -56,6 +56,7 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 var supportedConfigurations = map[string]bool{
 	"core.experimental.layouts":            true,
 	"core.experimental.parallel-instances": true,
+	"core.experimental.hotplug":            true,
 }
 
 func validateBoolFlag(tr Conf, flag string) error {
@@ -79,6 +80,9 @@ func validateExperimentalSettings(tr Conf) error {
 	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
 		return err
 	}
+	if err := validateBoolFlag(tr, "experimental.hotplug"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -97,6 +101,12 @@ func Run(tr Conf) error {
 		return err
 	}
 	if err := validateExperimentalSettings(tr); err != nil {
+		return err
+	}
+	if err := validateWatchdogOptions(tr); err != nil {
+		return err
+	}
+	if err := validateNetworkSettings(tr); err != nil {
 		return err
 	}
 	// FIXME: ensure the user cannot set "core seed.loaded"
@@ -129,6 +139,14 @@ func Run(tr Conf) error {
 	}
 	// proxy.{http,https,ftp}
 	if err := handleProxyConfiguration(tr); err != nil {
+		return err
+	}
+	// watchdog.{runtime-timeout,shutdown-timeout}
+	if err := handleWatchdogConfiguration(tr); err != nil {
+		return err
+	}
+	// network.disable-ipv6
+	if err := handleNetworkConfiguration(tr); err != nil {
 		return err
 	}
 

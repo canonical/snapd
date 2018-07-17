@@ -23,9 +23,9 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -90,12 +90,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// TODO parallel-install: block parallel installation of core, kernel,
 	// gadget and snapd snaps
 
-	if err := CheckChangeConflict(st, snapsup.Name(), nil, snapst); err != nil {
+	if err := CheckChangeConflict(st, snapsup.Name(), snapst); err != nil {
 		return nil, err
 	}
 
-	// ensure core gets installed. if it is already installed return
-	// an empty task set
+	if snapst.IsInstalled() {
+		// consider also the current revision to set plugs-only hint
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+	}
+
 	ts := state.NewTaskSet()
 
 	targetRevision := snapsup.Revision()
@@ -327,142 +334,61 @@ var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupRemoveHook is unset")
 }
 
-// snapTopicalTasks are tasks that characterize changes on a snap that
-// cannot be run concurrently and should conflict with each other.
-var snapTopicalTasks = map[string]bool{
-	"link-snap":           true,
-	"unlink-snap":         true,
-	"switch-snap":         true,
-	"switch-snap-channel": true,
-	"toggle-snap-flags":   true,
-	"refresh-aliases":     true,
-	"prune-auto-aliases":  true,
-	"alias":               true,
-	"unalias":             true,
-	"disable-aliases":     true,
-	"prefer-aliases":      true,
-	"connect":             true,
-	"disconnect":          true,
-}
-
-func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
-	var plugRef interfaces.PlugRef
-	var slotRef interfaces.SlotRef
-	if err := task.Get("plug", &plugRef); err != nil {
-		return nil, nil, err
-	}
-	if err := task.Get("slot", &slotRef); err != nil {
-		return nil, nil, err
-	}
-	return &plugRef, &slotRef, nil
-}
-
-func ChangeConflictError(snapName, kind string) *changeConflictError {
-	return &changeConflictError{
-		snapName:   snapName,
-		changeKind: kind,
-	}
-}
-
-type changeConflictError struct {
-	snapName   string
-	changeKind string
-}
-
-func (e changeConflictError) Error() string {
-	if e.changeKind != "" {
-		return fmt.Sprintf("snap %q has %q change in progress", e.snapName, e.changeKind)
-	}
-	return fmt.Sprintf("snap %q has changes in progress", e.snapName)
-}
-
-// CheckChangeConflictMany ensures that for the given snapNames no other
-// changes that alters the snaps (like remove, install, refresh) are in
-// progress. If a conflict is detected an error is returned.
-//
-// It's like CheckChangeConflict, but for multiple snaps, and does not
-// check snapst.
-func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictPredicate func(task *state.Task) bool) error {
-	snapMap := make(map[string]bool, len(snapNames))
-	for _, k := range snapNames {
-		snapMap[k] = true
+// WaitRestart will return a Retry error if there is a pending restart
+// and a real error if anything went wrong (like a rollback across
+// restarts)
+func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if ok, _ := task.State().Restarting(); ok {
+		// don't continue until we are in the restarted snapd
+		task.Logf("Waiting for restart...")
+		return &state.Retry{}
 	}
 
-	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
-			continue
-		}
-		if chg.Kind() == "transition-ubuntu-core" {
-			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
-		}
-	}
-
-	for _, task := range st.Tasks() {
-		k := task.Kind()
-		chg := task.Change()
-		if snapTopicalTasks[k] && (chg == nil || !chg.Status().Ready()) {
-			if k == "connect" || k == "disconnect" {
-				plugRef, slotRef, err := getPlugAndSlotRefs(task)
-				if err != nil {
-					return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
-				}
-				if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (checkConflictPredicate == nil || checkConflictPredicate(task)) {
-					var snapName string
-					if snapMap[plugRef.Snap] {
-						snapName = plugRef.Snap
-					} else {
-						snapName = slotRef.Snap
-					}
-					return changeConflictError{snapName, chg.Kind()}
-				}
-			} else {
-				snapsup, err := TaskSnapSetup(task)
-				if err != nil {
-					return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
-				}
-				snapName := snapsup.Name()
-				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(task)) {
-					return changeConflictError{snapName, chg.Kind()}
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-type changeDuringInstallError struct {
-	snapName string
-}
-
-func (c changeDuringInstallError) Error() string {
-	return fmt.Sprintf("snap %q state changed during install preparations", c.snapName)
-}
-
-// CheckChangeConflict ensures that for the given snapName no other
-// changes that alters the snap (like remove, install, refresh) are in
-// progress. It also ensures that snapst (if not nil) did not get
-// modified. If a conflict is detected an error is returned.
-func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(task *state.Task) bool, snapst *SnapState) error {
-	if err := CheckChangeConflictMany(st, []string{snapName}, checkConflictPredicate); err != nil {
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
+	if err != nil {
 		return err
 	}
 
-	if snapst != nil {
-		// caller wants us to also make sure the SnapState in state
-		// matches the one they provided. Necessary because we need to
-		// unlock while talking to the store, during which a change can
-		// sneak in (if it's before the taskset is created) (e.g. for
-		// install, while getting the snap info; for refresh, when
-		// getting what needs refreshing).
-		var cursnapst SnapState
-		if err := Get(st, snapName, &cursnapst); err != nil && err != state.ErrNoState {
+	// If not on classic check there was no rollback. A reboot
+	// can be triggered by:
+	// - core (old core16 world, system-reboot)
+	// - bootable base snap (new core18 world, system-reboot)
+	//
+	// TODO: Detect "snapd" snap daemon-restarts here that
+	//       fallback into the old version (once we have
+	//       better snapd rollback support in core18).
+	if !release.OnClassic {
+		// TODO: double check that we really rebooted
+		// otherwise this could be just a spurious restart
+		// of snapd
+
+		model, err := Model(task.State())
+		if err != nil {
+			return err
+		}
+		bootName := "core"
+		typ := snap.TypeOS
+		if model.Base() != "" {
+			bootName = model.Base()
+			typ = snap.TypeBase
+		}
+		// if it is not a bootable snap we are not interested
+		if snapsup.Name() != bootName {
+			return nil
+		}
+
+		name, rev, err := CurrentBootNameAndRevision(typ)
+		if err == ErrBootNameAndRevisionAgain {
+			return &state.Retry{After: 5 * time.Second}
+		}
+		if err != nil {
 			return err
 		}
 
-		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
-		if !reflect.DeepEqual(snapst, &cursnapst) {
-			return changeDuringInstallError{snapName: snapName}
+		if snapsup.Name() != name || snapInfo.Revision != rev {
+			// TODO: make sure this revision gets ignored for
+			//       automatic refreshes
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.Name())
 		}
 	}
 
@@ -495,6 +421,7 @@ func contentIfaceAvailable(st *state.State, contentTag string) bool {
 // default providers there are.
 func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	out := []string{}
+	seen := map[string]bool{}
 	for _, plug := range info.Plugs {
 		if plug.Interface == "content" {
 			if contentAttr(plug) == "" {
@@ -510,7 +437,10 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 				// documentation said it is "snapname:ifname",
 				// we deal with this gracefully by just
 				// stripping of the part after the ":"
-				out = append(out, strings.Split(dprovider, ":")[0])
+				if name := strings.SplitN(dprovider, ":", 2)[0]; !seen[name] {
+					out = append(out, name)
+					seen[name] = true
+				}
 			}
 		}
 	}
@@ -590,13 +520,14 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	}
 
 	snapsup := &SnapSetup{
-		Base:     info.Base,
-		Prereq:   defaultContentPlugProviders(st, info),
-		SideInfo: si,
-		SnapPath: path,
-		Channel:  channel,
-		Flags:    flags.ForSnapSetup(),
-		Type:     info.Type,
+		Base:      info.Base,
+		Prereq:    defaultContentPlugProviders(st, info),
+		SideInfo:  si,
+		SnapPath:  path,
+		Channel:   channel,
+		Flags:     flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -647,6 +578,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
 		Type:         info.Type,
+		PlugsOnly:    len(info.Slots) == 0,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -805,6 +737,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 			Type:         update.Type,
+			PlugsOnly:    len(update.Slots) == 0,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -890,7 +823,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
 	for snapName, aliases := range delta {
-		if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+		if err := CheckChangeConflict(st, snapName, nil); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
@@ -1008,7 +941,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -1073,7 +1006,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 
 	// see if we need to update the channel or toggle ignore-validation
 	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
-		if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+		if err := CheckChangeConflict(st, name, nil); err != nil {
 			return nil, err
 		}
 
@@ -1197,13 +1130,20 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo: snapst.CurrentSideInfo(),
-		Flags:    snapst.Flags.ForSnapSetup(),
+		SideInfo:  snapst.CurrentSideInfo(),
+		Flags:     snapst.Flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.Name(), snapst.Current))
@@ -1251,7 +1191,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -1260,6 +1200,8 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: name,
 			Revision: snapst.Current,
 		},
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
@@ -1293,7 +1235,7 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
 		return true
@@ -1327,11 +1269,26 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return true
 	}
 
+	// Allow snap.TypeOS removals if a different base is in use
+	//
+	// Note that removal of the boot base itself is prevented
+	// via the snapst.Required flag that is set on firstboot.
+	if si.Type == snap.TypeOS {
+		if model, err := Model(st); err == nil {
+			if model.Base() != "" {
+				return true
+			}
+		}
+	}
+
 	// You never want to remove a kernel or OS. Do not remove their
 	// last revision left.
 	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
+
+	// TODO: ensure that you cannot remove bases/core if those are
+	//       needed by one of the installed snaps.
 
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
@@ -1356,7 +1313,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -1390,7 +1347,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, &snapst, removeAll) {
+	if !canRemove(st, info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -1400,6 +1357,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			RealName: name,
 			Revision: revision,
 		},
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 
 	// trigger remove
@@ -1508,6 +1467,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 			return nil, nil, err
 		}
 		removed = append(removed, name)
+		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 
@@ -1563,9 +1523,17 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 			flags.Classic = true
 		}
 	}
+
+	info, err := Info(st, name, rev)
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
-		SideInfo: snapst.Sequence[i],
-		Flags:    flags.ForSnapSetup(),
+		SideInfo:  snapst.Sequence[i],
+		Flags:     flags.ForSnapSetup(),
+		Type:      info.Type,
+		PlugsOnly: len(info.Slots) == 0,
 	}
 	return doInstall(st, &snapst, snapsup, 0)
 }

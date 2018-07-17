@@ -45,7 +45,7 @@ func (s *cookiesSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
-	s.snapmgr, _ = Manager(s.st)
+	s.snapmgr, _ = Manager(s.st, state.NewTaskRunner(s.st))
 }
 
 func (s *cookiesSuite) TearDownTest(c *C) {

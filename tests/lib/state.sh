@@ -3,12 +3,16 @@
 SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
 SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state/snapd-state.tar"
 RUNTIME_STATE_PATH="$SPREAD_PATH/tests/runtime-state"
+SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
+
+# shellcheck source=tests/lib/systemd.sh
+. "$TESTSLIB/systemd.sh"
 
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
@@ -17,8 +21,21 @@ delete_snapd_state() {
     rm -rf "$SNAPD_STATE_PATH"
 }
 
-save_snapd_state() {
+prepare_state() {
     mkdir -p "$SNAPD_STATE_PATH" "$RUNTIME_STATE_PATH"
+}
+
+is_snapd_state_saved() {
+    if is_core_system && [ -d "$SNAPD_STATE_PATH"/snapd-lib ]; then
+        return 0
+    elif is_classic_system && [ -f "$SNAPD_STATE_FILE" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+save_snapd_state() {
     if is_core_system; then
         boot_path="$(get_boot_path)"
         test -n "$boot_path" || return 1
@@ -59,6 +76,9 @@ save_snapd_state() {
             systemctl start "$unit"
         done
     fi
+
+    # Save the snapd active units
+    systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_state() {
@@ -78,6 +98,13 @@ restore_snapd_state() {
 
         tar -C/ -xf "$SNAPD_STATE_FILE"
     fi
+
+    # Start all the units which have to be active
+    while read -r unit; do
+        if ! systemctl is-active "$unit"; then
+            systemctl start "$unit"
+        fi
+    done  < "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_lib() {

@@ -77,7 +77,8 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	return &Info{SideInfo: SideInfo{RealName: name, Revision: revision}}
+	storeName, instanceKey := SplitInstanceName(name)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
@@ -206,6 +207,7 @@ type StoreAccount struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display-name"`
+	Validation  string `json:"validation,omitempty"`
 }
 
 // Layout describes a single element of the layout section.
@@ -687,6 +689,8 @@ type HookInfo struct {
 	Name  string
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment strutil.OrderedMap
 }
 
 // File returns the path to the *.socket file
@@ -730,9 +734,8 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	// TODO parallel-install: use of proper instance/store name
-	if app.Name == app.Snap.InstanceName() {
-		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	if app.Name == app.Snap.SnapName() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Snap.InstanceName())
 	}
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
 }
@@ -795,7 +798,12 @@ func (hook *HookInfo) SecurityTag() string {
 
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
-	return envFromMap(hook.Snap.Environment.Copy())
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hook.Environment.Keys() {
+		hookEnv.Set(k, hook.Environment.Get(k))
+	}
+
+	return envFromMap(hookEnv)
 }
 
 func envFromMap(envMap *strutil.OrderedMap) []string {
@@ -904,6 +912,9 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	return info, nil
 }
 
@@ -972,7 +983,7 @@ func InstallDate(name string) time.Time {
 func SplitSnapApp(snapApp string) (snap, app string) {
 	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
-		return l[0], l[0]
+		return l[0], InstanceSnap(l[0])
 	}
 	return l[0], l[1]
 }
@@ -981,28 +992,11 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 // `snap` and the `app` part. It also deals with the special
 // case of snapName == appName.
 func JoinSnapApp(snap, app string) string {
-	if snap == app {
-		return app
+	storeName, instanceKey := SplitInstanceName(snap)
+	if storeName == app {
+		return InstanceName(app, instanceKey)
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
-}
-
-// UseNick returns the nickname for given snap name. If there is none, returns
-// the original name.
-func UseNick(snapName string) string {
-	if snapName == "core" {
-		return "system"
-	}
-	return snapName
-}
-
-// DropNick returns the snap name for given nickname. If there is none, returns
-// the original name.
-func DropNick(nick string) string {
-	if nick == "system" {
-		return "core"
-	}
-	return nick
 }
 
 // InstanceSnap splits the instance name and returns the name of the snap.

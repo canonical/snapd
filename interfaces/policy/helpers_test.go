@@ -22,6 +22,7 @@ package policy_test
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
@@ -79,4 +80,21 @@ slots:
 	v, err = policy.NestedGet("slot", slot, "a.b")
 	c.Check(err, IsNil)
 	c.Check(v, DeepEquals, []interface{}{"1", "2", "3"})
+}
+
+func (s *helpersSuite) TestSnapdTypeCheck(c *C) {
+	// Type checking the snapd snap is done in a special way.
+	// It appears to be of type "core" while in reality it is of type "app".
+	sideInfo := &snap.SideInfo{
+		SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+	}
+	snapInfo := snaptest.MockInfo(c, `
+name: snapd
+version: 1
+type: app
+slots:
+    network:
+`, sideInfo)
+	err := policy.CheckSnapType(snapInfo, []string{"core"})
+	c.Assert(err, IsNil)
 }

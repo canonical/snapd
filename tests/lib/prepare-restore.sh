@@ -99,7 +99,7 @@ build_rpm() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*)
-            extra_tar_args="$extra_tar_args --exclude='vendor/*'"
+            extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -238,6 +238,9 @@ prepare_project() {
         exit 1
     fi
 
+    # Prepare the state directories for execution
+    prepare_state
+
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
@@ -325,7 +328,7 @@ prepare_project() {
     esac
 
     # update vendoring
-    if [ -z "$(which govendor)" ]; then
+    if [ -z "$(command -v govendor)" ]; then
         rm -rf "$GOPATH/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
@@ -382,12 +385,6 @@ EOF
 }
 
 prepare_project_each() {
-    # We want to rotate the logs so that when inspecting or dumping them we
-    # will just see logs since the test has started.
-
-    # Reset systemd journal cursor.
-    start_new_journalctl_log
-
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
 
@@ -405,18 +402,19 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # save the job which is going to be exeuted in the system
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+    # Reset systemd journal cursor.
+    start_new_journalctl_log
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     if is_classic_system; then
         prepare_each_classic
     fi
-    #shellcheck source=tests/lib/state.sh
-    . "$TESTSLIB"/state.sh
-    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    # Check if journalctl is ready to run the test
+    check_journalctl_ready
 }
 
 restore_suite_each() {
@@ -426,11 +424,9 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
-        . $TESTSLIB/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch

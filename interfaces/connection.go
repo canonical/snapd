@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -105,8 +106,8 @@ func getAttribute(snapName string, ifaceName string, staticAttrs map[string]inte
 func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *ConnectedSlot {
 	return &ConnectedSlot{
 		slotInfo:     slot,
-		staticAttrs:  copyAttributes(slot.Attrs),
-		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
+		staticAttrs:  utils.CopyAttributes(slot.Attrs),
+		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
@@ -114,8 +115,8 @@ func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) 
 func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) *ConnectedPlug {
 	return &ConnectedPlug{
 		plugInfo:     plug,
-		staticAttrs:  copyAttributes(plug.Attrs),
-		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
+		staticAttrs:  utils.CopyAttributes(plug.Attrs),
+		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
@@ -156,12 +157,12 @@ func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
-	return copyAttributes(plug.staticAttrs)
+	return utils.CopyAttributes(plug.staticAttrs)
 }
 
 // DynamicAttrs returns all dynamic attributes.
 func (plug *ConnectedPlug) DynamicAttrs() map[string]interface{} {
-	return copyAttributes(plug.dynamicAttrs)
+	return utils.CopyAttributes(plug.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -183,7 +184,7 @@ func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
 	if plug.dynamicAttrs == nil {
 		plug.dynamicAttrs = make(map[string]interface{})
 	}
-	plug.dynamicAttrs[key] = normalize(value)
+	plug.dynamicAttrs[key] = utils.NormalizeInterfaceAttributes(value)
 	return nil
 }
 
@@ -229,12 +230,12 @@ func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
-	return copyAttributes(slot.staticAttrs)
+	return utils.CopyAttributes(slot.staticAttrs)
 }
 
 // DynamicAttrs returns all dynamic attributes.
 func (slot *ConnectedSlot) DynamicAttrs() map[string]interface{} {
-	return copyAttributes(slot.dynamicAttrs)
+	return utils.CopyAttributes(slot.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -256,7 +257,7 @@ func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	if slot.dynamicAttrs == nil {
 		slot.dynamicAttrs = make(map[string]interface{})
 	}
-	slot.dynamicAttrs[key] = normalize(value)
+	slot.dynamicAttrs[key] = utils.NormalizeInterfaceAttributes(value)
 	return nil
 }
 
@@ -268,50 +269,4 @@ func (slot *ConnectedSlot) Ref() *SlotRef {
 // Interface returns the name of the interface for this connection.
 func (conn *Connection) Interface() string {
 	return conn.Plug.plugInfo.Interface
-}
-
-func copyAttributes(value map[string]interface{}) map[string]interface{} {
-	return copyRecursive(value).(map[string]interface{})
-}
-
-func copyRecursive(value interface{}) interface{} {
-	// note: ensure all the mutable types (or types that need a conversion)
-	// are handled here.
-	switch v := value.(type) {
-	case []interface{}:
-		arr := make([]interface{}, len(v))
-		for i, el := range v {
-			arr[i] = copyRecursive(el)
-		}
-		return arr
-	case map[string]interface{}:
-		mp := make(map[string]interface{}, len(v))
-		for key, item := range v {
-			mp[key] = copyRecursive(item)
-		}
-		return mp
-	}
-	return value
-}
-
-func normalize(value interface{}) interface{} {
-	// Normalize ints/floats using their 64-bit variants.
-	// That kind of normalization happens in normalizeYamlValue(..) for static attributes
-	// when the yaml is loaded, but it needs to be done here as well because we're also
-	// dealing with dynamic attributes set by the code of interfaces.
-	switch v := value.(type) {
-	case int:
-		return int64(v)
-	case float32:
-		return float64(v)
-	case []interface{}:
-		for i, el := range v {
-			v[i] = normalize(el)
-		}
-	case map[string]interface{}:
-		for key, item := range v {
-			v[key] = normalize(item)
-		}
-	}
-	return value
 }
