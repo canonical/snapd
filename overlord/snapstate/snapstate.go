@@ -564,6 +564,7 @@ func contentIfaceAvailable(st *state.State, contentTag string) bool {
 // default providers there are.
 func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	out := []string{}
+	seen := map[string]bool{}
 	for _, plug := range info.Plugs {
 		if plug.Interface == "content" {
 			if contentAttr(plug) == "" {
@@ -579,7 +580,10 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 				// documentation said it is "snapname:ifname",
 				// we deal with this gracefully by just
 				// stripping of the part after the ":"
-				out = append(out, strings.Split(dprovider, ":")[0])
+				if name := strings.SplitN(dprovider, ":", 2)[0]; !seen[name] {
+					out = append(out, name)
+					seen[name] = true
+				}
 			}
 		}
 	}
