@@ -145,6 +145,28 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 	}
 }
 
+func (s *tasksetsSuite) TestConfigureInstalledConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("other-change", "...")
+	chg.AddAll(ts)
+
+	patch := map[string]interface{}{"foo": "bar"}
+	_, err = configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "other-change" change in progress`)
+}
+
 func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	patch := map[string]interface{}{"foo": "bar"}
 	s.state.Lock()
