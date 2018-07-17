@@ -612,7 +612,7 @@ func (m *IdentityMapper) RemapSnapToResponse(snapName string) string {
 // exactly the same as with the "snapd" mapper. This can be used to make any
 // necessary adjustments the test suite.
 type CoreCoreSystemMapper struct {
-	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
 }
 
 // RemapSnapFromRequest renames the "system" snap to the "core" snap.
@@ -642,7 +642,7 @@ func (m *CoreCoreSystemMapper) RemapSnapToResponse(snapName string) string {
 // appear to be on "core" in the state and on "system" in the API while they
 // are on "snapd" in memory.
 type CoreSnapdSystemMapper struct {
-	IdentityMapper // Embedding the nil mapper allows us to cut on boilerplate.
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
 }
 
 // RemapSnapFromState renames the "core" snap to the "snapd" snap.
