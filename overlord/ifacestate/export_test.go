@@ -32,6 +32,8 @@ var (
 	CheckConnectConflicts     = checkConnectConflicts
 	FindSymmetricAutoconnect  = findSymmetricAutoconnect
 	ConnectPriv               = connect
+	GetConns                  = getConns
+	SetConns                  = setConns
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
@@ -54,4 +56,12 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
+}
+
+// UpperCaseConnState returns a canned connection state map.
+// This allows us to keep connState private and still write some tests for it.
+func UpperCaseConnState() map[string]connState {
+	return map[string]connState{
+		"APP:network CORE:network": {Auto: true, Interface: "network"},
+	}
 }
