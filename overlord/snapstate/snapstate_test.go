@@ -1242,6 +1242,7 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	_, err = snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
@@ -1291,7 +1292,8 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
 	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
@@ -1607,44 +1609,6 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
-}
-
-func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "producer", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "producer", SnapID: "producer-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "app",
-	})
-	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "consumer", SnapID: "consumer-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "app",
-	})
-
-	chg := s.state.NewChange("another change", "...")
-	t := s.state.NewTask(kind, "...")
-	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
-	chg.AddTask(t)
-
-	_, err := snapstate.Update(s.state, "producer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "producer" has "another change" change in progress`)
-
-	_, err = snapstate.Update(s.state, "consumer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "consumer" has "another change" change in progress`)
-}
-
-func (s *snapmgrTestSuite) TestUpdateConflictWithConnect(c *C) {
-	s.testChangeConflict(c, "connect")
-}
-
-func (s *snapmgrTestSuite) TestUpdateConflictWithDisconnect(c *C) {
-	s.testChangeConflict(c, "disconnect")
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
@@ -4148,7 +4112,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		// conflict checks are triggered
 		chg := s.state.NewChange("update", "...")
 		chg.AddAll(ts)
-		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil, nil)
+		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil)
 		c.Check(err, ErrorMatches, `.* has "update" change in progress`)
 		chg.SetStatus(state.DoneStatus)
 	}
@@ -8656,6 +8620,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
 
 	// other tasks block until the transition is done
 	_, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "ubuntu-core to core transition in progress, no other changes allowed until this is done")
 
 	// and when the transition is done, other tasks run
@@ -8952,7 +8917,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 		{"c-snap"},
 		{"c-snap", "d-snap", "e-snap", "f-snap"},
 	} {
-		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), IsNil)
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, ""), IsNil)
 	}
 
 	// things that should not be ok:
@@ -8962,7 +8927,9 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 		{"a-snap", "c-snap"},
 		{"b-snap", "c-snap"},
 	} {
-		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has "enable" change in progress`)
+		err := snapstate.CheckChangeConflictMany(s.state, m, "")
+		c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+		c.Check(err, ErrorMatches, `snap "[^"]*" has "enable" change in progress`)
 	}
 }
 

@@ -78,7 +78,7 @@ func canConfigure(st *state.State, snapName string) error {
 		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", snapName)
 	}
 
-	return nil
+	return snapstate.CheckChangeConflict(st, snapName, nil)
 }
 
 // ConfigureInstalled returns a taskset to apply the given

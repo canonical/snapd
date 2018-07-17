@@ -542,7 +542,7 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -599,7 +599,7 @@ func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error)
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -621,7 +621,7 @@ func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, snapNa
 		return nil, "", err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, "", err
 	}
 
@@ -683,7 +683,7 @@ func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
