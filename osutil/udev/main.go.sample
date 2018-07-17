@@ -90,7 +90,7 @@ func monitor(matcher netlink.Matcher) {
 	log.Println("Monitoring UEvent kernel message to user-space...")
 
 	conn := new(netlink.UEventConn)
-	if err := conn.Connect(); err != nil {
+	if err := conn.Connect(netlink.UdevEvent); err != nil {
 		log.Fatalln("Unable to connect to Netlink Kobject UEvent socket")
 	}
 	defer conn.Close()

@@ -689,6 +689,8 @@ type HookInfo struct {
 	Name  string
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment strutil.OrderedMap
 }
 
 // File returns the path to the *.socket file
@@ -796,7 +798,12 @@ func (hook *HookInfo) SecurityTag() string {
 
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
-	return envFromMap(hook.Snap.Environment.Copy())
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hook.Environment.Keys() {
+		hookEnv.Set(k, hook.Environment.Get(k))
+	}
+
+	return envFromMap(hookEnv)
 }
 
 func envFromMap(envMap *strutil.OrderedMap) []string {

@@ -725,3 +725,11 @@ func RemapSnapFromRequest(snapName string) string {
 func RemapSnapToResponse(snapName string) string {
 	return mapper.RemapSnapToResponse(snapName)
 }
+
+func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
+	plugRef, slotRef, err := getPlugAndSlotRefs(t)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", t.Summary())
+	}
+	return []string{plugRef.Snap, slotRef.Snap}, nil
+}

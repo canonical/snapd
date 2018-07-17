@@ -73,6 +73,7 @@ type Overlord struct {
 	restartHandler func(t state.RestartType)
 	// managers
 	inited     bool
+	runner     *state.TaskRunner
 	snapMgr    *snapstate.SnapManager
 	assertMgr  *assertstate.AssertManager
 	ifaceMgr   *ifacestate.InterfaceManager
@@ -102,6 +103,8 @@ func New() (*Overlord, error) {
 	}
 
 	o.stateEng = NewStateEngine(s)
+	o.runner = state.NewTaskRunner(s)
+
 	o.unknownMgr = NewUnknownTaskManager(s)
 	o.stateEng.AddManager(o.unknownMgr)
 
@@ -111,7 +114,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(hookMgr)
 
-	snapMgr, err := snapstate.Manager(s)
+	snapMgr, err := snapstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +141,10 @@ func New() (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s))
 
 	configstateInit(hookMgr)
+
+	// the shared task runner should be added last
+	o.stateEng.AddManager(o.runner)
+	o.unknownMgr.Ignore(o.runner.KnownTaskKinds())
 
 	s.Lock()
 	defer s.Unlock()
@@ -374,6 +381,17 @@ func (o *Overlord) State() *state.State {
 	return o.stateEng.State()
 }
 
+// StateEngine returns the stage engine used by overlord.
+func (o *Overlord) StateEngine() *StateEngine {
+	return o.stateEng
+}
+
+// TaskRunner returns the shared task runner responsible for running
+// tasks for all managers under the overlord.
+func (o *Overlord) TaskRunner() *state.TaskRunner {
+	return o.runner
+}
+
 // SnapManager returns the snap manager responsible for snaps under
 // the overlord.
 func (o *Overlord) SnapManager() *snapstate.SnapManager {
@@ -423,8 +441,10 @@ func Mock() *Overlord {
 		loopTomb: new(tomb.Tomb),
 		inited:   false,
 	}
-	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
-	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
+	s := state.New(mockBackend{o: o})
+	o.stateEng = NewStateEngine(s)
+	o.runner = state.NewTaskRunner(s)
+	o.unknownMgr = NewUnknownTaskManager(s)
 	o.stateEng.AddManager(o.unknownMgr)
 
 	return o

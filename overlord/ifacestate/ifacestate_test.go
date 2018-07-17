@@ -300,7 +300,7 @@ func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnapOnLink(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
+func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -315,10 +315,10 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 	chg.AddTask(t)
 
 	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 
 	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDifferentSnap(c *C) {
@@ -3239,4 +3239,42 @@ volumes:
 			"interface": "network-control", "auto": true, "by-gadget": true,
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) testChangeConflict(c *C, kind string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "producer", SnapID: "producer-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "consumer", SnapID: "consumer-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("another change", "...")
+	t := s.state.NewTask(kind, "...")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	chg.AddTask(t)
+
+	_, err := snapstate.Disable(s.state, "producer")
+	c.Assert(err, ErrorMatches, `snap "producer" has "another change" change in progress`)
+
+	_, err = snapstate.Disable(s.state, "consumer")
+	c.Assert(err, ErrorMatches, `snap "consumer" has "another change" change in progress`)
+}
+
+func (s *interfaceManagerSuite) TestSnapstateOpConflictWithConnect(c *C) {
+	s.testChangeConflict(c, "connect")
+}
+
+func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
+	s.testChangeConflict(c, "disconnect")
 }

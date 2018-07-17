@@ -44,6 +44,8 @@ func (r *Retry) Error() string {
 	return "task should be retried"
 }
 
+type blockedFunc func(t *Task, running []*Task) bool
+
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
 	state *State
@@ -55,7 +57,7 @@ type TaskRunner struct {
 	cleanups map[string]HandlerFunc
 	stopped  bool
 
-	blocked     func(t *Task, running []*Task) bool
+	blocked     []blockedFunc
 	someBlocked bool
 
 	// go-routines lifecycle
@@ -143,7 +145,15 @@ func (r *TaskRunner) SetBlocked(pred func(t *Task, running []*Task) bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.blocked = pred
+	r.blocked = []blockedFunc{pred}
+}
+
+// AddBlocked adds a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation. All added predicates are considered in turn until one returns true, or none.
+func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.blocked = append(r.blocked, pred)
 }
 
 // run must be called with the state lock in place
@@ -316,13 +326,13 @@ func (r *TaskRunner) tryUndo(t *Task) {
 // Ensure starts new goroutines for all known tasks with no pending
 // dependencies.
 // Note that Ensure will lock the state.
-func (r *TaskRunner) Ensure() {
+func (r *TaskRunner) Ensure() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.stopped {
 		// we are stopping, don't run another ensure
-		return
+		return nil
 	}
 
 	// Locks must be acquired in the same order everywhere.
@@ -340,6 +350,7 @@ func (r *TaskRunner) Ensure() {
 
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
+ConsiderTasks:
 	for _, t := range r.state.Tasks() {
 		handlers := r.handlerPair(t)
 		if handlers.do == nil {
@@ -395,9 +406,13 @@ func (r *TaskRunner) Ensure() {
 			continue
 		}
 
-		if r.blocked != nil && r.blocked(t, running) {
-			r.someBlocked = true
-			continue
+		// check if any of the blocked predicates returns true
+		// and skip the task if so
+		for _, blocked := range r.blocked {
+			if blocked(t, running) {
+				r.someBlocked = true
+				continue ConsiderTasks
+			}
 		}
 
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
@@ -410,6 +425,8 @@ func (r *TaskRunner) Ensure() {
 	if !nextTaskTime.IsZero() {
 		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
 	}
+
+	return nil
 }
 
 // mustWait returns whether task t must wait for other tasks to be done.
