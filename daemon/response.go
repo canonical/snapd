@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -146,6 +147,8 @@ const (
 	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
 	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
 	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
+
+	errorKindSnapChangeConflict = errorKind("snap-change-conflict")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
@@ -414,6 +417,28 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 			Value:   value,
 		},
 		Status: 404,
+	}
+}
+
+// SnapChangeConflict is an error responder used when an operation is
+// conflicts with another change.
+func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
+	value := map[string]interface{}{}
+	if cce.Snap != "" {
+		value["snap-name"] = cce.Snap
+	}
+	if cce.ChangeKind != "" {
+		value["change-kind"] = cce.ChangeKind
+	}
+
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: cce.Error(),
+			Kind:    errorKindSnapChangeConflict,
+			Value:   value,
+		},
+		Status: 409,
 	}
 }
 

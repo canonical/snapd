@@ -57,6 +57,10 @@ func (data customData) get(key string, value interface{}) error {
 	return nil
 }
 
+func (data customData) has(key string) bool {
+	return data[key] != nil
+}
+
 func (data customData) set(key string, value interface{}) {
 	if value == nil {
 		delete(data, key)

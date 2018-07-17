@@ -50,3 +50,4 @@ execute: |
     cat $ENVDUMP | MATCH "^TEST_COMMON=/var/snap/basic-hooks/common$"
     cat $ENVDUMP | MATCH "^TEST_DATA=/var/snap/basic-hooks/.*$"
     cat $ENVDUMP | MATCH "^TEST_SNAP=/snap/basic-hooks/.*$"
+    cat $ENVDUMP | MATCH "^TEST_EXTRA=extra-stuff$"
