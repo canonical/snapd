@@ -73,6 +73,11 @@ var statePatch7JSON = []byte(`
 		"gnome-calculator:network core:network": {
 		  "auto": true,
 		  "interface": "network"
+		},
+                "other-snap:icon-themes gtk-common-themes:icon-themes": {
+		  "auto": true,
+		  "interface": "content",
+                  "undesired":true
 		}
 	    }
 	},
@@ -166,6 +171,19 @@ apps:
     command: bar
 `
 
+var mockSnap4Yaml = `
+name: other-snap
+version: 1.1
+plugs:
+  icon-themes:
+    default-provider: gtk-common-themes
+    interface: content
+    target: $SNAP/data-dir/icons
+apps:
+  foo:
+    command: bar
+`
+
 func (s *patch7Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
@@ -179,6 +197,7 @@ func (s *patch7Suite) SetUpTest(c *C) {
 	snaptest.MockSnapCurrent(c, mockSnap1Yaml, &snap.SideInfo{Revision: snap.R("x1")})
 	snaptest.MockSnapCurrent(c, mockSnap2Yaml, &snap.SideInfo{Revision: snap.R("x1")})
 	snaptest.MockSnapCurrent(c, mockSnap3Yaml, &snap.SideInfo{Revision: snap.R("x1")})
+	snaptest.MockSnapCurrent(c, mockSnap4Yaml, &snap.SideInfo{Revision: snap.R("x1")})
 }
 
 func (s *patch7Suite) TestPatch7(c *C) {
@@ -228,6 +247,11 @@ func (s *patch7Suite) TestPatch7(c *C) {
 		"gnome-calculator:network core:network": map[string]interface{}{
 			"auto":      true,
 			"interface": "network",
+		},
+		"other-snap:icon-themes gtk-common-themes:icon-themes": map[string]interface{}{
+			"undesired": true,
+			"auto":      true,
+			"interface": "content",
 		},
 	})
 
