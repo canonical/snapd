@@ -23,9 +23,14 @@ def main() -> None:
     # Keep track of the need to keep waiting for signals
     loop = True
 
-    # When one of the signals given below arrives log a message and stop the loop.
+    # Keep track of the signal that killed us so that we don't attempt IO from
+    # the signal handler.
+    incoming_signum = None
+
+    # When one of the signals given below arrives, record this fact and stop the loop.
     def on_signal(signum: int, tb: types.FrameType) -> None:
-        print("got {}".format(signal.Signals(signum).name.lower()))
+        nonlocal incoming_signum
+        incoming_signum = signum
         nonlocal loop
         loop = False
 
@@ -42,6 +47,8 @@ def main() -> None:
     while loop:
         print("running {} process".format(sys.argv[1] if len(sys.argv) > 1 else "???"))
         time.sleep(1)
+        if incoming_signum is not None:
+            print("got {}".format(signal.Signals(incoming_signum).name.lower()))
 
 
 if __name__ == "__main__":
