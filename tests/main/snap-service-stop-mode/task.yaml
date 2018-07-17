@@ -64,3 +64,4 @@ restore: |
     rm -f *.pid || true
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
+    killall sleep || true
