@@ -277,7 +277,7 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 		}
 	}
 
-	// Rewind the iterator and handle the part that needs to be crated.
+	// Rewind the iterator and handle the part that needs to be created.
 	iter.Rewind()
 	for iter.Next() {
 		if iter.Depth() >= assumedPrefixDepth {
