@@ -41,9 +41,9 @@ mksnap_fast() {
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         # trusty does not support  -Xcompression-level 1
-        mksquashfs "$dir" "$snap" -comp gzip -no-fragments
+        mksquashfs "$dir" "$snap" -comp gzip -no-fragments -no-progress
     else
-        mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1 -no-fragments
+        mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1 -no-fragments -no-progress
     fi
 }
 

@@ -4,3 +4,8 @@ environment:
   TEST_SNAP: $SNAP
   TEST_COMMON: $SNAP_COMMON
   TEST_DATA: $SNAP_DATA
+
+hooks:
+  configure:
+    environment:
+      TEST_EXTRA: extra-stuff

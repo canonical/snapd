@@ -101,7 +101,7 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 				}
 				if (plugRef.Snap == plugSnap || plugRef.Snap == slotSnap) &&
 					(slotRef.Snap == plugSnap || slotRef.Snap == slotSnap) {
-					return snapstate.ChangeConflictError(plugRef.Snap, task.Change().Kind())
+					return &snapstate.ChangeConflictError{Snap: plugRef.Snap, ChangeKind: task.Change().Kind()}
 				}
 			}
 		}
@@ -137,7 +137,7 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 				return &state.Retry{After: connectRetryTimeout}
 			}
 			// for connect it's a conflict
-			return snapstate.ChangeConflictError(otherSnapName, task.Change().Kind())
+			return &snapstate.ChangeConflictError{Snap: otherSnapName, ChangeKind: task.Change().Kind()}
 		}
 	}
 	return nil
@@ -146,8 +146,7 @@ func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSna
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	const auto = false
-	if err := checkConnectConflicts(st, "", plugSnap, slotSnap, auto); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
 		return nil, err
 	}
 
@@ -302,11 +301,7 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
-
-	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
-		return nil, err
-	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
 		return nil, err
 	}
 	if err := checkConnectConflicts(st, "", plugSnap, slotSnap, false); err != nil {
@@ -436,10 +431,15 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 var once sync.Once
 
 func delayedCrossMgrInit() {
-	// hook interface checks into snapstate installation logic
 	once.Do(func() {
+		// hook interface checks into snapstate installation logic
+
 		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
 			return CheckInterfaces(st, snapInfo)
 		})
+
+		// hook into conflict checks mechanisms
+		snapstate.AddAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
+		snapstate.AddAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
 	})
 }

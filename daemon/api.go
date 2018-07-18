@@ -1242,6 +1242,8 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
 			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
 			snapName = err.Snap
@@ -1737,6 +1739,7 @@ func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.Us
 }
 
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+	// Collect query options from request arguments.
 	q := r.URL.Query()
 	pselect := q.Get("select")
 	if pselect != "all" && pselect != "connected" {
@@ -1747,7 +1750,6 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	if namesStr != "" {
 		names = strings.Split(namesStr, ",")
 	}
-
 	opts := &interfaces.InfoOptions{
 		Names:     names,
 		Doc:       q.Get("doc") == "true",
@@ -1755,15 +1757,45 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		Slots:     q.Get("slots") == "true",
 		Connected: pselect == "connected",
 	}
-	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Info(opts), nil)
+	// Query the interface repository (this returns []*interface.Info).
+	infos := c.d.overlord.InterfaceManager().Repository().Info(opts)
+	infoJSONs := make([]*interfaceJSON, 0, len(infos))
+	for _, info := range infos {
+		// Convert interfaces.Info into interfaceJSON
+		plugs := make([]*plugJSON, 0, len(info.Plugs))
+		for _, plug := range info.Plugs {
+			plugs = append(plugs, &plugJSON{
+				Snap:  plug.Snap.InstanceName(),
+				Name:  plug.Name,
+				Attrs: plug.Attrs,
+				Label: plug.Label,
+			})
+		}
+		slots := make([]*slotJSON, 0, len(info.Slots))
+		for _, slot := range info.Slots {
+			slots = append(slots, &slotJSON{
+				Snap:  slot.Snap.InstanceName(),
+				Name:  slot.Name,
+				Attrs: slot.Attrs,
+				Label: slot.Label,
+			})
+		}
+		infoJSONs = append(infoJSONs, &interfaceJSON{
+			Name:    info.Name,
+			Summary: info.Summary,
+			DocURL:  info.DocURL,
+			Plugs:   plugs,
+			Slots:   slots,
+		})
+	}
+	return SyncResponse(infoJSONs, nil)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 
-	var ifjson interfacesJSON
+	var ifjson interfaceJSON
 
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
@@ -1780,7 +1812,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
-		pj := plugJSON{
+		pj := &plugJSON{
 			Snap:        plug.Snap.InstanceName(),
 			Name:        plug.Name,
 			Interface:   plug.Interface,
@@ -1797,7 +1829,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 			apps = append(apps, app.Name)
 		}
 
-		sj := slotJSON{
+		sj := &slotJSON{
 			Snap:        slot.Snap.InstanceName(),
 			Name:        slot.Name,
 			Interface:   slot.Interface,
@@ -1810,41 +1842,6 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	}
 
 	return SyncResponse(ifjson, nil)
-}
-
-// plugJSON aids in marshaling Plug into JSON.
-type plugJSON struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []interfaces.SlotRef   `json:"connections,omitempty"`
-}
-
-// slotJSON aids in marshaling Slot into JSON.
-type slotJSON struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"slot"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
-}
-
-// interfacesJSON aids in marshaling plugs, slots and their connections into JSON.
-type interfacesJSON struct {
-	Plugs []plugJSON `json:"plugs,omitempty"`
-	Slots []slotJSON `json:"slots,omitempty"`
-}
-
-// interfaceAction is an action performed on the interface system.
-type interfaceAction struct {
-	Action string     `json:"action"`
-	Plugs  []plugJSON `json:"plugs,omitempty"`
-	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
