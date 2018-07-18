@@ -523,7 +523,7 @@ apps:
 	})
 }
 
-func (s *infoSuite) TestHookTakesGlobalEnv(c *C) {
+func (s *infoSuite) TestHookEnvSimple(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app
@@ -531,6 +531,8 @@ environment:
  global-k: global-v
 hooks:
  foo:
+  environment:
+   app-k: app-v
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
@@ -538,6 +540,32 @@ hooks:
 	env := info.Hooks["foo"].Env()
 	sort.Strings(env)
 	c.Check(env, DeepEquals, []string{
+		"app-k=app-v",
+		"global-k=global-v",
+	})
+}
+
+func (s *infoSuite) TestHookEnvOverrideGlobal(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+ global-and-local: global-v
+hooks:
+ foo:
+  environment:
+   app-k: app-v
+   global-and-local: local-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Hooks["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"app-k=app-v",
+		"global-and-local=local-v",
 		"global-k=global-v",
 	})
 }

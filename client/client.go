@@ -392,6 +392,8 @@ const (
 	ErrorKindChannelNotAvailable      = "snap-channel-not-available"
 	ErrorKindArchitectureNotAvailable = "snap-architecture-not-available"
 
+	ErrorKindChangeConflict = "snap-change-conflict"
+
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout      = "network-timeout"
