@@ -1,0 +1,49 @@
+summary: Ensure that the daemon-notify interface works.
+
+details: |
+    The daemon-notify interface allows sending notification messages 
+    to systemd through the notify socket
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-daemon-notify
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i daemon-notify | MATCH "\- +test-snapd-daemon-notify:daemon-notify"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-daemon-notify:daemon-notify
+
+    echo "Then after we restart the servive there is not denials"
+    denials_before="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+    snap stop test-snapd-daemon-notify.notify
+    for _ in $(seq 10); do
+        if snap start test-snapd-daemon-notify.notify; then
+            break
+        fi
+        sleep 1
+    done
+    denials_after="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+
+    [ "$denials_before" -eq "$denials_after" ]
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-daemon-notify:daemon-notify
+
+    echo "Then the snap is not able to sending notification messages"
+    denials_before="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+    snap stop test-snapd-daemon-notify.notify
+    for _ in $(seq 10); do
+        if snap start test-snapd-daemon-notify.notify; then
+            break
+        fi
+        sleep 1
+    done
+    denials_after="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+
+    [ "$denials_before" -ne "$denials_after" ]
