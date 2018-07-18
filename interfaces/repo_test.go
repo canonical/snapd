@@ -1355,6 +1355,22 @@ func (s *RepositorySuite) TestConnections(c *C) {
 	c.Assert(conns, HasLen, 0)
 }
 
+func (s *RepositorySuite) TestHasConnection(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	connRef := NewConnRef(s.plug, s.slot)
+	_, err := s.testRepo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.testRepo.HasConnection(connRef), Equals, true)
+
+	connRef = &ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: SlotRef{Snap: "goo", Name: "bar"}}
+	c.Assert(s.testRepo.HasConnection(connRef), Equals, false)
+
+	connRef = &ConnRef{PlugRef: PlugRef{Snap: "foo", Name: "bar"}, SlotRef: SlotRef{Snap: "producer", Name: "slot"}}
+	c.Assert(s.testRepo.HasConnection(connRef), Equals, false)
+}
+
 // Tests for Repository.DisconnectAll()
 
 func (s *RepositorySuite) TestDisconnectAll(c *C) {
