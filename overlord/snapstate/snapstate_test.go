@@ -7356,6 +7356,43 @@ func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
+func (snapStateSuite) TestDefaultContentPlugProviders(c *C) {
+	info := &snap.Info{
+		Plugs: map[string]*snap.PlugInfo{},
+	}
+
+	info.Plugs["foo"] = &snap.PlugInfo{
+		Snap:      info,
+		Name:      "sound-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "foo"},
+	}
+	info.Plugs["bar"] = &snap.PlugInfo{
+		Snap:      info,
+		Name:      "visual-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "bar"},
+	}
+	info.Plugs["baz"] = &snap.PlugInfo{
+		Snap:      info,
+		Name:      "not-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"default-provider": "some-snap", "content": "baz"},
+	}
+	info.Plugs["qux"] = &snap.PlugInfo{Snap: info, Interface: "not-content"}
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(st, repo)
+
+	providers := snapstate.DefaultContentPlugProviders(st, info)
+	sort.Strings(providers)
+	c.Check(providers, DeepEquals, []string{"common-themes", "some-snap"})
+}
+
 type snapSetupSuite struct{}
 
 var _ = Suite(&snapSetupSuite{})
