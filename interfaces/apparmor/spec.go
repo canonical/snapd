@@ -280,39 +280,40 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 	// Rewind the iterator and handle the part that needs to be created.
 	iter.Rewind()
 	for iter.Next() {
-		if iter.Depth() >= assumedPrefixDepth {
-			// Assume that the mimic needs to be created at the given prefix
-			// of the full mimic path. This is called a mimic "variant". Both
-			// of the paths must end with a slash as this is important for
-			// apparmor file vs directory path semantics.
-			mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
-			mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
-			// Describe the variant
-			fmt.Fprintf(buf, "  # .. variant with mimic at %s\n", mimicPath)
-			// Allow creating the mimic directory.
-			fmt.Fprintf(buf, "  %s rw,\n", mimicPath)
-			// Allow setting the read-only directory aside via a bind mount.
-			fmt.Fprintf(buf, "  %s rw,\n", mimicAuxPath)
-			fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
-			// Allow mounting tmpfs over the read-only directory.
-			fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
-			// Allow creating empty files and directories for bind mounting things to
-			// reconstruct the now-writable parent directory.
-			fmt.Fprintf(buf, "  %s*/ rw,\n", mimicAuxPath)
-			fmt.Fprintf(buf, "  %s*/ rw,\n", mimicPath)
-			fmt.Fprintf(buf, "  mount options=(rbind, rw) %s*/ -> %s*/,\n", mimicAuxPath, mimicPath)
-			fmt.Fprintf(buf, "  %s* rw,\n", mimicAuxPath)
-			fmt.Fprintf(buf, "  %s* rw,\n", mimicPath)
-			fmt.Fprintf(buf, "  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
-			// Allow unmounting the auxiliary directory.
-			// TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-			fmt.Fprintf(buf, "  umount %s,\n", mimicAuxPath)
-			// Allow unmounting the destination directory as well as anything inside.
-			// This lets us perform the undo plan in case the writable mimic fails.
-			fmt.Fprintf(buf, "  umount %s,\n", mimicPath)
-			fmt.Fprintf(buf, "  umount %s*,\n", mimicPath)
-			fmt.Fprintf(buf, "  umount %s*/,\n", mimicPath)
+		if iter.Depth() < assumedPrefixDepth {
+			continue
 		}
+		// Assume that the mimic needs to be created at the given prefix of
+		// the full mimic path. This is called a mimic "variant". Both of the
+		// paths must end with a slash as this is important for apparmor file
+		// vs directory path semantics.
+		mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
+		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
+		// Describe the variant
+		fmt.Fprintf(buf, "  # .. variant with mimic at %s\n", mimicPath)
+		// Allow creating the mimic directory.
+		fmt.Fprintf(buf, "  %s rw,\n", mimicPath)
+		// Allow setting the read-only directory aside via a bind mount.
+		fmt.Fprintf(buf, "  %s rw,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
+		// Allow mounting tmpfs over the read-only directory.
+		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
+		// Allow creating empty files and directories for bind mounting things to
+		// reconstruct the now-writable parent directory.
+		fmt.Fprintf(buf, "  %s*/ rw,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  %s*/ rw,\n", mimicPath)
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s*/ -> %s*/,\n", mimicAuxPath, mimicPath)
+		fmt.Fprintf(buf, "  %s* rw,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  %s* rw,\n", mimicPath)
+		fmt.Fprintf(buf, "  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
+		// Allow unmounting the auxiliary directory.
+		// TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+		fmt.Fprintf(buf, "  umount %s,\n", mimicAuxPath)
+		// Allow unmounting the destination directory as well as anything inside.
+		// This lets us perform the undo plan in case the writable mimic fails.
+		fmt.Fprintf(buf, "  umount %s,\n", mimicPath)
+		fmt.Fprintf(buf, "  umount %s*,\n", mimicPath)
+		fmt.Fprintf(buf, "  umount %s*/,\n", mimicPath)
 	}
 }
 
