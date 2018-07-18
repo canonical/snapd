@@ -23,12 +23,14 @@ execute: |
     snap connect home-consumer:home
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    echo "Connecting already connected interface reports an error"
-    if OUTPUT=$(snap connect home-consumer:home system:home 2>&1); then
-        echo "Expected connect to fail"
+    echo "Connecting already connected interface does nothing"
+    snap connect home-consumer:home system:home
+
+    OUTPUT=$(snap change --last=connect)
+    if [ ! $(echo "$OUTPUT" | wc -l) -eq 1 ]; then
+        echo "Expected no tasks, got: $OUTPUT"
         exit 1
     fi
-    echo "$OUTPUT" | MATCH "error: nothing to do"
 
     snap disconnect home-consumer:home
     snap tasks --last=disconnect| MATCH "Disconnect .* from (core|snapd):home"
