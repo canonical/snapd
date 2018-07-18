@@ -293,6 +293,37 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
+func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
+	kch, err := snap.ParseChannel(kernelTrack, "")
+	if err != nil {
+		return "", fmt.Errorf("cannot use kernel-track %q: %v", kernelTrack, err)
+	}
+	if defaultChannel != "" {
+		dch, err := snap.ParseChannel(defaultChannel, "")
+		if err != nil {
+			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
+		}
+		kch.Risk = dch.Risk
+	}
+	return kch.Clean().String(), nil
+}
+
+func amendKernelTrack(model *asserts.Model, defaultChannel string, local *localInfos) error {
+	if model.Kernel() == "" || model.KernelTrack() == "" {
+		return nil
+	}
+	info := local.Info(model.Kernel())
+	if info == nil {
+		return nil
+	}
+	ch, err := makeKernelChannel(model.KernelTrack(), defaultChannel)
+	if err != nil {
+		return err
+	}
+	info.Channel = ch
+	return nil
+}
+
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -323,6 +354,11 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
 		}
+	}
+
+	// ensure kernel-track is honored
+	if err := amendKernelTrack(model, opts.Channel, local); err != nil {
+		return err
 	}
 
 	// put snaps in place
@@ -378,6 +414,15 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
 		} else {
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+		}
+
+		dlOpts.Channel = opts.Channel
+		if snapName == model.Kernel() && model.KernelTrack() != "" {
+			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			dlOpts.Channel = kch
 		}
 
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)

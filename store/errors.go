@@ -73,6 +73,9 @@ type RevisionNotAvailableError struct {
 }
 
 func (e *RevisionNotAvailableError) Error() string {
+	if e.Channel != "" {
+		return fmt.Sprintf("no snap revision available in %q", e.Channel)
+	}
 	return "no snap revision available as specified"
 }
 
