@@ -281,8 +281,10 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 	iter.Rewind()
 	for iter.Next() {
 		if iter.Depth() >= assumedPrefixDepth {
-			// Assume that the mimic needs to be created at the given prefix of the full mimic path.
-			// This is called a mimic "variant".
+			// Assume that the mimic needs to be created at the given prefix
+			// of the full mimic path. This is called a mimic "variant". Both
+			// of the paths must end with a slash as this is important for
+			// apparmor file vs directory path semantics.
 			mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
 			mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
 			// Describe the variant
