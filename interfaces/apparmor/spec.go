@@ -305,7 +305,7 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 			fmt.Fprintf(buf, "  %s* rw,\n", mimicPath)
 			fmt.Fprintf(buf, "  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
 			// Allow unmounting the auxiliary directory.
-			// TODO: use fstype=tmpfs here for more strictness
+			// TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
 			fmt.Fprintf(buf, "  umount %s,\n", mimicAuxPath)
 			// Allow unmounting the destination directory as well as anything inside.
 			// This lets us perform the undo plan in case the writable mimic fails.
