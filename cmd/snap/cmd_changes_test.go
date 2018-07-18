@@ -155,6 +155,39 @@ Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 	c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
 }
 
+func (s *SnapSuite) TestTasksLastQuestionmark(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "GET")
+		c.Assert(r.URL.Path, check.Equals, "/v2/changes")
+		switch n {
+		case 0, 1:
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
+		case 2, 3:
+			fmt.Fprintln(w, mockChangesJSON)
+		default:
+			c.Errorf("expected 4 calls, now on %d", n)
+		}
+		n++
+	})
+	for i := 0; i < 2; i++ {
+		rest, err := snap.Parser().ParseArgs([]string{"tasks", "--last=foobar?"})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{})
+		c.Check(s.Stdout(), check.Matches, "")
+		c.Check(s.Stderr(), check.Equals, "")
+
+		_, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
+		if i == 0 {
+			c.Assert(err, check.ErrorMatches, `no changes found`)
+		} else {
+			c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
+		}
+	}
+
+	c.Check(n, check.Equals, 4)
+}
+
 func (s *SnapSuite) TestTasksSyntaxError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=install", "42"})
 	c.Assert(err, check.NotNil)
