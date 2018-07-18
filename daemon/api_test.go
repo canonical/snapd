@@ -3960,20 +3960,18 @@ func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "nothing to do",
-			"kind":    "interfaces-unchanged",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	c.Assert(chg.Tasks(), check.HasLen, 0)
+	c.Assert(chg.Status(), check.Equals, state.DoneStatus)
+	st.Unlock()
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {

@@ -17,6 +17,7 @@ execute: |
     DISCONNECTED_PATTERN="\-\s+home-consumer:home"
 
     echo "Disconnect everything from given slot"
+    snap connect home-consumer:home core:home
     snap disconnect core:home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
