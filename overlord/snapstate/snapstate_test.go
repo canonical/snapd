@@ -1135,7 +1135,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 		},
 		Channel: "18/stable",
 		Current: snap.R(11),
-		Active:  false,
+		Active:  true,
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "new-channel")
@@ -1153,7 +1153,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 		},
 		Channel: "18/stable",
 		Current: snap.R(11),
-		Active:  false,
+		Active:  true,
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "18/beta")
@@ -9992,6 +9992,36 @@ layout:
 
 	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
 	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitch(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// snapd cannot be installed unless the model uses a base snap
+	snapstate.MockModelWithKernelTrack("18")
+	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "kernel", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	someSnap := makeTestSnap(c, `name: kernel
+version: 1.0`)
+	si := &snap.SideInfo{
+		RealName: "kernel",
+		SnapID:   "kernel-id",
+		Revision: snap.R(42),
+		Channel:  "some-channel",
+	}
+	_, err := snapstate.InstallPath(s.state, si, someSnap, "some-channel", snapstate.Flags{Required: true})
+	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "some-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {

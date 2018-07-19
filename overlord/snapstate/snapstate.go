@@ -498,6 +498,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
+	if err := canSwitchChannel(st, name, channel); err != nil {
+		return nil, err
+	}
+
 	var instFlags int
 	if flags.SkipConfigure {
 		// extract it as a doInstall flag, this is not passed
@@ -722,9 +726,6 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			}
 			return nil, nil, err
 		}
-		if err := canSwitch(st, update.SnapName(), channel); err != nil {
-			return nil, nil, err
-		}
 
 		snapUserID, err := userIDForSnap(st, snapst, userID)
 		if err != nil {
@@ -933,9 +934,9 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
-// canSwitch returns an error if switching to newChannel for snap is
+// canSwitchChannel returns an error if switching to newChannel for snap is
 // forbidden.
-func canSwitch(st *state.State, snapName, newChannel string) error {
+func canSwitchChannel(st *state.State, snapName, newChannel string) error {
 	// nothing to do
 	if newChannel == "" {
 		return nil
@@ -982,7 +983,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	if err := canSwitch(st, name, channel); err != nil {
+	if err := canSwitchChannel(st, name, channel); err != nil {
 		return nil, err
 	}
 
@@ -1013,6 +1014,10 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	//        until we know what we want to do
 	if !snapst.Active {
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
+	if err := canSwitchChannel(st, name, channel); err != nil {
+		return nil, err
 	}
 
 	if channel == "" {
