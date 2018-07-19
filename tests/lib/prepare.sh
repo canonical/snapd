@@ -497,6 +497,8 @@ WantedBy=multi-user.target
 EOF
         ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
         
+        declare -f MATCH
+
         # create /var/lib/extrausers/$f
         # append ubuntu, test user for the testing
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"

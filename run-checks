@@ -249,7 +249,7 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread google: linode:
+    spread google:ubuntu-core-18-64:tests/core18/
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
