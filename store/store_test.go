@@ -6043,9 +6043,9 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 		"bar": fmt.Errorf("sad refresh 2"),
 	}}
 	errMsg := e.Error()
-	c.Check(strings.HasPrefix(errMsg, "cannot refresh:\n"), Equals, true)
-	c.Check(errMsg, testutil.Contains, "\nsnap \"foo\": sad refresh 1")
-	c.Check(errMsg, testutil.Contains, "\nsnap \"bar\": sad refresh 2")
+	c.Check(strings.HasPrefix(errMsg, "cannot refresh:"), Equals, true)
+	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
+	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
 
 	e = &SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install"),
@@ -6058,8 +6058,8 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	}}
 	errMsg = e.Error()
 	c.Check(strings.HasPrefix(errMsg, "cannot install:\n"), Equals, true)
-	c.Check(errMsg, testutil.Contains, "\nsnap \"foo\": sad install 1")
-	c.Check(errMsg, testutil.Contains, "\nsnap \"bar\": sad install 2")
+	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
+	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
 
 	e = &SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download"),
@@ -6072,8 +6072,8 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	}}
 	errMsg = e.Error()
 	c.Check(strings.HasPrefix(errMsg, "cannot download:\n"), Equals, true)
-	c.Check(errMsg, testutil.Contains, "\nsnap \"foo\": sad download 1")
-	c.Check(errMsg, testutil.Contains, "\nsnap \"bar\": sad download 2")
+	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
+	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
 
 	e = &SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6082,8 +6082,8 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 			"bar": fmt.Errorf("sad install 2"),
 		}}
 	c.Check(e.Error(), Equals, `cannot refresh or install:
-snap "foo": sad refresh 1
-snap "bar": sad install 2`)
+sad refresh 1: "foo"
+sad install 2: "bar"`)
 
 	e = &SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6092,8 +6092,8 @@ snap "bar": sad install 2`)
 			"bar": fmt.Errorf("sad download 2"),
 		}}
 	c.Check(e.Error(), Equals, `cannot refresh or download:
-snap "foo": sad refresh 1
-snap "bar": sad download 2`)
+sad refresh 1: "foo"
+sad download 2: "bar"`)
 
 	e = &SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
@@ -6102,8 +6102,8 @@ snap "bar": sad download 2`)
 			"bar": fmt.Errorf("sad download 2"),
 		}}
 	c.Check(e.Error(), Equals, `cannot install or download:
-snap "foo": sad install 1
-snap "bar": sad download 2`)
+sad install 1: "foo"
+sad download 2: "bar"`)
 
 	e = &SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6115,9 +6115,9 @@ snap "bar": sad download 2`)
 			"baz": fmt.Errorf("sad download 3"),
 		}}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
-snap "foo": sad refresh 1
-snap "bar": sad install 2
-snap "baz": sad download 3`)
+sad refresh 1: "foo"
+sad install 2: "bar"
+sad download 3: "baz"`)
 
 	e = &SnapActionError{
 		NoResults: true,
@@ -6129,8 +6129,8 @@ snap "baz": sad download 3`)
 		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
-* other error 1
-* other error 2`)
+other error 1
+other error 2`)
 
 	e = &SnapActionError{
 		Install: map[string]error{
@@ -6139,9 +6139,9 @@ snap "baz": sad download 3`)
 		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
-snap "bar": sad install
-* other error 1
-* other error 2`)
+sad install: "bar"
+other error 1
+other error 2`)
 
 	e = &SnapActionError{
 		NoResults: true,

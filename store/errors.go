@@ -23,9 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -142,7 +144,13 @@ func (e SnapActionError) Error() string {
 	nOther := len(e.Other)
 
 	// single error
-	if nRefresh+nInstall+nDownload+nOther == 1 {
+	switch nRefresh + nInstall + nDownload + nOther {
+	case 0:
+		if e.NoResults {
+			// this is an atypical result
+			return "no install/refresh information results from the store"
+		}
+	case 1:
 		if nOther == 0 {
 			var op string
 			var errs map[string]error
@@ -183,28 +191,38 @@ func (e SnapActionError) Error() string {
 			header = "cannot install or download:"
 		}
 	}
-	es := []string{header}
 
-	for name, e := range e.Refresh {
-		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	// reverse the maps, as the common case is that they're all the same
+	reversed := map[string][]string{}
+	revkeys := []string{} // poorman's ordered map
+
+	for _, m := range []map[string]error{e.Refresh, e.Install, e.Download} {
+		for name, err := range m {
+			k := err.Error()
+			v, ok := reversed[k]
+			if !ok {
+				revkeys = append(revkeys, k)
+			}
+			reversed[k] = append(v, name)
+		}
 	}
 
-	for name, e := range e.Install {
-		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
-	}
-
-	for name, e := range e.Download {
-		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	es := make([]string, 1, 1+len(reversed)+nOther)
+	es[0] = header
+	for _, k := range revkeys {
+		sort.Strings(reversed[k])
+		es = append(es, fmt.Sprintf("%s: %s", k, strutil.Quoted(reversed[k])))
 	}
 
 	for _, e := range e.Other {
-		es = append(es, fmt.Sprintf("* %v", e))
+		es = append(es, e.Error())
 	}
 
-	if e.NoResults && len(es) == 1 {
-		// this is an atypical result
-		return "no install/refresh information results from the store"
+	if len(es) == 2 {
+		// header + 1 reason
+		return strings.Join(es, " ")
 	}
+
 	return strings.Join(es, "\n")
 }
 
