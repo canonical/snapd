@@ -43,6 +43,8 @@ slots:
   unity8-calendar: null
   unity8-contacts: null
   upower-observe: null
+  wayland: null
+  x11: null
 
 apps:
   avahi-control:
@@ -129,3 +131,9 @@ apps:
   upower-observe:
     command: bin/run
     slots: [ upower-observe ]
+  wayland:
+    command: bin/run
+    slots: [ wayland ]
+  x11:
+    command: bin/run
+    slots: [ x11 ]
