@@ -1206,16 +1206,6 @@ func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
 	}
 }
 
-func (s *infoSuite) TestNickname(c *C) {
-	c.Check(snap.UseNick("core"), Equals, "system")
-	c.Check(snap.UseNick("system"), Equals, "system")
-	c.Check(snap.UseNick("foo"), Equals, "foo")
-
-	c.Check(snap.DropNick("core"), Equals, "core")
-	c.Check(snap.DropNick("system"), Equals, "core")
-	c.Check(snap.DropNick("foo"), Equals, "foo")
-}
-
 func (s *infoSuite) TestSplitInstanceName(c *C) {
 	snapName, instanceKey := snap.SplitInstanceName("foo_bar")
 	c.Check(snapName, Equals, "foo")

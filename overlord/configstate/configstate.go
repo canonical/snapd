@@ -120,3 +120,19 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
 }
+
+// RemapSnapFromRequest renames a snap as received from an API request
+func RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
+// RemapSnapToResponse renames a snap as about to be sent from an API response
+func RemapSnapToResponse(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
+}
