@@ -443,6 +443,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			}
 		} else {
 			locals = append(locals, name)
+			// local snaps have no channel
+			snapChannel = ""
 		}
 
 		// kernel/os/model.base are required for booting
@@ -466,7 +468,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
-			Channel: dlOpts.Channel,
+			Channel: snapChannel,
 			File:    filepath.Base(fn),
 			DevMode: info.NeedsDevMode(),
 			Contact: info.Contact,

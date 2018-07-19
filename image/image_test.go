@@ -721,6 +721,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "beta",
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
@@ -734,25 +735,29 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 
 	c.Check(seed.Snaps, HasLen, 5)
 	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
-		Name:   "core",
-		SnapID: "core-Id",
-		File:   "core_3.snap",
+		Name:    "core",
+		SnapID:  "core-Id",
+		File:    "core_3.snap",
+		Channel: "beta",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
-		Name:   "pc-kernel",
-		SnapID: "pc-kernel-Id",
-		File:   "pc-kernel_2.snap",
+		Name:    "pc-kernel",
+		SnapID:  "pc-kernel-Id",
+		File:    "pc-kernel_2.snap",
+		Channel: "beta",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
-		Name:   "pc",
-		SnapID: "pc-Id",
-		File:   "pc_1.snap",
+		Name:    "pc",
+		SnapID:  "pc-Id",
+		File:    "pc_1.snap",
+		Channel: "beta",
 	})
 	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
 		Name:    "required-snap1",
 		SnapID:  "required-snap1-Id",
 		File:    "required-snap1_3.snap",
 		Contact: "foo@example.com",
+		Channel: "beta",
 	})
 	// ensure local snaps are put last in seed.yaml
 	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
@@ -760,6 +765,8 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		DevMode:    true,
 		Unasserted: true,
 		File:       "devmode-snap_x1.snap",
+		// no channel for unasserted snaps
+		Channel: "",
 	})
 
 	// check devmode-snap
