@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -38,6 +39,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+)
+
+// hook setup by devicestate
+var (
+	Model func(st *state.State) (*asserts.Model, error)
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -59,6 +65,9 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	}
 
 	ts := t.State().Task(id)
+	if ts == nil {
+		return nil, fmt.Errorf("internal error: tasks are being pruned")
+	}
 	if err := ts.Get("snap-setup", &snapsup); err != nil {
 		return nil, err
 	}
@@ -178,9 +187,14 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// core/ubuntu-core can not have prerequisites
-	snapName := snapsup.Name()
-	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+	// os/base/kernel/gadget cannot have prerequisites other
+	// than the models default base (or core) which is installed anyway
+	switch snapsup.Type {
+	case snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
+		return nil
+	}
+	// snapd is special and has no prereqs
+	if snapsup.Name() == "snapd" {
 		return nil
 	}
 
@@ -221,10 +235,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channe
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
-	if _, ok := err.(changeDuringInstallError); ok {
-		return nil, &state.Retry{After: prerequisitesRetryTimeout}
-	}
-	if _, ok := err.(changeConflictError); ok {
+	if _, ok := err.(*ChangeConflictError); ok {
 		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 	return ts, err
@@ -575,8 +586,13 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	snapst.Active = true
-	err = m.backend.LinkSnap(oldInfo)
+	err = m.backend.LinkSnap(oldInfo, model)
 	if err != nil {
 		return err
 	}
@@ -730,7 +746,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.SetType(newInfo.Type)
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
-	err = m.backend.LinkSnap(newInfo)
+	model, _ := Model(st)
+	err = m.backend.LinkSnap(newInfo, model)
 	if err != nil {
 		pb := NewTaskProgressAdapterLocked(t)
 		err := m.backend.UnlinkSnap(newInfo, pb)
@@ -801,17 +818,39 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// maybeRestart will schedule a reboot or restart as needed for the just linked
-// snap with info if it's a core or kernel snap.
+// maybeRestart will schedule a reboot or restart as needed for the
+// just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
-	if release.OnClassic && info.Type == snap.TypeOS {
-		t.Logf("Requested daemon restart.")
-		st.RequestRestart(state.RestartDaemon)
+
+	// TODO: once classic uses the snapd snap we need to restart
+	//       here too
+	if release.OnClassic {
+		if info.Type == snap.TypeOS {
+			t.Logf("Requested daemon restart.")
+			st.RequestRestart(state.RestartDaemon)
+		}
+		return
 	}
-	if !release.OnClassic && boot.KernelOrOsRebootRequired(info) {
+
+	// On a core system we may need a full reboot if
+	// core/base or the kernel changes.
+	if boot.ChangeRequiresReboot(info) {
 		t.Logf("Requested system restart.")
 		st.RequestRestart(state.RestartSystem)
+		return
+	}
+
+	// On core systems that use a base snap we need to restart
+	// snapd when the snapd snap changes.
+	model, err := Model(st)
+	if err != nil {
+		logger.Noticef("cannot get model assertion: %v", model)
+		return
+	}
+	if model.Base() != "" && info.InstanceName() == "snapd" {
+		t.Logf("Requested daemon restart (snapd snap).")
+		st.RequestRestart(state.RestartDaemon)
 	}
 }
 

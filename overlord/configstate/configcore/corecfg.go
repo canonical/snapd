@@ -36,6 +36,7 @@ var (
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
+	Changes() []string
 	State() *state.State
 }
 
@@ -50,20 +51,49 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
-func validateExperimentalSettings(tr Conf) error {
-	layoutsEnabled, err := coreCfg(tr, "experimental.layouts")
+// supportedConfigurations will be filled in by the files (like proxy.go)
+// that handle this configuration.
+var supportedConfigurations = map[string]bool{
+	"core.experimental.layouts":            true,
+	"core.experimental.parallel-instances": true,
+	"core.experimental.hotplug":            true,
+}
+
+func validateBoolFlag(tr Conf, flag string) error {
+	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
 	}
-	switch layoutsEnabled {
+	switch value {
 	case "", "true", "false":
-		return nil
+		// noop
 	default:
-		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
+		return fmt.Errorf("%s can only be set to 'true' or 'false'", flag)
 	}
+	return nil
+}
+
+func validateExperimentalSettings(tr Conf) error {
+	if err := validateBoolFlag(tr, "experimental.layouts"); err != nil {
+		return err
+	}
+	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
+		return err
+	}
+	if err := validateBoolFlag(tr, "experimental.hotplug"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func Run(tr Conf) error {
+	// check if the changes
+	for _, k := range tr.Changes() {
+		if !supportedConfigurations[k] {
+			return fmt.Errorf("cannot set %q: unsupported system option", k)
+		}
+	}
+
 	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
@@ -71,6 +101,12 @@ func Run(tr Conf) error {
 		return err
 	}
 	if err := validateExperimentalSettings(tr); err != nil {
+		return err
+	}
+	if err := validateWatchdogOptions(tr); err != nil {
+		return err
+	}
+	if err := validateNetworkSettings(tr); err != nil {
 		return err
 	}
 	// FIXME: ensure the user cannot set "core seed.loaded"
@@ -103,6 +139,14 @@ func Run(tr Conf) error {
 	}
 	// proxy.{http,https,ftp}
 	if err := handleProxyConfiguration(tr); err != nil {
+		return err
+	}
+	// watchdog.{runtime-timeout,shutdown-timeout}
+	if err := handleWatchdogConfiguration(tr); err != nil {
+		return err
+	}
+	// network.disable-ipv6
+	if err := handleNetworkConfiguration(tr); err != nil {
 		return err
 	}
 

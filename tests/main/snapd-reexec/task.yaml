@@ -1,7 +1,7 @@
 summary: Test that snapd reexecs itself into core
 
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
 
 restore: |
     . $TESTSLIB/dirs.sh
@@ -29,7 +29,10 @@ execute: |
     echo "Ensure we re-exec by default"
     /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
 
-    . $TESTSLIB/dirs.sh
+    # shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
 
     echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
@@ -38,7 +41,7 @@ execute: |
     mount --bind /tmp/old-info $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
     systemctl start snapd.service snapd.socket
     snap list
-    journalctl | MATCH "core snap \(at .*\) is older \(.*\) than distribution package"
+    check_journalctl_log "core snap \(at .*\) is older \(.*\) than distribution package"
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket

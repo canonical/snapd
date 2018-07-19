@@ -123,7 +123,7 @@ func Manager(s *state.State) (*HookManager, error) {
 		hijackMap:  make(map[hijackKey]hijackFunc),
 	}
 
-	runner.AddHandler("run-hook", manager.doRunHook, nil)
+	runner.AddHandler("run-hook", manager.doRunHook, manager.undoRunHook)
 	// Compatibility with snapd between 2.29 and 2.30 in edge only.
 	// We generated a configure-snapd task on core refreshes and
 	// for compatibility we need to handle those.
@@ -132,6 +132,8 @@ func Manager(s *state.State) (*HookManager, error) {
 	}, nil)
 
 	setupHooks(manager)
+
+	snapstate.AddAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
 
 	return manager, nil
 }
@@ -173,6 +175,22 @@ func (m *HookManager) RegisterHijack(hookName, snapName string, f hijackFunc) {
 	m.hijackMap[hijackKey{hookName, snapName}] = f
 }
 
+func (m *HookManager) hookAffectedSnaps(t *state.Task) ([]string, error) {
+	var hooksup HookSetup
+	if err := t.Get("hook-setup", &hooksup); err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain hook data from task: %s", t.Summary())
+
+	}
+
+	if m.hijacked(hooksup.Hook, hooksup.Snap) != nil {
+		// assume being these internal they should not
+		// generate conflicts
+		return nil, nil
+	}
+
+	return []string{hooksup.Snap}, nil
+}
+
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
 	var contexts map[string]string
 	m.state.Lock()
@@ -206,11 +224,11 @@ func (m *HookManager) Context(cookieID string) (*Context, error) {
 	return context, nil
 }
 
-func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
+func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, error) {
 	var hooksup HookSetup
-	err := task.Get("hook-setup", &hooksup)
+	err := task.Get(key, &hooksup)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)
+		return nil, nil, err
 	}
 
 	var snapst snapstate.SnapState
@@ -247,12 +265,35 @@ func (m *HookManager) GracefullyWaitRunningHooks() bool {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	hooksup, snapst, err := hookSetup(task)
+	hooksup, snapst, err := hookSetup(task, "hook-setup")
 	task.State().Unlock()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
+	return m.runHook(task, tomb, snapst, hooksup)
+}
+
+// undoRunHook runs the undo-hook that was requested.
+//
+// Note that this method is synchronous, as the task is already running in a
+// goroutine.
+func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
+	task.State().Lock()
+	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
+	task.State().Unlock()
+	if err != nil {
+		if err == state.ErrNoState {
+			// no undo hook setup
+			return nil
+		}
+		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
+	}
+
+	return m.runHook(task, tomb, snapst, hooksup)
+}
+
+func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 	if !mustHijack {
@@ -274,7 +315,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	if hookExists || mustHijack {
 		// we will run something, not a noop
-		if task.State().Restarting() {
+		if ok, _ := task.State().Restarting(); ok {
 			// don't start running a hook if we are restarting
 			return &state.Retry{}
 		}

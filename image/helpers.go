@@ -49,7 +49,7 @@ import (
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
-	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
 	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -221,15 +221,24 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 		targetDir = pwd
 	}
 
-	spec := store.SnapSpec{
+	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
+
+	actions := []*store.SnapAction{{
+		Action:   "download",
 		Name:     name,
-		Channel:  opts.Channel,
 		Revision: revision,
+	}}
+
+	if revision.Unset() {
+		actions[0].Channel = opts.Channel
 	}
-	snap, err := sto.SnapInfo(spec, tsto.user)
+
+	snaps, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
+		// err will be 'cannot download snap "foo": <reasons>'
+		return "", nil, err
 	}
+	snap := snaps[0]
 
 	baseName := filepath.Base(snap.MountFile())
 	targetFn = filepath.Join(targetDir, baseName)
@@ -241,6 +250,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 			logger.Debugf("not downloading, using existing file %s", targetFn)
 			return targetFn, snap, nil
 		}
+		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
 	pb := progress.MakeProgressBar()
@@ -296,7 +306,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 	}
 
 	// cross checks
-	if err := snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db); err != nil {
+	if err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, size, &info.SideInfo, db); err != nil {
 		return nil, err
 	}
 
@@ -305,7 +315,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 		"snap-id": info.SnapID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.Name(), err)
+		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.InstanceName(), err)
 	}
 	return a.(*asserts.SnapDeclaration), nil
 }

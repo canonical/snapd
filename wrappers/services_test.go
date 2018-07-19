@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -602,6 +603,45 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 		}
 	}
 
+}
+
+func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
+	var sysdLog [][]string
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return nil, nil
+	})
+	defer r()
+
+	snapYaml := packageHello + `
+ svc2:
+   daemon: forking
+   watchdog-timeout: 12s
+ svc3:
+   daemon: forking
+   watchdog-timeout: 0s
+ svc4:
+   daemon: forking
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(content), "\nWatchdogSec=12\n"), Equals, true)
+
+	noWatchdog := []string{
+		filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+		filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
+	}
+	for _, svcPath := range noWatchdog {
+		content, err := ioutil.ReadFile(svcPath)
+		c.Assert(err, IsNil)
+		c.Check(strings.Contains(string(content), "WatchdogSec="), Equals, false)
+	}
 }
 
 func (s *servicesTestSuite) TestStopServiceEndure(c *C) {

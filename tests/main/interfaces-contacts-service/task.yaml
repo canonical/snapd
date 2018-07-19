@@ -1,0 +1,93 @@
+summary: Ensure that the contacts-service interface works
+
+# Only test on classic systems.  Don't test on Ubuntu 14.04, which
+# does not ship a new enough evolution-data-server.
+systems:
+    - -ubuntu-core-*
+    - -ubuntu-14.04-*
+
+environment:
+    XDG: $(pwd)/xdg
+    XDG_CONFIG_HOME: $XDG/config
+    XDG_DATA_HOME: $XDG/share
+    XDG_CACHE_HOME: $XDG/cache
+
+restore: |
+    if [ -e dbus-launch.pid ]; then
+        kill "$(cat dbus-launch.pid)"
+        rm -f dbus-launch.pid
+    fi
+
+    # In case the process gvfsd-metadata does not finish by itself, it is manually stopped
+    # The reason is that gvfsd-metadata locks the xdg/share/gvfs-metadata directory content
+    # producing an error when the xdg directory is removed.
+    if pid="$(pidof gvfsd-metadata)"; then
+        kill -9 "$pid" || true
+    fi
+    rm -rf "$XDG"
+
+execute: |
+    if ! snap install --edge test-snapd-eds ; then
+        if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+            echo "The test-snapd-eds must be available on ubuntu-16.04-64"
+            exit 1
+        fi
+        echo "SKIP: test-snapd-eds not available"
+        exit 0
+    fi
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+
+    echo "Setting up D-Bus session bus"
+    eval "$(dbus-launch --sh-syntax)"
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+
+    echo "The interface is initially disconnected"
+    snap interfaces -i contacts-service | MATCH "\- +test-snapd-eds:contacts-service"
+    if [ "$(snap debug confinement)" = strict ]; then
+      ! test-snapd-eds.contacts list test-address-book
+    fi
+
+    echo "When the plug is connected, we can add contacts to address books"
+    snap connect test-snapd-eds:contacts-service
+    test-snapd-eds.contacts load test-address-book << EOF
+    BEGIN:VCARD
+    VERSION:3.0
+    FN:Fred Smith
+    N:Smith;Fred;;;
+    EMAIL;type=HOME:fred@example.org
+    END:VCARD
+    EOF
+
+    test-snapd-eds.contacts load test-address-book << EOF
+    BEGIN:VCARD
+    VERSION:3.0
+    FN:John Doe
+    N:Doe;John;;;
+    EMAIL;type=WORK:john@example.com
+    END:VCARD
+    EOF
+
+    echo "We can also retrieve those contacts"
+    # Filter out ID and revision, which are unpredictable
+    test-snapd-eds.contacts list test-address-book | sed -E 's/^(UID|REV):.*/\1:.../' > /tmp/contacts.vcf
+    diff -uw - /tmp/contacts.vcf << EOF
+    BEGIN:VCARD
+    VERSION:3.0
+    FN:John Doe
+    N:Doe;John;;;
+    EMAIL;type=WORK:john@example.com
+    UID:...
+    REV:...
+    END:VCARD
+    BEGIN:VCARD
+    VERSION:3.0
+    FN:Fred Smith
+    N:Smith;Fred;;;
+    EMAIL;type=HOME:fred@example.org
+    UID:...
+    REV:...
+    END:VCARD
+    EOF
+
+    echo "Finally, remove the address book we created"
+    test-snapd-eds.contacts remove test-address-book

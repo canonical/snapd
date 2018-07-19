@@ -88,7 +88,7 @@ func (iface *dummyInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *dummyInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dummyInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 

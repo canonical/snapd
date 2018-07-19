@@ -4,10 +4,11 @@ environment:
     REMOVE_HOOK_FILE: "$HOME/remove-hook-executed"
 
 restore: |
-    rm -f $REMOVE_HOOK_FILE
+    rm -f "$REMOVE_HOOK_FILE"
 
 execute: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local snap-hooks
 
     echo "Verify configuration value with snap get"
@@ -42,7 +43,7 @@ execute: |
     echo "Verify that remove hook is not executed when removing single revision"
     snap set snap-hooks exitcode=0
     snap remove --revision=x1 snap-hooks
-    if test -f $REMOVE_HOOK_FILE; then
+    if test -f "$REMOVE_HOOK_FILE"; then
         echo "Remove hook was executed. It shouldn't."
         exit 1
     fi
@@ -50,20 +51,20 @@ execute: |
     echo "Verify that remove hook is executed"
     snap set snap-hooks exitcode=0
     snap remove snap-hooks
-    if ! test -f $REMOVE_HOOK_FILE; then
+    if ! test -f "$REMOVE_HOOK_FILE"; then
         echo "Remove hook was not executed"
         exit 1
     fi
 
     echo "Installing a snap with hooks again"
-    rm -f "$REMOVE_HOOK_FILE" 2>&1 > /dev/null
+    rm -f "$REMOVE_HOOK_FILE" > /dev/null 2>&1
     install_local snap-hooks
     snap connect snap-hooks:home
 
     echo "Forcing remove script to fail"
     snap set snap-hooks exitcode=1
     snap remove snap-hooks
-    EXITCODE_VALUE=$(cat $REMOVE_HOOK_FILE)
+    EXITCODE_VALUE=$(cat "$REMOVE_HOOK_FILE")
     if test "x$EXITCODE_VALUE" != "x1"; then
         echo "Remove hook was not executed"
         exit 1

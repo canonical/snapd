@@ -80,6 +80,7 @@ var (
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
+	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapBusPolicyDir    string
 
@@ -103,6 +104,10 @@ var (
 	SystemFontconfigCacheDir string
 
 	FreezerCgroupDir string
+	SnapshotsDir     string
+
+	ErrtrackerDbDir string
+	SysfsDir        string
 )
 
 const (
@@ -175,7 +180,7 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	if release.DistroLike("fedora", "arch", "manjaro") {
+	if release.DistroLike("fedora", "arch", "manjaro", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -224,6 +229,7 @@ func SetRootDir(rootdir string) {
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
@@ -259,4 +265,8 @@ func SetRootDir(rootdir string) {
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
+	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
+
+	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
+	SysfsDir = filepath.Join(rootdir, "/sys")
 }

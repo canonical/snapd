@@ -537,7 +537,7 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	c.Check(t.AtTime().IsZero(), Equals, true)
 }
 
-func (ts *taskRunnerSuite) TestTaskSerialization(c *C) {
+func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *state.TaskRunner)) {
 	ensureBeforeTick := make(chan bool, 1)
 	sb := &stateBackend{
 		ensureBefore:     time.Hour,
@@ -559,17 +559,8 @@ func (ts *taskRunnerSuite) TestTaskSerialization(c *C) {
 		return nil
 	}, nil)
 
-	// start first do1, and then do2 when nothing else is running
-	startedDo1 := false
-	r.SetBlocked(func(t *state.Task, running []*state.Task) bool {
-		if t.Kind() == "do2" && (len(running) != 0 || !startedDo1) {
-			return true
-		}
-		if t.Kind() == "do1" {
-			startedDo1 = true
-		}
-		return false
-	})
+	// setup blocked predicates
+	setupBlocked(r)
 
 	st.Lock()
 	chg := st.NewChange("install", "...")
@@ -620,6 +611,41 @@ func (ts *taskRunnerSuite) TestTaskSerialization(c *C) {
 
 	// no more EnsureBefore calls
 	c.Check(ensureBeforeTick, HasLen, 0)
+}
+
+func (ts *taskRunnerSuite) TestTaskSerializationSetBlocked(c *C) {
+	// start first do1, and then do2 when nothing else is running
+	startedDo1 := false
+	ts.testTaskSerialization(c, func(r *state.TaskRunner) {
+		r.SetBlocked(func(t *state.Task, running []*state.Task) bool {
+			if t.Kind() == "do2" && (len(running) != 0 || !startedDo1) {
+				return true
+			}
+			if t.Kind() == "do1" {
+				startedDo1 = true
+			}
+			return false
+		})
+	})
+}
+
+func (ts *taskRunnerSuite) TestTaskSerializationAddBlocked(c *C) {
+	// start first do1, and then do2 when nothing else is running
+	startedDo1 := false
+	ts.testTaskSerialization(c, func(r *state.TaskRunner) {
+		r.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+			if t.Kind() == "do2" && (len(running) != 0 || !startedDo1) {
+				return true
+			}
+			return false
+		})
+		r.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+			if t.Kind() == "do1" {
+				startedDo1 = true
+			}
+			return false
+		})
+	})
 }
 
 func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {

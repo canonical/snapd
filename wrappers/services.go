@@ -372,7 +372,7 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 func genServiceFile(appInfo *snap.AppInfo) []byte {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
-Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
+Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
 After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
@@ -383,7 +383,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart={{.App.LauncherCommand}}
-SyslogIdentifier={{.App.Snap.Name}}.{{.App.Name}}
+SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
 {{- if .App.StopCommand}}
@@ -404,6 +404,9 @@ RemainAfterExit={{.Remain}}
 {{- end}}
 {{- if .App.BusName}}
 BusName={{.App.BusName}}
+{{- end}}
+{{- if .App.WatchdogTimeout}}
+WatchdogSec={{.App.WatchdogTimeout.Seconds}}
 {{- end}}
 {{- if .KillMode}}
 KillMode={{.KillMode}}
@@ -486,7 +489,7 @@ WantedBy={{.ServicesTarget}}
 func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
 	socketTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
-Description=Socket {{.SocketName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
+Description=Socket {{.SocketName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
 After={{.MountUnit}} {{.PrerequisiteTarget}}
@@ -555,7 +558,7 @@ func renderListenStream(socket *snap.SocketInfo) string {
 func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
 	timerTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
-Description=Timer {{.TimerName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
+Description=Timer {{.TimerName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Requires={{.MountUnit}}
 After={{.MountUnit}}
 X-Snappy=yes

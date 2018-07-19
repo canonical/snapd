@@ -20,9 +20,12 @@
 package policy_test
 
 import (
-	. "gopkg.in/check.v1"
-
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+
+	. "gopkg.in/check.v1"
 )
 
 type helpersSuite struct{}
@@ -30,25 +33,68 @@ type helpersSuite struct{}
 var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) TestNestedGet(c *C) {
-	_, err := policy.NestedGet("slot", nil, "a")
-	c.Check(err, ErrorMatches, `slot attribute "a" not found`)
-
-	_, err = policy.NestedGet("plug", map[string]interface{}{
+	consumer := snaptest.MockInfo(c, `
+name: consumer
+version: 0
+apps:
+    app:
+plugs:
+    plug:
+        interface: interface
+`, nil)
+	plugInfo := consumer.Plugs["plug"]
+	plug := interfaces.NewConnectedPlug(plugInfo, map[string]interface{}{
 		"a": "123",
-	}, "a.b")
+	})
+
+	producer := snaptest.MockInfo(c, `
+name: producer
+version: 0
+apps:
+    app:
+slots:
+    slot:
+        interface: interface
+`, nil)
+	slotInfo := producer.Slots["slot"]
+	slot := interfaces.NewConnectedSlot(slotInfo, map[string]interface{}{
+		"a": "123",
+	})
+
+	_, err := policy.NestedGet("slot", slot, "b")
+	c.Check(err, ErrorMatches, `slot attribute "b" not found`)
+
+	_, err = policy.NestedGet("plug", plug, "a.b")
 	c.Check(err, ErrorMatches, `plug attribute "a\.b" not found`)
 
-	v, err := policy.NestedGet("slot", map[string]interface{}{
-		"a": "123",
-	}, "a")
+	v, err := policy.NestedGet("slot", slot, "a")
 	c.Check(err, IsNil)
 	c.Check(v, Equals, "123")
 
-	v, err = policy.NestedGet("slot", map[string]interface{}{
+	slot = interfaces.NewConnectedSlot(slotInfo, map[string]interface{}{
 		"a": map[string]interface{}{
 			"b": []interface{}{"1", "2", "3"},
 		},
-	}, "a.b")
+	})
+
+	v, err = policy.NestedGet("slot", slot, "a.b")
 	c.Check(err, IsNil)
 	c.Check(v, DeepEquals, []interface{}{"1", "2", "3"})
+}
+
+func (s *helpersSuite) TestSnapdTypeCheck(c *C) {
+	// Type checking the snapd snap is done in a special way.
+	// It appears to be of type "core" while in reality it is of type "app".
+	sideInfo := &snap.SideInfo{
+		SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+	}
+	snapInfo := snaptest.MockInfo(c, `
+name: snapd
+version: 1
+type: app
+slots:
+    network:
+`, sideInfo)
+	err := policy.CheckSnapType(snapInfo, []string{"core"})
+	c.Assert(err, IsNil)
 }

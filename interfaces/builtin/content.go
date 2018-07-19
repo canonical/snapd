@@ -174,7 +174,8 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		// inside the mount namespace snap-confine creates and there we will
 		// always have a /snap directory available regardless if the system
 		// we're running on supports this or not.
-		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), 1)
+		// TODO parallel-install: use of proper instance/store name
+		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.InstanceName(), snapInfo.Revision.String()), 1)
 	}
 	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
 		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
@@ -183,7 +184,8 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
+	// TODO parallel-install: use of proper instance/store name
+	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.InstanceName(), snapInfo.Revision.String()), path)
 }
 
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
@@ -287,7 +289,7 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *contentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *contentInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

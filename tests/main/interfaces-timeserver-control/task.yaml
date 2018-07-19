@@ -10,7 +10,8 @@ details: |
 systems: [-debian-sid-*]
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     # Install a snap declaring a plug on timeserver-control
     install_local test-snapd-timedate-control-consumer
@@ -25,21 +26,41 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i timeserver-control | MATCH "\- +test-snapd-timedate-control-consumer:timeserver-control"
+    snap interfaces -i timeserver-control | MATCH -- '- +test-snapd-timedate-control-consumer:timeserver-control'
 
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timeserver-control
 
     # Save the default timeserver to be restored at the end
-    test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP 'Network time on: \K(.*)' > timeserver.txt
+    test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP '(Network time on|System clock synchronized): \K(.*)' > timeserver.txt
+
+    get_ntp_status() {
+        test-snapd-timedate-control-consumer.timedatectl-timeserver status | \
+            grep -oP '(Network time on|System clock synchronized): \K(.*)'
+    }
+
+    # NOTE: with systemd >= 239, switching the ntp setting it takes a while for
+    # it to become visible
 
     # Set the ntp value and check the status
     test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp yes
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP 'Network time on: \K(.*)')" = "yes" ]
+    for _ in $(seq 10); do
+        if [ "$(get_ntp_status)" = "yes" ] ; then
+            break
+        fi
+        sleep 1
+    done
+    [ "$(get_ntp_status)" = "yes" ]
 
     # Set the ntp value and check the status
     test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp no
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP 'Network time on: \K(.*)')" = "no" ]
+    for _ in $(seq 10); do
+        if [ "$(get_ntp_status)" = "no" ]; then
+            break
+        fi
+        sleep 1
+    done
+    [ "$(get_ntp_status)" = "no" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -47,7 +68,7 @@ execute: |
 
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:timeserver-control
-    if test-snapd-timedate-control-consumer.timedatectl-timeserver status 2>${PWD}/call.error; then
+    if test-snapd-timedate-control-consumer.timedatectl-timeserver status 2> call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi

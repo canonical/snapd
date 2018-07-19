@@ -3,17 +3,15 @@ systems: [-opensuse-*]
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Ensure a snap that requires a unavailable base snap can not be installed"
-    snap pack "$TESTSLIB"/snaps/test-snapd-requires-base
     if install_local test-snapd-requires-base; then
         echo "ERROR: test-snapd-requires-base should not be installable without test-snapd-base"
         exit 1
     fi
 
     echo "Ensure a base snap can be installed"
-    snap pack "$TESTSLIB"/snaps/test-snapd-base
     install_local test-snapd-base
     snap list | MATCH test-snapd-base
 
@@ -34,6 +32,10 @@ execute: |
     snap install --edge --devmode test-snapd-busybox-static
     echo "Ensure we can run a statically linked binary from an empty base"
     test-snapd-busybox-static.busybox-static echo hello | MATCH hello
+
+    echo "Ensure the test-snapd-base-bare that test-snapd-busybox-static uses got pulled in"
+    snap list | grep test-snapd-base-bare
+    snap info --verbose test-snapd-busybox-static|MATCH "base:[ ]+test-snapd-base-bare"
 
     if test-snapd-busybox-static.busybox-static ls /bin/dd; then
         echo "bare should be empty but it is not:"

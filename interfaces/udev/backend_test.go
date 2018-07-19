@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -98,7 +98,11 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -126,7 +130,11 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers.
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -166,7 +174,11 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 	}
 }
@@ -188,7 +200,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -217,7 +233,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -240,7 +260,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -267,7 +291,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -384,7 +412,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -410,6 +442,56 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(len(s.udevadmCmd.Calls()), Equals, 0)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputSubsystem(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.TriggerSubsystem("input")
+		spec.AddSnippet("dummy")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		s.udevadmCmd.ForgetCalls()
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was created
+		_, err := os.Stat(fname)
+		c.Check(err, IsNil)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			{"udevadm", "trigger", "--subsystem-match=input"},
+			{"udevadm", "settle", "--timeout=10"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputJoystickSubsystem(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.TriggerSubsystem("input/joystick")
+		spec.AddSnippet("dummy")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		s.udevadmCmd.ForgetCalls()
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was created
+		_, err := os.Stat(fname)
+		c.Check(err, IsNil)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
+		})
 		s.RemoveSnap(c, snapInfo)
 	}
 }

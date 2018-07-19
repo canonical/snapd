@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1014,24 +1014,24 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")})
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")}, 0)
 		c.Assert(err, IsNil)
 
 		h, err := json.Marshal(map[string]string{
 			"x-extra-header": "extra",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
 		c.Assert(err, IsNil)
 
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")}, 0)
 		c.Assert(err, IsNil)
 
 		d, err := yaml.Marshal(map[string]string{
 			"mac": "00:00:00:00:ff:00",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
 		c.Assert(err, IsNil)
 
 		return nil, nil
@@ -2120,9 +2120,9 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	c.Assert(err, IsNil)
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
-	_, err = repo.Connect(interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
+	_, err = repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
@@ -2134,7 +2134,7 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-name":    info.Name(),
+		"snap-name":    info.SnapName(),
 		"snap-id":      info.SideInfo.SnapID,
 		"publisher-id": "canonical",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
@@ -2168,6 +2168,15 @@ func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 	// if all of the above plus a snap declaration are in place we can
 	// manage schedules
 	s.makeSnapDeclaration(c, st, info11)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+
+	// works if the snap is not active as well (to fix race when a
+	// snap is refreshed)
+	var sideInfo11 snapstate.SnapState
+	err := snapstate.Get(st, "snap-with-snapd-control", &sideInfo11)
+	c.Assert(err, IsNil)
+	sideInfo11.Active = false
+	snapstate.Set(st, "snap-with-snapd-control", &sideInfo11)
 	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
 }
 
@@ -2223,4 +2232,44 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 		c.Fatal("should have been marked registered")
 	}
 	c.Check(ok, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// avoid device registration
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Serial: "123",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// not seeded -> no config is set
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var seedLoaded bool
+	tr := config.NewTransaction(st)
+	tr.Get("core", "seed.loaded", &seedLoaded)
+	c.Check(seedLoaded, Equals, false)
+
+	// pretend we are seeded now
+	s.state.Set("seeded", true)
+
+	// seeded -> config got updated
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	tr = config.NewTransaction(st)
+	tr.Get("core", "seed.loaded", &seedLoaded)
+	c.Check(seedLoaded, Equals, true)
+
+	// only the fake seeding change is in the state, no further
+	// changes
+	c.Check(s.state.Changes(), HasLen, 1)
 }

@@ -5,7 +5,7 @@ summary: Ensure that lxd works
 #systems: [ubuntu-16*, ubuntu-core-*]
 
 # FIXME LXD has some issue on Google images.
-systems: [ubuntu-16.04-32, ubuntu-core-*]
+systems: [ubuntu-16.04-32, ubuntu-core-16-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -14,17 +14,23 @@ backends: [-autopkgtest]
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
+# Start before anything else as it can take a really long time.
+priority: 1000
+
 restore: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
         exit
     fi
 
-    lxd.lxc stop my-ubuntu
+    lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
 debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     # debug output from lxd
-    journalctl -u snap.lxd.daemon.service
+    get_journalctl_log -u snap.lxd.daemon.service
 
 execute: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
@@ -55,11 +61,6 @@ execute: |
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
-
-    echo "Ensure we can get network"
-    lxd.lxc network create testbr0
-    lxd.lxc network attach testbr0 my-ubuntu eth0
-    lxd.lxc exec my-ubuntu dhclient eth0
 
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher

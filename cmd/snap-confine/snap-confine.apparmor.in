@@ -193,6 +193,8 @@
 
     # allow making re-execed host snap-exec available inside base snaps
     mount options=(ro bind) @SNAP_MOUNT_DIR@/core/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    # allow making snapd snap tools available inside base snaps
+    mount options=(ro bind) @SNAP_MOUNT_DIR@/snapd/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
 
     mount options=(rw bind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
@@ -264,12 +266,17 @@
     mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
 
     # Vulkan support
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+
+    # GLVND EGL vendor
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/{,*} w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
 
     # create gl dirs as needed
     /tmp/snap.rootfs_*/ r,
@@ -281,6 +288,8 @@
     /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/** rw,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/ r,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/** rw,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/ r,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/** rw,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.

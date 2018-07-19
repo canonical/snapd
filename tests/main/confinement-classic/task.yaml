@@ -1,6 +1,6 @@
 summary: trivial snap with classic confinement runs correctly
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 details: |
     This test checks that a very much trivial "hello-world"-like snap using
@@ -9,7 +9,8 @@ details: |
     function correctly in both cases.
 
 prepare: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
         # although classic snaps do not work out of the box on fedora,
         # we still want to verify if the basics do work if the user
@@ -18,7 +19,8 @@ prepare: |
     fi
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     snap install --classic test-snapd-hello-classic
     $SNAP_MOUNT_DIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'

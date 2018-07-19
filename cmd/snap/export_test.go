@@ -43,6 +43,7 @@ var (
 	Antialias          = antialias
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
+	TrueishJSON        = trueishJSON
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

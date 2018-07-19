@@ -303,6 +303,27 @@ func (as *authSuite) TestUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
+
+	c.Check(user.HasStoreAuth(), Equals, true)
+}
+
+func (as *authSuite) TestUserHasStoreAuth(c *C) {
+	var user0 *auth.UserState
+	// nil user
+	c.Check(user0.HasStoreAuth(), Equals, false)
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasStoreAuth(), Equals, true)
+
+	// no store auth
+	as.state.Lock()
+	user, err = auth.NewUser(as.state, "username", "email@test.com", "", nil)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasStoreAuth(), Equals, false)
 }
 
 func (as *authSuite) TestUpdateUser(c *C) {
