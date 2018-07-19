@@ -283,6 +283,19 @@ func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(alreadyConnected.Connection, DeepEquals, interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}})
 	c.Assert(err, ErrorMatches, `already connected: "consumer:plug producer:slot"`)
+
+	conns = map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto":      true,
+			"undesired": true,
+		},
+	}
+	s.state.Set("conns", conns)
+
+	// ErrAlreadyConnected is not reported if connection exists but is undesired
+	ts, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
 }
 
 func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string, otherTaskKind string, expectedErr string) {

@@ -175,7 +175,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		return nil, err
 	}
 	connRef := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
-	if _, ok := conns[connRef.ID()]; ok {
+	if conn, ok := conns[connRef.ID()]; ok && conn.Undesired == false {
 		return nil, &ErrAlreadyConnected{Connection: connRef}
 	}
 
