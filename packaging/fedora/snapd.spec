@@ -1400,7 +1400,7 @@ fi
    UbuntuStore(Repository)? references
  - store: reorg auth refresh
 
-* Tue May 16 2018 Michael Vogt <mvo@ubuntu.com>
+* Wed May 16 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.9
  - tests: run all spread tests inside GCE
  - tests: build spread in the autopkgtests with a more recent go
