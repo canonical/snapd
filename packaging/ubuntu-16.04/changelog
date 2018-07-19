@@ -1,8 +1,10 @@
 snapd (2.34.2) xenial; urgency=medium
 
-  * placeholder changelog for 2.34.2
+  * New upstream release, LP: #1779403
+    - packaging: fix bogus date in fedora snapd.spec
+    - tests: fix tests expecting old email address
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 Jul 2018 12:19:46 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 Jul 2018 12:05:50 +0200
 
 snapd (2.34.1) xenial; urgency=medium
 
