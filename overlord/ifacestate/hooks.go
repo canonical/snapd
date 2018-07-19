@@ -53,5 +53,6 @@ func setupHooks(hookMgr *hookstate.HookManager) {
 	hookMgr.Register(regexp.MustCompile("^unprepare-slot-[-a-z0-9]+$"), gen)
 	hookMgr.Register(regexp.MustCompile("^connect-plug-[-a-z0-9]+$"), gen)
 	hookMgr.Register(regexp.MustCompile("^connect-slot-[-a-z0-9]+$"), gen)
-	hookMgr.Register(regexp.MustCompile("^disconnect-(?:plug|slot)-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^disconnect-plug-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^disconnect-slot-[-a-z0-9]+$"), gen)
 }
