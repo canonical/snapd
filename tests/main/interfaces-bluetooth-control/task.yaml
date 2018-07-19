@@ -57,4 +57,4 @@ execute: |
 
     echo "And the snap is able to read dev"
     cat "$BTDEV"/*/power/control | tee control
-    [ "$(su -l -c '/snap/bin/generic-consumer.cmd cat '"$BTDEV"'/*/power/control' test)'" = "$(cat control)" ]
+    [ "$(su -l -c '/snap/bin/generic-consumer.cmd cat '"$BTDEV"'/*/power/control' test)" = "$(cat control)" ]

@@ -18,7 +18,7 @@ fi
 systemctl daemon-reload
 
 # ensure we are not get killed too easily
-printf "%s\n" "-950" > /proc/$$/oom_score_adj
+printf '%s\n' "-950" > /proc/$$/oom_score_adj
 
 # see what mem we have (for debugging)
 cat /proc/meminfo
