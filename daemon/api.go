@@ -1242,6 +1242,8 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
 			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
 			snapName = err.Snap
@@ -1647,7 +1649,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := snap.DropNick(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1698,7 +1700,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := snap.DropNick(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1743,7 +1745,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	if pselect != "all" && pselect != "connected" {
 		return BadRequest("unsupported select qualifier")
 	}
-	var names []string
+	var names []string // Interface names
 	namesStr := q.Get("names")
 	if namesStr != "" {
 		names = strings.Split(namesStr, ",")
@@ -1758,12 +1760,13 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	// Query the interface repository (this returns []*interface.Info).
 	infos := c.d.overlord.InterfaceManager().Repository().Info(opts)
 	infoJSONs := make([]*interfaceJSON, 0, len(infos))
+
 	for _, info := range infos {
 		// Convert interfaces.Info into interfaceJSON
 		plugs := make([]*plugJSON, 0, len(info.Plugs))
 		for _, plug := range info.Plugs {
 			plugs = append(plugs, &plugJSON{
-				Snap:  plug.Snap.InstanceName(),
+				Snap:  ifacestate.RemapSnapToResponse(plug.Snap.InstanceName()),
 				Name:  plug.Name,
 				Attrs: plug.Attrs,
 				Label: plug.Label,
@@ -1772,7 +1775,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		slots := make([]*slotJSON, 0, len(info.Slots))
 		for _, slot := range info.Slots {
 			slots = append(slots, &slotJSON{
-				Snap:  slot.Snap.InstanceName(),
+				Snap:  ifacestate.RemapSnapToResponse(slot.Snap.InstanceName()),
 				Name:  slot.Name,
 				Attrs: slot.Attrs,
 				Label: slot.Label,
@@ -1794,15 +1797,16 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	ifaces := repo.Interfaces()
 
 	var ifjson interfaceJSON
-
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
 
-	for _, conn := range ifaces.Connections {
-		plugRef := conn.PlugRef.String()
-		slotRef := conn.SlotRef.String()
-		plugConns[plugRef] = append(plugConns[plugRef], conn.SlotRef)
-		slotConns[slotRef] = append(slotConns[slotRef], conn.PlugRef)
+	for _, cref := range ifaces.Connections {
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(cref.PlugRef.Snap), Name: cref.PlugRef.Name}
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(cref.SlotRef.Snap), Name: cref.SlotRef.Name}
+		plugID := plugRef.String()
+		slotID := slotRef.String()
+		plugConns[plugID] = append(plugConns[plugID], slotRef)
+		slotConns[slotID] = append(slotConns[slotID], plugRef)
 	}
 
 	for _, plug := range ifaces.Plugs {
@@ -1810,14 +1814,15 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(plug.Snap.InstanceName()), Name: plug.Name}
 		pj := &plugJSON{
-			Snap:        plug.Snap.InstanceName(),
-			Name:        plug.Name,
+			Snap:        plugRef.Snap,
+			Name:        plugRef.Name,
 			Interface:   plug.Interface,
 			Attrs:       plug.Attrs,
 			Apps:        apps,
 			Label:       plug.Label,
-			Connections: plugConns[plug.String()],
+			Connections: plugConns[plugRef.String()],
 		}
 		ifjson.Plugs = append(ifjson.Plugs, pj)
 	}
@@ -1826,15 +1831,15 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range slot.Apps {
 			apps = append(apps, app.Name)
 		}
-
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(slot.Snap.InstanceName()), Name: slot.Name}
 		sj := &slotJSON{
-			Snap:        slot.Snap.InstanceName(),
-			Name:        slot.Name,
+			Snap:        slotRef.Snap,
+			Name:        slotRef.Name,
 			Interface:   slot.Interface,
 			Attrs:       slot.Attrs,
 			Apps:        apps,
 			Label:       slot.Label,
-			Connections: slotConns[slot.String()],
+			Connections: slotConns[slotRef.String()],
 		}
 		ifjson.Slots = append(ifjson.Slots, sj)
 	}
@@ -1893,10 +1898,10 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	defer st.Unlock()
 
 	for i := range a.Plugs {
-		a.Plugs[i].Snap = snap.DropNick(a.Plugs[i].Snap)
+		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
 	}
 	for i := range a.Slots {
-		a.Slots[i].Snap = snap.DropNick(a.Slots[i].Snap)
+		a.Slots[i].Snap = ifacestate.RemapSnapFromRequest(a.Slots[i].Snap)
 	}
 
 	switch a.Action {

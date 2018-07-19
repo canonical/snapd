@@ -411,7 +411,7 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		license := both.License
 		if license == "" {
-			license = "unknown"
+			license = "unset"
 		}
 		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
