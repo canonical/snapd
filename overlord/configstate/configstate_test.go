@@ -302,3 +302,20 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Check(configcoreRan, Equals, true)
 }
+
+type miscSuite struct{}
+
+var _ = Suite(&miscSuite{})
+
+func (s *miscSuite) TestRemappingFuncs(c *C) {
+	// We don't change those.
+	c.Assert(configstate.RemapSnapFromRequest("foo"), Equals, "foo")
+	c.Assert(configstate.RemapSnapFromRequest("snapd"), Equals, "snapd")
+	c.Assert(configstate.RemapSnapFromRequest("core"), Equals, "core")
+	c.Assert(configstate.RemapSnapToResponse("foo"), Equals, "foo")
+	c.Assert(configstate.RemapSnapToResponse("snapd"), Equals, "snapd")
+
+	// This is the one we alter.
+	c.Assert(configstate.RemapSnapFromRequest("system"), Equals, "core")
+	c.Assert(configstate.RemapSnapToResponse("core"), Equals, "system")
+}

@@ -44,7 +44,6 @@ execute: |
 
         echo "and it got the right signal"
         echo "checking that the right signal was sent"
-        sleep 1
         get_journalctl_log -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
     done
 
@@ -64,4 +63,3 @@ restore: |
     rm -f *.pid || true
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
-    killall sleep || true
