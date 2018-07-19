@@ -158,17 +158,17 @@ Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 func (s *SnapSuite) TestTasksLastQuestionmark(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
 		c.Check(r.Method, check.Equals, "GET")
 		c.Assert(r.URL.Path, check.Equals, "/v2/changes")
 		switch n {
-		case 0, 1:
+		case 1, 2:
 			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
-		case 2, 3:
+		case 3, 4:
 			fmt.Fprintln(w, mockChangesJSON)
 		default:
 			c.Errorf("expected 4 calls, now on %d", n)
 		}
-		n++
 	})
 	for i := 0; i < 2; i++ {
 		rest, err := snap.Parser().ParseArgs([]string{"tasks", "--last=foobar?"})

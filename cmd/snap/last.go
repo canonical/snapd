@@ -61,6 +61,7 @@ func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
 		return string(l.Positional.ID), nil
 	}
 
+	// note that at this point we know l.LastChangeType != ""
 	kind := l.LastChangeType
 	optional := false
 	if l := len(kind) - 1; kind[l] == '?' {
