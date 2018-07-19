@@ -816,8 +816,7 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	s.se.Ensure()
-	s.se.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2084,9 +2083,7 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	s.se.Ensure()
-	s.se.Wait()
-	s.se.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2129,9 +2126,7 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	s.se.Ensure()
-	s.se.Wait()
-	s.se.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2174,9 +2169,7 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	s.se.Ensure()
-	s.se.Wait()
-	s.se.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
