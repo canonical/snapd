@@ -73,7 +73,7 @@
 %endif
 
 Name:           snapd
-Version:        2.34
+Version:        2.34.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -733,6 +733,14 @@ fi
 
 
 %changelog
+* Tue Jul 17 2018 Michael Vogt <mvo@ubuntu.com>
+ - tests: cherry-pick test fixes from master for 2.34
+ - coreconfig: add support for `snap set system network.disable-
+   ipv6`
+ - debian: do not ship snapd.apparmor.service on ubuntu
+ - overlord/snapstate: dedupe default content providers
+ - interfaces/builtin: create can-bus interface
+
 * Fri Jul 06 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.34
  - store, daemon, client, cmd/snap: expose "scope", default to wide*
