@@ -166,7 +166,7 @@ func mockModel(extras ...string) (restore func()) {
 
 	var extra string
 	if len(extras) > 0 {
-		extra = strings.Join(extras, "\n")
+		extra = "\n" + strings.Join(extras, "\n")
 	}
 
 	mod := fmt.Sprintf(`type: model
