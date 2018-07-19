@@ -43,6 +43,15 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
+// ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.
+type ErrAlreadyConnected struct {
+	Connection interfaces.ConnRef
+}
+
+func (e ErrAlreadyConnected) Error() string {
+	return fmt.Sprintf("already connected: %q", e.Connection.ID())
+}
+
 // findSymmetricAutoconnect checks if there is another auto-connect task affecting same snap.
 func findSymmetricAutoconnect(st *state.State, plugSnap, slotSnap string, autoConnectTask *state.Task) (bool, error) {
 	snapsup, err := snapstate.TaskSnapSetup(autoConnectTask)
@@ -165,9 +174,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	if err != nil {
 		return nil, err
 	}
-	connRef := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
+	connRef := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
 	if _, ok := conns[connRef.ID()]; ok {
-		return state.NewTaskSet(), nil
+		return nil, &ErrAlreadyConnected{Connection: connRef}
 	}
 
 	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnap, plugName, slotSnap, slotName)
