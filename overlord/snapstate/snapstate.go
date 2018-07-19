@@ -722,6 +722,9 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			}
 			return nil, nil, err
 		}
+		if err := canSwitch(st, update.SnapName(), channel); err != nil {
+			return nil, nil, err
+		}
 
 		snapUserID, err := userIDForSnap(st, snapst, userID)
 		if err != nil {
@@ -930,6 +933,40 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
+// canSwitch returns an error if switching to newChannel for snap is
+// forbidden.
+func canSwitch(st *state.State, snapName, newChannel string) error {
+	// nothing to do
+	if newChannel == "" {
+		return nil
+	}
+
+	// ensure we do not switch away from the kernel-track in the model
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if model == nil {
+		return nil
+	}
+
+	if snapName != model.Kernel() {
+		return nil
+	}
+	if model.KernelTrack() == "" {
+		return nil
+	}
+	nch, err := snap.ParseChannel(newChannel, "")
+	if err != nil {
+		return err
+	}
+	if nch.Track != model.KernelTrack() {
+		return fmt.Errorf("cannot switch from kernel-track %q to %q", model.KernelTrack(), nch.String())
+	}
+
+	return nil
+}
+
 // Switch switches a snap to a new channel
 func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	var snapst SnapState
@@ -942,6 +979,10 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	}
 
 	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	if err := canSwitch(st, name, channel); err != nil {
 		return nil, err
 	}
 
