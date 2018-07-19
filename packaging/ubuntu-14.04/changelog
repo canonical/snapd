@@ -1,3 +1,11 @@
+snapd (2.34.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1779403
+    - packaging: fix bogus date in fedora snapd.spec
+    - tests: fix tests expecting old email address
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 Jul 2018 12:05:50 +0200
+
 snapd (2.34.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1779403
