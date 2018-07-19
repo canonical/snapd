@@ -947,7 +947,7 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		// "automatic-disconnect" flag indicates it's an automatically-triggered disconnect, in which
 		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
 		// them so they can be automatically connected if the snap is installed again.
-		ts, err := disconnect(st, conn, []string{"automatic-disconnect"})
+		ts, err := disconnectTasks(st, conn, disconnectOpts{AutomaticDisconnect: true})
 		if err != nil {
 			return err
 		}

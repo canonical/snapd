@@ -54,7 +54,7 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 	// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
 	// it should be ignored (we shouldn't create connect tasks for it)
 	for _, task := range st.Tasks() {
-		if !task.Status().Ready() && task.ID() != installTask.ID() && task.Kind() == installTask.Kind() {
+		if !task.Status().Ready() && task.ID() != installTask.ID() && task.Kind() == "auto-connect" {
 			snapsup, err := snapstate.TaskSnapSetup(task)
 			if err != nil {
 				return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -231,10 +231,15 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 		return nil, err
 	}
 
-	return disconnect(st, conn, nil)
+	return disconnectTasks(st, conn, disconnectOpts{})
 }
 
-func disconnect(st *state.State, conn *interfaces.Connection, flags []string) (*state.TaskSet, error) {
+type disconnectOpts struct {
+	AutomaticDisconnect bool
+}
+
+// disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
+func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconnectOpts) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
 	plugName := conn.Plug.Name()
@@ -262,8 +267,8 @@ func disconnect(st *state.State, conn *interfaces.Connection, flags []string) (*
 	disconnectTask.Set("plug-static", conn.Plug.StaticAttrs())
 	disconnectTask.Set("plug-dynamic", conn.Plug.DynamicAttrs())
 
-	for _, flag := range flags {
-		disconnectTask.Set(flag, true)
+	if flags.AutomaticDisconnect {
+		disconnectTask.Set("automatic-disconnect", true)
 	}
 
 	ts := state.NewTaskSet()
@@ -273,7 +278,7 @@ func disconnect(st *state.State, conn *interfaces.Connection, flags []string) (*
 
 	var disconnectSlot *state.Task
 
-	// do not run slot hooks if slotSnap is not active
+	// only run slot hooks if slotSnap is active
 	if slotSnapst.Active {
 		disconnectSlotHookSetup := &hookstate.HookSetup{
 			Snap:     slotSnap,
@@ -293,7 +298,7 @@ func disconnect(st *state.State, conn *interfaces.Connection, flags []string) (*
 		disconnectTask.WaitFor(disconnectSlot)
 	}
 
-	// do not run plug hooks if slotSnap is not active
+	// only run plug hooks if plugSnap is active
 	if plugSnapst.Active {
 		disconnectPlugHookSetup := &hookstate.HookSetup{
 			Snap:     plugSnap,
