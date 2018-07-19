@@ -160,6 +160,16 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// slot's attributes in the *-slot-* hook).
 	// 'snapctl get' can read both slot's and plug's attributes.
 
+	// check if the connection already exists
+	conns, err := getConns(st)
+	if err != nil {
+		return nil, err
+	}
+	connRef := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
+	if _, ok := conns[connRef.ID()]; ok {
+		return state.NewTaskSet(), nil
+	}
+
 	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnap, plugName, slotSnap, slotName)
 	if err != nil {
 		return nil, err

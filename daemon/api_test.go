@@ -3945,8 +3945,21 @@ func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
+	conns := map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto": false,
+		},
+	}
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", conns)
+	st.Unlock()
 
 	action := &interfaceAction{
 		Action: "connect",
@@ -3966,7 +3979,6 @@ func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
-	st := d.overlord.State()
 	st.Lock()
 	chg := st.Change(id)
 	c.Assert(chg.Tasks(), check.HasLen, 0)

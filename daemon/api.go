@@ -1913,12 +1913,12 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			var ts *state.TaskSet
 			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			if repo.HasConnection(connRef) {
+			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			if len(ts.Tasks()) == 0 {
 				change := newChange(st, a.Action+"-snap", summary, nil, affected)
 				change.SetStatus(state.DoneStatus)
 				return AsyncResponse(nil, &Meta{Change: change.ID()})
 			}
-			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			tasksets = append(tasksets, ts)
 		}
 	case "disconnect":

@@ -684,23 +684,6 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 	return r.connected(snapName, plugOrSlotName)
 }
 
-// HasConnection returns true if the connection already exists.
-func (r *Repository) HasConnection(conn *ConnRef) bool {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	plug := r.plugs[conn.PlugRef.Snap][conn.PlugRef.Name]
-	if plug == nil {
-		return false
-	}
-	slot := r.slots[conn.SlotRef.Snap][conn.SlotRef.Name]
-	if slot == nil {
-		return false
-	}
-
-	return r.plugSlots[plug][slot] != nil
-}
-
 func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, error) {
 	if snapName == "" {
 		snapName, _ = r.guessSystemSnapName()
