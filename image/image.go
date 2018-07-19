@@ -294,10 +294,17 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 }
 
 func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
+	if strings.Count(kernelTrack, "/") != 0 {
+		return "", fmt.Errorf("cannot use kernel-track %q: must be a track name only", kernelTrack)
+	}
 	kch, err := snap.ParseChannel(kernelTrack, "")
 	if err != nil {
 		return "", fmt.Errorf("cannot use kernel-track %q: %v", kernelTrack, err)
 	}
+	if kch.Track == "" {
+		return "", fmt.Errorf("cannot use kernel-track %q: please specify a track", kernelTrack)
+	}
+
 	if defaultChannel != "" {
 		dch, err := snap.ParseChannel(defaultChannel, "")
 		if err != nil {
@@ -308,6 +315,7 @@ func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
 	return kch.Clean().String(), nil
 }
 
+// amendKernelTrack will amend channel data to local kernel snap (if any)
 func amendKernelTrack(model *asserts.Model, defaultChannel string, local *localInfos) error {
 	if model.Kernel() == "" || model.KernelTrack() == "" {
 		return nil
