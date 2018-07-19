@@ -111,14 +111,6 @@ func localSnaps(tsto *ToolingStore, opts *Options, model *asserts.Model) (*local
 			if err == nil {
 				info.SnapID = si.SnapID
 				info.Revision = si.Revision
-				info.Channel = opts.Channel
-			}
-			// ensure the kernel-track is honored
-			if model.Kernel() == info.SnapName() && model.KernelTrack() != "" {
-				info.Channel, err = makeKernelChannel(model.KernelTrack(), opts.Channel)
-				if err != nil {
-					return nil, err
-				}
 			}
 		}
 	}
@@ -158,6 +150,9 @@ func Prepare(opts *Options) error {
 
 	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
 		return err
+	}
+	if _, err := snap.ParseChannel(opts.Channel, ""); err != nil {
+		return fmt.Errorf("cannot use channel %q: %v", opts.Channel, err)
 	}
 
 	// TODO: might make sense to support this later
@@ -301,15 +296,16 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 }
 
 func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use kernel-track %q from model assertion", kernelTrack)
 	if strings.Count(kernelTrack, "/") != 0 {
-		return "", fmt.Errorf("cannot use kernel-track %q: must be a track name only", kernelTrack)
+		return "", fmt.Errorf("%s: must be a track name only", errPrefix)
 	}
 	kch, err := snap.ParseChannel(kernelTrack, "")
 	if err != nil {
-		return "", fmt.Errorf("cannot use kernel-track %q: %v", kernelTrack, err)
+		return "", fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if kch.Track == "" {
-		return "", fmt.Errorf("cannot use kernel-track %q: please specify a track", kernelTrack)
+		return "", fmt.Errorf("%s: not a track", errPrefix)
 	}
 
 	if defaultChannel != "" {
@@ -410,7 +406,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 
 		dlOpts.Channel = opts.Channel
-		if snapName == model.Kernel() && model.KernelTrack() != "" {
+		if name == model.Kernel() && model.KernelTrack() != "" {
 			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
 			if err != nil {
 				return err
@@ -471,7 +467,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
-			Channel: info.Channel,
+			Channel: dlOpts.Channel,
 			File:    filepath.Base(fn),
 			DevMode: info.NeedsDevMode(),
 			Contact: info.Contact,
