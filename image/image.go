@@ -114,7 +114,7 @@ func localSnaps(tsto *ToolingStore, opts *Options, model *asserts.Model) (*local
 				info.Channel = opts.Channel
 			}
 			// ensure the kernel-track is honored
-			if model.Kernel() != "" && model.KernelTrack() != "" {
+			if model.Kernel() == info.SnapName() && model.KernelTrack() != "" {
 				info.Channel, err = makeKernelChannel(model.KernelTrack(), opts.Channel)
 				if err != nil {
 					return nil, err
