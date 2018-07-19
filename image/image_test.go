@@ -462,7 +462,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	opts := &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, s.model)
 	c.Assert(err, IsNil)
 
 	err = image.DownloadUnpackGadget(s.tsto, s.model, opts, local)
@@ -533,7 +533,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, s.model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -616,7 +616,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
 	emptyToolingStore := image.MockToolingStore(&emptyStore{})
-	local, err := image.LocalSnaps(emptyToolingStore, opts)
+	local, err := image.LocalSnaps(emptyToolingStore, opts, s.model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -722,7 +722,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, s.model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -817,7 +817,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -888,7 +888,7 @@ func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, s.model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -978,7 +978,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, s.model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -1107,7 +1107,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1168,7 +1168,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Channel:         "edge",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1230,7 +1230,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithRisk(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1268,7 +1268,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackIsRiskOnly(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1309,7 +1309,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Snaps:           []string{kfn},
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
+	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
 	c.Check(local.NameToPath(), HasLen, 1)
 
