@@ -1302,16 +1302,18 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 		"pc-kernel": "canonical",
 	})
 
-	// pretend we downloaded the kernel already
+	// pretend we downloaded the core,kernel already
+	cfn := s.downloadedSnaps["core"]
 	kfn := s.downloadedSnaps["pc-kernel"]
 	opts := &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
-		Snaps:           []string{kfn},
+		Snaps:           []string{kfn, cfn},
+		Channel:         "beta",
 	}
 	local, err := image.LocalSnaps(s.tsto, opts, model)
 	c.Assert(err, IsNil)
-	c.Check(local.NameToPath(), HasLen, 1)
+	c.Check(local.NameToPath(), HasLen, 2)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
@@ -1321,11 +1323,17 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seed.Snaps, HasLen, 3)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:    "core",
+		SnapID:  "core-Id",
+		File:    "core_3.snap",
+		Channel: "beta",
+	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		Name:    "pc-kernel",
 		SnapID:  "pc-kernel-Id",
 		File:    "pc-kernel_2.snap",
-		Channel: "18/stable",
+		Channel: "18/beta",
 	})
 }
 
