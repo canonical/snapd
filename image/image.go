@@ -86,7 +86,7 @@ func (li *localInfos) Info(name string) *snap.Info {
 	return nil
 }
 
-func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
+func localSnaps(tsto *ToolingStore, opts *Options, model *asserts.Model) (*localInfos, error) {
 	local := make(map[string]*snap.Info)
 	nameToPath := make(map[string]string)
 	for _, snapName := range opts.Snaps {
@@ -112,6 +112,13 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 				info.SnapID = si.SnapID
 				info.Revision = si.Revision
 				info.Channel = opts.Channel
+			}
+			// ensure the kernel-track is honored
+			if model.Kernel() != "" && model.KernelTrack() != "" {
+				info.Channel, err = makeKernelChannel(model.KernelTrack(), opts.Channel)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -163,7 +170,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	local, err := localSnaps(tsto, opts)
+	local, err := localSnaps(tsto, opts, model)
 	if err != nil {
 		return err
 	}
@@ -315,23 +322,6 @@ func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
 	return kch.Clean().String(), nil
 }
 
-// amendKernelTrack will amend channel data to local kernel snap (if any)
-func amendKernelTrack(model *asserts.Model, defaultChannel string, local *localInfos) error {
-	if model.Kernel() == "" || model.KernelTrack() == "" {
-		return nil
-	}
-	info := local.Info(model.Kernel())
-	if info == nil {
-		return nil
-	}
-	ch, err := makeKernelChannel(model.KernelTrack(), defaultChannel)
-	if err != nil {
-		return err
-	}
-	info.Channel = ch
-	return nil
-}
-
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -362,11 +352,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
 		}
-	}
-
-	// ensure kernel-track is honored
-	if err := amendKernelTrack(model, opts.Channel, local); err != nil {
-		return err
 	}
 
 	// put snaps in place
