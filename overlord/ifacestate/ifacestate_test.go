@@ -879,11 +879,6 @@ func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	s.state.Lock()
 	change := s.state.NewChange("disconnect", "...")
 	ts, err := ifacestate.Disconnect(s.state, conn)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
 
 	c.Assert(err, IsNil)
 	change.AddAll(ts)
@@ -3108,7 +3103,7 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	producerInfo := s.mockSnap(c, producerYaml)
@@ -3142,8 +3137,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 	s.state.Unlock()
 
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
