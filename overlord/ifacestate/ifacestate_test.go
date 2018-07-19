@@ -366,10 +366,10 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	t.Set("snap-setup", sup1)
 	chg.AddTask(t)
 
-	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t)
+	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckConnectConflicts(s.state, "", "consumer", "producer", true), IsNil)
+	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer"), IsNil)
 
 	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", []string{"auto"})
 	c.Assert(err, IsNil)
@@ -404,11 +404,11 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 
 	chg.AddTask(t2)
 
-	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t2)
+	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t2)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckConnectConflicts(s.state, "", "consumer", "producer", true)
+	return ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer")
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
@@ -461,11 +461,11 @@ func (s *interfaceManagerSuite) TestSymmetricAutoconnectIgnore(c *C) {
 	t2.Set("snap-setup", sup2)
 	chg2.AddTask(t2)
 
-	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t1)
+	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t1)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, true)
 
-	ignore, err = ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t2)
+	ignore, err = ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t2)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, true)
 }
@@ -3177,7 +3177,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingKind string) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	producerInfo := s.mockSnap(c, producerYaml)
@@ -3219,9 +3219,8 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	t3.SetStatus(state.HoldStatus)
 
 	s.state.Unlock()
-
-	mgr.Ensure()
-	mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()

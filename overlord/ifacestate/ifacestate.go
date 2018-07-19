@@ -43,15 +43,15 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
-// findSymmetricInstallTask checks if there is another install-related task such as auto-connect or disconnect-interfaces task affecting same snap.
-func findSymmetricInstallTask(st *state.State, plugSnap, slotSnap string, installTask *state.Task) (bool, error) {
+// findSymmetricAutoconnectTask checks if there is another auto-connect task affecting same snap because of plug/slot.
+func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, installTask *state.Task) (bool, error) {
 	snapsup, err := snapstate.TaskSnapSetup(installTask)
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installTask.Summary())
 	}
 	installedSnap := snapsup.Name()
 
-	// if we find any auto-connect (or disconnect-interfaces) task that's not ready and is affecting our snap, return true to indicate that
+	// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
 	// it should be ignored (we shouldn't create connect tasks for it)
 	for _, task := range st.Tasks() {
 		if !task.Status().Ready() && task.ID() != installTask.ID() && task.Kind() == installTask.Kind() {
@@ -67,80 +67,6 @@ func findSymmetricInstallTask(st *state.State, plugSnap, slotSnap string, instal
 		}
 	}
 	return false, nil
-}
-
-func checkConnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSnap string, auto bool) error {
-	if !auto {
-		for _, chg := range st.Changes() {
-			if chg.Kind() == "transition-ubuntu-core" {
-				return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
-			}
-		}
-	}
-
-	for _, task := range st.Tasks() {
-		if task.Status().Ready() {
-			continue
-		}
-
-		k := task.Kind()
-		if auto && (k == "connect" || k == "disconnect") {
-			// retry if we found another connect/disconnect affecting same snap
-			plugRef, slotRef, err := getPlugAndSlotRefs(task)
-			if err != nil {
-				return err
-			}
-			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
-				return &state.Retry{After: connectRetryTimeout}
-			}
-		} else {
-			if k == "connect" || k == "disconnect" {
-				plugRef, slotRef, err := getPlugAndSlotRefs(task)
-				if err != nil {
-					return err
-				}
-				if (plugRef.Snap == plugSnap || plugRef.Snap == slotSnap) &&
-					(slotRef.Snap == plugSnap || slotRef.Snap == slotSnap) {
-					return &snapstate.ChangeConflictError{Snap: plugRef.Snap, ChangeKind: task.Change().Kind()}
-				}
-			}
-		}
-
-		snapsup, err := snapstate.TaskSnapSetup(task)
-		// e.g. hook tasks don't have task snap setup
-		if err != nil {
-			continue
-		}
-
-		otherSnapName := snapsup.Name()
-
-		// different snaps - no conflict
-		if otherSnapName != plugSnap && otherSnapName != slotSnap {
-			continue
-		}
-
-		if otherSnapName == disconnectingSnap {
-			continue
-		}
-
-		// if disconnecting then don't care about pending removal for the opposite end. This relies
-		// on the fact that disconnect-interfaces will create conflicting "disconnect" tasks that
-		// will block (i.e. cause a retry) of a symmetrical "disconnect-interfaces"
-		if k == "unlink-snap" && disconnectingSnap != "" {
-			continue
-		}
-
-		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
-			if auto {
-				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
-				// if snap is getting installed/refreshed - temporary conflict, retry later
-				return &state.Retry{After: connectRetryTimeout}
-			}
-			// for connect it's a conflict
-			return &snapstate.ChangeConflictError{Snap: otherSnapName, ChangeKind: task.Change().Kind()}
-		}
-	}
-	return nil
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -302,9 +228,6 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
 	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
-		return nil, err
-	}
-	if err := checkConnectConflicts(st, "", plugSnap, slotSnap, false); err != nil {
 		return nil, err
 	}
 
