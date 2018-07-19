@@ -71,7 +71,7 @@ func (m *UDevMonitor) Connect() error {
 		panic("cannot run UDevMonitor more than once")
 	}
 
-	if err := m.netlinkConn.Connect(); err != nil {
+	if err := m.netlinkConn.Connect(netlink.UdevEvent); err != nil {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
