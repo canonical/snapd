@@ -174,7 +174,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 					{Snap: "deepin-music", Name: "network"},
 					{Snap: "http", Name: "network"},
 				},
-				Slots: []client.Slot{{Snap: "core", Name: "network"}},
+				Slots: []client.Slot{{Snap: "system", Name: "network"}},
 			}},
 		})
 	})
