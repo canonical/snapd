@@ -39,15 +39,24 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	snaps, err := snapsWithSecurityProfiles(m.state)
+	if err != nil {
+		return err
+	}
+	// Before deciding about adding implicit slots to any snap we need to scan
+	// the set of snaps we know about. If any of those is "snapd" then for the
+	// duration of this process always add implicit slots to snapd and not to
+	// any other type: os snap and use a mapper to use names core-snapd-system
+	// on state, in memory and in API responses, respectively.
+	m.selectInterfaceMapper(snaps)
+
 	if err := m.addInterfaces(extraInterfaces); err != nil {
 		return err
 	}
 	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
-	if err := m.addSnaps(); err != nil {
-		return err
-	}
+	m.addSnaps(snaps)
 	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
@@ -63,6 +72,15 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 		}
 	}
 	return nil
+}
+
+func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
+	for _, snapInfo := range snaps {
+		if snapInfo.SnapName() == "snapd" {
+			mapper = &CoreSnapdSystemMapper{}
+			break
+		}
+	}
 }
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
@@ -99,18 +117,13 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps() error {
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
+func (m *InterfaceManager) addSnaps(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
 	}
-	return nil
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
