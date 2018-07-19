@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -69,6 +68,7 @@ func TestDeviceManager(t *testing.T) { TestingT(t) }
 type deviceMgrSuite struct {
 	o       *overlord.Overlord
 	state   *state.State
+	se      *overlord.StateEngine
 	hookMgr *hookstate.HookManager
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
@@ -122,6 +122,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.se = s.o.StateEngine()
 
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
 
@@ -142,9 +143,9 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	hookMgr, err := hookstate.Manager(s.state)
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(s.state, hookMgr)
+	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
 	s.db = db
@@ -152,6 +153,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.hookMgr)
 	s.mgr = mgr
 	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
@@ -322,12 +324,6 @@ func (s *deviceMgrSuite) findBecomeOperationalChange(skipIDs ...string) *state.C
 	return nil
 }
 
-func (s *deviceMgrSuite) TestKnownTaskKinds(c *C) {
-	kinds := s.mgr.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{"generate-device-key", "mark-seeded", "request-serial"})
-}
-
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
@@ -364,7 +360,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 
 	// not started without gadget
 	s.state.Unlock()
-	s.mgr.Ensure()
+	s.se.Ensure()
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -513,7 +509,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 
 	// not started without some installation happening or happened
 	s.state.Unlock()
-	s.mgr.Ensure()
+	s.se.Ensure()
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
@@ -685,8 +681,8 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
@@ -708,8 +704,8 @@ version: gadget
 	c.Check(ok, Equals, true)
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	// Repeated handler run but set original serial.
@@ -771,8 +767,8 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
@@ -786,8 +782,8 @@ version: gadget
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	// Repeated handler run but set original serial.
@@ -847,8 +843,8 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -904,15 +900,15 @@ version: gadget
 	s.seeding()
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	s.state.Unlock()
-	s.mgr.Ensure()
-	s.mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -2198,9 +2194,10 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	st := state.New(nil)
 
-	hookMgr1, err := hookstate.Manager(st)
+	runner1 := state.NewTaskRunner(st)
+	hookMgr1, err := hookstate.Manager(st, runner1)
 	c.Assert(err, IsNil)
-	mgr1, err := devicestate.Manager(st, hookMgr1)
+	mgr1, err := devicestate.Manager(st, hookMgr1, runner1)
 	c.Assert(err, IsNil)
 
 	ok := false
@@ -2219,9 +2216,10 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	})
 	st.Unlock()
 
-	hookMgr2, err := hookstate.Manager(st)
+	runner2 := state.NewTaskRunner(st)
+	hookMgr2, err := hookstate.Manager(st, runner2)
 	c.Assert(err, IsNil)
-	mgr2, err := devicestate.Manager(st, hookMgr2)
+	mgr2, err := devicestate.Manager(st, hookMgr2, runner2)
 	c.Assert(err, IsNil)
 
 	ok = false

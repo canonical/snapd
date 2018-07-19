@@ -552,11 +552,6 @@ func (m *SnapManager) Ensure() error {
 	return nil
 }
 
-func (m *SnapManager) KnownTaskKinds() []string {
-	// XXX go away
-	return nil
-}
-
 // Wait implements StateManager.Wait.
 func (m *SnapManager) Wait() {
 }

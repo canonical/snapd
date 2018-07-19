@@ -35,15 +35,11 @@ import (
 // system states. It manipulates the observed system state to ensure
 // nothing in it violates existing assertions, or misses required
 // ones.
-type AssertManager struct {
-	runner *state.TaskRunner
-}
+type AssertManager struct{}
 
 // Manager returns a new assertion manager.
-func Manager(s *state.State) (*AssertManager, error) {
+func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
 	delayedCrossMgrInit()
-
-	runner := state.NewTaskRunner(s)
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)
 
@@ -56,27 +52,20 @@ func Manager(s *state.State) (*AssertManager, error) {
 	ReplaceDB(s, db)
 	s.Unlock()
 
-	return &AssertManager{runner: runner}, nil
-}
-
-func (m *AssertManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	return &AssertManager{}, nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *AssertManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
 }
 
 // Wait implements StateManager.Wait.
 func (m *AssertManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
 func (m *AssertManager) Stop() {
-	m.runner.Stop()
 }
 
 type cachedDBKey struct{}
