@@ -462,7 +462,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	opts := &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, s.model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.DownloadUnpackGadget(s.tsto, s.model, opts, local)
@@ -533,7 +533,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, s.model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -616,7 +616,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
 	emptyToolingStore := image.MockToolingStore(&emptyStore{})
-	local, err := image.LocalSnaps(emptyToolingStore, opts, s.model)
+	local, err := image.LocalSnaps(emptyToolingStore, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -722,7 +722,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, s.model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -817,7 +817,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -888,7 +888,7 @@ func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, s.model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -978,7 +978,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, s.model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
@@ -1085,7 +1085,7 @@ func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 		ModelFile: fn,
 		Channel:   "x/x/x/x",
 	})
-	c.Assert(err, ErrorMatches, `cannot use channel "x/x/x/x": channel name has too many components: x/x/x/x`)
+	c.Assert(err, ErrorMatches, `cannot use channel: channel name has too many components: x/x/x/x`)
 }
 
 func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
@@ -1119,7 +1119,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1180,7 +1180,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Channel:         "edge",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1242,7 +1242,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithRisk(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1280,7 +1280,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackIsRiskOnly(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
@@ -1323,7 +1323,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 		Snaps:           []string{kfn, cfn},
 		Channel:         "beta",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts, model)
+	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 	c.Check(local.NameToPath(), HasLen, 2)
 

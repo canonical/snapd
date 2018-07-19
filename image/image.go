@@ -86,7 +86,7 @@ func (li *localInfos) Info(name string) *snap.Info {
 	return nil
 }
 
-func localSnaps(tsto *ToolingStore, opts *Options, model *asserts.Model) (*localInfos, error) {
+func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	local := make(map[string]*snap.Info)
 	nameToPath := make(map[string]string)
 	for _, snapName := range opts.Snaps {
@@ -152,7 +152,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 	if _, err := snap.ParseChannel(opts.Channel, ""); err != nil {
-		return fmt.Errorf("cannot use channel %q: %v", opts.Channel, err)
+		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
 	// TODO: might make sense to support this later
@@ -165,7 +165,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	local, err := localSnaps(tsto, opts, model)
+	local, err := localSnaps(tsto, opts)
 	if err != nil {
 		return err
 	}
@@ -357,11 +357,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dlOpts := &DownloadOptions{
-		TargetDir: snapSeedDir,
-		Channel:   opts.Channel,
-	}
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
@@ -405,13 +400,17 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
 		}
 
-		dlOpts.Channel = opts.Channel
+		snapChannel := opts.Channel
 		if name == model.Kernel() && model.KernelTrack() != "" {
 			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
 			if err != nil {
 				return err
 			}
-			dlOpts.Channel = kch
+			snapChannel = kch
+		}
+		dlOpts := &DownloadOptions{
+			TargetDir: snapSeedDir,
+			Channel:   snapChannel,
 		}
 
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
