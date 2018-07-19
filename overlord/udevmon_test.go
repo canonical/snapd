@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/overlord"
 
 	. "gopkg.in/check.v1"
+
+	"time"
 )
 
 type udevMonitorSuite struct{}
@@ -93,6 +95,16 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 
 	c.Assert(addCalled, Equals, true)
 	c.Assert(removeCalled, Equals, true)
+
+	// test that stop channel was closed
+	more := true
+	timeout := time.After(2 * time.Second)
+	select {
+	case _, more = <-mstop:
+	case <-timeout:
+		c.Fatalf("mstop channel was not closed")
+	}
+	c.Assert(more, Equals, false)
 
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
