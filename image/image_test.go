@@ -1076,6 +1076,18 @@ func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 	c.Assert(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
 }
 
+func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Channel:   "x/x/x/x",
+	})
+	c.Assert(err, ErrorMatches, `cannot use channel "x/x/x/x": channel name has too many components: x/x/x/x`)
+}
+
 func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
@@ -1234,7 +1246,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithRisk(c *C) {
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot use kernel-track "18/beta": must be a track name only`)
+	c.Assert(err, ErrorMatches, `cannot use kernel-track "18/beta" from model assertion: must be a track name only`)
 }
 
 func (s *imageSuite) TestBootstrapWithKernelTrackIsRiskOnly(c *C) {
@@ -1272,7 +1284,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackIsRiskOnly(c *C) {
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot use kernel-track "beta": please specify a track`)
+	c.Assert(err, ErrorMatches, `cannot use kernel-track "beta" from model assertion: not a track`)
 }
 
 func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
