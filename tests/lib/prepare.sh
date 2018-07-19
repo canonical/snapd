@@ -504,8 +504,8 @@ EOF
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         # check test was copied
-        MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
-        MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
+        MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f" || ( cat /mnt/system-data/var/lib/extrausers/"$f" && MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f" && exit 1 )
+        MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f" || ( cat /mnt/system-data/var/lib/extrausers/"$f" && MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f" && exit 1 )
     done
 
     # ensure spread -reuse works in the core image as well
