@@ -7043,7 +7043,6 @@ func (e fakeNetError) Timeout() bool   { return e.timeout }
 func (e fakeNetError) Temporary() bool { return e.temporary }
 
 func (s *apiSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
-	c.Skip("silly one")
 	si := &snapInstruction{Action: "frobble"}
 	errors := []error{
 		store.ErrSnapNotFound,
