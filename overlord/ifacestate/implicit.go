@@ -26,6 +26,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
+	_, ok := mapper.(*CoreSnapdSystemMapper)
+	return ok
+}
+
 // addImplicitSlots adds implicitly defined slots to a given snap.
 //
 // Only the OS snap has implicit slots.
@@ -42,8 +47,7 @@ func addImplicitSlots(snapInfo *snap.Info) {
 
 	// If the manager has chosen to put implicit slots on the "snapd" snap
 	// then stop adding them to any other core snaps.
-	_, isSnapdHostingImplicitSlots := mapper.(*CoreSnapdSystemMapper)
-	if isSnapdHostingImplicitSlots && snapInfo.InstanceName() != "snapd" {
+	if shouldSnapdHostImplicitSlots(mapper) && snapInfo.InstanceName() != "snapd" {
 		return
 	}
 
