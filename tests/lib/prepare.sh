@@ -519,7 +519,6 @@ EOF
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         # check test was copied
-        cat /mnt/system-data/var/lib/extrausers/"$f"
         MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
         MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
     done
