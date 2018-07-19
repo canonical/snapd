@@ -8,7 +8,7 @@ execute: |
     echo "We can see the timers being active"
     for service in regular-timer random-timer; do
         systemctl show -p ActiveState snap.test-snapd-timer-service.$service.timer | MATCH "ActiveState=active"
-        systemctl show -p SubState snap.test-snapd-timer-service.$service.timer | MATCH "SubState=waiting"
+        systemctl show -p SubState snap.test-snapd-timer-service.$service.timer | MATCH "SubState=(waiting|running)"
         systemctl show -p Triggers snap.test-snapd-timer-service.$service.timer | \
             MATCH "snap.test-snapd-timer-service.$service.service"
         systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState=enabled"

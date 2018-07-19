@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/selftest"
 )
 
 func init() {
@@ -56,6 +56,10 @@ func run() error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
 
+	if err := selftest.Run(); err != nil {
+		return fmt.Errorf("cannot start snapd: %v", err)
+	}
+
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
@@ -70,8 +74,6 @@ func run() error {
 
 	d.Start()
 
-	// notify systemd that we are ready
-	systemd.SdNotify("READY=1")
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
 	select {
@@ -81,6 +83,5 @@ func run() error {
 		// something called Stop()
 	}
 
-	systemd.SdNotify("STOPPING=1")
 	return d.Stop()
 }

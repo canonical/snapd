@@ -19,8 +19,11 @@ prepare: |
     snap install --edge $SNAP_NAME
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the snap is refreshed"
     snap refresh --beta $SNAP_NAME
 
     echo "Then deltas are successfully applied"
-    journalctl -u snapd | MATCH "Successfully applied delta"
+    get_journalctl_log -u snapd | MATCH "Successfully applied delta"

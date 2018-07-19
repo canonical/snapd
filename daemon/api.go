@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -333,7 +333,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
-	result := make(map[string][]string, len(backends))
+	result := make(map[string][]string, len(backends)+1)
 	for _, backend := range backends {
 		features := backend.SandboxFeatures()
 		if len(features) > 0 {
@@ -341,9 +341,19 @@ func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string 
 			result[string(backend.Name())] = features
 		}
 	}
-	if len(result) == 0 {
-		return nil
+
+	// Add information about supported confinement types as a fake backend
+	features := make([]string, 1, 3)
+	features[0] = "devmode"
+	if !release.ReleaseInfo.ForceDevMode() {
+		features = append(features, "strict")
 	}
+	if dirs.SupportsClassicConfinement() {
+		features = append(features, "classic")
+	}
+	sort.Strings(features)
+	result["confinement-options"] = features
+
 	return result
 }
 
@@ -612,6 +622,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	q := query.Get("q")
 	section := query.Get("section")
 	name := query.Get("name")
+	scope := query.Get("scope")
 	private := false
 	prefix := false
 
@@ -649,6 +660,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Section: section,
 		Private: private,
 		Prefix:  prefix,
+		Scope:   scope,
 	}, user)
 	switch err {
 	case nil:
@@ -688,8 +700,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 
 	theStore := getStore(c)
 	spec := store.SnapSpec{
-		Name:       name,
-		AnyChannel: true,
+		Name: name,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	switch err {
@@ -759,9 +770,9 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
-		url, err := route.URL("name", x.Name())
+		url, err := route.URL("name", x.InstanceName())
 		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.InstanceName(), x.Revision, err)
 			continue
 		}
 
@@ -817,7 +828,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	results := make([]*json.RawMessage, len(found))
 
 	for i, x := range found {
-		name := x.info.Name()
+		name := x.info.InstanceName()
 		rev := x.info.Revision
 
 		url, err := route.URL("name", name)
@@ -1207,17 +1218,6 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
 		}
-	case store.ErrRevisionNotAvailable:
-		// store.ErrRevisionNotAvailable should only be returned for
-		// individual snap queries; in all other cases something's wrong
-		switch len(inst.Snaps) {
-		case 1:
-			return SnapRevisionNotAvailable(inst.Snaps[0], err)
-		case 0:
-			return InternalError("store.RevisionNotAvailable with no snap given")
-		default:
-			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
-		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1225,12 +1225,25 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	default:
 		handled := true
 		switch err := err.(type) {
+		case *store.RevisionNotAvailableError:
+			// store.ErrRevisionNotAvailable should only be returned for
+			// individual snap queries; in all other cases something's wrong
+			switch len(inst.Snaps) {
+			case 1:
+				return SnapRevisionNotAvailable(inst.Snaps[0], err)
+			case 0:
+				return InternalError("store.RevisionNotAvailable with no snap given")
+			default:
+				return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
+			}
 		case *snap.AlreadyInstalledError:
 			kind = errorKindSnapAlreadyInstalled
 			snapName = err.Snap
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
 			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
 			snapName = err.Snap
@@ -1350,14 +1363,14 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	tset, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	tset, err := snapstateTryPath(st, info.InstanceName(), trydir, flags)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
-	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.Name()})
-	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
+	chg.Set("api-data", map[string]string{"snap-name": info.InstanceName()})
 
 	ensureStateSoon(st)
 
@@ -1558,7 +1571,7 @@ out:
 		if err != nil {
 			return BadRequest("cannot read snap file: %v", err)
 		}
-		snapName = info.Name()
+		snapName = info.InstanceName()
 		sideInfo = &snap.SideInfo{RealName: snapName}
 	}
 
@@ -1567,6 +1580,7 @@ out:
 		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
 
+	// TODO parallel-install: pass instance key if needed
 	tset, err := snapstateInstallPath(st, sideInfo, tempPath, "", flags)
 	if err != nil {
 		return InternalError("cannot install snap file: %v", err)
@@ -1635,7 +1649,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := systemCoreSnapUnalias(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1686,7 +1700,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := systemCoreSnapUnalias(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1725,17 +1739,17 @@ func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.Us
 }
 
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+	// Collect query options from request arguments.
 	q := r.URL.Query()
 	pselect := q.Get("select")
 	if pselect != "all" && pselect != "connected" {
 		return BadRequest("unsupported select qualifier")
 	}
-	var names []string
+	var names []string // Interface names
 	namesStr := q.Get("names")
 	if namesStr != "" {
 		names = strings.Split(namesStr, ",")
 	}
-
 	opts := &interfaces.InfoOptions{
 		Names:     names,
 		Doc:       q.Get("doc") == "true",
@@ -1743,24 +1757,56 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		Slots:     q.Get("slots") == "true",
 		Connected: pselect == "connected",
 	}
-	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Info(opts), nil)
+	// Query the interface repository (this returns []*interface.Info).
+	infos := c.d.overlord.InterfaceManager().Repository().Info(opts)
+	infoJSONs := make([]*interfaceJSON, 0, len(infos))
+
+	for _, info := range infos {
+		// Convert interfaces.Info into interfaceJSON
+		plugs := make([]*plugJSON, 0, len(info.Plugs))
+		for _, plug := range info.Plugs {
+			plugs = append(plugs, &plugJSON{
+				Snap:  ifacestate.RemapSnapToResponse(plug.Snap.InstanceName()),
+				Name:  plug.Name,
+				Attrs: plug.Attrs,
+				Label: plug.Label,
+			})
+		}
+		slots := make([]*slotJSON, 0, len(info.Slots))
+		for _, slot := range info.Slots {
+			slots = append(slots, &slotJSON{
+				Snap:  ifacestate.RemapSnapToResponse(slot.Snap.InstanceName()),
+				Name:  slot.Name,
+				Attrs: slot.Attrs,
+				Label: slot.Label,
+			})
+		}
+		infoJSONs = append(infoJSONs, &interfaceJSON{
+			Name:    info.Name,
+			Summary: info.Summary,
+			DocURL:  info.DocURL,
+			Plugs:   plugs,
+			Slots:   slots,
+		})
+	}
+	return SyncResponse(infoJSONs, nil)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 
-	var ifjson interfacesJSON
-
+	var ifjson interfaceJSON
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
 
-	for _, conn := range ifaces.Connections {
-		plugRef := conn.PlugRef.String()
-		slotRef := conn.SlotRef.String()
-		plugConns[plugRef] = append(plugConns[plugRef], conn.SlotRef)
-		slotConns[slotRef] = append(slotConns[slotRef], conn.PlugRef)
+	for _, cref := range ifaces.Connections {
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(cref.PlugRef.Snap), Name: cref.PlugRef.Name}
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(cref.SlotRef.Snap), Name: cref.SlotRef.Name}
+		plugID := plugRef.String()
+		slotID := slotRef.String()
+		plugConns[plugID] = append(plugConns[plugID], slotRef)
+		slotConns[slotID] = append(slotConns[slotID], plugRef)
 	}
 
 	for _, plug := range ifaces.Plugs {
@@ -1768,14 +1814,15 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
-		pj := plugJSON{
-			Snap:        plug.Snap.Name(),
-			Name:        plug.Name,
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(plug.Snap.InstanceName()), Name: plug.Name}
+		pj := &plugJSON{
+			Snap:        plugRef.Snap,
+			Name:        plugRef.Name,
 			Interface:   plug.Interface,
 			Attrs:       plug.Attrs,
 			Apps:        apps,
 			Label:       plug.Label,
-			Connections: plugConns[plug.String()],
+			Connections: plugConns[plugRef.String()],
 		}
 		ifjson.Plugs = append(ifjson.Plugs, pj)
 	}
@@ -1784,15 +1831,15 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range slot.Apps {
 			apps = append(apps, app.Name)
 		}
-
-		sj := slotJSON{
-			Snap:        slot.Snap.Name(),
-			Name:        slot.Name,
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(slot.Snap.InstanceName()), Name: slot.Name}
+		sj := &slotJSON{
+			Snap:        slotRef.Snap,
+			Name:        slotRef.Name,
 			Interface:   slot.Interface,
 			Attrs:       slot.Attrs,
 			Apps:        apps,
 			Label:       slot.Label,
-			Connections: slotConns[slot.String()],
+			Connections: slotConns[slotRef.String()],
 		}
 		ifjson.Slots = append(ifjson.Slots, sj)
 	}
@@ -1800,42 +1847,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	return SyncResponse(ifjson, nil)
 }
 
-// plugJSON aids in marshaling Plug into JSON.
-type plugJSON struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []interfaces.SlotRef   `json:"connections,omitempty"`
-}
-
-// slotJSON aids in marshaling Slot into JSON.
-type slotJSON struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"slot"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
-}
-
-// interfacesJSON aids in marshaling plugs, slots and their connections into JSON.
-type interfacesJSON struct {
-	Plugs []plugJSON `json:"plugs,omitempty"`
-	Slots []slotJSON `json:"slots,omitempty"`
-}
-
-// interfaceAction is an action performed on the interface system.
-type interfaceAction struct {
-	Action string     `json:"action"`
-	Plugs  []plugJSON `json:"plugs,omitempty"`
-	Slots  []slotJSON `json:"slots,omitempty"`
-}
-
-func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 	m := make(map[string]bool)
 	for _, conn := range conns {
 		m[conn.PlugRef.Snap] = true
@@ -1885,9 +1897,16 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.Lock()
 	defer st.Unlock()
 
+	for i := range a.Plugs {
+		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
+	}
+	for i := range a.Slots {
+		a.Slots[i].Snap = ifacestate.RemapSnapFromRequest(a.Slots[i].Snap)
+	}
+
 	switch a.Action {
 	case "connect":
-		var connRef interfaces.ConnRef
+		var connRef *interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
@@ -1895,10 +1914,10 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]interfaces.ConnRef{connRef})
+			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
-		var conns []interfaces.ConnRef
+		var conns []*interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
@@ -2477,6 +2496,11 @@ type debugAction struct {
 	Action string `json:"action"`
 }
 
+type ConnectivityStatus struct {
+	Connectivity bool     `json:"connectivity"`
+	Unreachable  []string `json:"unreachable,omitempty"`
+}
+
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a debugAction
 	decoder := json.NewDecoder(r.Body)
@@ -2502,6 +2526,24 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
+	case "connectivity":
+		s := snapstate.Store(st)
+		st.Unlock()
+		checkResult, err := s.ConnectivityCheck()
+		st.Lock()
+		if err != nil {
+			return InternalError("cannot run connectivity check: %v", err)
+		}
+		status := ConnectivityStatus{Connectivity: true}
+		for host, reachable := range checkResult {
+			if !reachable {
+				status.Connectivity = false
+				status.Unreachable = append(status.Unreachable, host)
+			}
+		}
+		sort.Strings(status.Unreachable)
+
+		return SyncResponse(status, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
@@ -2551,16 +2593,15 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
-	// we only allow "get" from regular users in snapctl
-	if uid != 0 && snapctlOptions.Args[0] != "get" {
-		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
-	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
 	if err != nil {
+		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
+			return Forbidden(e.Error())
+		}
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
 		} else {
@@ -2848,11 +2889,4 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-func systemCoreSnapUnalias(name string) string {
-	if name == "system" {
-		return "core"
-	}
-	return name
 }

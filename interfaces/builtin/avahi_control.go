@@ -165,7 +165,7 @@ func (iface *avahiControlInterface) DBusPermanentSlot(spec *dbus.Specification, 
 	return nil
 }
 
-func (iface *avahiControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *avahiControlInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

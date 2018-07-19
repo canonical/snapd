@@ -281,7 +281,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.Name(),
+			Snap: gadgetInfo.InstanceName(),
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
@@ -405,7 +405,10 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 			return nil
 		}
 
-		// sync seeding with the configuration state
+		// Sync seeding with the configuration state. We need to
+		// do this here to ensure that old systems which did not
+		// set the configuration on seeding get the configuration
+		// update too.
 		if err := markSeededInConfig(m.state); err != nil {
 			return err
 		}

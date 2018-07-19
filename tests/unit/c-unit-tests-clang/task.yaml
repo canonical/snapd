@@ -7,9 +7,6 @@ prepare: |
     # Remove any autogarbage from sent by developer
     rm -rf "$SPREAD_PATH/cmd/"{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
     make -C "$SPREAD_PATH/cmd" distclean || true
-    # install clang
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package clang
 execute: |
     cd "$SPREAD_PATH/cmd/"
     build_dir="$SPREAD_PATH/cmd/autogarbage"

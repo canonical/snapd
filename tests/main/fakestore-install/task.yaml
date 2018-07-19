@@ -8,8 +8,9 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    . $TESTSLIB/store.sh
-    teardown_fake_store $BLOB_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$BLOB_DIR"
   
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -19,12 +20,14 @@ execute: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-    . $TESTSLIB/store.sh
-    setup_fake_store $BLOB_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    setup_fake_store "$BLOB_DIR"
 
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     snap_path=$(make_snap basic)
-    make_snap_installable $BLOB_DIR ${snap_path}
+    make_snap_installable "$BLOB_DIR" "${snap_path}"
 
     snap install basic
     snap info basic | MATCH "snap-id:[ ]+basic-id"

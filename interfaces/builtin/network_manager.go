@@ -476,7 +476,7 @@ func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *networkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

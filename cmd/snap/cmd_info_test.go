@@ -142,6 +142,12 @@ const mockInfoJSON = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
       "download-size": 65536,
       "icon": "",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
@@ -174,6 +180,12 @@ const mockInfoJSONWithChannels = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
       "download-size": 65536,
       "icon": "",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
@@ -247,6 +259,12 @@ const mockInfoJSONOtherLicense = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
@@ -273,6 +291,12 @@ const mockInfoJSONNoLicense = `
       "confinement": "strict",
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
@@ -350,7 +374,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: canonical
-license:   unknown
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
@@ -386,7 +410,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: canonical
-license:   unknown
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
@@ -431,7 +455,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: canonical
-license:   unknown
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/

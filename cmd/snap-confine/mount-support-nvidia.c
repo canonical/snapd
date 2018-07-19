@@ -45,8 +45,10 @@
 #define SC_LIBGL_DIR   SC_LIB "/gl"
 #define SC_LIBGL32_DIR SC_LIB "/gl32"
 #define SC_VULKAN_DIR  SC_LIB "/vulkan"
+#define SC_GLVND_DIR  SC_LIB "/glvnd"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
+#define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
 
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
@@ -55,6 +57,14 @@ static const char *vulkan_globs[] = {
 
 static const size_t vulkan_globs_len =
     sizeof vulkan_globs / sizeof *vulkan_globs;
+
+// Location of EGL vendor files
+static const char *egl_vendor_globs[] = {
+	"egl_vendor.d/*nvidia*.json",
+};
+
+static const size_t egl_vendor_globs_len =
+    sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -87,6 +97,7 @@ static const char *nvidia_globs[] = {
 	"libXvMCNVIDIA.so*",
 	"libXvMCNVIDIA_dynamic.so*",
 	"libcuda.so*",
+	"libcudart.so*",
 	"libnvcuvid.so*",
 	"libnvidia-cfg.so*",
 	"libnvidia-compiler.so*",
@@ -272,7 +283,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	}
 	// Remount $tgt_dir (i.e. .../lib/gl) read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
-	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
+	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
 		die("cannot remount %s as read-only", buf);
 	}
 }
@@ -497,6 +508,18 @@ static void sc_mount_vulkan(const char *rootfs_dir)
 					  vulkan_globs, vulkan_globs_len);
 }
 
+static void sc_mount_egl(const char *rootfs_dir)
+{
+	const char *egl_vendor_sources[] = { SC_EGL_VENDOR_SOURCE_DIR };
+	const size_t egl_vendor_sources_len =
+	    sizeof egl_vendor_sources / sizeof *egl_vendor_sources;
+
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, egl_vendor_sources,
+					  egl_vendor_sources_len, SC_GLVND_DIR,
+					  egl_vendor_globs,
+					  egl_vendor_globs_len);
+}
+
 void sc_mount_nvidia_driver(const char *rootfs_dir)
 {
 	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
@@ -521,4 +544,5 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 
 	// Common for both driver mechanisms
 	sc_mount_vulkan(rootfs_dir);
+	sc_mount_egl(rootfs_dir);
 }

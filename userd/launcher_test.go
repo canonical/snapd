@@ -75,7 +75,7 @@ func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 }
 
 func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
-	for _, schema := range []string{"http", "https", "mailto"} {
+	for _, schema := range []string{"http", "https", "mailto", "snap"} {
 		err := s.launcher.OpenURL(schema + "://snapcraft.io")
 		c.Assert(err, IsNil)
 		c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
@@ -94,9 +94,18 @@ func (s *launcherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
 	c.Assert(err, ErrorMatches, "cannot open supplied URL")
 }
 
+func mockUICommands(c *C, script string) (restore func()) {
+	mock := testutil.MockCommand(c, "zenity", script)
+	mock.Also("kdialog", script)
+
+	return func() {
+		mock.Restore()
+	}
+}
+
 func (s *launcherSuite) TestOpenFileUserAccepts(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "true")
-	defer mockZenity.Restore()
+	restore := mockUICommands(c, "true")
+	defer restore()
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
@@ -116,8 +125,8 @@ func (s *launcherSuite) TestOpenFileUserAccepts(c *C) {
 }
 
 func (s *launcherSuite) TestOpenFileUserDeclines(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "false")
-	defer mockZenity.Restore()
+	restore := mockUICommands(c, "false")
+	defer restore()
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
@@ -136,8 +145,8 @@ func (s *launcherSuite) TestOpenFileUserDeclines(c *C) {
 }
 
 func (s *launcherSuite) TestOpenFileSucceedsWithDirectory(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "true")
-	defer mockZenity.Restore()
+	restore := mockUICommands(c, "true")
+	defer restore()
 
 	dir := c.MkDir()
 	fd, err := syscall.Open(dir, syscall.O_RDONLY|syscall.O_DIRECTORY, 0755)
@@ -155,8 +164,8 @@ func (s *launcherSuite) TestOpenFileSucceedsWithDirectory(c *C) {
 }
 
 func (s *launcherSuite) TestOpenFileFailsWithDeviceFile(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "true")
-	defer mockZenity.Restore()
+	restore := mockUICommands(c, "true")
+	defer restore()
 
 	file, err := os.Open("/dev/null")
 	c.Assert(err, IsNil)
@@ -172,8 +181,8 @@ func (s *launcherSuite) TestOpenFileFailsWithDeviceFile(c *C) {
 }
 
 func (s *launcherSuite) TestOpenFileFailsWithPathDescriptor(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "true")
-	defer mockZenity.Restore()
+	restore := mockUICommands(c, "true")
+	defer restore()
 
 	dir := c.MkDir()
 	fd, err := syscall.Open(dir, sys.O_PATH, 0755)

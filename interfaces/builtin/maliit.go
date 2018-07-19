@@ -163,7 +163,7 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *maliitInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *maliitInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

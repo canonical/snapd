@@ -262,7 +262,7 @@ func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-func (iface *bluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *bluezInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

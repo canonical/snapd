@@ -317,9 +317,6 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	os.Setenv("XDG_RUNTIME_DIR", filepath.Join(c.MkDir(), "run/user/42"))
-	defer os.Unsetenv("XDG_RUNTIME_DIR")
-
 	var changes []update.Change
 	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
 		changes = append(changes, *chg)
@@ -339,8 +336,10 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	err = update.ApplyUserFstab("foo")
 	c.Assert(err, IsNil)
 
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+
 	c.Assert(changes, HasLen, 1)
 	c.Assert(changes[0].Action, Equals, update.Mount)
-	c.Assert(changes[0].Entry.Name, Matches, `.*/run/user/42/doc/by-app/snap\.foo`)
-	c.Assert(changes[0].Entry.Dir, Matches, `.*/run/user/42/doc`)
+	c.Assert(changes[0].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
+	c.Assert(changes[0].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
 }

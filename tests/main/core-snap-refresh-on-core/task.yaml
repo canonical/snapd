@@ -21,10 +21,10 @@ execute: |
         chg_id="$1"
 
         # save change id to wait later or abort
-        echo ${chg_id} >curChg
+        echo "${chg_id}" >curChg
 
         # wait for the link task to be done
-        while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+        while ! snap change "${chg_id}"|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
 
     }
     wait_core_post_boot() {
@@ -43,7 +43,8 @@ execute: |
         exit 1
     fi
   
-    . $TESTSLIB/boot.sh
+    #shellcheck source=tests/lib/boot.sh
+    . "$TESTSLIB"/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # ensure we have a good starting place
     
@@ -51,9 +52,9 @@ execute: |
         test-snapd-tools.echo hello | MATCH hello
 
         # go to known good starting place
-        snap download core --${CORE_CHANNEL}
+        snap download core "--${CORE_CHANNEL}"
         snap ack core_*.assert
-        wait_core_pre_boot $(snap install --no-wait core_*.snap)
+        wait_core_pre_boot "$(snap install --no-wait core_*.snap)"
         REBOOT
         
     elif [ "$SPREAD_REBOOT" = 1 ]; then
@@ -65,7 +66,7 @@ execute: |
         snap list | awk "/^core / {print(\$3)}" > prevBoot
 
         # refresh
-        wait_core_pre_boot $(snap refresh core --${NEW_CORE_CHANNEL} --no-wait)
+        wait_core_pre_boot "$(snap refresh core "--${NEW_CORE_CHANNEL}" --no-wait)"
 
         # check boot env vars
         snap list | awk "/^core / {print(\$3)}" > nextBoot
@@ -96,7 +97,7 @@ execute: |
         test-snapd-tools.echo hello | MATCH hello
 
         # revert core
-        wait_core_pre_boot $(snap revert core --no-wait)
+        wait_core_pre_boot "$(snap revert core --no-wait)"
 
         test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
         test "$(bootenv snap_try_core)" = "core_$(cat prevBoot).snap"

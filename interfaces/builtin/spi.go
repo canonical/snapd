@@ -73,7 +73,7 @@ func (iface *spiInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
-	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}, slot)
+	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
 	return err
 }
 
@@ -96,7 +96,7 @@ func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *spiInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *spiInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
