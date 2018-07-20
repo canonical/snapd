@@ -253,20 +253,22 @@ func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string)
 }
 
 func attributesTask(context *hookstate.Context) (*state.Task, error) {
+	var attrsTaskID string
 	context.Lock()
 	defer context.Unlock()
 
-	var attrsTaskID string
-	err := context.Get("attrs-task", &attrsTaskID)
-	if err == nil {
-		st := context.State()
-		return st.Task(attrsTaskID), nil
-	}
-	if err != state.ErrNoState {
+	if err := context.Get("attrs-task", &attrsTaskID); err != nil {
 		return nil, err
 	}
 
-	return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
+	st := context.State()
+
+	attrsTask := st.Task(attrsTaskID)
+	if attrsTask == nil {
+		return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
+	}
+
+	return attrsTask, nil
 }
 
 func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
