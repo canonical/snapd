@@ -20,12 +20,10 @@
 package snapstate
 
 import (
-	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
-
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,54 +34,6 @@ type ManagerBackend managerBackend
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
-}
-
-type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *SnapSetup)
-}
-
-// AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
-func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
-	// Add fake handlers for tasks handled by interfaces manager
-	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		kind := task.Kind()
-		status := task.Status()
-		snapsup, err := TaskSnapSetup(task)
-		task.State().Unlock()
-		if err != nil {
-			return err
-		}
-
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
-	}
-	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	m.runner.AddHandler("auto-connect", fakeHandler, nil)
-	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
-	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
-	m.runner.AddHandler("validate-snap", fakeHandler, nil)
-	m.runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
-
-	// Add handler to test full aborting of changes
-	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return errors.New("error out")
-	}
-	m.runner.AddHandler("error-trigger", erroringHandler, nil)
-
-	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-	m.runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-
-}
-
-// AddAdhocTaskHandlers registers handlers for ad hoc test handler
-func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
-	m.runner.AddHandler(adhoc, do, undo)
 }
 
 func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
@@ -135,6 +85,8 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
+
+	DefaultContentPlugProviders = defaultContentPlugProviders
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -198,20 +150,25 @@ func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
 }
 
 func MockModelWithBase(baseName string) (restore func()) {
-	return mockModel(baseName)
+	return mockModel(fmt.Sprintf("base: %s", baseName))
+}
+
+func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
+	return mockModel(fmt.Sprintf("kernel-track: %s", kernelTrack))
 }
 
 func MockModel() (restore func()) {
-	return mockModel("")
+	return mockModel()
 }
 
-func mockModel(baseName string) (restore func()) {
+func mockModel(extras ...string) (restore func()) {
 	oldModel := Model
 
-	base := ""
-	if baseName != "" {
-		base = fmt.Sprintf("\nbase: %s", baseName)
+	var extra string
+	if len(extras) > 0 {
+		extra = "\n" + strings.Join(extras, "\n")
 	}
+
 	mod := fmt.Sprintf(`type: model
 authority-id: brand
 series: 16
@@ -224,7 +181,7 @@ timestamp: 2018-01-01T08:00:00+00:00
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==
-`, base)
+`, extra)
 	a, err := asserts.Decode([]byte(mod))
 	if err != nil {
 		panic(err)

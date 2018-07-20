@@ -278,7 +278,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 			"result": client.Connections{
 				Slots: []client.Slot{
 					{
-						Snap:      "core",
+						Snap:      "system",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
@@ -302,7 +302,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "core",
+								Snap: "system",
 								Name: "network-listening",
 							},
 						},
@@ -314,7 +314,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "core",
+								Snap: "system",
 								Name: "network-listening",
 							},
 						},
@@ -438,7 +438,7 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 			"result": client.Connections{
 				Slots: []client.Slot{
 					{
-						Snap:        "core",
+						Snap:        "system",
 						Name:        "core-support",
 						Interface:   "some-iface",
 						Connections: []client.PlugRef{{Snap: "core", Name: "core-support-plug"}},
@@ -453,13 +453,13 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 						Snap:        "core",
 						Name:        "core-support-plug",
 						Interface:   "some-iface",
-						Connections: []client.SlotRef{{Snap: "core", Name: "core-support"}},
+						Connections: []client.SlotRef{{Snap: "system", Name: "core-support"}},
 					},
 				},
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces", "core"})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "system"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
