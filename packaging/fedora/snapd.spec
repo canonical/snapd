@@ -73,7 +73,7 @@
 %endif
 
 Name:           snapd
-Version:        2.33.1
+Version:        2.34.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -733,6 +733,268 @@ fi
 
 
 %changelog
+* Thu Jul 19 2018 Michael Vogt <mvo@ubuntu.com>
+  - packaging: fix bogus date in fedora snapd.spec
+  - tests: fix tests expecting old email address
+
+* Tue Jul 17 2018 Michael Vogt <mvo@ubuntu.com>
+ - tests: cherry-pick test fixes from master for 2.34
+ - coreconfig: add support for `snap set system network.disable-
+   ipv6`
+ - debian: do not ship snapd.apparmor.service on ubuntu
+ - overlord/snapstate: dedupe default content providers
+ - interfaces/builtin: create can-bus interface
+
+* Fri Jul 06 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.34
+ - store, daemon, client, cmd/snap: expose "scope", default to wide*
+ - tests: fix arch tests
+ - snapstate: make sure all *link-*snap tasks carry a snap type and
+   further hints
+ - snapstate: allow setting "refresh.timer=managed"
+ - cmd/snap: display a link to data privacy notice for interactive
+   snap login
+ - devicestate: fix race when refreshing a snap with snapd-control
+ - tests: skip interfaces-framebuffer when no /dev/fb0 is found
+ - tests: run interfaces-contacts-service only where test-snapd-eds
+   is available
+ - many: expose publisher's validation throughout the API
+ - many: use extra "releases" information on store "revision-not-
+   found" errors to produce better errors
+ - dirs: improve distro detection for Antegros
+ - Revert "dirs: improve identification of Arch Linux like systems"
+ - devicestate: fix panic in firstboot code when no snaps are seeded
+ - i18n: use xgettext-go --files-from to avoid running into cmdline
+   size limits
+ - interfaces: move ValidateName helper to utils
+ - snapstate,ifstate: wait for pending restarts before auto-
+   connecting
+ - snap: account for parallel installs in wrappers, place info and
+   tests
+ - configcore: fix incorrect handling of keys with numbers (like
+   gpu_mem_512)
+ - tests: fix tests when no keyboard input detected
+ - overlord/configstate: add watchdog options
+ - snap-mgmt: fix for non-existent dbus system policy dir,
+   shellchecks
+ - tests/main/snapd-notify: use systemd's service properties rater
+   than the journal
+ - snapstate: allow removal of snap.TypeOS when using a model with a
+   base
+ - interfaces: make findSnapdPath smarter
+ - tests: run "arp" tests only if arp is available
+ - spread: increase the number of auto retries for package downloads
+   in opensuse
+ - cmd/snap-confine: fix nvidia support under lxd
+ - corecfg: added experimental.hotplug feature flag
+ - image: block installation of parallel snap instances
+ - interfaces: moved normalize method to interfaces/utils and made it
+   public
+ - api/snapctl: allow -h and --help for regular users.
+ - interfaces/udisks2: also implement implicit classic slot
+ - cmd/snap-confine: include CUDA runtime libraries
+ - tests: disable auto-refresh test on core18
+ - many: switch to account validation: unproven|verified
+ - overlord/ifacestate: get/set connection state only via helpers
+ - tests: adding extra check to validate journalctl is showing
+   current test data
+ - data: add systemd environment configuration
+ - i18n: handle write errors in xgettext-go
+ - snap: helper for validating snap instance names
+ - snap{/snaptest}: set instance key based on snap name
+ - userd: fix running unit tests on KDE
+ - tests/main/econnreset: limit ingress traffic to 512kB/s
+ - snap: introduce a struct Channel to represent store channels, and
+   helpers to work with it
+ - tests: add fedora to distro_clean_package_cache function
+ - many: rename snap.Info.StoreName() to snap.Info.SnapName()
+ - tests: add spread test to ensure snapd/core18 are not removable
+ - tests: tweaks for running the main tests on core18
+ - overlord/{config,snap}state: introduce experimental.parallel-
+   instances feature flag
+ - strutil: support iteration over almost clean paths
+ - strutil: add PathIterator.Rewind
+ - tests: update interfaces-timeserver-control to core18
+ - tests: add halt-timeout to google backend
+ - tests: skip security-udev-input-subsystem without /dev/input/by-
+   path
+ - snap: introduce the instance key field
+ - packaging/opensuse: remaining packaging updates for 2.33.1
+ - overlord/snapstate: disallow installing snapd on baseless models
+ - tests: disable core tests on all core systems (16 and 18)
+ - dirs: improve identification of Arch Linux like systems
+ - many: expose full publisher info over the snapd API
+ - tests: disable core tests on all core systems (16 and 18)
+ - tests/main/xdg-open: restore or clean up xdg-open
+ - tests/main/interfaces-firewall-control: shellcheck fix
+ - snapstate: sort "snapd" first
+ - systemd: require snapd.socket in snapd.seeded.service; make sure
+   snapd.seeded
+ - spread-shellcheck: use the latest shellcheck available from snaps
+ - tests: use "ss" instead of "netstat" (netstat is not available in
+   core18)
+ - data/complete: fix three out of four shellcheck warnings in
+   data/complete
+ - packaging/opensuse: fix typo, missing assignment
+ - tests: initial core18 spread image building
+ - overlord: introduce a gadget-connect task and use it at first boot
+ - data/completion: fix inconsistency in +x and shebang
+ - firstboot: mark essential snaps as "Required" in the state
+ - spread-shellcheck: use a whitelist of files that are allowed to
+   fail validation
+ - packaging/opensuse: build position-independent binaries
+ - ifacestate: prevent running interface hooks twice when self-
+   connecting on autoconnect
+ - data: remove /bin/sh from snapd.sh
+ - tests: fix shellcheck 0.5.0 warnings
+ - packaging/opensuse: snap-confine should be 06755
+ - packaging/opensuse: ship apparmor integration if enabled
+ - interfaces/udev,misc: only trigger udev events on input subsystem
+   as needed
+ - packaging/opensuse: add missing bits for snapd.seeded.service
+ - packaging/opensuse: don't use %-macros in comments
+ - tests: shellchecks part 4
+ - many: rename snap.Info.Name() to snap.Info.InstanceName(), leave
+   parallel-install TODOs
+ - store: drop unused: channel map types, and details fixture.
+ - store: have a basic test about the unmarshalling of /search
+   results
+ - tests: show executed tests on current system when a test fails
+ - tests: fix for the download of the big snap
+ - interfaces/apparmor: add chopTree
+ - tests: remove double debug: | entry in tests and add more checks
+ - cmd/snap-update-ns: introduce mimicRequired helper
+ - interfaces: move assertions around for better failure line number
+ - store: log a nice clear "download succeeded" message
+ - snap: run snap-confine from the re-exec location
+ - snapstate: support restarting snapd from the snapd snap on core18
+ - tests: show status of the partial test-snapd-huge snap in
+   econnreset test
+ - tests: fix interfaces-calendar-service test when gvfsd-metadata
+   loks the xdg dirctory
+ - store: switch store.SnapInfo to use the new v2/info endpoint
+ - interfaces: add Repository.AllInterfaces
+ - snapstate: stop using evolving SnapSpec internally, use an
+   internal-only snapSpec instead
+ - cmd/libsnap-confine-private: introduce a helper for splitting snap
+   name
+ - tests: econnreset/retry tweaks
+ - store, et al: kill dead code that uses the bulk endpoint
+ - tests/lib/prepare-restore: fix upgrade/reboot handling on arch
+ - cmd/snap-update-ns,strutil: move PathIterator to strutil, add
+   Depth helper
+ - data/systemd/snapd.run-from-snap: ensure snapd tooling is
+   available
+ - store: switch connectivity check to use v2/info
+ - devicestate: support seeding from a base snap instead of core
+ - snapstate,ifacestate: remove core-phase-2 handling
+ - interfaces/docker-support: update for docker 18.05
+ - tests: enable fedora 28 again
+ - overlord/ifacestate:  simplify checkConnectConflicts and also
+   connect signature
+ - snap: parse connect instructions in gadget.yaml
+ - tests: fix snapd-repair.timer on ubuntu-core-snapd-run- from-snap
+   test
+ - interfaces/apparmor: allow killing snap-update-ns
+ - tests: skip "try" test on s390x
+ - store, image: have 'snap download' use v2/refresh action=download
+ - interfaces/policy: test that base policy can be parsed
+ - tests: publish test-snapd-appstreamid for any architecture
+ - snap: don't include newline in hook environment
+ - cmd/snap-update-ns: use RCall with SyscallsEqual
+ - cmd/snap-update-ns: add IsSnapdCreatedPrivateTmpfs and tests
+ - tests: skip security-dev-input-event-denied on s390x/arm64
+ - interfaces: add the dvb interface
+ - daemon: paging is not a thing.
+ - cmd/snap-mgmt: remove system key on purge
+ - testutil: syscall sequence checker
+ - cmd/snap-update-ns: fix a leaking file descriptor in MkSymlink
+ - packaging: use official bolt in the errtracker on fedora
+ - many: add `snap debug connectivity` command* many: add `snap debug
+   connectivity` command
+ - configstate: deny configuration of base snaps and for the "snapd"
+   snap
+ - interfaces/raw-usb: also allow usb serial devices
+ - snap: reject more layout locations
+ - errtracker: do not send duplicated reports
+ - httputil: extra debug if an error is not retried
+ - cmd/snap-update-ns: improve wording in many errors
+ - cmd/snap: use snaptest.MockSnapCurrent in `snap run` tests
+ - cmd/snap-update-ns: add helper for checking for read-only
+   filesystems
+ - interfaces/builtin/docker: use commonInterface over specific
+   struct
+ - testutil: add test support for Fstatfs
+ - cmd/snap-update-ns: discard the concept of segments
+ - cmd/libsnap-confine-private: helper for extracting store snap name
+   from local-name
+ - tests: fix flaky test for hooks undo
+ - interfaces: add {contacts,calendar}-service interfaces
+ - tests: retry 'restarting into..' match in the snap-confine-from-
+   core test
+ - systemd: adjust TestWriteMountUnitForDirs() to use
+   squashfs.MockUseFuse(false)
+ - data: add helper that can generate/start/stop the snapd service
+ - sefltest: advise reboot into 4.4 on trusty running 3.13
+ - selftest: add new selftest package that tests squashfs mounting
+ - store, jsonutil: move store.getStructFields to
+   jsonutil.StructFields
+ - ifacestate: improved conflict and error handling when creating
+   autoconnect tasks
+ - cmd/snap-confine: applied make fmt
+ - interfaces/udev: call 'udevadm settle --timeout=10' after
+   triggering events
+ - tests: wait more time until snap start to be downloaded on
+   econnreset test
+ - snapstate: ensure fakestore returns TypeOS for the core snap
+ - tests: fix lxd test which hangs on restore
+ - cmd/snap-update-ns: add PathIterator
+ - asserts,image: add support for models with bases
+ - tests: shellchecks part 3
+ - overlord/hookstate: support undo for hooks
+ - interfaces/tpm: Allow access to the kernel resource manager
+ - tests: skip appstream-id test for core systems 32 bits
+ - interfaces/home: remove redundant common interface assignment
+ - tests: reprioritise a few tests that are known to be slow
+ - cmd/snap: small help tweaks and fixes
+ - tests: add test to ensure /dev/input/event* for non-joysticks is
+   denied
+ - spread-shellcheck: silly fix & pep8
+ - spread: switch fedora 28 to manual
+ - client,cmd/snap,daemon,tests: expose base of a snap over API, show
+   it in snap info --verbose
+ - tests: fix lxd test - --auto now sets up networking
+ - tests: adding fedora-28 to spread.yaml
+ - interfaces: add juju-client-observe interface
+ - client, daemon: add a "mounted-from" entry to local snaps' JSON
+ - image: set model.DisplayName() in bootenv as "snap_menuentry"
+ - packaging/opensuse: Refactor packaging to support all openSUSE
+   targets
+ - interfaces/joystick: force use of the device cgroup with joystick
+   interface
+ - interfaces/hardware-observe: allow access to /etc/sensors* for
+   libsensors
+ - interfaces: remove Plug/Slot types
+ - interface hooks: update old AutoConnect methods
+ - snapcraft: run with DEB_BUILD_OPTIONS=nocheck
+ - overlord/{config,snap}state: the number of inactive revisions is
+   config
+ - cmd/snap: check with snapd for unknown sections
+ - tests: moving test helpers from sh to bash
+ - data/systemd: add snapd.apparmor.service
+ - many: expose AppStream IDs (AKA common ID)
+ - many: hold refresh when on metered connections
+ - interfaces/joystick: also support modern evdev joysticks and
+   gamepads
+ - xdgopenproxy: skip TestOpenUnreadableFile when run as root
+ - snapcraft: use dpkg-buildpackage options that work in xenial
+ - spread: openSUSE LEAP 42.2 was EOLd in January, remove it
+ - get-deps: work with an unset GOPATH too
+ - interfaces/apparmor: use strict template on openSUSE tumbleweed
+ - packaging: filter out verbose flags from "dh-golang"
+ - packaging: fix description
+ - snapcraft.yaml: add minimal snapcraft.yaml with custom build
+
 * Thu Jun 21 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.33.1
  - many: improve udev trigger on refresh experience
@@ -1142,7 +1404,7 @@ fi
    UbuntuStore(Repository)? references
  - store: reorg auth refresh
 
-* Tue May 16 2018 Michael Vogt <mvo@ubuntu.com>
+* Wed May 16 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.9
  - tests: run all spread tests inside GCE
  - tests: build spread in the autopkgtests with a more recent go
