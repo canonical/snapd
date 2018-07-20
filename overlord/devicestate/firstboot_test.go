@@ -605,7 +605,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
 
-	ifacemgr, err := ifacestate.Manager(st, nil, nil, nil)
+	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
 	st.Lock()

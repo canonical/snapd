@@ -41,9 +41,6 @@ type StateManager interface {
 	// Stop asks the manager to terminate all activities running concurrently.
 	// It must not return before these activities are finished.
 	Stop()
-
-	// KnownTaskKinds returns all task kinds handled by this manager.
-	KnownTaskKinds() []string
 }
 
 // StateEngine controls the dispatching of state changes to state managers.
