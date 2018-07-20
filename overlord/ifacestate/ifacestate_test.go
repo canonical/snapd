@@ -3225,7 +3225,7 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*disconnect-interfaces task for snap "consumer" will be retried because of "consumer" - "producer" conflict`)
+	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*disconnecting interfaces of snap "consumer" will be retried because of "consumer" - "producer" conflict`)
 	c.Assert(t2.Status(), Equals, state.DoingStatus)
 }
 
