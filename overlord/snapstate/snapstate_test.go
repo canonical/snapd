@@ -202,6 +202,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("disconnect-interfaces", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
@@ -4624,6 +4625,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "disconnect-interfaces:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
 		},
@@ -4741,6 +4747,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := fakeOps{
+		{
+			op:    "disconnect-interfaces:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
@@ -4946,8 +4957,13 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 4)
+	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := fakeOps{
+		{
+			op:    "disconnect-interfaces:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
 		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
@@ -8511,6 +8527,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:    "disconnect-interfaces:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
 		},
@@ -8590,6 +8611,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:   "transition-ubuntu-core:Doing",
 			name: "ubuntu-core",
+		},
+		{
+			op:    "disconnect-interfaces:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
 		},
 		{
 			op:   "remove-snap-aliases",
