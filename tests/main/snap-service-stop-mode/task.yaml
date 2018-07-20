@@ -19,6 +19,10 @@ execute: |
 
     echo "When the service snap is installed"
     install_local test-snapd-service
+    # Because we cannot use daemon: notify easily yet just wait for a "ready"
+    # file to show up.  The file is removed when the service is stopped. This
+    # pattern repeats around the test without additional comments.
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
@@ -31,6 +35,7 @@ execute: |
 
     echo "When it is re-installed"
     install_local test-snapd-service
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     # note that sigterm{,-all} is tested separately
     for s in $stop_modes; do
@@ -39,7 +44,6 @@ execute: |
 
         echo "and it got the right signal"
         echo "checking that the right signal was sent"
-        sleep 1
         get_journalctl_log -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
     done
 
@@ -59,4 +63,3 @@ restore: |
     rm -f *.pid || true
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
-    killall sleep || true

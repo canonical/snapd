@@ -498,6 +498,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
+	if err := canSwitchChannel(st, name, channel); err != nil {
+		return nil, err
+	}
+
 	var instFlags int
 	if flags.SkipConfigure {
 		// extract it as a doInstall flag, this is not passed
@@ -930,6 +934,40 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
+// canSwitchChannel returns an error if switching to newChannel for snap is
+// forbidden.
+func canSwitchChannel(st *state.State, snapName, newChannel string) error {
+	// nothing to do
+	if newChannel == "" {
+		return nil
+	}
+
+	// ensure we do not switch away from the kernel-track in the model
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if model == nil {
+		return nil
+	}
+
+	if snapName != model.Kernel() {
+		return nil
+	}
+	if model.KernelTrack() == "" {
+		return nil
+	}
+	nch, err := snap.ParseChannel(newChannel, "")
+	if err != nil {
+		return err
+	}
+	if nch.Track != model.KernelTrack() {
+		return fmt.Errorf("cannot switch from kernel-track %q to %q", model.KernelTrack(), nch.String())
+	}
+
+	return nil
+}
+
 // Switch switches a snap to a new channel
 func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	var snapst SnapState
@@ -942,6 +980,10 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	}
 
 	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	if err := canSwitchChannel(st, name, channel); err != nil {
 		return nil, err
 	}
 
@@ -972,6 +1014,10 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	//        until we know what we want to do
 	if !snapst.Active {
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
+	if err := canSwitchChannel(st, name, channel); err != nil {
+		return nil, err
 	}
 
 	if channel == "" {

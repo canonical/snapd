@@ -5,6 +5,8 @@ trap "echo got sigusr1; SIG=1" USR1
 trap "echo got sigusr2; SIG=1" USR2
 trap "echo got sighup; SIG=1" HUP
 
+touch $SNAP_COMMON/ready
+
 while [ "$SIG" = "0" ]; do
     echo "running $1 process"
     sleep 1

@@ -319,6 +319,12 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	c.Assert(err, IsNil)
 
 	snapID := (snapName + "-snap-" + strings.Repeat("id", 20))[:32]
+	// FIXME: snapd is special in the interface policy code and it
+	//        identified by its snap-id. so we fake the real snap-id
+	//        here. Instead we should add a "type: snapd" for snaps.
+	if snapName == "snapd" {
+		snapID = "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+	}
 
 	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
