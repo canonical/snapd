@@ -22,6 +22,7 @@ package snapstate
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -149,20 +150,25 @@ func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
 }
 
 func MockModelWithBase(baseName string) (restore func()) {
-	return mockModel(baseName)
+	return mockModel(fmt.Sprintf("base: %s", baseName))
+}
+
+func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
+	return mockModel(fmt.Sprintf("kernel-track: %s", kernelTrack))
 }
 
 func MockModel() (restore func()) {
-	return mockModel("")
+	return mockModel()
 }
 
-func mockModel(baseName string) (restore func()) {
+func mockModel(extras ...string) (restore func()) {
 	oldModel := Model
 
-	base := ""
-	if baseName != "" {
-		base = fmt.Sprintf("\nbase: %s", baseName)
+	var extra string
+	if len(extras) > 0 {
+		extra = "\n" + strings.Join(extras, "\n")
 	}
+
 	mod := fmt.Sprintf(`type: model
 authority-id: brand
 series: 16
@@ -175,7 +181,7 @@ timestamp: 2018-01-01T08:00:00+00:00
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==
-`, base)
+`, extra)
 	a, err := asserts.Decode([]byte(mod))
 	if err != nil {
 		panic(err)

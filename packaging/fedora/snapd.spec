@@ -73,7 +73,7 @@
 %endif
 
 Name:           snapd
-Version:        2.34.1
+Version:        2.34.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -733,6 +733,10 @@ fi
 
 
 %changelog
+* Thu Jul 19 2018 Michael Vogt <mvo@ubuntu.com>
+  - packaging: fix bogus date in fedora snapd.spec
+  - tests: fix tests expecting old email address
+
 * Tue Jul 17 2018 Michael Vogt <mvo@ubuntu.com>
  - tests: cherry-pick test fixes from master for 2.34
  - coreconfig: add support for `snap set system network.disable-
@@ -1400,7 +1404,7 @@ fi
    UbuntuStore(Repository)? references
  - store: reorg auth refresh
 
-* Tue May 16 2018 Michael Vogt <mvo@ubuntu.com>
+* Wed May 16 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.9
  - tests: run all spread tests inside GCE
  - tests: build spread in the autopkgtests with a more recent go
