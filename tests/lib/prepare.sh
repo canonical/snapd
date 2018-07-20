@@ -276,9 +276,6 @@ prepare_classic() {
 
 MATCH ()
 {
-    {
-        set +xu
-    } 2> /dev/null;
     [ ${#@} -gt 0 ] || {
         echo "error: missing regexp argument";
         return 1
