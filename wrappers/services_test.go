@@ -22,6 +22,7 @@ package wrappers_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
@@ -107,6 +109,47 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog[0], DeepEquals, []string{"--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
 	c.Check(sysdLog[1], DeepEquals, []string{"daemon-reload"})
+}
+
+var snapdYaml = `name: snapd
+version: 1.0
+`
+
+func (s *servicesTestSuite) TestAddSnapServicesForSnapd(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockSnap(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)})
+	snapdSrv := filepath.Join(info.MountDir(), "/lib/systemd/system/snapd.service")
+	err = os.MkdirAll(filepath.Dir(snapdSrv), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapdSrv, []byte("[Unit]\nExecStart=/usr/lib/snapd/snapd"), 0644)
+	c.Assert(err, IsNil)
+
+	// add the snapd service
+	err = wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	// check that paths get re-writen
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snapd.service"))
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd", dirs.SnapMountDir))
+
+	// check that systemd got started
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"daemon-reload"},
+	})
 }
 
 func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C) {
