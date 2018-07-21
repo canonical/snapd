@@ -22,9 +22,11 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -32,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -169,8 +172,76 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	return nil
 }
 
+func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
+	// we never write
+	if release.OnClassic {
+		return nil
+	}
+
+	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service"))
+	if err != nil {
+		return err
+	}
+	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.socket"))
+	if err != nil {
+		return err
+	}
+	units := append(serviceUnits, socketUnits...)
+
+	snapdUnits := make(map[string]*osutil.FileState, len(units))
+	for _, unit := range units {
+		st, err := os.Stat(unit)
+		if err != nil {
+			return err
+		}
+		content, err := ioutil.ReadFile(unit)
+		if err != nil {
+			return err
+		}
+		re := regexp.MustCompile(`(?m)^ExecStart=(.*)$`)
+		content = re.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
+
+		snapdUnits[filepath.Base(unit)] = &osutil.FileState{
+			Content: content,
+			Mode:    st.Mode(),
+		}
+	}
+	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, []string{"snapd.service", "snapd.socket", "snapd.*.service"}, snapdUnits)
+	if err != nil {
+		// TODO: uhhhh, what do we do in this case?
+		return err
+	}
+	if (len(changed) + len(removed)) == 0 {
+		// nothing to do
+		return nil
+	}
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	for _, unit := range removed {
+		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+			return err
+		}
+	}
+	for _, unit := range changed {
+		if err := sysd.Enable(filepath.Base(unit)); err != nil {
+			return err
+		}
+	}
+	// TODO: think about start/restart - snapd itself is never stopped
+	//       it will only stop voluntarily
+
+	if err := sysd.DaemonReload(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) (err error) {
+	if s.SnapName() == "snapd" {
+		return writeSnapdServicesOnCore(s, inter)
+	}
+
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	var written []string
 	var enabled []string
