@@ -5,7 +5,7 @@ details: |
 
 environment:
     SNAP_NAME/test_snapd_tools: test-snapd-tools
-    SNAP_NAME/network_bind_consumer: network-bind-consumer
+    SNAP_NAME/test_snapd_service: test-snapd-service
     TRYDIR: $(pwd)/trydir
 
 restore: |
