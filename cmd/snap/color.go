@@ -156,7 +156,7 @@ func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 	return fmt.Sprintf("%s (%s%s%s%s)", storeAccount.DisplayName, storeAccount.Username, esc.green, badge, esc.end)
 }
 
-// longPublisher returns a string that'll present the publisher of a snap to the
+// shortPublisher returns a string that'll present the publisher of a snap to the
 // terminal user:
 //
 // * it'll always be just the username
