@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -112,8 +111,8 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 			continue
 		}
 
-		var snapshot snapshotState
-		if err := task.Get("snapshot", &snapshot); err != nil {
+		var snapshot snapshotSetup
+		if err := task.Get("snapshot-setup", &snapshot); err != nil {
 			if err == state.ErrNoState {
 				return fmt.Errorf("internal error: task %s (%s) is missing snapshot information", task.ID(), task.Kind())
 			}
@@ -157,15 +156,12 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 	for _, name := range snapNames {
 		desc := fmt.Sprintf("Save the data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("save-snapshot", desc)
-		snapshot := snapshotState{
+		snapshot := snapshotSetup{
 			SetID: setID,
 			Snap:  name,
 			Users: users,
 		}
-		task.Set("snapshot", &snapshot)
-		// this is to trigger conflicts with snapstate ops
-		// (the check is done via snapstate:snapTopicalTasks)
-		task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: name}})
+		task.Set("snapshot-setup", &snapshot)
 		ts.AddTask(task)
 	}
 
@@ -194,15 +190,13 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	for i, name := range snapsFound {
 		desc := fmt.Sprintf("Restore the data of snap %q from snapshot set #%d", name, setID)
 		task := st.NewTask("restore-snapshot", desc)
-		snapshot := snapshotState{
+		snapshot := snapshotSetup{
 			SetID:    setID,
 			Snap:     name,
 			Users:    users,
 			Filename: filenames[i],
 		}
-		task.Set("snapshot", &snapshot)
-		// hackish, for conflict detection:
-		task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: name}})
+		task.Set("snapshot-setup", &snapshot)
 		ts.AddTask(task)
 	}
 
@@ -227,13 +221,13 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 	for i, name := range snapsFound {
 		desc := fmt.Sprintf("Check the data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("check-snapshot", desc)
-		snapshot := snapshotState{
+		snapshot := snapshotSetup{
 			SetID:    setID,
 			Snap:     name,
 			Users:    users,
 			Filename: filenames[i],
 		}
-		task.Set("snapshot", &snapshot)
+		task.Set("snapshot-setup", &snapshot)
 		ts.AddTask(task)
 	}
 
@@ -257,12 +251,12 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 	for i, name := range snapsFound {
 		desc := fmt.Sprintf("Remove the data of snap %q from snapshot set #%d", name, setID)
 		task := st.NewTask("forget-snapshot", desc)
-		snapshot := snapshotState{
+		snapshot := snapshotSetup{
 			SetID:    setID,
 			Snap:     name,
 			Filename: filenames[i],
 		}
-		task.Set("snapshot", &snapshot)
+		task.Set("snapshot-setup", &snapshot)
 		ts.AddTask(task)
 	}
 

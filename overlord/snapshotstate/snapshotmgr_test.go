@@ -95,7 +95,7 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot", map[string]interface{}{
+	task.Set("snapshot-setup", map[string]interface{}{
 		"set-id": 42,
 		"snap":   "a-snap",
 		"users":  []string{"a-user", "b-user"},
@@ -117,7 +117,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot", map[string]interface{}{
+	task.Set("snapshot-setup", map[string]interface{}{
 		"set-id": 42,
 		"snap":   "a-snap",
 		"users":  []string{"a-user", "b-user"},
@@ -144,7 +144,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	task := st.NewTask("save-snapshot", "...")
-	// NOTE no task.Set("snapshot", ...)
+	// NOTE no task.Set("snapshot-setup", ...)
 	st.Unlock()
 	err := snapshotstate.DoSave(task, &tomb.Tomb{})
 	c.Assert(err, check.Equals, state.ErrNoState)
@@ -167,7 +167,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot", map[string]interface{}{
+	task.Set("snapshot-setup", map[string]interface{}{
 		"set-id": 42,
 		"snap":   "a-snap",
 		"users":  []string{"a-user", "b-user"},
@@ -196,7 +196,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot", map[string]interface{}{
+	task.Set("snapshot-setup", map[string]interface{}{
 		"set-id": 42,
 		"snap":   "a-snap",
 		"users":  []string{"a-user", "b-user"},
@@ -227,7 +227,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	task := st.NewTask("save-snapshot", "...")
-	task.Set("snapshot", map[string]interface{}{
+	task.Set("snapshot-setup", map[string]interface{}{
 		"set-id": 42,
 		"snap":   "a-snap",
 		"users":  []string{"a-user", "b-user"},
@@ -249,7 +249,7 @@ func (rs *readerSuite) SetUpTest(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	rs.task = st.NewTask("restore-snapshot", "...")
-	rs.task.Set("snapshot", map[string]interface{}{
+	rs.task.Set("snapshot-setup", map[string]interface{}{
 		// interestingly restore doesn't use the set-id
 		"snap":     "a-snap",
 		"filename": "/some/file.zip",
@@ -338,7 +338,7 @@ func (rs *readerSuite) TestDoRestore(c *check.C) {
 
 func (rs *readerSuite) TestDoRestoreFailsNoTaskSnapshot(c *check.C) {
 	rs.task.State().Lock()
-	rs.task.Clear("snapshot")
+	rs.task.Clear("snapshot-setup")
 	rs.task.State().Unlock()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})

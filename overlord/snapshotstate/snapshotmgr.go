@@ -21,6 +21,7 @@ package snapshotstate
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"gopkg.in/tomb.v2"
@@ -56,19 +57,37 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
 	runner.AddCleanup("restore-snapshot", cleanupRestore)
-	return &SnapshotManager{}
+
+	manager := &SnapshotManager{}
+	snapstate.AddAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
+
+	return manager
 }
 
 // Ensure is part of the overlord.StateManager interface.
-func (m *SnapshotManager) Ensure() error { return nil }
+func (SnapshotManager) Ensure() error { return nil }
 
 // Wait is part of the overlord.StateManager interface.
-func (m *SnapshotManager) Wait() {}
+func (SnapshotManager) Wait() {}
 
 // Stop is part of the overlord.StateManager interface.
-func (m *SnapshotManager) Stop() {}
+func (SnapshotManager) Stop() {}
 
-type snapshotState struct {
+func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
+	if k := t.Kind(); k == "check-snapshot" || k == "forget-snapshot" {
+		// check and forget don't affect snaps
+		// (this could also be written k != save && k != restore, but it's safer this way around)
+		return nil, nil
+	}
+	var snapshot snapshotSetup
+	if err := t.Get("snapshot-setup", &snapshot); err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain snapshot data from task: %s", t.Summary())
+	}
+
+	return []string{snapshot.Snap}, nil
+}
+
+type snapshotSetup struct {
 	SetID    uint64   `json:"set-id"`
 	Snap     string   `json:"snap"`
 	Users    []string `json:"users,omitempty"`
@@ -87,12 +106,12 @@ func filename(setID uint64, si *snap.Info) string {
 
 // prepareSave does all the steps of doSave that require the state lock;
 // it has no real significance beyond making the lock handling simpler
-func prepareSave(task *state.Task) (snapshot *snapshotState, cur *snap.Info, cfg map[string]interface{}, err error) {
+func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg map[string]interface{}, err error) {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
 
-	if err := task.Get("snapshot", &snapshot); err != nil {
+	if err := task.Get("snapshot-setup", &snapshot); err != nil {
 		return nil, nil, nil, err
 	}
 	cur, err = snapstateCurrentInfo(st, snapshot.Snap)
@@ -100,7 +119,7 @@ func prepareSave(task *state.Task) (snapshot *snapshotState, cur *snap.Info, cfg
 		return nil, nil, nil, err
 	}
 	snapshot.Filename = filename(snapshot.SetID, cur)
-	task.Set("snapshot", &snapshot)
+	task.Set("snapshot-setup", &snapshot)
 
 	rawCfg, err := configGetSnapConfig(st, snapshot.Snap)
 	if err != nil {
@@ -126,13 +145,13 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 
 // prepareRestore does the steps of doRestore that require the state lock
 // before the backend Restore call.
-func prepareRestore(task *state.Task) (snapshot *snapshotState, oldCfg map[string]interface{}, reader *backend.Reader, err error) {
+func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[string]interface{}, reader *backend.Reader, err error) {
 	st := task.State()
 
 	st.Lock()
 	defer st.Unlock()
 
-	if err := task.Get("snapshot", &snapshot); err != nil {
+	if err := task.Get("snapshot-setup", &snapshot); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -189,7 +208,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 
 func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	var restoreState backend.RestoreState
-	var snapshot snapshotState
+	var snapshot snapshotSetup
 
 	st := task.State()
 	st.Lock()
@@ -198,7 +217,7 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("restore-state", &restoreState); err != nil {
 		return err
 	}
-	if err := task.Get("snapshot", &snapshot); err != nil {
+	if err := task.Get("snapshot-setup", &snapshot); err != nil {
 		return err
 	}
 
@@ -239,11 +258,11 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 }
 
 func doCheck(task *state.Task, tomb *tomb.Tomb) error {
-	var snapshot snapshotState
+	var snapshot snapshotSetup
 
 	st := task.State()
 	st.Lock()
-	err := task.Get("snapshot", &snapshot)
+	err := task.Get("snapshot-setup", &snapshot)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -262,8 +281,8 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 
-	var snapshot snapshotState
-	err := task.Get("snapshot", &snapshot)
+	var snapshot snapshotSetup
+	err := task.Get("snapshot-setup", &snapshot)
 	st.Unlock()
 	if err != nil {
 		return err
