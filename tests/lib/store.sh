@@ -64,21 +64,22 @@ setup_fake_store(){
     https_proxy=${https_proxy:-}
     http_proxy=${http_proxy:-}
 
-    systemd_create_and_start_unit fakestore "$(which fakestore) run --dir $top_dir --addr localhost:11028 --https-proxy=${https_proxy} --http-proxy=${http_proxy} --assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    echo "Create fakestore at the given port"
+    PORT="11028"
+    systemd_create_and_start_unit fakestore "$(command -v fakestore) run --dir $top_dir --addr localhost:$PORT --https-proxy=${https_proxy} --http-proxy=${http_proxy} --assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     echo "And snapd is configured to use the controlled store"
-    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:$PORT" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     echo "Wait until fake store is ready"
-    for _ in $(seq 15); do
-        if netstat -ntlp | MATCH "127.0.0.1:11028*.*LISTEN"; then
-            return 0
-        fi
-        sleep 1
-    done
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+    if wait_listen_port "$PORT"; then
+        return 0
+    fi
 
     echo "fakestore service not started properly"
-    netstat -ntlp | grep "127.0.0.1:11028" || true
+    ss -ntlp | grep "127.0.0.1:$PORT" || true
     get_journalctl_log -u fakestore || true
     systemctl status fakestore || true
     exit 1

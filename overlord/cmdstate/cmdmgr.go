@@ -30,37 +30,25 @@ import (
 )
 
 // CommandManager helps running arbitrary commands as tasks.
-type CommandManager struct {
-	runner *state.TaskRunner
-}
+type CommandManager struct{}
 
 // Manager returns a new CommandManager.
-func Manager(st *state.State) *CommandManager {
-	runner := state.NewTaskRunner(st)
+func Manager(st *state.State, runner *state.TaskRunner) *CommandManager {
 	runner.AddHandler("exec-command", doExec, nil)
-	return &CommandManager{runner: runner}
-}
-
-// KnownTaskKinds returns a unsorted list of known task kinds.
-// It is part of the overlord.StateManager interface.
-func (m *CommandManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	return &CommandManager{}
 }
 
 // Ensure is part of the overlord.StateManager interface.
 func (m *CommandManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
 }
 
 // Wait is part of the overlord.StateManager interface.
 func (m *CommandManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop is part of the overlord.StateManager interface.
 func (m *CommandManager) Stop() {
-	m.runner.Stop()
 }
 
 var defaultExecTimeout = 5 * time.Second

@@ -41,8 +41,10 @@ func (snapshotSuite) TestManager(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	mgr := snapshotstate.Manager(st)
-	kinds := mgr.KnownTaskKinds()
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+	kinds := runner.KnownTaskKinds()
 	sort.Strings(kinds)
 	c.Check(kinds, check.DeepEquals, []string{
 		"check-snapshot",

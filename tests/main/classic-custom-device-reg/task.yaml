@@ -1,7 +1,7 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
 systems:
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # The test fails on Arch right now, disable it temporarily
     - -arch-*
 environment:
@@ -40,7 +40,7 @@ prepare: |
     cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
     cp ./classic-gadget_1.0_all.snap "$SEED_DIR/snaps/classic-gadget.snap"
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(which fakedevicesvc) localhost:11029"
+    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

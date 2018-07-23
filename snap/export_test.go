@@ -20,17 +20,10 @@
 package snap
 
 var (
-	NewHookType                  = newHookType
 	ValidateSocketName           = validateSocketName
 	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
 )
 
-func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
-	old := supportedHooks
-	supportedHooks = hookTypes
-	return func() { supportedHooks = old }
-}
-
-func (info *Info) RenamePlug(oldName, newName string) {
-	info.renamePlug(oldName, newName)
+func (info *Info) ForceRenamePlug(oldName, newName string) {
+	info.forceRenamePlug(oldName, newName)
 }

@@ -7,11 +7,11 @@ details: |
   consistent behaviour across various distributions.
 systems:
     # This test only applies to classic systems
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
 prepare: |
     echo "Having installed the test snap"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     # Arch does not use /etc/alternatives
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then

@@ -194,7 +194,7 @@ version: 1.0`
 
 	checkCbCalled := false
 	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags) error {
-		c.Assert(s.Name(), Equals, "foo")
+		c.Assert(s.InstanceName(), Equals, "foo")
 		c.Assert(s.SnapID, Equals, "snap-id")
 		checkCbCalled = true
 		return nil

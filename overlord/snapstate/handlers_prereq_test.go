@@ -20,13 +20,13 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -34,41 +34,23 @@ import (
 )
 
 type prereqSuite struct {
-	state     *state.State
-	snapmgr   *snapstate.SnapManager
+	baseHandlerSuite
+
 	fakeStore *fakeStore
-
-	fakeBackend *fakeSnappyBackend
-
-	reset func()
 }
 
 var _ = Suite(&prereqSuite{})
 
 func (s *prereqSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
-	s.state.Lock()
-	defer s.state.Unlock()
+	s.setup(c, nil)
 
 	s.fakeStore = &fakeStore{
 		state:       s.state,
 		fakeBackend: s.fakeBackend,
 	}
+	s.state.Lock()
+	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
-
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
-}
-
-func (s *prereqSuite) TearDownTest(c *C) {
-	s.reset()
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
@@ -93,8 +75,8 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -118,8 +100,8 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	chg.AddTask(t)
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -181,7 +163,7 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	defer restore()
 
 	calls := 0
-	s.snapmgr.AddAdhocTaskHandler("link-snap",
+	s.runner.AddHandler("link-snap",
 		func(task *state.Task, _ *tomb.Tomb) error {
 			if calls == 0 {
 				// retry again later, this forces ordering of
@@ -235,8 +217,8 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	for i := 0; i < 10; i++ {
 		time.Sleep(1 * time.Millisecond)
 		s.state.Unlock()
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 		s.state.Lock()
 		if tCore.Status() == state.DoneStatus {
 			break
@@ -252,8 +234,8 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	for i := 0; i < 50; i++ {
 		time.Sleep(10 * time.Millisecond)
 		s.state.Unlock()
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 		s.state.Lock()
 		if t.Status() == state.DoneStatus {
 			break
@@ -282,8 +264,8 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	chg.AddTask(t)
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -326,4 +308,55 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		},
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqNothingToDoForBase(c *C) {
+	for _, typ := range []snap.Type{
+		snap.TypeOS,
+		snap.TypeGadget,
+		snap.TypeKernel,
+		snap.TypeBase,
+	} {
+
+		s.state.Lock()
+		t := s.state.NewTask("prerequisites", "test")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: fmt.Sprintf("foo-%s", typ),
+				Revision: snap.R(1),
+			},
+			Type: typ,
+		})
+		s.state.NewChange("dummy", "...").AddTask(t)
+		s.state.Unlock()
+
+		s.se.Ensure()
+		s.se.Wait()
+
+		s.state.Lock()
+		c.Assert(s.fakeBackend.ops, HasLen, 0)
+		c.Check(t.Status(), Equals, state.DoneStatus)
+		s.state.Unlock()
+	}
+}
+
+func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(1),
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	s.state.Unlock()
 }

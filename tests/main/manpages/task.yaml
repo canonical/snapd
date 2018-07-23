@@ -1,7 +1,7 @@
 summary: the essential manual pages are installed by the native package
 
 # core systems don't ship man or manual pages
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 execute: |
 

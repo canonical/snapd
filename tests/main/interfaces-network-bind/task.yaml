@@ -21,13 +21,21 @@ prepare: |
     install_local $SNAP_NAME
 
     echo "Given the snap's service is listening"
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    # shellcheck source=tests/lib/network.sh
+    . $TESTSLIB/network.sh
+    wait_listen_port "$PORT"
 
     echo "Given we store a basic HTTP request"
     cat > $REQUEST_FILE <<EOF
     GET / HTTP/1.0
 
     EOF
+
+restore: |
+    # This snap is removed because it generates thousands of DENIALS in the journal. Most of those
+    # are sent after the journalctl cursor for following test is determined producing errors while
+    # preparing the test.
+    snap remove network-bind-consumer
 
 execute: |
     echo "The interface is connected by default"

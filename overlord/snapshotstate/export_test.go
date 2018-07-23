@@ -69,7 +69,7 @@ func MockSnapstateCurrentInfo(f func(*state.State, string) (*snap.Info, error)) 
 	}
 }
 
-func MockSnapstateCheckChangeConflictMany(f func(*state.State, []string, func(*state.Task) bool) error) func() {
+func MockSnapstateCheckChangeConflictMany(f func(*state.State, []string, string) error) func() {
 	old := snapstateCheckChangeConflictMany
 	snapstateCheckChangeConflictMany = f
 	return func() {
