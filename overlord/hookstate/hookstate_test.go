@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -51,6 +50,7 @@ type hookManagerSuite struct {
 
 	o           *overlord.Overlord
 	state       *state.State
+	se          *overlord.StateEngine
 	manager     *hookstate.HookManager
 	context     *hookstate.Context
 	mockHandler *hooktest.MockHandler
@@ -95,10 +95,12 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.o = overlord.Mock()
 	s.state = s.o.State()
-	manager, err := hookstate.Manager(s.state)
+	manager, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.manager = manager
+	s.se = s.o.StateEngine()
 	s.o.AddManager(s.manager)
+	s.o.AddManager(s.o.TaskRunner())
 
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -145,7 +147,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 func (s *hookManagerSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 
-	s.manager.Stop()
+	s.se.Stop()
 	dirs.SetRootDir("")
 }
 
@@ -155,14 +157,8 @@ func (s *hookManagerSuite) settle(c *C) {
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
-	s.manager.Ensure()
-	s.manager.Wait()
-}
-
-func (s *hookManagerSuite) TestKnownTaskKinds(c *C) {
-	kinds := s.manager.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{"configure-snapd", "run-hook"})
+	s.se.Ensure()
+	s.se.Wait()
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
@@ -213,14 +209,14 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 			didRun <- s.manager.GracefullyWaitRunningHooks()
 		}()
 	}
-	s.manager.Ensure()
+	s.se.Ensure()
 	select {
 	case ok := <-didRun:
 		c.Check(ok, Equals, true)
 	case <-time.After(5 * time.Second):
 		c.Fatal("hook run should have been done by now")
 	}
-	s.manager.Wait()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -249,8 +245,8 @@ func (s *hookManagerSuite) TestHookTaskEnsureRestarting(c *C) {
 	// we do no start new hooks runs if we are restarting
 	s.state.RequestRestart(state.RestartDaemon)
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -274,8 +270,8 @@ func (s *hookManagerSuite) TestHookSnapMissing(c *C) {
 	snapstate.Set(s.state, "test-snap", nil)
 	s.state.Unlock()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -295,8 +291,8 @@ func (s *hookManagerSuite) TestHookHijackingHappy(c *C) {
 		return nil
 	})
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -323,8 +319,8 @@ func (s *hookManagerSuite) TestHookHijackingUnHappy(c *C) {
 		return fmt.Errorf("not-happy-at-all")
 	})
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -354,8 +350,8 @@ func (s *hookManagerSuite) TestHookHijackingVeryUnHappy(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTaskInitializesContext(c *C) {
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	var value string
 	c.Assert(s.context, NotNil, Commentf("Expected handler generator to be called with a valid context"))
@@ -371,8 +367,8 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -402,8 +398,8 @@ func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -431,16 +427,16 @@ func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
+	s.se.Ensure()
 	completed := make(chan struct{})
 	go func() {
-		s.manager.Wait()
+		s.se.Wait()
 		close(completed)
 	}()
 
 	s.state.Lock()
 	s.state.Unlock()
-	s.manager.Ensure()
+	s.se.Ensure()
 	<-completed
 
 	s.state.Lock()
@@ -465,8 +461,8 @@ func (s *hookManagerSuite) TestHookTaskEnforcesDefaultTimeout(c *C) {
 	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -496,16 +492,16 @@ func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
 	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
+	s.se.Ensure()
 	completed := make(chan struct{})
 	go func() {
-		s.manager.Wait()
+		s.se.Wait()
 		close(completed)
 	}()
 
 	s.state.Lock()
 	s.state.Unlock()
-	s.manager.Ensure()
+	s.se.Ensure()
 	<-completed
 
 	s.state.Lock()
@@ -527,10 +523,10 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
+	s.se.Ensure()
 	completed := make(chan struct{})
 	go func() {
-		s.manager.Wait()
+		s.se.Wait()
 		close(completed)
 	}()
 
@@ -539,7 +535,7 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	s.state.Lock()
 	s.change.Abort()
 	s.state.Unlock()
-	s.manager.Ensure()
+	s.se.Ensure()
 	<-completed
 
 	s.state.Lock()
@@ -565,8 +561,8 @@ func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
 		c, "snap", ">&2 echo \"SNAP_COOKIE=$SNAP_COOKIE\"; exit 1")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -584,8 +580,8 @@ func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
 func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	s.mockHandler.BeforeError = true
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -603,8 +599,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	s.mockHandler.DoneError = true
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -626,8 +622,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	cmd := testutil.MockCommand(c, "snap", "exit 1")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -713,8 +709,8 @@ func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {
 	s.task.Set("hook-setup", hooksup)
 	s.state.Unlock()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -731,8 +727,8 @@ func (s *hookManagerSuite) TestHookWithMultipleHandlersIsError(c *C) {
 		return hooktest.NewMockHandler()
 	})
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -753,8 +749,8 @@ func (s *hookManagerSuite) TestHookWithoutHookIsError(c *C) {
 	s.task.Set("hook-setup", hooksup)
 	s.state.Unlock()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -779,8 +775,8 @@ func (s *hookManagerSuite) TestHookWithoutHookOptional(c *C) {
 	s.task.Set("hook-setup", hooksup)
 	s.state.Unlock()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
 	c.Check(s.mockHandler.DoneCalled, Equals, true)
@@ -808,8 +804,8 @@ func (s *hookManagerSuite) TestOptionalHookWithMissingHandler(c *C) {
 	s.task.Set("hook-setup", hooksup)
 	s.state.Unlock()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	c.Check(s.command.Calls(), IsNil)
 
@@ -848,8 +844,8 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 	})
 	defer r()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -884,8 +880,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -915,8 +911,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorDisabled(c *C) {
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
 	defer cmd.Restore()
 
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1085,8 +1081,8 @@ func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
 	chg.AddTask(task)
 
 	st.Unlock()
-	s.manager.Ensure()
-	s.manager.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	st.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
@@ -1119,7 +1115,7 @@ func (s *hookManagerSuite) TestGracefullyWaitRunningHooksTimeout(c *C) {
 		return nil
 	})
 
-	s.manager.Ensure()
+	s.se.Ensure()
 	select {
 	case noPending := <-didRun:
 		c.Check(noPending, Equals, false)
