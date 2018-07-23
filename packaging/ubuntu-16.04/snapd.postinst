@@ -31,7 +31,7 @@ case "$1" in
                 fi
 
                 echo "Starting $unit"
-                systemctl start "$unit" || true
+                deb-systemd-invoke start "$unit" || true
             done
         fi
 esac
