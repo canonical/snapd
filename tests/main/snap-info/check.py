@@ -73,7 +73,7 @@ check("basic-desktop", res[1],
 check("test-snapd-tools", res[2],
    ("name", equals, "test-snapd-tools"),
    ("publisher", equals, "Canonical✓"),
-   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("contact", equals, "snaps@canonical.com"),
    ("summary", equals, "Tools for testing the snapd application"),
    ("description", equals, "A tool to test snapd\n"),
    ("commands", exists),
@@ -87,13 +87,13 @@ check("test-snapd-tools", res[2],
     ("edge", matches, verRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
-   ("license", equals, "unset"), # TODO: update once snap.yaml contains the right license
+   ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
 )
 
 check("test-snapd-devmode", res[3],
    ("name", equals, "test-snapd-devmode"),
    ("publisher", equals, "Canonical✓"),
-   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("contact", equals, "snaps@canonical.com"),
    ("summary", equals, "Basic snap with devmode confinement"),
    ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
    ("tracking", equals, "beta"),
@@ -106,7 +106,7 @@ check("test-snapd-devmode", res[3],
     ("edge", matches, verRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
-   ("license", equals, "unset"), # TODO: update once snap.yaml contains the right license
+   ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
 )
 
 check("core", res[4],
@@ -124,7 +124,7 @@ check("core", res[4],
       # sideload "core"
       ("contact", maybe),
       ("snap-id", maybe),
-      ("license", equals, "unset"), # TODO: update once snap.yaml contains the right license
+      ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
 )
 
 check("error", res[5],
@@ -135,7 +135,7 @@ check("error", res[5],
 check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
    ("publisher", equals, "Canonical✓"),
-   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("contact", equals, "snaps@canonical.com"),
    ("summary", exists),
    ("description", exists),
    ("channels", exists),

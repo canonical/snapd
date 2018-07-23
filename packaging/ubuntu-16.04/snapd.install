@@ -18,6 +18,8 @@ data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 data/info /usr/lib/snapd/
 # polkit actions
 data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
+# apt hook
+data/apt/20snapd.conf /etc/apt/apt.conf.d/
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real

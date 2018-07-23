@@ -184,6 +184,14 @@ EOF
 }
 
 prepare_classic() {
+    # ensure apt is the latest version
+    # https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1776218
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            apt install -y apt
+            ;;
+    esac
+
     distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
@@ -203,6 +211,17 @@ prepare_classic() {
                 ;;
         esac
         exit 1
+    fi
+
+    # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
+    # unit. Stop the broken unit to not confuse the "degraded-boot" test.
+    #
+    # FIXME: fix the ubuntu-16.04-64 image
+    if systemctl list-unit-files | grep sshguard.service; then
+        if ! systemctl status sshguard.service; then
+            systemctl stop sshguard.service
+	    systemctl reset-failed sshguard.service
+        fi
     fi
 
     setup_systemd_snapd_overrides
