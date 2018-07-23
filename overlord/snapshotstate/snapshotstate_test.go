@@ -254,11 +254,11 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "internal error: task 1 .some-task. is missing snapshot information")
 
 	// wrong snapshot state
-	tsk.Set("snapshot", "hello")
+	tsk.Set("snapshot-setup", "hello")
 	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "internal error.* could not unmarshal.*")
 
-	tsk.Set("snapshot", map[string]int{"set-id": 42})
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 
 	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "snapshot set #42 has a .some-task. task in progress")
@@ -371,7 +371,7 @@ func (snapshotSuite) TestSaveOneSnap(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Save the data of snap "a-snap" in snapshot set #1`)
 	var snapshot map[string]interface{}
-	c.Check(tasks[0].Get("snapshot", &snapshot), check.IsNil)
+	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
 		"set-id": 1.,
 		"snap":   "a-snap",
@@ -413,7 +413,7 @@ func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
 	chg := st.NewChange("forget-snapshot-change", "...")
 	tsk := st.NewTask("forget-snapshot", "...")
 	tsk.SetStatus(state.DoingStatus)
-	tsk.Set("snapshot", map[string]int{"set-id": 42})
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
@@ -474,7 +474,7 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore the data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
-	c.Check(tasks[0].Get("snapshot", &snapshot), check.IsNil)
+	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
 		"set-id":   42.,
 		"snap":     "a-snap",
@@ -517,7 +517,7 @@ func (snapshotSuite) TestCheckChecksForgetConflicts(c *check.C) {
 	chg := st.NewChange("forget-snapshot-change", "...")
 	tsk := st.NewTask("forget-snapshot", "...")
 	tsk.SetStatus(state.DoingStatus)
-	tsk.Set("snapshot", map[string]int{"set-id": 42})
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Check(st, 42, nil, nil)
@@ -551,7 +551,7 @@ func (snapshotSuite) TestCheck(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "check-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Check the data of snap "a-snap" in snapshot set #42`)
 	var snapshot map[string]interface{}
-	c.Check(tasks[0].Get("snapshot", &snapshot), check.IsNil)
+	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
 		"set-id":   42.,
 		"snap":     "a-snap",
@@ -594,7 +594,7 @@ func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
 	chg := st.NewChange("check-snapshot-change", "...")
 	tsk := st.NewTask("check-snapshot", "...")
 	tsk.SetStatus(state.DoingStatus)
-	tsk.Set("snapshot", map[string]int{"set-id": 42})
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Forget(st, 42, nil)
@@ -622,7 +622,7 @@ func (snapshotSuite) TestForgetChecksRestoreConflicts(c *check.C) {
 	chg := st.NewChange("restore-snapshot-change", "...")
 	tsk := st.NewTask("restore-snapshot", "...")
 	tsk.SetStatus(state.DoingStatus)
-	tsk.Set("snapshot", map[string]int{"set-id": 42})
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Forget(st, 42, nil)
@@ -656,7 +656,7 @@ func (snapshotSuite) TestForget(c *check.C) {
 	c.Check(tasks[0].Kind(), check.Equals, "forget-snapshot")
 	c.Check(tasks[0].Summary(), check.Equals, `Remove the data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
-	c.Check(tasks[0].Get("snapshot", &snapshot), check.IsNil)
+	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
 		"set-id":   42.,
 		"snap":     "a-snap",
