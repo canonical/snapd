@@ -1,0 +1,9 @@
+summary: Check mount issue
+
+backends: [-autopkgtest]
+
+execute: |
+    for _ in $(seq 50); do
+        snap install test-snapd-tools test-snapd-public
+        snap remove test-snapd-tools test-snapd-public
+    done
