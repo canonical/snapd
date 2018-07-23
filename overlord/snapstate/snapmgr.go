@@ -551,11 +551,3 @@ func (m *SnapManager) Ensure() error {
 
 	return nil
 }
-
-// Wait implements StateManager.Wait.
-func (m *SnapManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() {
-}
