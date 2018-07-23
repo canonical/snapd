@@ -106,6 +106,7 @@ func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	_, err := s.outf.Seek(0, 0)
 	c.Assert(err, IsNil)
 	outbuf, err := ioutil.ReadAll(s.outf)
+	c.Assert(err, IsNil)
 	c.Check(string(outbuf), Equals, "")
 }
 
