@@ -319,7 +319,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 
 	st := d.overlord.State()
 	// adds an assertion db
-	assertstate.Manager(st)
+	assertstate.Manager(st, o.TaskRunner())
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
@@ -328,13 +328,9 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 	return d
 }
 
-type fakeSnapManager struct {
-	runner *state.TaskRunner
-}
+type fakeSnapManager struct{}
 
-func newFakeSnapManager(st *state.State) *fakeSnapManager {
-	runner := state.NewTaskRunner(st)
-
+func newFakeSnapManager(st *state.State, runner *state.TaskRunner) *fakeSnapManager {
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
@@ -342,24 +338,17 @@ func newFakeSnapManager(st *state.State) *fakeSnapManager {
 		return fmt.Errorf("fake-install-snap-error errored")
 	}, nil)
 
-	return &fakeSnapManager{runner: runner}
-}
-
-func (m *fakeSnapManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	return &fakeSnapManager{}
 }
 
 func (m *fakeSnapManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
 }
 
 func (m *fakeSnapManager) Wait() {
-	m.runner.Wait()
 }
 
 func (m *fakeSnapManager) Stop() {
-	m.runner.Stop()
 }
 
 // sanity
@@ -368,7 +357,9 @@ var _ overlord.StateManager = (*fakeSnapManager)(nil)
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
 	d := s.daemonWithOverlordMock(c)
 	st := d.overlord.State()
-	d.overlord.AddManager(newFakeSnapManager(st))
+	runner := d.overlord.TaskRunner()
+	d.overlord.AddManager(newFakeSnapManager(st, runner))
+	d.overlord.AddManager(runner)
 	return d
 }
 

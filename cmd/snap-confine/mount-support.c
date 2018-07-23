@@ -362,7 +362,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// Other base snaps do not, so whenever a base snap other than core is
 	// in use we need extra provisions for setting up internal tooling to
 	// be available.
-	if (!sc_streq(config->base_snap_name, "core")) {
+	//
+	// However on a core18 (and similar) system the core snap is not
+	// a special base anymore and we should map our own tooling in.
+	if (config->distro == SC_DISTRO_CORE_OTHER
+	    || !sc_streq(config->base_snap_name, "core")) {
 		// when bases are used we need to bind-mount the libexecdir
 		// (that contains snap-exec) into /usr/lib/snapd of the
 		// base snap so that snap-exec is available for the snaps
