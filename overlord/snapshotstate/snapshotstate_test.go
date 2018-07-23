@@ -287,7 +287,7 @@ func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
 }
 
 func (snapshotSuite) TestSaveChecksSnapstateConflictError(c *check.C) {
-	defer snapshotstate.MockSnapstateCheckChangeConflictMany(func(*state.State, []string, func(*state.Task) bool) error {
+	defer snapshotstate.MockSnapstateCheckChangeConflictMany(func(*state.State, []string, string) error {
 		return errors.New("bzzt")
 	})()
 
@@ -435,7 +435,7 @@ func (snapshotSuite) TestRestoreChecksSnapstateConflicts(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	defer snapshotstate.MockSnapstateCheckChangeConflictMany(func(*state.State, []string, func(*state.Task) bool) error {
+	defer snapshotstate.MockSnapstateCheckChangeConflictMany(func(*state.State, []string, string) error {
 		return errors.New("bzzt")
 	})()
 

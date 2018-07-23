@@ -1,1 +1,4 @@
-setBadness('permissions-unauthorized-file', 222)
+setBadness('permissions-unauthorized-file', 22)
+setBadness('polkit-untracked-privilege', 11)
+setBadness('non-position-independent-executable', 33)
+setBadness('polkit-untracked-privilege', 44)

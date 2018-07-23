@@ -143,7 +143,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 	}
 
 	// Make sure we do not snapshot if anythink like install/remove/refresh is in progress
-	if err := snapstateCheckChangeConflictMany(st, snapNames, nil); err != nil {
+	if err := snapstateCheckChangeConflictMany(st, snapNames, ""); err != nil {
 		return 0, nil, nil, err
 	}
 
@@ -180,7 +180,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 		return nil, nil, err
 	}
 
-	if err := snapstateCheckChangeConflictMany(st, snapsFound, nil); err != nil {
+	if err := snapstateCheckChangeConflictMany(st, snapsFound, ""); err != nil {
 		return nil, nil, err
 	}
 

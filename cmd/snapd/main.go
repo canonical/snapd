@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/selftest"
 )
 
 func init() {
@@ -54,6 +55,10 @@ func main() {
 func run() error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
+
+	if err := selftest.Run(); err != nil {
+		return fmt.Errorf("cannot start snapd: %v", err)
+	}
 
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

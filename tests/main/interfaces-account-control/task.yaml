@@ -8,7 +8,8 @@ systems: [ubuntu-core-16-64]
 
 prepare: |
     echo "Given a snap declaring a plug on account-control is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local account-control-consumer
 
     echo "And the account-control plug is connected"
@@ -17,14 +18,15 @@ prepare: |
 restore: |
     echo "Ensure alice is gone from the system"
     for f in /var/lib/extrausers/*; do
-        sed -i '/^alice:/d' $f
+        sed -i '/^alice:/d' "$f"
     done
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
-    $SNAP_MOUNT_DIR/bin/account-control-consumer.useradd --extrausers alice
-    echo alice:password | $SNAP_MOUNT_DIR/bin/account-control-consumer.chpasswd
+    "$SNAP_MOUNT_DIR"/bin/account-control-consumer.useradd --extrausers alice
+    echo alice:password | "$SNAP_MOUNT_DIR"/bin/account-control-consumer.chpasswd
 
     # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
     # $SNAP_MOUNT_DIR/bin/account-control-consumer.userdel --extrausers alice

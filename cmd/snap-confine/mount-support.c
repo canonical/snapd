@@ -208,8 +208,9 @@ struct sc_mount_config {
 	const char *rootfs_dir;
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
-	bool on_classic_distro;
-	bool uses_base_snap;
+	sc_distro distro;
+	bool normal_mode;
+	const char *base_snap_name;
 };
 
 /**
@@ -326,7 +327,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
 	}
-	if (config->on_classic_distro) {
+	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
 		// we may need to put certain directories from the desired root filesystem
 		// (e.g. the core snap) back. This way the behavior of running snaps is not
@@ -357,7 +358,15 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			}
 		}
 	}
-	if (config->uses_base_snap) {
+	// The "core" base snap is special as it contains snapd and friends.
+	// Other base snaps do not, so whenever a base snap other than core is
+	// in use we need extra provisions for setting up internal tooling to
+	// be available.
+	//
+	// However on a core18 (and similar) system the core snap is not
+	// a special base anymore and we should map our own tooling in.
+	if (config->distro == SC_DISTRO_CORE_OTHER
+	    || !sc_streq(config->base_snap_name, "core")) {
 		// when bases are used we need to bind-mount the libexecdir
 		// (that contains snap-exec) into /usr/lib/snapd of the
 		// base snap so that snap-exec is available for the snaps
@@ -369,7 +378,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 				 scratch_dir);
 
 		// bind mount the current $ROOT/usr/lib/snapd path,
-		// where $ROOT is either "/" or the "/snap/core/current"
+		// where $ROOT is either "/" or the "/snap/{core,snapd}/current"
 		// that we are re-execing from
 		char *src = NULL;
 		char self[PATH_MAX + 1] = { 0 };
@@ -445,7 +454,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// uniform way after pivot_root but this is good enough and requires less
 	// code changes the nvidia code assumes it has access to the existing
 	// pre-pivot filesystem.
-	if (config->on_classic_distro) {
+	if (config->distro == SC_DISTRO_CLASSIC) {
 		sc_mount_nvidia_driver(scratch_dir);
 	}
 	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -603,11 +612,11 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-
-	bool on_classic_distro = is_running_on_classic_distribution();
-	// on classic or with alternative base snaps we need to setup
-	// a different confinement
-	if (on_classic_distro || !sc_streq(base_snap_name, "core")) {
+	// Classify the current distribution, as claimed by /etc/os-release.
+	sc_distro distro = sc_classify_distro();
+	// Check which mode we should run in, normal or legacy.
+	if (sc_should_use_normal_mode(distro, base_snap_name)) {
+		// In normal mode we use the base snap as / and set up several bind mounts.
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -652,30 +661,30 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			}
 			die("cannot locate the base snap: %s", base_snap_name);
 		}
-		struct sc_mount_config classic_config = {
+		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
-			.on_classic_distro = true,
-			.uses_base_snap = !sc_streq(base_snap_name, "core"),
+			.distro = distro,
+			.normal_mode = true,
+			.base_snap_name = base_snap_name,
 		};
-		sc_bootstrap_mount_namespace(&classic_config);
+		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
-		// This is what happens on an all-snap system. The rootfs we start with
-		// is the real outer rootfs.  There are no unidirectional bind mounts
-		// needed because everything is already OK. We still keep the
-		// bidirectional /media mount point so that snaps designed for mounting
-		// filesystems can use that space for whatever they need.
+		// In legacy mode we don't pivot and instead just arrange bi-
+		// directional mount propagation for two directories.
 		const struct sc_mount mounts[] = {
 			{"/media", true},
 			{"/run/netns", true},
 			{},
 		};
-		struct sc_mount_config all_snap_config = {
+		struct sc_mount_config legacy_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
-			.uses_base_snap = !sc_streq(base_snap_name, "core"),
+			.distro = distro,
+			.normal_mode = false,
+			.base_snap_name = base_snap_name,
 		};
-		sc_bootstrap_mount_namespace(&all_snap_config);
+		sc_bootstrap_mount_namespace(&legacy_config);
 	}
 
 	// set up private mounts
@@ -687,7 +696,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	setup_private_pts();
 
 	// setup quirks for specific snaps
-	if (on_classic_distro) {
+	if (distro == SC_DISTRO_CLASSIC) {
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
@@ -757,7 +766,7 @@ static void sc_make_slave_mount_ns(void)
 }
 
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-                          const char *snap_name)
+			  const char *snap_name)
 {
 	debug("%s: %s", __FUNCTION__, snap_name);
 

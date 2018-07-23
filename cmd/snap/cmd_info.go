@@ -65,7 +65,7 @@ func init() {
 		func() flags.Commander {
 			return &infoCmd{}
 		}, timeDescs.also(map[string]string{
-			"verbose": i18n.G("Include a verbose list of a snap's notes (otherwise, summarise notes)"),
+			"verbose": i18n.G("Include more details on the snap (expanded notes, base, etc.)"),
 		}), nil)
 }
 
@@ -136,7 +136,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 		return false
 	}
 	fmt.Fprintf(w, "path:\t%q\n", path)
-	fmt.Fprintf(w, "name:\t%s\n", info.Name())
+	fmt.Fprintf(w, "name:\t%s\n", info.InstanceName())
 	fmt.Fprintf(w, "summary:\t%s\n", formatSummary(info.Summary()))
 
 	var notes *Notes
@@ -401,15 +401,17 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		// TODO: have publisher; use publisher here,
-		// and additionally print developer if publisher != developer
-		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
+		publisher := "–" // that's an en dash (so yaml is happy)
+		if both.Publisher != nil {
+			publisher = both.Publisher.Username
+		}
+		fmt.Fprintf(w, "publisher:\t%s\n", publisher)
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
 		license := both.License
 		if license == "" {
-			license = "unknown"
+			license = "unset"
 		}
 		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)

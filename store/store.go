@@ -33,7 +33,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,13 +47,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -85,6 +84,13 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
+var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
+	retry.Exponential{
+		Initial: 900 * time.Millisecond,
+		Factor:  1.3,
+	},
+))
+
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -99,6 +105,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	InfoFields   []string
 	DeltaFormat  string
 
 	// CacheDownloads is the number of downloads that should be cached
@@ -136,6 +143,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	infoFields   []string
 	deltaFormat  string
 	// reused http client
 	client *http.Client
@@ -156,24 +164,6 @@ func respToError(resp *http.Response, msg string) error {
 	}
 
 	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
-}
-
-func getStructFields(s interface{}, exceptions ...string) []string {
-	st := reflect.TypeOf(s).Elem()
-	num := st.NumField()
-	fields := make([]string, 0, num)
-	for i := 0; i < num; i++ {
-		tag := st.Field(i).Tag.Get("json")
-		idx := strings.IndexRune(tag, ',')
-		if idx > -1 {
-			tag = tag[:idx]
-		}
-		if tag != "" && !strutil.ListContains(exceptions, tag) {
-			fields = append(fields, tag)
-		}
-	}
-
-	return fields
 }
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
@@ -267,11 +257,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
+var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
+
 func storeDeveloperURL() string {
 	if useStaging() {
 		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://dashboard.snapcraft.io/"
+	return defaultStoreDeveloperURL
 }
 
 var defaultConfig = Config{}
@@ -294,6 +286,8 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
+	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
 }
 
 type searchResults struct {
@@ -308,9 +302,6 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
-// The fields we are interested in (not you, snap_yaml_raw)
-var detailFields = getStructFields((*snapDetails)(nil), "snap_yaml_raw")
-
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
 
@@ -320,19 +311,24 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		cfg = &defaultConfig
 	}
 
-	fields := cfg.DetailFields
-	if fields == nil {
-		fields = detailFields
+	detailFields := cfg.DetailFields
+	if detailFields == nil {
+		detailFields = defaultConfig.DetailFields
 	}
 
-	architecture := arch.UbuntuArchitecture()
-	if cfg.Architecture != "" {
-		architecture = cfg.Architecture
+	infoFields := cfg.InfoFields
+	if infoFields == nil {
+		infoFields = defaultConfig.InfoFields
 	}
 
-	series := release.Series
-	if cfg.Series != "" {
-		series = cfg.Series
+	architecture := cfg.Architecture
+	if cfg.Architecture == "" {
+		architecture = arch.UbuntuArchitecture()
+	}
+
+	series := cfg.Series
+	if cfg.Series == "" {
+		series = release.Series
 	}
 
 	deltaFormat := cfg.DeltaFormat
@@ -346,7 +342,8 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
 		fallbackStoreID: cfg.StoreID,
-		detailFields:    fields,
+		detailFields:    detailFields,
+		infoFields:      infoFields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 
@@ -369,8 +366,6 @@ const (
 	// one at a time; so it's better to consider that as part of
 	// individual endpoint paths.
 	searchEndpPath      = "api/v1/snaps/search"
-	detailsEndpPath     = "api/v1/snaps/details"
-	bulkEndpPath        = "api/v1/snaps/metadata"
 	ordersEndpPath      = "api/v1/snaps/purchases/orders"
 	buyEndpPath         = "api/v1/snaps/purchases/buy"
 	customersMeEndpPath = "api/v1/snaps/purchases/customers/me"
@@ -378,6 +373,7 @@ const (
 	commandsEndpPath    = "api/v1/snaps/names"
 	// v2
 	snapActionEndpPath = "v2/snaps/refresh"
+	snapInfoEndpPath   = "v2/snaps/info"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -389,16 +385,6 @@ func (s *Store) defaultSnapQuery() url.Values {
 	q := url.Values{}
 	if len(s.detailFields) != 0 {
 		q.Set("fields", strings.Join(s.detailFields, ","))
-	}
-	return q
-}
-
-func (s *Store) queryForSnapInfo() url.Values {
-	// like defaultSnapQuery, plus a couple
-	q := url.Values{}
-	if len(s.detailFields) != 0 {
-		fields := append(s.detailFields, "snap_yaml_raw")
-		q.Set("fields", strings.Join(fields, ","))
 	}
 	return q
 }
@@ -1040,44 +1026,23 @@ func mustBuy(paid bool, bought bool) bool {
 
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
-	Name    string
-	Channel string
-	// AnyChannel can be set to query for any revision independent of channel
-	AnyChannel bool
-	// Revision can be set to query for an exact revision
-	Revision snap.Revision
+	Name string
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := s.queryForSnapInfo()
+	query := url.Values{}
+	query.Set("fields", strings.Join(s.infoFields, ","))
+	query.Set("architecture", s.architecture)
 
-	channel := snapSpec.Channel
-	var sel string
-	if channel == "" {
-		channel = "stable" // default
-	}
-	if snapSpec.AnyChannel {
-		channel = ""
-	}
-	if !snapSpec.Revision.Unset() {
-		query.Set("revision", snapSpec.Revision.String())
-		channel = ""
-		sel = fmt.Sprintf(" at revision %s", snapSpec.Revision)
-	}
-	if channel != "" {
-		sel = fmt.Sprintf(" in channel %q", channel)
-	}
-	query.Set("channel", channel)
-
-	u := s.endpointURL(path.Join(detailsEndpPath, snapSpec.Name), query)
+	u := s.endpointURL(path.Join(snapInfoEndpPath, snapSpec.Name), query)
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+		Method:   "GET",
+		URL:      u,
+		APILevel: apiV2Endps,
 	}
 
-	var remote *snapDetails
+	var remote storeInfo
 	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
@@ -1090,11 +1055,14 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case 404:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
+		msg := fmt.Sprintf("get details for snap %q", snapSpec.Name)
 		return nil, respToError(resp, msg)
 	}
 
-	info := infoFromRemote(remote)
+	info, err := infoFromStoreInfo(&remote)
+	if err != nil {
+		return nil, err
+	}
 
 	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {
@@ -1110,6 +1078,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 type Search struct {
 	Query   string
 	Section string
+	Scope   string
 	Private bool
 	Prefix  bool
 }
@@ -1154,6 +1123,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 	if search.Section != "" {
 		q.Set("section", search.Section)
+	}
+	if search.Scope != "" {
+		q.Set("scope", search.Scope)
 	}
 
 	if release.OnClassic {
@@ -1299,11 +1271,6 @@ type currentSnapJSON struct {
 	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
 }
 
-type metadataWrapper struct {
-	Snaps  []*currentSnapJSON `json:"snaps"`
-	Fields []string           `json:"fields"`
-}
-
 func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	// the store gets confused if we send snaps without a snapid
 	// (like local ones)
@@ -1331,119 +1298,6 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		IgnoreValidation: cs.IgnoreValidation,
 		// confinement purposely left empty
 	}
-}
-
-// query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(ctx context.Context, currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
-	if flags == nil {
-		flags = &RefreshOptions{}
-	}
-
-	if len(currentSnaps) == 0 {
-		// nothing to do
-		return nil, nil
-	}
-
-	// build input for the updates endpoint
-	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  currentSnaps,
-		Fields: s.detailFields,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.endpointURL(bulkEndpPath, nil),
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	if useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.addHeader("X-Ubuntu-Delta-Formats", s.deltaFormat)
-	}
-	if flags.RefreshManaged {
-		reqOptions.addHeader("X-Ubuntu-Refresh-Managed", "true")
-	}
-
-	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &updateData, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "query the store for updates")
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return updateData.Payload.Packages, nil
-}
-
-var refreshForCandidates = (*Store).refreshForCandidates
-
-// LookupRefresh returns a snap's store-offered revision information given its refresh candidate.
-func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
-	cur := currentSnap(installed)
-	if cur == nil {
-		return nil, ErrLocalSnap
-	}
-
-	latest, err := refreshForCandidates(s, context.TODO(), []*currentSnapJSON{cur}, user, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(latest) != 1 {
-		return nil, ErrSnapNotFound
-	}
-
-	rsnap := latest[0]
-	if !acceptableUpdate(rsnap, installed) {
-		return nil, ErrNoUpdateAvailable
-	}
-
-	return infoFromRemote(rsnap), nil
-}
-
-// ListRefresh returns the available updates for a list of refresh candidates.
-// NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(ctx context.Context, installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
-	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
-	for _, cs := range installed {
-		cur := currentSnap(cs)
-		if cur == nil {
-			continue
-		}
-		currentSnaps = append(currentSnaps, cur)
-		candidateMap[cs.SnapID] = cs
-	}
-
-	latest, err := s.refreshForCandidates(ctx, currentSnaps, user, flags)
-	if err != nil {
-		return nil, err
-	}
-
-	toRefresh := make([]*snap.Info, 0, len(latest))
-	for _, rsnap := range latest {
-		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
-			continue
-		}
-
-		toRefresh = append(toRefresh, infoFromRemote(rsnap))
-	}
-
-	return toRefresh, nil
-}
-
-func acceptableUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
-	rrev := snap.R(remote.Revision)
-	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1475,6 +1329,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
 	}
 
@@ -1492,7 +1347,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	partialPath := targetPath + ".partial"
-	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -1508,6 +1363,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			os.Remove(w.Name())
 		}
 	}()
+	if resume > 0 {
+		logger.Debugf("Resuming download of %q at %d.", partialPath, resume)
+	} else {
+		logger.Debugf("Starting download of %q.", partialPath)
+	}
 
 	authAvail, err := s.authAvailable(user)
 	if err != nil {
@@ -1521,6 +1381,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+		if err != nil {
+			logger.Debugf("download of %q failed: %#v", url, err)
+		}
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
@@ -1538,6 +1401,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
+		logger.Debugf("Truncating and trying again from scratch.")
 		err = w.Truncate(0)
 		if err != nil {
 			return err
@@ -1547,6 +1411,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			return err
 		}
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+		if err != nil {
+			logger.Debugf("download of %q failed: %#v", url, err)
+		}
 	}
 
 	if err != nil {
@@ -1564,6 +1431,19 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+	reqOptions := requestOptions{
+		Method:       "GET",
+		URL:          storeURL,
+		ExtraHeaders: map[string]string{},
+	}
+	if cdnHeader != "" {
+		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+
+	return &reqOptions
+}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1577,16 +1457,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := &requestOptions{
-			Method:       "GET",
-			URL:          storeURL,
-			ExtraHeaders: make(map[string]string),
-		}
-		if cdnHeader != "" {
-			reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
-		}
+		reqOptions := downloadOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -1642,7 +1516,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		if pbar == nil {
 			pbar = progress.Null
 		}
-		pbar.Start(name, float64(resp.ContentLength))
+		dlSize = float64(resp.ContentLength)
+		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
@@ -1668,6 +1543,20 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			finalErr = HashError{name, actualSha3, sha3_384}
 		}
 		break
+	}
+	if finalErr == nil {
+		// not using quantity.FormatFoo as this is just for debug
+		dt := time.Since(startTime)
+		r := dlSize / dt.Seconds()
+		var p rune
+		for _, p = range " kMGTPEZY" {
+			if r < 1000 {
+				break
+			}
+			r /= 1000
+		}
+
+		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
 }
@@ -1762,7 +1651,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
-	w, err := os.Create(deltaPath)
+	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -2087,6 +1976,15 @@ type SnapAction struct {
 	Epoch    *snap.Epoch
 }
 
+func isValidAction(action string) bool {
+	switch action {
+	case "download", "install", "refresh":
+		return true
+	default:
+		return false
+	}
+}
+
 type snapActionJSON struct {
 	Action           string      `json:"action"`
 	InstanceKey      string      `json:"instance-key"`
@@ -2096,6 +1994,11 @@ type snapActionJSON struct {
 	Revision         int         `json:"revision,omitempty"`
 	Epoch            *snap.Epoch `json:"epoch,omitempty"`
 	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
+}
+
+type snapRelease struct {
+	Architecture string `json:"architecture"`
+	Channel      string `json:"channel"`
 }
 
 type snapActionResult struct {
@@ -2108,6 +2011,9 @@ type snapActionResult struct {
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+		Extra   struct {
+			Releases []snapRelease `json:"releases"`
+		} `json:"extra"`
 	} `json:"error"`
 }
 
@@ -2125,7 +2031,7 @@ type snapActionResultList struct {
 	} `json:"error-list"`
 }
 
-var snapActionFields = getStructFields((*storeSnap)(nil))
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
@@ -2208,9 +2114,16 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	installNum := 0
-	installKeys := make(map[string]bool, len(actions))
+	downloadNum := 0
+	installs := make(map[string]*SnapAction, len(actions))
+	downloads := make(map[string]*SnapAction, len(actions))
+	refreshes := make(map[string]*SnapAction, len(actions))
 	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
+		if !isValidAction(a.Action) {
+			return nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
+		}
+
 		var ignoreValidation *bool
 		if a.Flags&SnapActionIgnoreValidation != 0 {
 			var t = true
@@ -2221,12 +2134,22 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := a.SnapID
+		if !a.Revision.Unset() {
+			a.Channel = ""
+		}
 		if a.Action == "install" {
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
-			installKeys[instanceKey] = true
+			installs[instanceKey] = a
+		} else if a.Action == "download" {
+			downloadNum++
+			instanceKey = fmt.Sprintf("download-%d", downloadNum)
+			downloads[instanceKey] = a
+		} else {
+			refreshes[instanceKey] = a
 		}
 
+		// TODO parallel-install: use of proper instance/store name
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
 			InstanceKey:      instanceKey,
@@ -2281,23 +2204,34 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
+	downloadErrors := make(map[string]error)
 	var otherErrors []error
 
 	var snaps []*snap.Info
 	for _, res := range results.Results {
 		if res.Result == "error" {
-			if installKeys[res.InstanceKey] {
+			if a := installs[res.InstanceKey]; a != nil {
 				if res.Name != "" {
-					installErrors[res.Name] = translateSnapActionError("install", res.Error.Code, res.Error.Message)
+					installErrors[res.Name] = translateSnapActionError("install", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
+					continue
+				}
+			} else if a := downloads[res.InstanceKey]; a != nil {
+				if res.Name != "" {
+					downloadErrors[res.Name] = translateSnapActionError("download", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			} else {
 				if cur := curSnaps[res.InstanceKey]; cur != nil {
-					refreshErrors[cur.Name] = translateSnapActionError("refresh", res.Error.Code, res.Error.Message)
+					a := refreshes[res.InstanceKey]
+					channel := a.Channel
+					if channel == "" && a.Revision.Unset() {
+						channel = cur.TrackingChannel
+					}
+					refreshErrors[cur.Name] = translateSnapActionError("refresh", channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			}
-			otherErrors = append(otherErrors, translateSnapActionError("-", res.Error.Code, res.Error.Message))
+			otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, res.Error.Message, nil))
 			continue
 		}
 		snapInfo, err := infoFromStoreSnap(&res.Snap)
@@ -2320,10 +2254,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	for _, errObj := range results.ErrorList {
-		otherErrors = append(otherErrors, translateSnapActionError("-", errObj.Code, errObj.Message))
+		otherErrors = append(otherErrors, translateSnapActionError("", "", errObj.Code, errObj.Message, nil))
 	}
 
-	if len(refreshErrors)+len(installErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
+	if len(refreshErrors)+len(installErrors)+len(downloadErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
 		// normalize empty maps
 		if len(refreshErrors) == 0 {
 			refreshErrors = nil
@@ -2331,13 +2265,112 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
+		if len(downloadErrors) == 0 {
+			downloadErrors = nil
+		}
 		return snaps, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
+			Download:  downloadErrors,
 			Other:     otherErrors,
 		}
 	}
 
 	return snaps, nil
+}
+
+// abbreviated info structs just for the download info
+type storeInfoChannelAbbrev struct {
+	Download storeSnapDownload `json:"download"`
+}
+
+type storeInfoAbbrev struct {
+	// discard anything beyond the first entry
+	ChannelMap [1]storeInfoChannelAbbrev `json:"channel-map"`
+}
+
+var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
+
+func (s *Store) snapConnCheck() ([]string, error) {
+	var hosts []string
+	// NOTE: "core" is possibly the only snap that's sure to be in all stores
+	//       when we drop "core" in the move to snapd/core18/etc, change this
+	infoURL := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
+		// we only want the download URL
+		"fields": {"download"},
+		// we only need *one* (but can't filter by channel ... yet)
+		"architecture": {s.architecture},
+	})
+	hosts = append(hosts, infoURL.Host)
+
+	var result storeInfoAbbrev
+	resp, err := httputil.RetryRequest(infoURL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{
+			Method:   "GET",
+			URL:      infoURL,
+			APILevel: apiV2Endps,
+		}, nil)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, &result, nil)
+	}, connCheckStrategy)
+
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	dlURLraw := result.ChannelMap[0].Download.URL
+	dlURL, err := url.ParseRequestURI(dlURLraw)
+	if err != nil {
+		return hosts, err
+	}
+	hosts = append(hosts, dlURL.Host)
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return hosts, err
+	}
+
+	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions.Method = "HEAD" // not actually a download
+
+	// TODO: We need the HEAD here so that we get redirected to the
+	//       right CDN machine. Consider just doing a "net.Dial"
+	//       after the redirect here. Suggested in
+	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
+	resp, err = httputil.RetryRequest(dlURLraw, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}, func(resp *http.Response) error {
+		// account for redirect
+		hosts[len(hosts)-1] = resp.Request.URL.Host
+		return nil
+	}, connCheckStrategy)
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return hosts, errUnexpectedConnCheckResponse
+	}
+
+	return hosts, nil
+}
+
+func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
+	status = make(map[string]bool)
+
+	checkers := []func() ([]string, error){
+		s.snapConnCheck,
+	}
+
+	for _, checker := range checkers {
+		hosts, err := checker()
+		for _, host := range hosts {
+			status[host] = (err == nil)
+		}
+	}
+
+	return status, nil
 }

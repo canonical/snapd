@@ -51,16 +51,19 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
-
-	runner *state.TaskRunner
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	// FIXME: rename to RequestedChannel to convey the meaning better
-	Channel string `json:"channel,omitempty"`
-	UserID  int    `json:"user-id,omitempty"`
-	Base    string `json:"base,omitempty"`
+	Channel string    `json:"channel,omitempty"`
+	UserID  int       `json:"user-id,omitempty"`
+	Base    string    `json:"base,omitempty"`
+	Type    snap.Type `json:"type,omitempty"`
+	// PlugsOnly indicates whether the relevant revisions for the
+	// operation have only plugs (#plugs >= 0), and absolutely no
+	// slots (#slots == 0).
+	PlugsOnly bool `json:"plugs-only,omitempty"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
@@ -297,13 +300,10 @@ func Store(st *state.State) StoreService {
 }
 
 // Manager returns a new snap manager.
-func Manager(st *state.State) (*SnapManager, error) {
-	runner := state.NewTaskRunner(st)
-
+func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	m := &SnapManager{
 		state:          st,
 		backend:        backend.Backend{},
-		runner:         runner,
 		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),
@@ -361,7 +361,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 
 	// control serialisation
-	runner.SetBlocked(m.blockedTask)
+	runner.AddBlocked(m.blockedTask)
 
 	writeSnapReadme()
 
@@ -542,8 +542,6 @@ func (m *SnapManager) Ensure() error {
 		m.catalogRefresh.Ensure(),
 	}
 
-	m.runner.Ensure()
-
 	//FIXME: use firstErr helper
 	for _, e := range errs {
 		if e != nil {
@@ -554,16 +552,10 @@ func (m *SnapManager) Ensure() error {
 	return nil
 }
 
-func (m *SnapManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
-}
-
 // Wait implements StateManager.Wait.
 func (m *SnapManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
-	m.runner.Stop()
 }

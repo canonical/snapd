@@ -45,7 +45,6 @@ import (
 type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
-	runner     *state.TaskRunner
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
@@ -59,10 +58,8 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner) (*DeviceManager, error) {
 	delayedCrossMgrInit()
-
-	runner := state.NewTaskRunner(s)
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
@@ -70,7 +67,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner, reg: make(chan struct{})}
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, reg: make(chan struct{})}
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
@@ -281,7 +278,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.Name(),
+			Snap: gadgetInfo.InstanceName(),
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
@@ -434,10 +431,6 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
-func (m *DeviceManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
@@ -457,8 +450,6 @@ func (m *DeviceManager) Ensure() error {
 		errs = append(errs, err)
 	}
 
-	m.runner.Ensure()
-
 	if len(errs) > 0 {
 		return &ensureError{errs}
 	}
@@ -468,12 +459,10 @@ func (m *DeviceManager) Ensure() error {
 
 // Wait implements StateManager.Wait.
 func (m *DeviceManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
 func (m *DeviceManager) Stop() {
-	m.runner.Stop()
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {

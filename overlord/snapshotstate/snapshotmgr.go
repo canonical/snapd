@@ -47,42 +47,26 @@ var (
 )
 
 // SnapshotManager takes snapshots of active snaps
-type SnapshotManager struct {
-	runner *state.TaskRunner
-}
+type SnapshotManager struct{}
 
 // Manager returns a new SnapshotManager
-func Manager(st *state.State) *SnapshotManager {
-	runner := state.NewTaskRunner(st)
+func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("save-snapshot", doSave, doForget)
 	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
 	runner.AddCleanup("restore-snapshot", cleanupRestore)
-	return &SnapshotManager{runner: runner}
-}
-
-// KnownTaskKinds returns a unsorted list of known task kinds.
-// It is part of the overlord.StateManager interface.
-func (m *SnapshotManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	return &SnapshotManager{}
 }
 
 // Ensure is part of the overlord.StateManager interface.
-func (m *SnapshotManager) Ensure() error {
-	m.runner.Ensure()
-	return nil
-}
+func (m *SnapshotManager) Ensure() error { return nil }
 
 // Wait is part of the overlord.StateManager interface.
-func (m *SnapshotManager) Wait() {
-	m.runner.Wait()
-}
+func (m *SnapshotManager) Wait() {}
 
 // Stop is part of the overlord.StateManager interface.
-func (m *SnapshotManager) Stop() {
-	m.runner.Stop()
-}
+func (m *SnapshotManager) Stop() {}
 
 type snapshotState struct {
 	SetID    uint64   `json:"set-id"`
@@ -94,7 +78,7 @@ type snapshotState struct {
 func filename(setID uint64, si *snap.Info) string {
 	skel := &client.Snapshot{
 		SetID:    setID,
-		Snap:     si.Name(),
+		Snap:     si.InstanceName(),
 		Revision: si.Revision,
 		Version:  si.Version,
 	}

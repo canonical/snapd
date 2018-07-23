@@ -20,9 +20,6 @@
 package store
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 )
@@ -35,7 +32,6 @@ type snapDetails struct {
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
 	Summary          safejson.String    `json:"summary,omitempty"`
 	Description      safejson.Paragraph `json:"description,omitempty"`
-	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
 	Epoch            snap.Epoch         `json:"epoch"`
@@ -50,7 +46,6 @@ type snapDetails struct {
 	Revision       int      `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
 	SnapID         string   `json:"snap_id"`
-	SnapYAML       string   `json:"snap_yaml_raw"`
 	License        string   `json:"license,omitempty"`
 	Base           string   `json:"base,omitempty"`
 
@@ -63,44 +58,15 @@ type snapDetails struct {
 	Type    snap.Type       `json:"content,omitempty"`
 	Version string          `json:"version"`
 
-	// TODO: have the store return a 'developer_username' for this
-	Developer   string `json:"origin"`
-	DeveloperID string `json:"developer_id"`
+	Developer           string `json:"origin"`
+	DeveloperID         string `json:"developer_id"`
+	DeveloperName       string `json:"developer_name"`
+	DeveloperValidation string `json:"developer_validation"`
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
 
-	ChannelMapList []channelMap `json:"channel_maps_list,omitempty"`
-
 	CommonIDs []string `json:"common_ids,omitempty"`
-}
-
-// channelMap contains
-type channelMap struct {
-	Track       string                   `json:"track"`
-	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
-}
-
-type snapDeltaDetail struct {
-	FromRevision    int    `json:"from_revision"`
-	ToRevision      int    `json:"to_revision"`
-	Format          string `json:"format"`
-	AnonDownloadURL string `json:"anon_download_url,omitempty"`
-	DownloadURL     string `json:"download_url,omitempty"`
-	Size            int64  `json:"binary_filesize,omitempty"`
-	Sha3_384        string `json:"download_sha3_384,omitempty"`
-}
-
-// channelSnapInfoDetails is the subset of snapDetails we need to get
-// information about the snaps in the various channels
-type channelSnapInfoDetails struct {
-	Revision     int        `json:"revision"` // store revisions are ints starting at 1
-	Confinement  string     `json:"confinement"`
-	Version      string     `json:"version"`
-	Channel      string     `json:"channel"`
-	Epoch        snap.Epoch `json:"epoch"`
-	DownloadSize int64      `json:"binary_filesize"`
-	Info         string     `json:"info"`
 }
 
 func infoFromRemote(d *snapDetails) *snap.Info {
@@ -119,12 +85,16 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	// What the store calls "developer" is actually the publisher
 	// username.
 	//
-	// It also sends "publisher" which is the "publisher display name"
-	// which we cannot use currently because it is not validated
-	// (i.e. the publisher could put anything in there and mislead
-	// the users this way).
-	info.Publisher = d.Developer
-	info.PublisherID = d.DeveloperID
+	// It also sends "publisher" and "developer_name" which are
+	// the "publisher display name" which we cannot use currently
+	// because it is not validated (i.e. the publisher could put
+	// anything in there and mislead the users this way).
+	info.Publisher = snap.StoreAccount{
+		ID:          d.DeveloperID,
+		Username:    d.Developer,
+		DisplayName: d.DeveloperName,
+		Validation:  d.DeveloperValidation,
+	}
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
@@ -140,20 +110,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Base = d.Base
 	info.CommonIDs = d.CommonIDs
 
-	deltas := make([]snap.DeltaInfo, len(d.Deltas))
-	for i, d := range d.Deltas {
-		deltas[i] = snap.DeltaInfo{
-			FromRevision:    d.FromRevision,
-			ToRevision:      d.ToRevision,
-			Format:          d.Format,
-			AnonDownloadURL: d.AnonDownloadURL,
-			DownloadURL:     d.DownloadURL,
-			Size:            d.Size,
-			Sha3_384:        d.Sha3_384,
-		}
-	}
-	info.Deltas = deltas
-
 	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
 	for _, url := range d.ScreenshotURLs {
 		screenshots = append(screenshots, snap.ScreenshotInfo{
@@ -165,53 +121,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	//        the "SupportURL" part of the if
 	if info.Contact == "" {
 		info.Contact = d.SupportURL
-	}
-
-	// fill in the plug/slot data
-	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
-		if info.Plugs == nil {
-			info.Plugs = make(map[string]*snap.PlugInfo)
-		}
-		for k, v := range rawYamlInfo.Plugs {
-			info.Plugs[k] = v
-			info.Plugs[k].Snap = info
-		}
-		if info.Slots == nil {
-			info.Slots = make(map[string]*snap.SlotInfo)
-		}
-		for k, v := range rawYamlInfo.Slots {
-			info.Slots[k] = v
-			info.Slots[k].Snap = info
-		}
-	}
-
-	// fill in the tracks data
-	if len(d.ChannelMapList) > 0 {
-		info.Channels = make(map[string]*snap.ChannelSnapInfo)
-		info.Tracks = make([]string, len(d.ChannelMapList))
-		for i, cm := range d.ChannelMapList {
-			info.Tracks[i] = cm.Track
-			for _, ch := range cm.SnapDetails {
-				// nothing in this channel
-				if ch.Info == "" {
-					continue
-				}
-				var k string
-				if strings.HasPrefix(ch.Channel, cm.Track) {
-					k = ch.Channel
-				} else {
-					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
-				}
-				info.Channels[k] = &snap.ChannelSnapInfo{
-					Revision:    snap.R(ch.Revision),
-					Confinement: snap.ConfinementType(ch.Confinement),
-					Version:     ch.Version,
-					Channel:     ch.Channel,
-					Epoch:       ch.Epoch,
-					Size:        ch.DownloadSize,
-				}
-			}
-		}
 	}
 
 	return info

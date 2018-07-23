@@ -41,14 +41,6 @@ type recordingStore struct {
 	ops []string
 }
 
-func (r *recordingStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
-	if ctx == nil || !auth.IsEnsureContext(ctx) {
-		panic("Ensure marked context required")
-	}
-	r.ops = append(r.ops, "list-refresh")
-	return nil, nil
-}
-
 func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")

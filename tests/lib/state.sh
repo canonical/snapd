@@ -1,7 +1,9 @@
 #!/bin/bash
 
 SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
-SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
+SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state/snapd-state.tar"
+RUNTIME_STATE_PATH="$SPREAD_PATH/tests/runtime-state"
+SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -9,14 +11,27 @@ SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
 
+# shellcheck source=tests/lib/systemd.sh
+. "$TESTSLIB/systemd.sh"
+
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
 
 delete_snapd_state() {
-    if is_core_system; then
-        rm -rf "$SNAPD_STATE_PATH"
+    rm -rf "$SNAPD_STATE_PATH"
+}
+
+prepare_state() {
+    mkdir -p "$SNAPD_STATE_PATH" "$RUNTIME_STATE_PATH"
+}
+
+is_snapd_state_saved() {
+    if is_core_system && [ -d "$SNAPD_STATE_PATH"/snapd-lib ]; then
+        return 0
+    elif is_classic_system && [ -f "$SNAPD_STATE_FILE" ]; then
+        return 0
     else
-        rm -f "$SNAPD_STATE_FILE"
+        return 1
     fi
 }
 
@@ -25,7 +40,7 @@ save_snapd_state() {
         boot_path="$(get_boot_path)"
         test -n "$boot_path" || return 1
 
-        mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/system-units
+        mkdir -p "$SNAPD_STATE_PATH"/system-units
 
         # Copy the state preserving the timestamps
         cp -a /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
@@ -61,6 +76,9 @@ save_snapd_state() {
             systemctl start "$unit"
         done
     fi
+
+    # Save the snapd active units
+    systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_state() {
@@ -80,6 +98,13 @@ restore_snapd_state() {
 
         tar -C/ -xf "$SNAPD_STATE_FILE"
     fi
+
+    # Start all the units which have to be active
+    while read -r unit; do
+        if ! systemctl is-active "$unit"; then
+            systemctl start "$unit"
+        fi
+    done  < "$SNAPD_ACTIVE_UNITS"
 }
 
 restore_snapd_lib() {

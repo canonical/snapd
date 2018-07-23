@@ -10,6 +10,7 @@ summary: |
     A snap declaring a plug on this interface must be able to read files in /sys/{block,bus,class,devices}
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap declaring a plug on the hardware-observe interface is installed"
@@ -20,7 +21,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i hardware-observe | MATCH "\- +hardware-observe-consumer:hardware-observe"
+    snap interfaces -i hardware-observe | MATCH '^- +hardware-observe-consumer:hardware-observe'
 
     echo "When the plug is connected"
     snap connect hardware-observe-consumer:hardware-observe
