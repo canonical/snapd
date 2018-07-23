@@ -1360,10 +1360,15 @@ func baseInUse(st *state.State, base *snap.Info) bool {
 	if err != nil {
 		return false
 	}
-	for _, snapst := range snapStates {
-		if snapInfo, err := snapst.CurrentInfo(); err == nil {
-			if snapInfo.Base == base.SnapName() {
-				return true
+	for name, snapst := range snapStates {
+		for _, si := range snapst.Sequence {
+			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
+				if snapInfo.Type != snap.TypeApp {
+					continue
+				}
+				if snapInfo.Base == base.SnapName() {
+					return true
+				}
 			}
 		}
 	}
@@ -1377,13 +1382,15 @@ func coreInUse(st *state.State) bool {
 	if err != nil {
 		return false
 	}
-	for _, snapst := range snapStates {
-		if snapInfo, err := snapst.CurrentInfo(); err == nil {
-			if snapInfo.Type != snap.TypeApp || snapInfo.SnapName() == "snapd" {
-				continue
-			}
-			if snapInfo.Base == "" {
-				return true
+	for name, snapst := range snapStates {
+		for _, si := range snapst.Sequence {
+			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
+				if snapInfo.Type != snap.TypeApp || snapInfo.SnapName() == "snapd" {
+					continue
+				}
+				if snapInfo.Base == "" {
+					return true
+				}
 			}
 		}
 	}
