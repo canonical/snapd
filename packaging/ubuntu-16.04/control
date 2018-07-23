@@ -60,6 +60,7 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: adduser,
+         ${snapd:Depends},
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
          openssh-client,
