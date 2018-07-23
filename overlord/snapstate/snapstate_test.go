@@ -7357,6 +7357,40 @@ func (s *canRemoveSuite) TestBaseInUse(c *C) {
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
 }
 
+func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
+	// older revision uses base
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	// new one does not
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\n", si2)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si, si2},
+		Current:  snap.R(2),
+	})
+
+	// pretend now we want to remove "some-base"
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+	// revision 1 requires some-base
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+
+	// now pretend we want to remove the core snap
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.RealName = "core"
+	// but revision 2 requires core
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
+}
+
 func revs(seq []*snap.SideInfo) []int {
 	revs := make([]int, len(seq))
 	for i, si := range seq {
