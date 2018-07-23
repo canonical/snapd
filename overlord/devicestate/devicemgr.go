@@ -457,14 +457,6 @@ func (m *DeviceManager) Ensure() error {
 	return nil
 }
 
-// Wait implements StateManager.Wait.
-func (m *DeviceManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *DeviceManager) Stop() {
-}
-
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := auth.Device(m.state)
 	if err != nil {

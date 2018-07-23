@@ -98,14 +98,6 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Wait implements StateManager.Wait.
-func (m *InterfaceManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *InterfaceManager) Stop() {
-}
-
 // Repository returns the interface repository used internally by the manager.
 //
 // This method has two use-cases:

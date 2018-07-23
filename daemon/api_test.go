@@ -345,12 +345,6 @@ func (m *fakeSnapManager) Ensure() error {
 	return nil
 }
 
-func (m *fakeSnapManager) Wait() {
-}
-
-func (m *fakeSnapManager) Stop() {
-}
-
 // sanity
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 

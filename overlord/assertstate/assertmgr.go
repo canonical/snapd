@@ -60,14 +60,6 @@ func (m *AssertManager) Ensure() error {
 	return nil
 }
 
-// Wait implements StateManager.Wait.
-func (m *AssertManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *AssertManager) Stop() {
-}
-
 type cachedDBKey struct{}
 
 // ReplaceDB replaces the assertion database used by the manager.
