@@ -1911,10 +1911,15 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
 			var ts *state.TaskSet
+			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			if _, ok := err.(*ifacestate.ErrAlreadyConnected); ok {
+				change := newChange(st, a.Action+"-snap", summary, nil, affected)
+				change.SetStatus(state.DoneStatus)
+				return AsyncResponse(nil, &Meta{Change: change.ID()})
+			}
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
 		var conns []*interfaces.ConnRef

@@ -257,6 +257,44 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
 }
 
+func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	conns := map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto": false,
+		},
+	}
+	s.state.Set("conns", conns)
+
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(ts, IsNil)
+	alreadyConnected, ok := err.(*ifacestate.ErrAlreadyConnected)
+	c.Assert(ok, Equals, true)
+	c.Assert(alreadyConnected.Connection, DeepEquals, interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}})
+	c.Assert(err, ErrorMatches, `already connected: "consumer:plug producer:slot"`)
+
+	conns = map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto":      true,
+			"undesired": true,
+		},
+	}
+	s.state.Set("conns", conns)
+
+	// ErrAlreadyConnected is not reported if connection exists but is undesired
+	ts, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+}
+
 func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string, otherTaskKind string, expectedErr string) {
 	s.state.Lock()
 	defer s.state.Unlock()
