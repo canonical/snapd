@@ -67,6 +67,9 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 		for {
 			select {
 			case <-wt.C:
+				// TODO: poke the snapd API here and
+				//       only report WATCHDOG=1 if it
+				//       replies with valid data
 				systemd.SdNotify("WATCHDOG=1")
 			case <-d.Dying():
 				break
@@ -99,11 +102,11 @@ func run() error {
 
 	d.Start()
 
-	ticker, err := runWatchdog(d)
+	watchdog, err := runWatchdog(d)
 	if err != nil {
 		return fmt.Errorf("cannot run software watchdog: %v", err)
 	}
-	defer ticker.Stop()
+	defer watchdog.Stop()
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
