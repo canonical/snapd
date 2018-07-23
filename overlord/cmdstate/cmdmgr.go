@@ -43,14 +43,6 @@ func (m *CommandManager) Ensure() error {
 	return nil
 }
 
-// Wait is part of the overlord.StateManager interface.
-func (m *CommandManager) Wait() {
-}
-
-// Stop is part of the overlord.StateManager interface.
-func (m *CommandManager) Stop() {
-}
-
 var defaultExecTimeout = 5 * time.Second
 
 func doExec(t *state.Task, tomb *tomb.Tomb) error {

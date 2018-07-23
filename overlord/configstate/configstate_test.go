@@ -246,12 +246,6 @@ func (wm *witnessManager) Ensure() error {
 	return nil
 }
 
-func (wm *witnessManager) Stop() {
-}
-
-func (wm *witnessManager) Wait() {
-}
-
 func (s *configcoreHijackSuite) TestHijack(c *C) {
 	configcoreRan := false
 	witnessCfg := false
