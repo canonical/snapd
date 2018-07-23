@@ -345,12 +345,6 @@ func (m *fakeSnapManager) Ensure() error {
 	return nil
 }
 
-func (m *fakeSnapManager) Wait() {
-}
-
-func (m *fakeSnapManager) Stop() {
-}
-
 // sanity
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
@@ -3921,6 +3915,60 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	repo := d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
+	d := s.daemon(c)
+
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	// there is no consumer, no plug defined
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
+	conns := map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto": false,
+		},
+	}
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", conns)
+	st.Unlock()
+
+	action := &interfaceAction{
+		Action: "connect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st.Lock()
+	chg := st.Change(id)
+	c.Assert(chg.Tasks(), check.HasLen, 0)
+	c.Assert(chg.Status(), check.Equals, state.DoneStatus)
+	st.Unlock()
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {

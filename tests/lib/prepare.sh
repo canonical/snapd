@@ -184,6 +184,14 @@ EOF
 }
 
 prepare_classic() {
+    # ensure apt is the latest version
+    # https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1776218
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            apt install -y apt
+            ;;
+    esac
+
     distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"

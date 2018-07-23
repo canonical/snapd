@@ -41,12 +41,6 @@ execute: |
     echo "The interface is connected by default"
     snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"
 
-    echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network-bind
-
-    echo "Then the plug can be connected again"
-    snap connect $SNAP_NAME:network-bind
-
     echo "Then the service is accessible by a client"
     nc -w 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
 
@@ -60,3 +54,6 @@ execute: |
     echo "Then the service is not accessible by a client"
     response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
     [ "$response" = "" ]
+
+    echo "Then the plug can be connected again"
+    snap connect $SNAP_NAME:network-bind

@@ -57,6 +57,7 @@ type HookManager struct {
 	hijackMap map[hijackKey]hijackFunc
 
 	runningHooks int32
+	runner       *state.TaskRunner
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -117,6 +118,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 		repository: newRepository(),
 		contexts:   make(map[string]*Context),
 		hijackMap:  make(map[hijackKey]hijackFunc),
+		runner:     runner,
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, manager.undoRunHook)
@@ -145,12 +147,10 @@ func (m *HookManager) Ensure() error {
 	return nil
 }
 
-// Wait implements StateManager.Wait.
-func (m *HookManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *HookManager) Stop() {
+// StopHooks kills all currently running hooks and returns after
+// that's done.
+func (m *HookManager) StopHooks() {
+	m.runner.StopKinds("run-hook")
 }
 
 func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {
