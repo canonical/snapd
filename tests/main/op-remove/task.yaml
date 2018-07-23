@@ -32,11 +32,12 @@ execute: |
 
 
     echo "Install a snap that uses a base"
-    snap install test-snapd-tools-core18
-    snap list | MATCH core18
-    if snap remove core18; then
-        echo "core18 should not be removable because test-snapd-tools-core18 needs it"
+    # test-snapd-busybox-static uses test-snapd-base-bare
+    snap install test-snapd-busybox-static
+    snap list | MATCH test-snapd-base-bare
+    if snap remove test-snapd-base-bare; then
+        echo "test-snapd-base-bare should not be removable because test-snapd-busybox-static needs it"
         exit 1
     fi
-    snap remove test-snapd-tools-core18
-    snap remove core18
+    snap remove test-snapd-busybox-static
+    snap remove test-snapd-base-bare
