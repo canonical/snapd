@@ -105,9 +105,6 @@ func run() error {
 	}
 	defer ticker.Stop()
 
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
 	select {
