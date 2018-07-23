@@ -1,4 +1,4 @@
-summary: Check that user namespace can be unshared within snap apps 
+summary: Check that user namespace can be unshared within snap apps
 details: |
     Snap-confine used to "leak" the root filesystem directory across the
     pivot_root call. This caused checks in the kernel to fail and resulted in
@@ -6,7 +6,7 @@ details: |
     devmode snaps.
 prepare: |
     echo "Having installed a test snap in devmode"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
 execute: |
     echo "We can run unshare -U as a regular user and expect it to work"

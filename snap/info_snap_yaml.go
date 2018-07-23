@@ -21,13 +21,14 @@ package snap
 
 import (
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
 
@@ -37,17 +38,21 @@ type snapYaml struct {
 	Type             Type                   `yaml:"type"`
 	Architectures    []string               `yaml:"architectures,omitempty"`
 	Assumes          []string               `yaml:"assumes"`
+	Title            string                 `yaml:"title"`
 	Description      string                 `yaml:"description"`
 	Summary          string                 `yaml:"summary"`
+	License          string                 `yaml:"license,omitempty"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
-	Epoch            string                 `yaml:"epoch,omitempty"`
+	Epoch            Epoch                  `yaml:"epoch,omitempty"`
+	Base             string                 `yaml:"base,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
 	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
+	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
 }
 
 type appYaml struct {
@@ -61,19 +66,49 @@ type appYaml struct {
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	WatchdogTimeout timeout.Timeout `yaml:"watchdog-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
+	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
+	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
-	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string                 `yaml:"slots,omitempty"`
-	PlugNames   []string                 `yaml:"plugs,omitempty"`
+	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
+	SlotNames   []string         `yaml:"slots,omitempty"`
+	PlugNames   []string         `yaml:"plugs,omitempty"`
 
-	BusName string `yaml:"bus-name,omitempty"`
+	BusName  string `yaml:"bus-name,omitempty"`
+	CommonID string `yaml:"common-id,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+
+	Sockets map[string]socketsYaml `yaml:"sockets,omitempty"`
+
+	After  []string `yaml:"after,omitempty"`
+	Before []string `yaml:"before,omitempty"`
+
+	Timer string `yaml:"timer,omitempty"`
+
+	Autostart string `yaml:"autostart,omitempty"`
 }
 
 type hookYaml struct {
-	PlugNames []string `yaml:"plugs,omitempty"`
+	PlugNames   []string           `yaml:"plugs,omitempty"`
+	SlotNames   []string           `yaml:"slots,omitempty"`
+	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+}
+
+type layoutYaml struct {
+	Bind     string `yaml:"bind,omitempty"`
+	BindFile string `yaml:"bind-file,omitempty"`
+	Type     string `yaml:"type,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Group    string `yaml:"group,omitempty"`
+	Mode     string `yaml:"mode,omitempty"`
+	Symlink  string `yaml:"symlink,omitempty"`
+}
+
+type socketsYaml struct {
+	ListenStream string      `yaml:"listen-stream,omitempty"`
+	SocketMode   os.FileMode `yaml:"socket-mode,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -81,7 +116,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
+		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
@@ -116,11 +151,42 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Bind unbound plugs to all apps and hooks
 	bindUnboundPlugs(globalPlugNames, snap)
 
-	// Bind unbound slots to all apps
+	// Bind unbound slots to all apps and hooks
 	bindUnboundSlots(globalSlotNames, snap)
+
+	// Collect layout elements.
+	if y.Layout != nil {
+		snap.Layout = make(map[string]*Layout, len(y.Layout))
+		for path, l := range y.Layout {
+			var mode os.FileMode = 0755
+			if l.Mode != "" {
+				m, err := strconv.ParseUint(l.Mode, 8, 32)
+				if err != nil {
+					return nil, err
+				}
+				mode = os.FileMode(m)
+			}
+			user := "root"
+			if l.User != "" {
+				user = l.User
+			}
+			group := "root"
+			if l.Group != "" {
+				group = l.Group
+			}
+			snap.Layout[path] = &Layout{
+				Snap: snap, Path: path,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink, BindFile: l.BindFile,
+				User: user, Group: group, Mode: mode,
+			}
+		}
+	}
 
 	// Rename specific plugs on the core snap.
 	snap.renameClashingCorePlugs()
+
+	snap.BadInterfaces = make(map[string]string)
+	SanitizePlugsSlots(snap)
 
 	// FIXME: validation of the fields
 	return snap, nil
@@ -138,10 +204,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
-	epoch := "0"
-	if y.Epoch != "" {
-		epoch = y.Epoch
-	}
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
@@ -154,12 +216,15 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Type:                typ,
 		Architectures:       architectures,
 		Assumes:             y.Assumes,
+		OriginalTitle:       y.Title,
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
+		License:             y.License,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
-		Epoch:               epoch,
+		Epoch:               y.Epoch,
 		Confinement:         confinement,
+		Base:                y.Base,
 		Apps:                make(map[string]*AppInfo),
 		LegacyAliases:       make(map[string]*AppInfo),
 		Hooks:               make(map[string]*HookInfo),
@@ -213,6 +278,9 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 		if len(y.Apps) > 0 {
 			snap.Slots[name].Apps = make(map[string]*AppInfo)
 		}
+		if len(y.Hooks) > 0 {
+			snap.Slots[name].Hooks = make(map[string]*HookInfo)
+		}
 	}
 
 	return nil
@@ -233,8 +301,15 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,
+			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
+			StopMode:        yApp.StopMode,
+			RefreshMode:     yApp.RefreshMode,
+			Before:          yApp.Before,
+			After:           yApp.After,
+			Autostart:       yApp.Autostart,
+			WatchdogTimeout: yApp.WatchdogTimeout,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
@@ -242,6 +317,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 		if len(y.Slots) > 0 || len(yApp.SlotNames) > 0 {
 			app.Slots = make(map[string]*SlotInfo)
 		}
+		if len(yApp.Sockets) > 0 {
+			app.Sockets = make(map[string]*SocketInfo, len(yApp.Sockets))
+		}
+
 		snap.Apps[appName] = app
 		for _, alias := range app.LegacyAliases {
 			if snap.LegacyAliases[alias] != nil {
@@ -279,6 +358,24 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
 		}
+		for name, data := range yApp.Sockets {
+			app.Sockets[name] = &SocketInfo{
+				App:          app,
+				Name:         name,
+				ListenStream: data.ListenStream,
+				SocketMode:   data.SocketMode,
+			}
+		}
+		if yApp.Timer != "" {
+			app.Timer = &TimerInfo{
+				App:   app,
+				Timer: yApp.Timer,
+			}
+		}
+		// collect all common IDs
+		if app.CommonID != "" {
+			snap.CommonIDs = append(snap.CommonIDs, app.CommonID)
+		}
 	}
 	return nil
 }
@@ -291,12 +388,17 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap: snap,
-			Name: hookName,
+			Snap:        snap,
+			Name:        hookName,
+			Environment: yHook.Environment,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)
 		}
+		if len(y.Slots) > 0 || len(yHook.SlotNames) > 0 {
+			hook.Slots = make(map[string]*SlotInfo)
+		}
+
 		snap.Hooks[hookName] = hook
 		// Bind all plugs/slots listed in this hook
 		for _, plugName := range yHook.PlugNames {
@@ -315,6 +417,23 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 			}
 			hook.Plugs[plugName] = plug
 			plug.Hooks[hookName] = hook
+		}
+		for _, slotName := range yHook.SlotNames {
+			slot, ok := snap.Slots[slotName]
+			if !ok {
+				// Create implicit slot definitions if required
+				slot = &SlotInfo{
+					Snap:      snap,
+					Name:      slotName,
+					Interface: slotName,
+					Hooks:     make(map[string]*HookInfo),
+				}
+				snap.Slots[slotName] = slot
+			} else if slot.Hooks == nil {
+				slot.Hooks = make(map[string]*HookInfo)
+			}
+			hook.Slots[slotName] = slot
+			slot.Hooks[hookName] = hook
 		}
 	}
 }
@@ -351,10 +470,16 @@ func bindUnboundSlots(slotNames []string, snap *Info) error {
 			return fmt.Errorf("no slot named %q", slotName)
 		}
 
-		if len(slot.Apps) == 0 {
+		// A slot is considered unbound if it isn't being used by any apps
+		// or hooks. In which case we bind them to all apps and hooks.
+		if len(slot.Apps) == 0 && len(slot.Hooks) == 0 {
 			for appName, app := range snap.Apps {
 				app.Slots[slotName] = slot
 				slot.Apps[appName] = app
+			}
+			for hookName, hook := range snap.Hooks {
+				hook.Slots[slotName] = slot
+				slot.Hooks[hookName] = hook
 			}
 		}
 	}

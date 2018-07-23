@@ -1,25 +1,54 @@
 summary: Check different completions
 
 systems:
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
     - -ubuntu-*-ppc64el
 
+environment:
+    NAMES: /var/cache/snapd/names
+
 prepare: |
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service snapd.socket
+    [ -e "$NAMES" ] && mv "$NAMES" "$NAMES.orig"
+    cat >"$NAMES" <<EOF
+    test-assumes
+    test-snapd-thumbnailer
+    test-snapd-tools
+    EOF
+    chattr +i "$NAMES"
+    systemctl start snapd.service
     mkdir -p testdir
     touch testdir/foo.snap
     touch bar.snap
     snap install core
     snap install test-snapd-tools
-    "$TESTSLIB"/mkpinentry.sh
+    #shellcheck source=tests/lib/mkpinentry.sh
+    . "$TESTSLIB"/mkpinentry.sh
+    #shellcheck source=tests/lib/random.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
     expect -d -f key.exp0
 
 restore: |
-    rm testdir/foo.snap bar.snap
+    systemctl stop snapd.service
+    chattr -i "$NAMES"
+    rm "$NAMES"
+    [ -e "$NAMES.orig" ] && mv "$NAMES.orig" "$NAMES"
+    systemctl start snapd.service
+    rm -f testdir/foo.snap bar.snap
     rmdir testdir
+
+debug: |
+    #shellcheck source=tests/lib/random.sh
+    . "$TESTSLIB"/random.sh
+    debug_random
 
 execute: |
     for i in *.exp; do
-        echo $i
-        expect -d -f $i
+        echo "$i"
+        expect -d -f "$i"
     done

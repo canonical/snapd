@@ -34,14 +34,14 @@ import (
 type cmdKnown struct {
 	KnownOptions struct {
 		// XXX: how to get a list of assert types for completion?
-		AssertTypeName string   `required:"true"`
-		HeaderFilters  []string `required:"0"`
+		AssertTypeName assertTypeName `required:"true"`
+		HeaderFilters  []string       `required:"0"`
 	} `positional-args:"true" required:"true"`
 
 	Remote bool `long:"remote"`
 }
 
-var shortKnownHelp = i18n.G("Shows known assertions of the provided type")
+var shortKnownHelp = i18n.G("Show known assertions of the provided type")
 var longKnownHelp = i18n.G(`
 The known command shows known assertions of the provided type.
 If header=value pairs are provided after the assertion type, the assertions
@@ -53,16 +53,18 @@ func init() {
 		return &cmdKnown{}
 	}, nil, []argDesc{
 		{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<assertion type>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Assertion type name"),
 		}, {
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<header filter>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Constrain listing to those matching header=value"),
 		},
 	})
 }
-
-var nl = []byte{'\n'}
 
 var storeNew = store.New
 
@@ -76,13 +78,9 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	if at == nil {
 		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
 	}
-	primaryKeys := make([]string, len(at.PrimaryKey))
-	for i, k := range at.PrimaryKey {
-		pk, ok := headers[k]
-		if !ok {
-			return nil, fmt.Errorf("missing primary header %q to query remote assertion", k)
-		}
-		primaryKeys[i] = pk
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
 	sto := storeNew(nil, authContext)
@@ -112,9 +110,9 @@ func (x *cmdKnown) Execute(args []string) error {
 	var assertions []asserts.Assertion
 	var err error
 	if x.Remote {
-		assertions, err = downloadAssertion(x.KnownOptions.AssertTypeName, headers)
+		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 	} else {
-		assertions, err = Client().Known(x.KnownOptions.AssertTypeName, headers)
+		assertions, err = Client().Known(string(x.KnownOptions.AssertTypeName), headers)
 	}
 	if err != nil {
 		return err

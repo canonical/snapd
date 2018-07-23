@@ -1,17 +1,15 @@
 summary: Check that snap info works
 
-prepare: |
-    . $TESTSLIB/pkgdb.sh
-    distro_install_package python3-yaml
+# core18 has no python3-yaml
+systems: [-ubuntu-core-18-*]
 
-    snapbuild $TESTSLIB/snaps/basic .
+prepare: |
+    snap pack $TESTSLIB/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
 
 restore: |
-    rm basic_1.0_all.snap
-    . $TESTSLIB/pkgdb.sh
-    distro_purge_package python3-yaml
+    rm -f basic_1.0_all.snap
     rm -f out
 
 execute: |
@@ -22,7 +20,29 @@ execute: |
     snap info /etc/passwd && exit 1 || true
 
     snap info basic_1.0_all.snap $TESTSLIB/snaps/basic-desktop test-snapd-tools test-snapd-devmode core /etc/passwd test-snapd-python-webserver > out
-    python3 check.py < out
+    PYTHONIOENCODING=utf8 python3 check.py < out
 
-    snap info --verbose $TESTSLIB/snaps/basic-desktop
+    . $TESTSLIB/snaps.sh
+    snap info --verbose $TESTSLIB/snaps/basic-desktop|MATCH "path: "
+    install_local basic-desktop
+    snap info basic-desktop|MATCH "license:[ ]+GPL-3.0"
+
     snap info --verbose basic_1.0_all.snap|MATCH "sha3-384:"
+    snap info --verbose test-snapd-tools|MATCH "  ignore-validation:"
+
+    echo "Ensure we show friendly error messages"
+    snap info no-such-snap > out.stdout 2> out.stderr || true
+    MATCH 'no snap found for "no-such-snap"' < out.stderr
+
+    snap info no-such-snap no-such-other-snap > out.stdout 2> out.stderr || true
+    MATCH 'warning: no snap found for "no-such-snap"' < out.stdout 
+    MATCH 'warning: no snap found for "no-such-other-snap"' < out.stdout
+    MATCH 'error: no valid snaps given' < out.stderr
+
+    snap info no-such-snap test-snapd-tools > out.stdout 2> out.stderr
+    MATCH 'warning: no snap found for "no-such-snap"' < out.stdout
+    # no error output generated
+    ! test -s out.stderr
+
+    echo "Ensure we show versions as strings (LP: 1669291)"
+    snap info test-snapd-number-version | MATCH "edge:[ ]+2.10"

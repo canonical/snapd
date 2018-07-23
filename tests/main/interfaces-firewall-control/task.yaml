@@ -1,5 +1,7 @@
 summary: Ensure that the firewall-control interface works.
 
+systems: [-fedora-*, -opensuse-*, -arch-*]
+
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 
@@ -21,63 +23,60 @@ environment:
     DESTINATION_IP: "172.26.0.15"
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     echo "Given a snap declaring a plug on the firewall-control interface is installed"
-    snapbuild $TESTSLIB/snaps/firewall-control-consumer .
-    snap install --dangerous firewall-control-consumer_1.0_all.snap
+    install_local firewall-control-consumer
 
     echo "And a service is listening"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
-    chmod a+x $SERVICE_FILE
+    printf '#!/bin/sh -e\nwhile true; do echo "HTTP/1.1 200 OK\n\nok\n" |  nc -l -p %s -w 1; done' "$PORT" > "$SERVICE_FILE"
+    chmod a+x "$SERVICE_FILE"
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
-    systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
-
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    #shellcheck disable=SC2153
+    systemd_create_and_start_unit "$SERVICE_NAME" "$(readlink -f "$SERVICE_FILE")"
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+    wait_listen_port "$PORT"
 
     echo "And we store a basic HTTP request"
-    cat > $REQUEST_FILE <<EOF
+    cat > "$REQUEST_FILE" <<EOF
     GET / HTTP/1.0
 
     EOF
 
 restore: |
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
-    systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f firewall-control-consumer_1.0_all.snap firewall-create.error $SERVICE_FILE $REQUEST_FILE
+    #shellcheck disable=SC2153
+    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    rm -f firewall-create.error "$SERVICE_FILE" "$REQUEST_FILE"
 
 execute: |
-    CONNECTED_PATTERN='^:firewall-control +firewall-control-consumer$'
-    DISCONNECTED_PATTERN='^- +firewall-control-consumer:firewall-control$'
-
-    echo "Then it is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "Then the plug is disconnected by default"
+    snap interfaces -i firewall-control | MATCH '^- +firewall-control-consumer:firewall-control'
 
     echo "When the plug is connected"
     snap connect firewall-control-consumer:firewall-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "And the snap creates a firewall rule"
     firewall-control-consumer.create
 
     echo "Then the service listening on localhost is accessible through the destination IP in the rule"
-    nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE | MATCH 'ok$'
+    nc -w 2 "$DESTINATION_IP" "$PORT" < "$REQUEST_FILE" | MATCH 'ok$'
 
     echo "When the snap deletes the firewall rule"
     firewall-control-consumer.delete
 
     echo "Then the service listening on localhost is no longer accessible through the destination IP in the rule"
-    ! nc -w 2 "$DESTINATION_IP" "$PORT" < $REQUEST_FILE
+    ! nc -w 2 "$DESTINATION_IP" "$PORT" < "$REQUEST_FILE"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
-    echo "==================================="
-
     echo "When the plug is disconnected"
     snap disconnect firewall-control-consumer:firewall-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to configure the firewall"
     if firewall-control-consumer.create 2>firewall-create.error; then

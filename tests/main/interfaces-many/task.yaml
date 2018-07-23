@@ -1,0 +1,115 @@
+summary: Ensure that commands run when their interfaces are connected
+
+# Start early as it takes a long time.
+priority: 100
+
+debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    # get the full journal to see any out-of-memory errors
+    # shellcheck disable=SC2119
+    get_journalctl_log
+
+details: |
+    Install a test snap that plugs as many interfaces as is possible and
+    verify the command can run (ie, don't test the interface functionality
+    itself). This will help catch things like AppArmor policy syntax errors,
+    seccomp policy parsing, udev querying bugs, etc.
+
+# Ideally we would run this everywhere, but on systems with full security
+# support, it takes a while, which leads to travis timeouts. Limit to:
+# - Ubuntu Core 16 amd64
+# - Ubuntu classic 14.04 i386 VM
+# - Ubuntu classic 16.04 amd64 VM
+# - Ubuntu classic 18.04 amd64 VM
+# - All Ubuntu autopkgtests
+# - Debian sid amd64 VM
+# - Debian 9 amd64 VM
+# - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
+systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
+
+# memory issue inside the adt environment
+backends: [-autopkgtest]
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
+    # quick test to see if on a core system or not
+    if snap list | MATCH gadget ; then
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
+    fi
+
+    echo "Given a snap is installed"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local "$PROVIDER_SNAP"
+
+    CONSUMER_SNAP="test-snapd-policy-app-consumer"
+    install_local "$CONSUMER_SNAP"
+
+    echo "For each snap-provided slot from $PROVIDER_SNAP"
+    for slotcmd in "$SNAP_MOUNT_DIR"/bin/"$PROVIDER_SNAP".* ; do
+        slotcmd_bn=$(basename "$slotcmd")
+        slot_iface=$(echo "$slotcmd_bn" | tr '.' ':')
+
+        #shellcheck disable=SC2001
+        plugcmd=$(echo "$slotcmd" | sed "s/$PROVIDER_SNAP/$CONSUMER_SNAP/")
+        plugcmd_bn=$(basename "$plugcmd")
+        plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
+
+        CONNECTED_PATTERN="$slot_iface +$CONSUMER_SNAP"
+        DISCONNECTED_PATTERN="$slot_iface +-"
+
+        echo "When slot $slot_iface is connected"
+        snap connect "$plug_iface" "$slot_iface"
+        snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+        echo "Then $slotcmd_bn should succeed"
+        "$slotcmd" | MATCH PASS
+
+        echo "Then $plugcmd_bn should succeed"
+        "$plugcmd" | MATCH PASS
+    done
+
+    echo "For each core-provided slot"
+    for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
+        plugcmd_bn=$(basename "$plugcmd")
+        plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
+        #shellcheck disable=SC2001
+        slot_iface=$(echo "$plug_iface" | sed "s/$CONSUMER_SNAP//")
+
+        # we test browser-support two different ways, so account for that
+        if [ "$plug_iface" = "$CONSUMER_SNAP:browser-sandbox" ]; then
+            slot_iface=":browser-support"
+        fi
+
+        CONNECTED_PATTERN="$slot_iface +.*$CONSUMER_SNAP"
+        DISCONNECTED_PATTERN="$slot_iface +-"
+
+        # Skip any interfaces that core doesn't ship
+        if ! snap interfaces | grep -E -q "$slot_iface +"; then
+            echo "$slot_iface not present, skipping"
+            continue
+        fi
+
+        echo "When slot $slot_iface is connected"
+        if snap interfaces | grep -E -q "$DISCONNECTED_PATTERN"; then
+            if [ "$slot_iface" = ":broadcom-asic-control" ] || [ "$slot_iface" = ":firewall-control" ] || [ "$slot_iface" = ":kubernetes-support" ] || [ "$slot_iface" = ":openvswitch-support" ] || [ "$slot_iface" = ":ppp" ]; then
+                # TODO: when the kmod backend no longer fails on missing
+                # modules, we can remove this
+                snap connect "$plug_iface" "$slot_iface" || true
+            else
+                snap connect "$plug_iface" "$slot_iface"
+            fi
+        fi
+        snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+        echo "Then $slotcmd_bn should succeed"
+        "$slotcmd" | MATCH PASS
+
+        echo "Then $plugcmd_bn should succeed"
+        "$plugcmd" | MATCH PASS
+    done

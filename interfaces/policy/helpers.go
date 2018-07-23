@@ -26,16 +26,31 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // check helpers
 
-func checkSnapType(snapType snap.Type, types []string) error {
+func snapIDSnapd(snapID string) bool {
+	var snapIDsSnapd = []string{
+		// production
+		"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+		// TODO: when snapd snap is uploaded to staging, replace this with
+		// the real snap-id.
+		"todo-staging-snapd-id",
+	}
+	return strutil.ListContains(snapIDsSnapd, snapID)
+}
+
+func checkSnapType(snap *snap.Info, types []string) error {
 	if len(types) == 0 {
 		return nil
 	}
-	s := string(snapType)
-	if s == "os" { // we use "core" in the assertions
+	snapID := snap.SnapID
+	s := string(snap.Type)
+	if s == "os" || snapIDSnapd(snapID) {
+		// we use "core" in the assertions and we need also to
+		// allow for the "snapd" snap
 		s = "core"
 	}
 	for _, t := range types {
@@ -81,13 +96,13 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 }
 
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
-	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.Plug, connc); err != nil {
 		return err
 	}
-	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
+	if err := cstrs.SlotAttributes.Check(connc.Slot, connc); err != nil {
 		return err
 	}
-	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
+	if err := checkSnapType(connc.Slot.Snap(), cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
 	if err := checkID("snap id", connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
@@ -121,13 +136,13 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Pl
 }
 
 func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.SlotConnectionConstraints) error {
-	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.Plug, connc); err != nil {
 		return err
 	}
-	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
+	if err := cstrs.SlotAttributes.Check(connc.Slot, connc); err != nil {
 		return err
 	}
-	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
+	if err := checkSnapType(connc.Plug.Snap(), cstrs.PlugSnapTypes); err != nil {
 		return err
 	}
 	if err := checkID("snap id", connc.plugSnapID(), cstrs.PlugSnapIDs, nil); err != nil {
@@ -162,10 +177,10 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 
 func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
 	// TODO: allow evaluated attr constraints here too?
-	if err := cstrs.SlotAttributes.Check(slot.Attrs, nil); err != nil {
+	if err := cstrs.SlotAttributes.Check(slot, nil); err != nil {
 		return err
 	}
-	if err := checkSnapType(slot.Snap.Type, cstrs.SlotSnapTypes); err != nil {
+	if err := checkSnapType(slot.Snap, cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
@@ -191,10 +206,10 @@ func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs []*asserts.Slot
 
 func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
 	// TODO: allow evaluated attr constraints here too?
-	if err := cstrs.PlugAttributes.Check(plug.Attrs, nil); err != nil {
+	if err := cstrs.PlugAttributes.Check(plug, nil); err != nil {
 		return err
 	}
-	if err := checkSnapType(plug.Snap.Type, cstrs.PlugSnapTypes); err != nil {
+	if err := checkSnapType(plug.Snap, cstrs.PlugSnapTypes); err != nil {
 		return err
 	}
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {

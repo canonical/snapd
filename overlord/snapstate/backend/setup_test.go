@@ -20,9 +20,10 @@
 package backend_test
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -39,32 +40,36 @@ import (
 )
 
 type setupSuite struct {
-	be           backend.Backend
-	nullProgress progress.NullProgress
-	prevctlCmd   func(...string) ([]byte, error)
-	umount       *testutil.MockCmd
+	testutil.BaseTest
+	be                backend.Backend
+	umount            *testutil.MockCmd
+	systemctlRestorer func()
 }
 
 var _ = Suite(&setupSuite{})
 
 func (s *setupSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	dirs.SetRootDir(c.MkDir())
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
+
 	s.umount = testutil.MockCommand(c, "umount", "")
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
-	systemd.SystemctlCmd = s.prevctlCmd
 	s.umount.Restore()
+	s.systemctlRestorer()
 }
 
 func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
@@ -75,25 +80,24 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 		Revision: snap.R(14),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	snapType, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/hello/14")
-	content, err := ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/hello/14")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	// undo undoes the mount unit and the instdir creation
-	err = s.be.UndoSetupSnap(minInfo, "app", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "app", progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -128,15 +132,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	snapType, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeKernel)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// undo deletes the kernel assets again
-	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
@@ -172,11 +177,11 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	_, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	_, err = s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -221,16 +226,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	_, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
-	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
 	// sanity checks
@@ -242,4 +247,34 @@ type: kernel
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
+}
+
+func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// mount unit start fails
+		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
+			return nil, fmt.Errorf("failed")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	_, err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	c.Assert(err, ErrorMatches, "failed")
+
+	// everything is gone
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Check(l, HasLen, 0)
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	c.Check(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Check(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, false)
 }

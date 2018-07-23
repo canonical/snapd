@@ -1,5 +1,7 @@
 summary: Ensure that snap-repair is available
 
+systems: [-fedora-*, -opensuse-*, -arch-*]
+
 execute: |
     . $TESTSLIB/dirs.sh
 
@@ -12,9 +14,9 @@ execute: |
     # All the tests below are only relevant on an ubuntu-core system
     
     echo "Check that the snap-repair timer is active"
-    systemctl list-timers | MATCH snap-repair.timer
+    systemctl list-timers | MATCH snapd.snap-repair.timer
 
     echo "Check that snap-repair can be run"
-    "${LIBEXECDIR}"/snapd/snap-repair run | MATCH "run is not implemented yet"
+    "${LIBEXECDIR}"/snapd/snap-repair run
 
     

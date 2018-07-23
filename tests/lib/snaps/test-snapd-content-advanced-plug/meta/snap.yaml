@@ -1,0 +1,22 @@
+name: test-snapd-content-advanced-plug
+summary: A more complex snap for testing content interface 
+version: 1.0
+apps:
+    sh:
+        command: ../../../bin/sh
+plugs:
+    # NOTE: The following content interface relies on the fact that when
+    # content interface attribute "content" is not provided it defaults to the
+    # plug or slot name. In effect the "data" plug has the "content" attribute
+    # set to "data" and this matches the slot definitions in
+    # test-snapd-content-advanced-slot. The same is true for "common" and
+    # "snap".
+    data:
+        interface: content
+        target: $SNAP_DATA/target
+    common:
+        interface: content
+        target: $SNAP_COMMON/target
+    snap:
+        interface: content
+        target: $SNAP/target

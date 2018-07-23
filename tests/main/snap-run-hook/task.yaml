@@ -5,17 +5,12 @@ environment:
     # correctly
     SNAP_REEXEC/reexec0: 0
     SNAP_REEXEC/reexec1: 1
+    ENVDUMP: /var/snap/basic-hooks/current/hooks-env
 
 prepare: |
-    echo "Build test hooks package"
-    snapbuild $TESTSLIB/snaps/basic-hooks .
-    snap install --dangerous basic-hooks_1.0_all.snap
-
-restore: |
-    rm basic-hooks_1.0_all.snap
-
-restore: |
-    rm basic-hooks_1.0_all.snap
+    #shellcheck source=tests/lib/snaps.sh
+    . $TESTSLIB/snaps.sh
+    install_local basic-hooks
 
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
@@ -46,3 +41,10 @@ execute: |
         echo "Expected invalid-hook output to be '$expected_output', but it was '$output'"
         exit 1
     fi
+
+    snap set basic-hooks command=dump-env
+    echo "Test that environment variables were interpolated"
+    cat $ENVDUMP | MATCH "^TEST_COMMON=/var/snap/basic-hooks/common$"
+    cat $ENVDUMP | MATCH "^TEST_DATA=/var/snap/basic-hooks/.*$"
+    cat $ENVDUMP | MATCH "^TEST_SNAP=/snap/basic-hooks/.*$"
+    cat $ENVDUMP | MATCH "^TEST_EXTRA=extra-stuff$"

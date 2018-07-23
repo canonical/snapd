@@ -21,7 +21,7 @@
 #include <errno.h>
 #include <glib.h>
 
-static void test_sc_error_init()
+static void test_sc_error_init(void)
 {
 	struct sc_error *err;
 	// Create an error
@@ -35,7 +35,7 @@ static void test_sc_error_init()
 	g_assert_cmpstr(sc_error_msg(err), ==, "printer is on fire");
 }
 
-static void test_sc_error_init_from_errno()
+static void test_sc_error_init_from_errno(void)
 {
 	struct sc_error *err;
 	// Create an error
@@ -49,7 +49,7 @@ static void test_sc_error_init_from_errno()
 	g_assert_cmpstr(sc_error_msg(err), ==, "printer is on fire");
 }
 
-static void test_sc_error_cleanup()
+static void test_sc_error_cleanup(void)
 {
 	// Check that sc_error_cleanup() is safe to use.
 
@@ -64,7 +64,7 @@ static void test_sc_error_cleanup()
 	g_assert_null(err);
 }
 
-static void test_sc_error_domain__NULL()
+static void test_sc_error_domain__NULL(void)
 {
 	// Check that sc_error_domain() dies if called with NULL error.
 	if (g_test_subprocess()) {
@@ -82,7 +82,7 @@ static void test_sc_error_domain__NULL()
 	    ("cannot obtain error domain from NULL error\n");
 }
 
-static void test_sc_error_code__NULL()
+static void test_sc_error_code__NULL(void)
 {
 	// Check that sc_error_code() dies if called with NULL error.
 	if (g_test_subprocess()) {
@@ -99,7 +99,7 @@ static void test_sc_error_code__NULL()
 	g_test_trap_assert_stderr("cannot obtain error code from NULL error\n");
 }
 
-static void test_sc_error_msg__NULL()
+static void test_sc_error_msg__NULL(void)
 {
 	// Check that sc_error_msg() dies if called with NULL error.
 	if (g_test_subprocess()) {
@@ -117,7 +117,7 @@ static void test_sc_error_msg__NULL()
 	    ("cannot obtain error message from NULL error\n");
 }
 
-static void test_sc_die_on_error__NULL()
+static void test_sc_die_on_error__NULL(void)
 {
 	// Check that sc_die_on_error() does nothing if called with NULL error.
 	if (g_test_subprocess()) {
@@ -128,7 +128,7 @@ static void test_sc_die_on_error__NULL()
 	g_test_trap_assert_passed();
 }
 
-static void test_sc_die_on_error__regular()
+static void test_sc_die_on_error__regular(void)
 {
 	// Check that sc_die_on_error() dies if called with an error.
 	if (g_test_subprocess()) {
@@ -142,7 +142,7 @@ static void test_sc_die_on_error__regular()
 	g_test_trap_assert_stderr("just testing\n");
 }
 
-static void test_sc_die_on_error__errno()
+static void test_sc_die_on_error__errno(void)
 {
 	// Check that sc_die_on_error() dies if called with an errno-based error.
 	if (g_test_subprocess()) {
@@ -156,7 +156,7 @@ static void test_sc_die_on_error__errno()
 	g_test_trap_assert_stderr("just testing: No such file or directory\n");
 }
 
-static void test_sc_error_forward__nothing()
+static void test_sc_error_forward__nothing(void)
 {
 	// Check that forwarding NULL does exactly that.
 	struct sc_error *recipient = (void *)0xDEADBEEF;
@@ -165,7 +165,7 @@ static void test_sc_error_forward__nothing()
 	g_assert_null(recipient);
 }
 
-static void test_sc_error_forward__something_somewhere()
+static void test_sc_error_forward__something_somewhere(void)
 {
 	// Check that forwarding a real error works OK.
 	struct sc_error *recipient = NULL;
@@ -176,7 +176,7 @@ static void test_sc_error_forward__something_somewhere()
 	g_assert_nonnull(recipient);
 }
 
-static void test_sc_error_forward__something_nowhere()
+static void test_sc_error_forward__something_nowhere(void)
 {
 	// Check that forwarding a real error nowhere calls die()
 	if (g_test_subprocess()) {
@@ -196,7 +196,7 @@ static void test_sc_error_forward__something_nowhere()
 	g_test_trap_assert_stderr("just testing\n");
 }
 
-static void test_sc_error_match__typical()
+static void test_sc_error_match__typical(void)
 {
 	// NULL error doesn't match anything.
 	g_assert_false(sc_error_match(NULL, "domain", 42));
@@ -210,7 +210,7 @@ static void test_sc_error_match__typical()
 	g_assert_false(sc_error_match(err, "other-domain", 1));
 }
 
-static void test_sc_error_match__NULL_domain()
+static void test_sc_error_match__NULL_domain(void)
 {
 	// Using a NULL domain is a fatal bug.
 	if (g_test_subprocess()) {
@@ -227,7 +227,7 @@ static void test_sc_error_match__NULL_domain()
 	g_test_trap_assert_stderr("cannot match error to a NULL domain\n");
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/error/sc_error_init", test_sc_error_init);
 	g_test_add_func("/error/sc_error_init_from_errno",

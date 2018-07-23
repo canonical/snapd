@@ -1,0 +1,18 @@
+summary: Ensure that the content interface default provider deals with circular
+
+execute: |
+    echo "When a snap declaring a content sharing plug is installed"
+    snap install test-snapd-content-circular1
+
+    echo "Then this pulls in the default provider"
+    snap list | MATCH  test-snapd-content-circular1
+    snap list | MATCH  test-snapd-content-circular2
+
+    echo "Then the snap is listed as connected"
+    snap interfaces
+    CONNECTED_PATTERN_1="test-snapd-content-circular1:content-slot +test-snapd-content-circular2:content-plug"
+    snap interfaces | MATCH "$CONNECTED_PATTERN_1"
+
+    CONNECTED_PATTERN_2="test-snapd-content-circular2:content-slot +test-snapd-content-circular1:content-plug"
+    snap interfaces | MATCH "$CONNECTED_PATTERN_2"
+    

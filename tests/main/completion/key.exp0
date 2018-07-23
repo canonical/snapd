@@ -3,7 +3,9 @@ source lib.exp0
 # create a key doesn't complete
 chat "snap create-key \t\t" "snap create-key ??$"
 chat "\r" "Passphrase:"
+sleep .5
 chat "pass\r" "Confirm passphrase:"
+sleep .5
 send "pass\r"
 
 # this can take a while

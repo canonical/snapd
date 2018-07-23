@@ -1,0 +1,48 @@
+summary: Ensure that the physical memory observe interface works.
+
+details: |
+    The physical-memory-observe interface allows to read the physical memory.
+
+    The test-snapd-physical-memory-observe snap checks that /dev/mem can be read
+    and the interface can be connected and disconnected. 
+
+# As the ubuntu kernels are configured with CONFIG_STRICT_DEVMEM=y, this interface is
+# validated just in the other supported systems.
+systems: [-ubuntu-*]
+
+prepare: |
+    echo "Given the physical-memory-observe snap is installed"
+    snap try $TESTSLIB/snaps/test-snapd-physical-memory-observe
+
+restore: |
+    rm -f call.error
+
+execute: |
+    config="/boot/config-$(uname -r)"
+    if ([ -f $config ] && MATCH "CONFIG_STRICT_DEVMEM=y" < $config) || ([ -f /proc/config.gz ] && zcat /proc/config.gz | MATCH "CONFIG_STRICT_DEVMEM=y"); then
+        echo "Kernel option CONFIG_STRICT_DEVMEM=y, it is not possible to write in /dev/mem, exiting..."
+        exit 0
+    fi
+
+    echo "The interface is not connected by default"
+    snap interfaces -i physical-memory-observe | MATCH "\- +test-snapd-physical-memory-observe:physical-memory-observe"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-physical-memory-observe:physical-memory-observe
+
+    echo "Then the snap is able access to the physical memory"
+    test-snapd-physical-memory-observe.head
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-physical-memory-observe:physical-memory-observe
+
+    echo "Then the snap is not able to access the physical memory"
+    if test-snapd-physical-memory-observe.head 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to physical memory with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

@@ -32,9 +32,11 @@ import (
 )
 
 type DockerInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const dockerMockPlugSnapInfoYaml = `name: docker
@@ -50,17 +52,17 @@ var _ = Suite(&DockerInterfaceSuite{
 })
 
 func (s *DockerInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "docker",
-			},
-			Name:      "docker-daemon",
-			Interface: "docker",
+	s.slotInfo = &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "docker",
 		},
+		Name:      "docker-daemon",
+		Interface: "docker",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, dockerMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["docker"]}
+	s.plugInfo = plugSnap.Plugs["docker"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *DockerInterfaceSuite) TestName(c *C) {
@@ -69,26 +71,24 @@ func (s *DockerInterfaceSuite) TestName(c *C) {
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `run/docker.sock`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "bind\n")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *DockerInterfaceSuite) TestInterfaces(c *C) {

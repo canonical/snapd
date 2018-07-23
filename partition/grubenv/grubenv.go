@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // FIXME: support for escaping (embedded \n in grubenv) missing
@@ -46,15 +48,7 @@ func (g *Env) Get(name string) string {
 }
 
 func (g *Env) Set(key, value string) {
-	var contains = func(needle string, haystack []string) bool {
-		for _, k := range haystack {
-			if k == key {
-				return true
-			}
-		}
-		return false
-	}
-	if !contains(key, g.ordering) {
+	if !strutil.ListContains(g.ordering, key) {
 		g.ordering = append(g.ordering, key)
 	}
 

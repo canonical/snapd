@@ -24,7 +24,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,6 +39,7 @@ type tasksetsSuite struct {
 }
 
 var _ = Suite(&tasksetsSuite{})
+var _ = Suite(&configcoreHijackSuite{})
 
 func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
@@ -69,7 +73,18 @@ var configureTests = []struct {
 	useDefaults: true,
 }}
 
-func (s *tasksetsSuite) TestConfigure(c *C) {
+func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
 	for _, test := range configureTests {
 		var flags int
 		if test.ignoreError {
@@ -107,7 +122,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Assert(hooksup.IgnoreError, Equals, test.ignoreError)
 		c.Assert(hooksup.Timeout, Equals, 5*time.Minute)
 
-		context, err := hookstate.NewContext(task, &hooksup, nil)
+		context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
 		c.Check(err, IsNil)
 		c.Check(context.SnapName(), Equals, "test-snap")
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})
@@ -128,4 +143,170 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 		c.Check(useDefaults, Equals, test.useDefaults)
 	}
+}
+
+func (s *tasksetsSuite) TestConfigureInstalledConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("other-change", "...")
+	chg.AddAll(ts)
+
+	patch := map[string]interface{}{"foo": "bar"}
+	_, err = configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "other-change" change in progress`)
+}
+
+func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	c.Check(err, ErrorMatches, `snap "test-snap" is not installed`)
+
+	// core can be configure before being installed
+	_, err = configstate.ConfigureInstalled(s.state, "core", patch, 0)
+	c.Check(err, IsNil)
+}
+
+func (s *tasksetsSuite) TestConfigureDenyBases(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "test-base", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-base", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "base",
+	})
+
+	_, err := configstate.ConfigureInstalled(s.state, "test-base", patch, 0)
+	c.Check(err, ErrorMatches, `cannot configure snap "test-base" because it is of type 'base'`)
+}
+
+func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	_, err := configstate.ConfigureInstalled(s.state, "snapd", patch, 0)
+	c.Check(err, ErrorMatches, `cannot configure the "snapd" snap, please use "system" instead`)
+}
+
+type configcoreHijackSuite struct {
+	o     *overlord.Overlord
+	state *state.State
+}
+
+func (s *configcoreHijackSuite) SetUpTest(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+	configstate.Init(hookMgr)
+	s.o.AddManager(s.o.TaskRunner())
+}
+
+type witnessManager struct {
+	state     *state.State
+	committed bool
+}
+
+func (wm *witnessManager) Ensure() error {
+	wm.state.Lock()
+	defer wm.state.Unlock()
+	t := config.NewTransaction(wm.state)
+	var witnessCfg bool
+	t.GetMaybe("core", "witness", &witnessCfg)
+	if witnessCfg {
+		wm.committed = true
+	}
+	return nil
+}
+
+func (s *configcoreHijackSuite) TestHijack(c *C) {
+	configcoreRan := false
+	witnessCfg := false
+	witnessConfigcoreRun := func(conf configcore.Conf) error {
+		// called with no state lock!
+		conf.State().Lock()
+		defer conf.State().Unlock()
+		err := conf.Get("core", "witness", &witnessCfg)
+		c.Assert(err, IsNil)
+		configcoreRan = true
+		return nil
+	}
+	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
+	defer r()
+
+	witnessMgr := &witnessManager{
+		state: s.state,
+	}
+	s.o.AddManager(witnessMgr)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", map[string]interface{}{
+		"witness": true,
+	}, 0)
+
+	chg := s.state.NewChange("configure-core", "configure core")
+	chg.AddAll(ts)
+
+	// this will be run by settle helper once no more Ensure are
+	// scheduled, the witnessMgr Ensure would not see the
+	// committed config unless an additional Ensure Loop is
+	// scheduled when committing the configuration
+	observe := func() {
+		c.Check(witnessCfg, Equals, true)
+		c.Check(witnessMgr.committed, Equals, true)
+	}
+
+	s.state.Unlock()
+	err := s.o.SettleObserveBeforeCleanups(5*time.Second, observe)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(configcoreRan, Equals, true)
+}
+
+type miscSuite struct{}
+
+var _ = Suite(&miscSuite{})
+
+func (s *miscSuite) TestRemappingFuncs(c *C) {
+	// We don't change those.
+	c.Assert(configstate.RemapSnapFromRequest("foo"), Equals, "foo")
+	c.Assert(configstate.RemapSnapFromRequest("snapd"), Equals, "snapd")
+	c.Assert(configstate.RemapSnapFromRequest("core"), Equals, "core")
+	c.Assert(configstate.RemapSnapToResponse("foo"), Equals, "foo")
+	c.Assert(configstate.RemapSnapToResponse("snapd"), Equals, "snapd")
+
+	// This is the one we alter.
+	c.Assert(configstate.RemapSnapFromRequest("system"), Equals, "core")
+	c.Assert(configstate.RemapSnapToResponse("core"), Equals, "system")
 }

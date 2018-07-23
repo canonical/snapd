@@ -20,14 +20,23 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const thumbnailerServiceSummary = `allows operating as or interacting with the Thumbnailer service`
+
+const thumbnailerServiceBaseDeclarationSlots = `
+  thumbnailer-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+`
 
 const thumbnailerServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_query_label API. This
@@ -94,13 +103,14 @@ func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
 }
 
-func (iface *thumbnailerServiceInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: thumbnailerServiceSummary,
+func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              thumbnailerServiceSummary,
+		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
 	}
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -109,15 +119,16 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.S
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(thumbnailerServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
-	new := plug.Snap.Name()
+	// TODO parallel-install: use of proper instance/store name
+	new := plug.Snap().InstanceName()
 	snippet = strings.Replace(snippet, old, new, -1)
 
 	old = "###PLUG_SECURITY_TAGS###"
@@ -127,21 +138,7 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.S
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *thumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *thumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *thumbnailerServiceInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return true
 }
 

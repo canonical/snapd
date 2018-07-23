@@ -20,7 +20,7 @@
 package backend_test
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -36,9 +37,9 @@ import (
 )
 
 type mountunitSuite struct {
-	nullProgress progress.NullProgress
-	prevctlCmd   func(...string) ([]byte, error)
-	umount       *testutil.MockCmd
+	umount *testutil.MockCmd
+
+	systemctlRestorer func()
 }
 
 var _ = Suite(&mountunitSuite{})
@@ -49,20 +50,22 @@ func (s *mountunitSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	s.prevctlCmd = systemd.SystemctlCmd
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
+	})
 	s.umount = testutil.MockCommand(c, "umount", "")
 }
 
 func (s *mountunitSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	systemd.SystemctlCmd = s.prevctlCmd
 	s.umount.Restore()
+	s.systemctlRestorer()
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
@@ -71,25 +74,25 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, &s.nullProgress)
+	err := backend.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snap-foo-13.mount"))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, `[Unit]
-Description=Mount unit for foo
+	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
+	c.Assert(filepath.Join(dirs.SnapServicesDir, un), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 13
+Before=snapd.service
 
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
-Where=/snap/foo/13
+Where=%s/foo/13
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`)
-
+`[1:], dirs.StripRootDir(dirs.SnapMountDir)))
 }
 
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
@@ -102,16 +105,17 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, &s.nullProgress)
+	err := backend.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
-	p := filepath.Join(dirs.SnapServicesDir, "snap-foo-13.mount")
+	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
+	p := filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), &s.nullProgress)
+	err = backend.RemoveMountUnit(info.MountDir(), progress.Null)
 	c.Assert(err, IsNil)
-	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
+	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)
 }

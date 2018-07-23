@@ -21,6 +21,13 @@ package builtin
 
 const screenInhibitControlSummary = `allows inhibiting the screen saver`
 
+const screenInhibitBaseDeclarationSlots = `
+  screen-inhibit-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const screenInhibitControlConnectedPlugAppArmor = `
 # Description: Can inhibit and uninhibit screen savers in desktop sessions.
 #include <abstractions/dbus-session-strict>
@@ -49,11 +56,20 @@ dbus (send)
     peer=(label=unconfined),
 
 # freedesktop.org ScreenSaver
+# compatibility rule
 dbus (send)
     bus=session
     path=/Screensaver
     interface=org.freedesktop.ScreenSaver
-    member=org.freedesktop.ScreenSaver.{Inhibit,UnInhibit,SimulateUserActivity}
+    member={Inhibit,UnInhibit,SimulateUserActivity}
+    peer=(label=unconfined),
+
+# API rule
+dbus (send)
+    bus=session
+    path=/{,org/freedesktop/,org/gnome/}ScreenSaver
+    interface=org.freedesktop.ScreenSaver
+    member={Inhibit,UnInhibit,SimulateUserActivity}
     peer=(label=unconfined),
 
 # gnome, kde and cinnamon screensaver
@@ -69,6 +85,8 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "screen-inhibit-control",
 		summary:               screenInhibitControlSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  screenInhibitBaseDeclarationSlots,
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

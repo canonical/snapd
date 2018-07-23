@@ -1,6 +1,6 @@
 summary: Checks for local install with metadata from assertions
 # XXX we would need to bother with curl there atm
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 restore: |
     rm -f test-snapd-tools_*.{snap,assert}
 execute: |
@@ -17,7 +17,7 @@ execute: |
     snap install test-snapd-tools_*.snap
 
     echo "The revision is not a local revision"
-    snap list|MATCH '^test-snapd-tools.* [0-9]+\s+canonical'
+    snap list|MATCH '^test-snapd-tools.* [0-9]+\s+-\s+canonical'
 
     echo "Test it"
     test-snapd-tools.success

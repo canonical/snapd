@@ -33,7 +33,7 @@ func (s *ReleaseTestSuite) TestKernelVersion(c *C) {
 	c.Check(ver, Not(Equals), "")
 }
 
-func (s *ReleaseTestSuite) TestGetKenrelRelease(c *C) {
+func (s *ReleaseTestSuite) TestGetKernelRelease(c *C) {
 	var buf syscall.Utsname
 	c.Check(release.GetKernelRelease(&buf), Equals, "")
 
@@ -49,4 +49,25 @@ func (s *ReleaseTestSuite) TestGetKenrelRelease(c *C) {
 	buf.Release[9] = 'd'
 
 	c.Check(release.GetKernelRelease(&buf), Equals, "foo")
+}
+
+func (s *ReleaseTestSuite) TestGetKernelMachine(c *C) {
+	var buf syscall.Utsname
+	c.Check(release.GetMachineName(&buf), Equals, "")
+
+	buf.Machine[0] = 'a'
+	buf.Machine[1] = 'r'
+	buf.Machine[2] = 'm'
+	buf.Machine[3] = 'v'
+	buf.Machine[4] = '7'
+	buf.Machine[5] = 'a'
+	buf.Machine[6] = 0
+	buf.Machine[7] = 'u'
+	buf.Machine[8] = 'n'
+	buf.Machine[9] = 'u'
+	buf.Machine[10] = 's'
+	buf.Machine[11] = 'e'
+	buf.Machine[12] = 'd'
+
+	c.Check(release.GetMachineName(&buf), Equals, "armv7a")
 }

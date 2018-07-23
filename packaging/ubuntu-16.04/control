@@ -7,20 +7,24 @@ Build-Depends: autoconf,
                autotools-dev,
                bash-completion,
                debhelper (>= 9),
+               dbus,
                dh-apparmor,
                dh-autoreconf,
                dh-golang (>=1.7),
                dh-systemd,
                fakeroot,
+               gcc-multilib [amd64],
                gettext,
                grub-common,
                gnupg2,
                golang-any (>=2:1.6) | golang-1.6,
                indent,
                init-system-helpers,
-               libcap-dev,
                libapparmor-dev,
+               libcap-dev,
+               libfuse-dev,
                libglib2.0-dev,
+               liblzma-dev,
                libseccomp-dev,
                libudev-dev,
                openssh-client,
@@ -58,24 +62,25 @@ Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
-         gnupg1 | gnupg,
          openssh-client,
          squashfs-tools,
          systemd,
+         udev,
          ${misc:Depends},
          ${shlibs:Depends}
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
+Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
+Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
+Recommends: gnupg
+Suggests: zenity | kdialog
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${Built-Using} ${misc:Built-Using}
-Description: Tool to interact with Ubuntu Core Snappy.
+Description: Daemon and tooling that enable snap packages
  Install, configure, refresh and remove snap packages. Snaps are
  'universal' packages that work across many different Linux systems,
  enabling secure distribution of the latest apps and utilities for
  cloud, servers, desktops and the internet of things.
  .
- This is the CLI for snapd, a background service that takes care of
- snaps on the system. Start with 'snap list' to see installed snaps.
+ Start with 'snap list' to see installed snaps.
 
 Package: ubuntu-snappy
 Architecture: all
@@ -111,4 +116,12 @@ Depends: snapd (= ${binary:Version}), ${misc:Depends}
 Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
 Description: Transitional package for snapd
+ This is a transitional dummy package. It can safely be removed.
+
+Package: snapd-xdg-open
+Architecture: any
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
+Section: oldlibs
+Pre-Depends: dpkg (>= 1.15.7.2)
+Description: Transitional package for snapd-xdg-open
  This is a transitional dummy package. It can safely be removed.

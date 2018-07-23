@@ -7,10 +7,10 @@ environment:
     SNAP_REEXEC/reexec1: 1
 
 prepare: |
-    snapbuild $TESTSLIB/snaps/data-writer .
+    snap pack $TESTSLIB/snaps/data-writer
 
 restore: |
-    rm data-writer_1.0_all.snap
+    rm -f data-writer_1.0_all.snap
 
 execute: |
     snap install --dangerous data-writer_1.0_all.snap

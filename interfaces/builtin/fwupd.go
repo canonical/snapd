@@ -26,9 +26,19 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const fwupdSummary = `allows operating as the fwupd service`
+
+const fwupdBaseDeclarationSlots = `
+  fwupd:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
 
 const fwupdPermanentSlotAppArmor = `
 # Description: Allow operating as the fwupd service. This gives privileged
@@ -97,9 +107,28 @@ const fwupdConnectedPlugAppArmor = `
   #Can access the network
   #include <abstractions/nameservice>
   #include <abstractions/ssl_certs>
+  /run/systemd/resolve/stub-resolv.conf r,
 
   # DBus accesses
   #include <abstractions/dbus-strict>
+
+  # systemd-resolved (not yet included in nameservice abstraction)
+  #
+  # Allow access to the safe members of the systemd-resolved D-Bus API:
+  #
+  #   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+  #
+  # This API may be used directly over the D-Bus system bus or it may be used
+  # indirectly via the nss-resolve plugin:
+  #
+  #   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+  #
+  dbus send
+       bus=system
+       path="/org/freedesktop/resolve1"
+       interface="org.freedesktop.resolve1.Manager"
+       member="Resolve{Address,Hostname,Record,Service}"
+       peer=(name="org.freedesktop.resolve1"),
 
   # Allow access to fwupd service
   dbus (receive, send)
@@ -191,18 +220,19 @@ func (iface *fwupdInterface) Name() string {
 	return "fwupd"
 }
 
-func (iface *fwupdInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: fwupdSummary,
+func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              fwupdSummary,
+		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
 }
 
-func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(fwupdPermanentSlotDBus)
 	return nil
 }
 
-func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
@@ -210,13 +240,13 @@ func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(fwupdPermanentSlotAppArmor)
 	return nil
 
 }
 
-func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
@@ -224,27 +254,17 @@ func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(fwupdConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(fwupdPermanentSlotSecComp)
 	return nil
 }
 
-// SanitizePlug checks the plug definition is valid
-func (iface *fwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-// SanitizeSlot checks the slot definition is valid
-func (iface *fwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
-func (iface *fwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *fwupdInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

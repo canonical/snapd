@@ -1,0 +1,12 @@
+name: test-snapd-desktop
+version: 1.0
+summary: Basic desktop interface test snap
+description: A basic snap to access dektop interface
+
+apps:
+    check-files:
+        command: bin/check-files
+        plugs: [desktop]
+    check-dirs:
+        command: bin/check-dirs
+        plugs: [desktop]

@@ -1,5 +1,5 @@
 summary: Check that try command works when daemon line is added to snap.yaml
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 environment:
   SERVICE: snap.test-snapd-service-try.service.service

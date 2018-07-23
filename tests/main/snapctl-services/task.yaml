@@ -1,0 +1,85 @@
+summary: Check that own services can be controlled by snapctl
+
+kill-timeout: 5m
+
+environment:
+    SERVICEOPTIONFILE: /var/snap/test-snapd-service/current/service-option
+
+restore: |
+    rm -f $SERVICEOPTIONFILE
+
+execute: |
+    # there is wait_for_service defined in systemd.sh, use a different name to
+    # avoid redefining or being obscured by the other one
+    _wait_for_service() {
+        retry=5
+        while ! snap services $1 | MATCH $2; do
+            retry=$(( retry - 1 ))
+            if [ $retry -le 0 ]; then
+                echo "Failed to match the status of service $1, expected: $2"
+                exit 1
+            fi
+            sleep 1
+        done
+    }
+
+    wait_for_file_change() {
+        retry=5
+        while ! cat $1 | MATCH $2; do
+            retry=$(( retry - 1 ))
+            if [ $retry -le 0 ]; then
+                echo "Failed to match the content of file $1, expected: $2"
+                exit 1
+            fi
+            sleep 1
+        done
+    }
+
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    echo "When the service snap is installed"
+    install_local test-snapd-service
+
+    echo "We can see it running"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
+
+    echo "When we stop the service via configure hook"
+    snap set test-snapd-service command=stop
+
+    echo "It's stopped"
+    _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
+
+    echo "When we start the service via configure hook"
+    snap set test-snapd-service command=start
+
+    echo "It's running again"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
+
+    echo "When we stop it again"
+    snap set test-snapd-service command=stop
+
+    echo "It's stopped"
+    _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
+
+    echo "And then restart"
+    snap set test-snapd-service service-option-source=foo command=restart
+
+    echo "It's running"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
+
+    echo "And restart command was executed as part of configure hook change"
+    snap tasks --last=configure|MATCH -z "restart of .test-snapd-service.test-snapd-service.+restart of .test-snapd-service.test-snapd-other-service"
+
+    echo "And service could get the new service-option set from the hook"
+    wait_for_file_change $SERVICEOPTIONFILE "^foo$"
+
+    echo "Reinstalling the snap with configure hook calling snapctl restart works"
+    snap set test-snapd-service command=restart
+    install_local test-snapd-service
+    if get_journalctl_log | MATCH "error running snapctl"; then
+        echo "snapctl should not report errors"
+        exit 1
+    fi

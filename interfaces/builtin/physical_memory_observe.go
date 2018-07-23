@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,15 +19,15 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-)
-
 const physicalMemoryObserveSummary = `allows read access to all physical memory`
+
+const physicalMemoryObserveBaseDeclarationSlots = `
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const physicalMemoryObserveConnectedPlugAppArmor = `
 # Description: With kernels with STRICT_DEVMEM=n, read-only access to all physical
@@ -37,67 +37,17 @@ const physicalMemoryObserveConnectedPlugAppArmor = `
 /dev/mem r,
 `
 
-// The type for physical-memory-observe interface
-type physicalMemoryObserveInterface struct{}
-
-// Getter for the name of the physical-memory-observe interface
-func (iface *physicalMemoryObserveInterface) Name() string {
-	return "physical-memory-observe"
-}
-
-func (iface *physicalMemoryObserveInterface) String() string {
-	return iface.Name()
-}
-
-func (iface *physicalMemoryObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: physicalMemoryObserveSummary,
-	}
-}
-
-// Check validity of the defined slot
-func (iface *physicalMemoryObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *physicalMemoryObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *physicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(physicalMemoryObserveConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *physicalMemoryObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	const udevRule = `KERNEL=="mem", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	}
-	return nil
-}
-
-func (iface *physicalMemoryObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
+var physicalMemoryObserveConnectedPlugUDev = []string{`KERNEL=="mem"`}
 
 func init() {
-	registerIface(&physicalMemoryObserveInterface{})
+	registerIface(&commonInterface{
+		name:                  "physical-memory-observe",
+		summary:               physicalMemoryObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  physicalMemoryObserveBaseDeclarationSlots,
+		connectedPlugAppArmor: physicalMemoryObserveConnectedPlugAppArmor,
+		connectedPlugUDev:     physicalMemoryObserveConnectedPlugUDev,
+		reservedForOS:         true,
+	})
 }

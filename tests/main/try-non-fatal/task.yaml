@@ -1,10 +1,11 @@
 summary: Checks that removing the base directory of a tried snap works.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 execute: |
     echo "Given a tried snap"
     base_dir=$(mktemp -d)
+    chmod 0755 "$base_dir"
     cp -R $TESTSLIB/snaps/test-snapd-tools/* $base_dir
     snap try $base_dir
 

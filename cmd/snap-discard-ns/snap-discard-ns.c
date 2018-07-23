@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 		die("Usage: %s snap-name", argv[0]);
 	const char *snap_name = argv[1];
 
-	int snap_lock_fd = sc_lock(snap_name);
+	int snap_lock_fd = sc_lock_snap(snap_name);
 	debug("initializing mount namespace: %s", snap_name);
 	struct sc_ns_group *group =
 	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
 		sc_close_ns_group(group);
 	}
 	// Unlink the current mount profile, if any.
-	char profile_path[PATH_MAX];
+	char profile_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path),
 			 "/run/snapd/ns/snap.%s.fstab", snap_name);
 	if (unlink(profile_path) < 0) {
@@ -50,6 +50,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	sc_unlock(snap_name, snap_lock_fd);
+	sc_unlock(snap_lock_fd);
 	return 0;
 }

@@ -1,18 +1,25 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1595444
+
 details: |
     This task checks the behavior of snap-confine when it is started from
     a directory that doesn't exist in the execution environment (chroot).
+
 systems:
     # This test only applies to classic systems
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # No confinement (AppArmor, Seccomp) available on these systems
     - -debian-*
+    - -fedora-*
+    - -opensuse-*
+    - -arch-*
+
 prepare: |
     echo "Having installed the test snap"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     echo "Hanving created a directory not present in the core snap"
     mkdir -p "/foo"
+
 execute: |
     echo "We can go to a location that is available in all snaps (/tmp)"
     echo "We can run the 'pwd' tool and it reports /tmp"
@@ -22,6 +29,7 @@ execute: |
     [ "$(cd /foo && test-snapd-tools.cmd pwd)" = "/var/lib/snapd/void" ]
     echo "And that directory is not readable or writable"
     [ "$(cd /foo && test-snapd-tools.cmd ls 2>&1)" = "ls: cannot open directory '.': Permission denied" ];
+
 restore: |
     rm -f -d /foo
     # NOTE: the snap is blocked by apparmor from reading /var/lib/snapd/void

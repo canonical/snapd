@@ -20,6 +20,7 @@
 package store
 
 import (
+	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -29,65 +30,98 @@ type snapDetails struct {
 	Architectures    []string           `json:"architecture"`
 	Channel          string             `json:"channel,omitempty"`
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
-	Summary          string             `json:"summary,omitempty"`
-	Description      string             `json:"description,omitempty"`
-	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
+	Summary          safejson.String    `json:"summary,omitempty"`
+	Description      safejson.Paragraph `json:"description,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
-	Epoch            string             `json:"epoch"`
+	Epoch            snap.Epoch         `json:"epoch"`
 	IconURL          string             `json:"icon_url"`
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
 	Prices           map[string]float64 `json:"prices,omitempty"`
-	Publisher        string             `json:"publisher,omitempty"`
-	RatingsAverage   float64            `json:"ratings_average,omitempty"`
-	Revision         int                `json:"revision"` // store revisions are ints starting at 1
-	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
-	SnapID           string             `json:"snap_id"`
+	// Note that the publisher is really the "display name" of the
+	// publisher
+	Publisher      string   `json:"publisher,omitempty"`
+	RatingsAverage float64  `json:"ratings_average,omitempty"`
+	Revision       int      `json:"revision"` // store revisions are ints starting at 1
+	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
+	SnapID         string   `json:"snap_id"`
+	License        string   `json:"license,omitempty"`
+	Base           string   `json:"base,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url
 	SupportURL string `json:"support_url"`
 	Contact    string `json:"contact"`
 
-	Title   string    `json:"title"`
-	Type    snap.Type `json:"content,omitempty"`
-	Version string    `json:"version"`
+	Title   safejson.String `json:"title"`
+	Type    snap.Type       `json:"content,omitempty"`
+	Version string          `json:"version"`
 
-	// TODO: have the store return a 'developer_username' for this
-	Developer   string `json:"origin"`
-	DeveloperID string `json:"developer_id"`
+	Developer           string `json:"origin"`
+	DeveloperID         string `json:"developer_id"`
+	DeveloperName       string `json:"developer_name"`
+	DeveloperValidation string `json:"developer_validation"`
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
 
-	ChannelMapList []channelMap `json:"channel_maps_list,omitempty"`
+	CommonIDs []string `json:"common_ids,omitempty"`
 }
 
-// channelMap contains
-type channelMap struct {
-	Track       string                   `json:"track"`
-	SnapDetails []channelSnapInfoDetails `json:"map,omitempty"`
-}
+func infoFromRemote(d *snapDetails) *snap.Info {
+	info := &snap.Info{}
+	info.Architectures = d.Architectures
+	info.Type = d.Type
+	info.Version = d.Version
+	info.Epoch = d.Epoch
+	info.RealName = d.Name
+	info.SnapID = d.SnapID
+	info.Revision = snap.R(d.Revision)
+	info.EditedTitle = d.Title.Clean()
+	info.EditedSummary = d.Summary.Clean()
+	info.EditedDescription = d.Description.Clean()
+	// Note that the store side is using confusing terminology here.
+	// What the store calls "developer" is actually the publisher
+	// username.
+	//
+	// It also sends "publisher" and "developer_name" which are
+	// the "publisher display name" which we cannot use currently
+	// because it is not validated (i.e. the publisher could put
+	// anything in there and mislead the users this way).
+	info.Publisher = snap.StoreAccount{
+		ID:          d.DeveloperID,
+		Username:    d.Developer,
+		DisplayName: d.DeveloperName,
+		Validation:  d.DeveloperValidation,
+	}
+	info.Channel = d.Channel
+	info.Sha3_384 = d.DownloadSha3_384
+	info.Size = d.DownloadSize
+	info.IconURL = d.IconURL
+	info.AnonDownloadURL = d.AnonDownloadURL
+	info.DownloadURL = d.DownloadURL
+	info.Prices = d.Prices
+	info.Private = d.Private
+	info.Paid = len(info.Prices) > 0
+	info.Confinement = snap.ConfinementType(d.Confinement)
+	info.Contact = d.Contact
+	info.License = d.License
+	info.Base = d.Base
+	info.CommonIDs = d.CommonIDs
 
-type snapDeltaDetail struct {
-	FromRevision    int    `json:"from_revision"`
-	ToRevision      int    `json:"to_revision"`
-	Format          string `json:"format"`
-	AnonDownloadURL string `json:"anon_download_url,omitempty"`
-	DownloadURL     string `json:"download_url,omitempty"`
-	Size            int64  `json:"binary_filesize,omitempty"`
-	Sha3_384        string `json:"download_sha3_384,omitempty"`
-}
+	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
+	for _, url := range d.ScreenshotURLs {
+		screenshots = append(screenshots, snap.ScreenshotInfo{
+			URL: url,
+		})
+	}
+	info.Screenshots = screenshots
+	// FIXME: once the store sends "contact" for everything, remove
+	//        the "SupportURL" part of the if
+	if info.Contact == "" {
+		info.Contact = d.SupportURL
+	}
 
-// channelSnapInfoDetails is the subset of snapDetails we need to get
-// information about the snaps in the various channels
-type channelSnapInfoDetails struct {
-	Revision     int    `json:"revision"` // store revisions are ints starting at 1
-	Confinement  string `json:"confinement"`
-	Version      string `json:"version"`
-	Channel      string `json:"channel"`
-	Epoch        string `json:"epoch"`
-	DownloadSize int64  `json:"binary_filesize"`
-	Info         string `json:"info"`
+	return info
 }

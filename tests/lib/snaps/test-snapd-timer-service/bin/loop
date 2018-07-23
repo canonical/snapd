@@ -1,0 +1,10 @@
+#!/bin/sh
+
+echo "called on $(date) as $1"
+
+for _ in $(seq 10); do
+    echo "looping"
+    sleep 0.5
+done
+
+echo "finishing on $(date)"

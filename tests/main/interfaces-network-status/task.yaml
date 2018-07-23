@@ -1,0 +1,62 @@
+summary: Ensure that the network-status interface works.
+
+details: |
+    The network-status interface allows a snap to monitor network connection status.
+
+    A snap which defines the network-status plug must be shown in the interfaces list.
+    The plug is autoconnected on install and, as usual, must be able to be disconnect/reconnect.
+
+    The snap is also declaring a plug on this interface must be able to ask for its status.
+
+# dbus-launch not supported in ubuntu-core
+systems: [-ubuntu-core-*]
+
+prepare: |
+    . "$TESTSLIB/dbus.sh"
+    . "$TESTSLIB/dirs.sh"
+
+    echo "Given a snap declaring a plug on the network-status interface is installed"
+    snap install test-snapd-network-status-provider
+
+    echo "And the provider dbus loop is started"
+    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-network-status-provider.provider
+
+restore: |
+    rm -f getstate.error
+
+    . "$TESTSLIB/dbus.sh"
+    stop_dbus_unit
+
+execute: |
+    echo "The interface is connected by default"
+    snap interfaces -i network-status | MATCH "test-snapd-network-status-provider:network-status-test .*test-snapd-network-status-provider:network-status"
+
+    echo "Then wait until the dbus name is properly reserved"
+    for i in $(seq 10); do
+        if ! test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"; then
+            sleep 1
+        else
+            break
+        fi
+    done
+
+    echo "Check the network-status is working from the consumer app in the snap"
+    test-snapd-network-status-provider.consumer GetState | MATCH "my-ap-state"
+    test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
+
+    echo "And the snap state cannot be accessed"
+    if test-snapd-network-status-provider.consumer GetState 2>${PWD}/getstate.error; then
+        echo "Expected permission error trying to introspect state with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < getstate.error
+
+    echo "When the plug is re-connected the interfaces show the connection"
+    snap connect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test

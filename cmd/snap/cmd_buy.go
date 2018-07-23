@@ -30,7 +30,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortBuyHelp = i18n.G("Buys a snap")
+var shortBuyHelp = i18n.G("Buy a snap")
 var longBuyHelp = i18n.G(`
 The buy command buys a snap from the store.
 `)
@@ -46,6 +46,7 @@ func init() {
 		return &cmdBuy{}
 	}, map[string]string{}, []argDesc{{
 		name: "<snap>",
+		// TRANSLATORS: This should probably not start with a lowercase letter.
 		desc: i18n.G("Snap name"),
 	}})
 }
@@ -108,7 +109,7 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name, snap.Name
 
 	// TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
 	fmt.Fprintf(Stdout, i18n.G(`Please re-enter your Ubuntu One password to purchase %q from %q
-for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
+for %s. Press ctrl-c to cancel.`), snap.Name, snap.Publisher.Username, formatPrice(opts.Price, opts.Currency))
 	fmt.Fprint(Stdout, "\n")
 
 	err = requestLogin(user.Email)

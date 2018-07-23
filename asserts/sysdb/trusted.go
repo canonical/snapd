@@ -133,6 +133,9 @@ func Trusted() []asserts.Assertion {
 	if !osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
 		trusted = append(trusted, trustedAssertions...)
 	} else {
+		if len(trustedStagingAssertions) == 0 {
+			panic("cannot work with the staging store without a testing build with compiled-in staging keys")
+		}
 		trusted = append(trusted, trustedStagingAssertions...)
 	}
 	trusted = append(trusted, trustedExtraAssertions...)

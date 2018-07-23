@@ -1,0 +1,54 @@
+summary: Ensure that the accounts-service interface works
+
+# Only test on classic systems with AppArmor DBus mediation
+# Don't test on ubuntu-14.04, since it's gnome-online-accounts daemon
+# seems to be incompatible.
+systems: [ ubuntu-16* ]
+
+environment:
+    XDG_CONFIG_HOME: $(pwd)/config
+    XDG_DATA_HOME: $(pwd)/share
+    XDG_CACHE_HOME: $(pwd)/cache
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    snap install --edge test-snapd-accounts-service
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    kill "$(cat dbus-launch.pid)"
+    rm -f dbus-launch.pid
+    rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+
+execute: |
+    echo "Ensure things run"
+    eval "$(dbus-launch --sh-syntax)"
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+    eval "$(printf password|gnome-keyring-daemon --login)"
+    eval "$(gnome-keyring-daemon --start)"
+
+    echo "Creating account"
+    # We set a long timeout here because goa-daemon will be activated
+    # by the method call, and this can take a while on heavily loaded
+    # or IO constrianed VMs.
+    gdbus call --session --timeout 300 \
+      --dest=org.gnome.OnlineAccounts \
+      --object-path=/org/gnome/OnlineAccounts/Manager \
+      --method=org.gnome.OnlineAccounts.Manager.AddAccount \
+      "imap_smtp" \
+      "test@example.com" \
+      "Display Name" \
+      "{}" \
+      "{'Enabled': 'true', 'EmailAddress': 'test@example.com', 'Name': 'Test User', 'ImapHost': 'imap.example.com', 'SmtpHost': 'mail.example.com'}"
+
+    echo "The interface is initially disconnected"
+    snap interfaces -i accounts-service | MATCH '\- +test-snapd-accounts-service:accounts-service'
+    #shellcheck disable=SC2015
+    test-snapd-accounts-service.list-accounts && exit 1 || true
+
+    echo "When the plug is connected"
+    snap connect test-snapd-accounts-service:accounts-service
+    test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -32,37 +31,34 @@ import (
 )
 
 var shortChangesHelp = i18n.G("List system changes")
-var shortChangeHelp = i18n.G("List a change's tasks")
+var shortTasksHelp = i18n.G("List a change's tasks")
 var longChangesHelp = i18n.G(`
-The changes command displays a summary of the recent system changes performed.`)
-var longChangeHelp = i18n.G(`
-The change command displays a summary of tasks associated to an individual change.`)
+The changes command displays a summary of system changes performed recently.
+`)
+var longTasksHelp = i18n.G(`
+The tasks command displays a summary of tasks associated with an individual
+change.
+`)
 
 type cmdChanges struct {
+	timeMixin
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-type cmdChange struct {
-	Positional struct {
-		ID changeID `positional-arg-name:"<id>" required:"yes"`
-	} `positional-args:"yes"`
-}
-
 type cmdTasks struct {
-	LastChangeType string `long:"last"`
-	Positional     struct {
-		ID changeID `positional-arg-name:"<id>"`
-	} `positional-args:"yes"`
+	timeMixin
+	changeIDMixin
 }
 
 func init() {
-	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
-	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, map[string]string{
-		"last": i18n.G("Show last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
-	}, nil)
+	addCommand("changes", shortChangesHelp, longChangesHelp,
+		func() flags.Commander { return &cmdChanges{} }, timeDescs, nil)
+	addCommand("tasks", shortTasksHelp, longTasksHelp,
+		func() flags.Commander { return &cmdTasks{} },
+		changeIDMixinOptDesc.also(timeDescs),
+		changeIDMixinArgDesc).alias = "change"
 }
 
 type changesByTime []*client.Change
@@ -73,14 +69,25 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
+func queryChanges(cli *client.Client, opts *client.ChangesOptions) ([]*client.Change, error) {
+	chgs, err := cli.Changes(opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := warnMaintenance(cli); err != nil {
+		return nil, err
+	}
+	return chgs, nil
+}
+
 func (c *cmdChanges) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
 	if allDigits(c.Positional.Snap) {
-		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
-		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap tasks %s"`), c.Positional.Snap)
+		// TRANSLATORS: the %s is the argument given by the user to 'snap changes'
+		return fmt.Errorf(i18n.G(`'snap changes' command expects a snap name, try 'snap tasks %s'`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
@@ -94,7 +101,7 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	cli := Client()
-	changes, err := cli.Changes(&opts)
+	changes, err := queryChanges(cli, &opts)
 	if err != nil {
 		return err
 	}
@@ -109,8 +116,8 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
 	for _, chg := range changes {
-		spawnTime := chg.SpawnTime.UTC().Format(time.RFC3339)
-		readyTime := chg.ReadyTime.UTC().Format(time.RFC3339)
+		spawnTime := c.fmtTime(chg.SpawnTime)
+		readyTime := c.fmtTime(chg.ReadyTime)
 		if chg.ReadyTime.IsZero() {
 			readyTime = "-"
 		}
@@ -125,56 +132,27 @@ func (c *cmdChanges) Execute(args []string) error {
 
 func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
-	var id changeID
-	switch {
-	case c.Positional.ID == "" && c.LastChangeType == "":
-		return fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
-	case c.Positional.ID != "" && c.LastChangeType != "":
-		return fmt.Errorf(i18n.G("cannot use change ID and type together"))
-	case c.LastChangeType != "":
-		kind := c.LastChangeType
-		// our internal change types use "-snap" postfix but let user skip it and use short form.
-		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
-			kind += "-snap"
-		}
-		opts := client.ChangesOptions{
-			Selector: client.ChangesAll,
-		}
-		changes, err := cli.Changes(&opts)
-		if err != nil {
-			return err
-		}
-		if len(changes) == 0 {
-			return fmt.Errorf(i18n.G("no changes found"))
-		}
-		chg := findLatestChangeByKind(changes, kind)
-		if chg == nil {
-			return fmt.Errorf(i18n.G("no changes of type %q found"), c.LastChangeType)
-		}
-		id = changeID(chg.ID)
-	default:
-		id = c.Positional.ID
+	chid, err := c.GetChangeID(cli)
+	if err != nil {
+		return err
 	}
 
-	return showChange(cli, id)
+	return c.showChange(cli, chid)
 }
 
-func (c *cmdChange) Execute([]string) error {
-	cli := Client()
-	return showChange(cli, c.Positional.ID)
-}
-
-func findLatestChangeByKind(changes []*client.Change, kind string) (latest *client.Change) {
-	for _, chg := range changes {
-		if chg.Kind == kind && (latest == nil || latest.SpawnTime.Before(chg.SpawnTime)) {
-			latest = chg
-		}
+func queryChange(cli *client.Client, chid string) (*client.Change, error) {
+	chg, err := cli.Change(chid)
+	if err != nil {
+		return nil, err
 	}
-	return latest
+	if err := warnMaintenance(cli); err != nil {
+		return nil, err
+	}
+	return chg, nil
 }
 
-func showChange(cli *client.Client, chid changeID) error {
-	chg, err := cli.Change(string(chid))
+func (c *cmdTasks) showChange(cli *client.Client, chid string) error {
+	chg, err := queryChange(cli, chid)
 	if err != nil {
 		return err
 	}
@@ -183,8 +161,8 @@ func showChange(cli *client.Client, chid changeID) error {
 
 	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 	for _, t := range chg.Tasks {
-		spawnTime := t.SpawnTime.UTC().Format(time.RFC3339)
-		readyTime := t.ReadyTime.UTC().Format(time.RFC3339)
+		spawnTime := c.fmtTime(t.SpawnTime)
+		readyTime := c.fmtTime(t.ReadyTime)
 		if t.ReadyTime.IsZero() {
 			readyTime = "-"
 		}
@@ -216,3 +194,14 @@ func showChange(cli *client.Client, chid changeID) error {
 }
 
 const line = "......................................................................"
+
+func warnMaintenance(cli *client.Client) error {
+	if maintErr := cli.Maintenance(); maintErr != nil {
+		msg, err := errorToCmdMessage("", maintErr, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stderr, "WARNING: %s\n", msg)
+	}
+	return nil
+}

@@ -47,7 +47,7 @@ const accountExample = "type: account\n" +
 	"account-id: abc-123\n" +
 	"display-name: Nice User\n" +
 	"username: nice\n" +
-	"validation: certified\n" +
+	"validation: verified\n" +
 	"TSLINE" +
 	"body-length: 0\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -65,7 +65,7 @@ func (s *accountSuite) TestDecodeOK(c *C) {
 	c.Check(account.AccountID(), Equals, "abc-123")
 	c.Check(account.DisplayName(), Equals, "Nice User")
 	c.Check(account.Username(), Equals, "nice")
-	c.Check(account.IsCertified(), Equals, true)
+	c.Check(account.Validation(), Equals, "verified")
 }
 
 func (s *accountSuite) TestOptional(c *C) {
@@ -83,12 +83,13 @@ func (s *accountSuite) TestOptional(c *C) {
 	}
 }
 
-func (s *accountSuite) TestIsCertified(c *C) {
+func (s *accountSuite) TestValidation(c *C) {
 	tests := []struct {
-		value       string
-		isCertified bool
+		value      string
+		isVerified bool
 	}{
-		{"certified", true},
+		{"certified", true}, // backward compat for hard-coded trusted assertions
+		{"verified", true},
 		{"unproven", false},
 		{"nonsense", false},
 	}
@@ -97,14 +98,18 @@ func (s *accountSuite) TestIsCertified(c *C) {
 	for _, test := range tests {
 		encoded := strings.Replace(
 			template,
-			"validation: certified\n",
+			"validation: verified\n",
 			fmt.Sprintf("validation: %s\n", test.value),
 			1,
 		)
 		assert, err := asserts.Decode([]byte(encoded))
 		c.Assert(err, IsNil)
 		account := assert.(*asserts.Account)
-		c.Check(account.IsCertified(), Equals, test.isCertified)
+		expected := test.value
+		if test.isVerified {
+			expected = "verified"
+		}
+		c.Check(account.Validation(), Equals, expected)
 	}
 }
 
@@ -121,8 +126,8 @@ func (s *accountSuite) TestDecodeInvalid(c *C) {
 		{"display-name: Nice User\n", "", `"display-name" header is mandatory`},
 		{"display-name: Nice User\n", "display-name: \n", `"display-name" header should not be empty`},
 		{"username: nice\n", "username:\n  - foo\n  - bar\n", `"username" header must be a string`},
-		{"validation: certified\n", "", `"validation" header is mandatory`},
-		{"validation: certified\n", "validation: \n", `"validation" header should not be empty`},
+		{"validation: verified\n", "", `"validation" header is mandatory`},
+		{"validation: verified\n", "validation: \n", `"validation" header should not be empty`},
 		{s.tsLine, "", `"timestamp" header is mandatory`},
 		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -158,6 +163,8 @@ func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
 	headers := ex.Headers()
+	// default to signing db's authority
+	delete(headers, "authority-id")
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 	account, err := otherDB.Sign(asserts.AccountType, headers, nil, "")
 	c.Assert(err, IsNil)

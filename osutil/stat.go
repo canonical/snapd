@@ -22,6 +22,7 @@ package osutil
 import (
 	"os"
 	"os/exec"
+	"syscall"
 )
 
 // FileExists return true if given path can be stat()ed by us. Note that
@@ -75,4 +76,42 @@ func LookPathDefault(name string, defaultPath string) string {
 		return defaultPath
 	}
 	return p
+}
+
+// IsWritable checks if the given file/directory can be written by
+// the current user
+func IsWritable(path string) bool {
+	// from "fcntl.h"
+	const W_OK = 2
+
+	err := syscall.Access(path, W_OK)
+	return err == nil
+}
+
+// IsDirNotExist tells you whether the given error is due to a directory not existing.
+func IsDirNotExist(err error) bool {
+	switch pe := err.(type) {
+	case nil:
+		return false
+	case *os.PathError:
+		err = pe.Err
+	case *os.LinkError:
+		err = pe.Err
+	case *os.SyscallError:
+		err = pe.Err
+	}
+
+	return err == syscall.ENOTDIR || err == syscall.ENOENT || err == os.ErrNotExist
+}
+
+// DirExists checks whether a given path exists, and if so whether it is a directory.
+func DirExists(fn string) (exists bool, isDir bool, err error) {
+	st, err := os.Stat(fn)
+	if err != nil {
+		if IsDirNotExist(err) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	return true, st.IsDir(), nil
 }

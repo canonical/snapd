@@ -1,12 +1,12 @@
 summary: Check snap ack
-systems: [-ubuntu-core-16-arm-*]
+systems: [-ubuntu-core-*-arm-*]
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
     echo "Ack the test store key in case"
-    snap ack $TESTSLIB/assertions/testrootorg-store.account-key
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     ALICE_ID=BGLTY1rcRKQQMbt9B407lDH38lbCW3wg
 

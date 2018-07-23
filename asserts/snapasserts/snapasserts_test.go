@@ -49,9 +49,7 @@ type snapassertsSuite struct {
 var _ = Suite(&snapassertsSuite{})
 
 func (s *snapassertsSuite) SetUpTest(c *C) {
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 
@@ -249,7 +247,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 
 	_, err = snapasserts.DeriveSideInfo(snapPath, s.localDB)
 	// cannot find signatures with metadata for snap
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {

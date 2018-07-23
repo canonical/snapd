@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,7 @@ import (
 )
 
 type SnapOptions struct {
+	Amend            bool   `json:"amend,omitempty"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         string `json:"revision,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
@@ -38,6 +39,8 @@ type SnapOptions struct {
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
+
+	Users []string `json:"users,omitempty"`
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
@@ -73,6 +76,7 @@ type actionData struct {
 type multiActionData struct {
 	Action string   `json:"action"`
 	Snaps  []string `json:"snaps,omitempty"`
+	Users  []string `json:"users,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -117,6 +121,29 @@ func (client *Client) Revert(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("revert", name, options)
 }
 
+// Switch moves the snap to a different channel without a refresh
+func (client *Client) Switch(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("switch", name, options)
+}
+
+// SnapshotMany snapshots many snaps (all, if names empty) for many users (all, if users is empty).
+func (client *Client) SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error) {
+	result, changeID, err := client.doMultiSnapActionFull("snapshot", names, &SnapOptions{Users: users})
+	if err != nil {
+		return 0, "", err
+	}
+	if len(result) == 0 {
+		return 0, "", fmt.Errorf("server result does not contain snapshot set identifier")
+	}
+	var x struct {
+		SetID uint64 `json:"set-id"`
+	}
+	if err := json.Unmarshal(result, &x); err != nil {
+		return 0, "", err
+	}
+	return x.SetID, changeID, nil
+}
+
 var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
 
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
@@ -144,25 +171,34 @@ func (client *Client) doMultiSnapAction(actionName string, snaps []string, optio
 	if options != nil {
 		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
 	}
+	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
+
+	return changeID, err
+}
+
+func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
 	action := multiActionData{
 		Action: actionName,
 		Snaps:  snaps,
 	}
+	if options != nil {
+		action.Users = options.Users
+	}
 	data, err := json.Marshal(&action)
 	if err != nil {
-		return "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
+		return nil, "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
 	}
 
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
 
-	return client.doAsync("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
+	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
 }
 
-// InstallPath sideloads the snap with the given path, returning the UUID
-// of the background operation upon success.
-func (client *Client) InstallPath(path string, options *SnapOptions) (changeID string, err error) {
+// InstallPath sideloads the snap with the given path under optional provided name,
+// returning the UUID of the background operation upon success.
+func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
@@ -170,6 +206,7 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 
 	action := actionData{
 		Action:      "install",
+		Name:        name,
 		SnapPath:    path,
 		SnapOptions: options,
 	}

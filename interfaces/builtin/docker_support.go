@@ -25,9 +25,24 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dockerSupportSummary = `allows operating as the Docker daemon`
+
+const dockerSupportBaseDeclarationPlugs = `
+  docker-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+const dockerSupportBaseDeclarationSlots = `
+  docker-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
@@ -44,6 +59,11 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/docker/**   mrwklix,
 /{,var/}run/runc/       rw,
 /{,var/}run/runc/**     mrwklix,
+
+# Socket for docker-container-shim
+unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
+
+/{,var/}run/mount/utab r,
 
 # Wide read access to /proc, but somewhat limited writes for now
 @{PROC}/ r,
@@ -528,14 +548,19 @@ func (iface *dockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *dockerSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: dockerSupportSummary,
+func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              dockerSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
+		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
 	}
 }
 
-func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var privileged bool
+	_ = plug.Attr("privileged-containers", &privileged)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
@@ -543,8 +568,9 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var privileged bool
+	_ = plug.Attr("privileged-containers", &privileged)
 	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {
 		snippet += dockerSupportPrivilegedSecComp
@@ -553,17 +579,7 @@ func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	return nil
 }
 
-func (iface *dockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
+func (iface *dockerSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if v, ok := plug.Attrs["privileged-containers"]; ok {
 		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
@@ -572,13 +588,9 @@ func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *dockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *dockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

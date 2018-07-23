@@ -1,10 +1,10 @@
 summary: Checks for snap sideload reverts
 
 prepare: |
-    snapbuild $TESTSLIB/snaps/basic .
+    snap pack $TESTSLIB/snaps/basic
 
 restore: |
-    rm ./basic_1.0_all.snap
+    rm -f ./basic_1.0_all.snap
 
 execute: |
     echo Installing sideloaded snap

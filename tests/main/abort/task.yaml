@@ -4,7 +4,8 @@ environment:
     SNAP_NAME: test-snapd-tools
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
 
     echo "Abort with invalid id"
     if snap abort 10000000; then
@@ -15,28 +16,29 @@ execute: |
     echo "===================================="
 
     echo "Abort with valid id - error"
-    subdirPath="$SNAPMOUNTDIR/$SNAP_NAME/current/foo"
-    mkdir -p $subdirPath
-    . $TESTSLIB/snaps.sh
-    if install_local $SNAP_NAME; then
+    subdirPath="$SNAP_MOUNT_DIR/$SNAP_NAME/current/foo"
+    mkdir -p "$subdirPath"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    if install_local "$SNAP_NAME"; then
         echo "install should fail when the target directory exists"
         exit 1
     fi
-    idPattern="\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
-    id=$(echo "$(snap changes)" | grep -Pzo "$idPattern")
-    if snap abort $id; then
+    idPattern="\\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
+    id=$(snap changes | grep -Pzo "$idPattern")
+    if snap abort "$id"; then
         echo "abort with valid failed id should fail"
         exit 1
     fi
-    rm -rf $subdirPath
+    rm -rf "$subdirPath"
 
     echo "===================================="
 
     echo "Abort with valid id - done"
-    install_local $SNAP_NAME
-    idPattern="\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
-    id=$(echo "$(snap changes)" | grep -Pzo "$idPattern")
-    if snap abort $id; then
+    install_local "$SNAP_NAME"
+    idPattern="\\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
+    id=$(snap changes | grep -Pzo "$idPattern")
+    if snap abort "$id"; then
         echo "abort with valid done id should fail"
         exit 1
     fi

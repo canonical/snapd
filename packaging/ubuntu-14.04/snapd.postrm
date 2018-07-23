@@ -4,27 +4,27 @@ set -e
 
 systemctl_stop() {
     unit="$1"
-    if systemctl is-active -q "$unit"; then
-        echo "Stoping $unit"
-        systemctl stop -q "$unit" || true
-    fi
+
+    echo "Stopping unit $unit"
+    systemctl stop -q "$unit" || true
+
+    for i in $(seq 20); do
+        echo "Waiting until unit $unit is stopped [attempt $i]"
+        if ! systemctl is-active -q "$unit"; then
+            echo "$unit is stopped."
+            return
+        fi
+        sleep .1
+    done
 }
 
 if [ "$1" = "purge" ]; then
-    mounts=$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
-    services=$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
+    # snap.mount.service is a trusty thing
+    systemctl_stop snap.mount.service
 
-    for unit in $mounts; do
-        # ensure its really a snap mount unit or systemd unit
-        if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
-            echo "Skipping non-snapd systemd unit $unit"
-            continue
-        fi
-        echo "Stopping $unit"
-        systemctl_stop "$unit"
-    done
-
-    systemctl stop snap.mount.service || true
+    units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service || true)
+    mounts=$(echo "$units" | grep '^snap[-.].*\.mount$' || true)
+    services=$(echo "$units" | grep '^snap[-.].*\.service$' || true)
 
     for unit in $services $mounts; do
         # ensure its really a snap mount unit or systemd unit
@@ -33,12 +33,15 @@ if [ "$1" = "purge" ]; then
             continue
         fi
 
+        echo "Stopping $unit"
+        systemctl_stop "$unit"
+
         # if it is a mount unit, we can find the snap name in the mount
         # unit (we just ignore unit files)
         snap=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f3 -d/)
         rev=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
         if [ -n "$snap" ]; then
-            echo "Removing snap $snap"
+            echo "Removing snap $snap and revision $rev"
             # aliases
             if [ -d /snap/bin ]; then
                 find /snap/bin -maxdepth 1 -lname "$snap" -delete
@@ -62,6 +65,17 @@ if [ "$1" = "purge" ]; then
                     rmdir --ignore-fail-on-non-empty "$d" || true
                 fi
             done
+            # udev rules
+            find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
+            # dbus policy files
+            if [ -d /etc/dbus-1/system.d ]; then
+                find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
+            fi
+            # timer files
+            find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
+                systemctl_stop "$(basename "$f")"
+                rm -f "$f"
+            done
         fi
 
         echo "Removing $unit"
@@ -69,23 +83,40 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    # generated readme files
+    rm -f "/snap/README"
+
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
+        # Force remove due to directories for old revisions could still exist
+        rm -rf "$d"
         if [ -d "$d" ]; then
-            rmdir --ignore-fail-on-non-empty $d
+            echo "Cannot remove directory $d"
         fi
     done
 
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
-    for mnt in /run/snapd/ns/*.mnt; do
-        umount -l "$mnt" || true
-    done
-    umount -l /run/snapd/ns/ || true
+    if [ -d /run/snapd/ns ]; then
+        if [ "$(find /run/snapd/ns/ -name "*.mnt" | wc -l)" -gt 0 ]; then
+            for mnt in /run/snapd/ns/*.mnt; do
+                umount -l "$mnt" || true
+                rm -f "$mnt"
+            done
+        fi
+        if [ "$(find /run/snapd/ns/ -name "*.fstab" | wc -l)" -gt 0 ]; then
+            for fstab in /run/snapd/ns/*.fstab; do
+                rm -f "$fstab"
+            done
+        fi
+        umount -l /run/snapd/ns/ || true
+    fi
 
-    # prepare removal of /snap
-    umount -l /snap || true
-    rmdir --ignore-fail-on-non-empty /snap || true
+    echo "Removing extra snap-confine apparmor rules"
+    rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
+
+    echo "Removing snapd cache"
+    rm -f /var/cache/snapd/*
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd

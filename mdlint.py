@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # see http://daringfireball.net/projects/markdown/syntax
 # for the "canonical" reference

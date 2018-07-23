@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,15 +26,18 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type BluetoothControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slot     *interfaces.ConnectedSlot
+	slotInfo *snap.SlotInfo
+	plug     *interfaces.ConnectedPlug
+	plugInfo *snap.PlugInfo
 }
 
 const btcontrolMockPlugSnapInfoYaml = `name: other
@@ -50,21 +53,21 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 })
 
 func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "bluetooth-control",
-			Interface: "bluetooth-control",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "core",
-					},
-					Name: "app1"}},
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "bluetooth-control",
+		Interface: "bluetooth-control",
+		Apps: map[string]*snap.AppInfo{
+			"app1": {
+				Snap: &snap.Info{
+					SuggestedName: "core",
+				},
+				Name: "app1"}},
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, btcontrolMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["bluetooth-control"]}
+	s.plugInfo = plugSnap.Plugs["bluetooth-control"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *BluetoothControlInterfaceSuite) TestName(c *C) {
@@ -72,42 +75,41 @@ func (s *BluetoothControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "bluetooth-control",
 		Interface: "bluetooth-control",
-	}})
-	c.Assert(err, ErrorMatches, "bluetooth-control slots are reserved for the operating system snap")
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"bluetooth-control slots are reserved for the core snap")
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *BluetoothControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "bluetooth-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "bluetooth-control"`)
+func (s *BluetoothControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability net_admin")
 }
 
-func (s *BluetoothControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability net_admin")
+func (s *BluetoothControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nbind\n")
+}
 
-	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nbind\n")
+func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
+SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_other_app2", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_other_app2 $devpath $major:$minor"`)
 }
 
 func (s *BluetoothControlInterfaceSuite) TestInterfaces(c *C) {

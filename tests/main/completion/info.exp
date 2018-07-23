@@ -1,10 +1,11 @@
 source lib.exp0
 
-# info completes directories and snap files, and locally installed snaps
-chat "snap inf\t\t\t" "bar.snap*core*testdir/"
+# info completes directories and snap files
+chat "snap inf\t./\t\t" "bar.snap*testdir/"
+cancel
 
-# with 3+ chars, also remote snaps
-chat "test-\t\t" "test-assumes"
+# also remote snaps
+chat "snap info test-\t\t" "test-assumes"
 
 cancel
 brexit

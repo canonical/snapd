@@ -43,8 +43,11 @@ type cmdSignBuild struct {
 	Grade       string  `long:"grade" choice:"devel" choice:"stable" default:"stable"`
 }
 
-var shortSignBuildHelp = i18n.G("Create snap build assertion")
-var longSignBuildHelp = i18n.G("Create snap-build assertion for the provided snap file.")
+var shortSignBuildHelp = i18n.G("Create a snap-build assertion")
+var longSignBuildHelp = i18n.G(`
+The sign-build command creates a snap-build assertion for the provided
+snap file.
+`)
 
 func init() {
 	cmd := addCommand("sign-build",
@@ -58,7 +61,9 @@ func init() {
 			"k":            i18n.G("Name of the GnuPG key to use (defaults to 'default' as key name)"),
 			"grade":        i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
 		}, []argDesc{{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<filename>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Filename of the snap you want to assert a build for"),
 		}})
 	cmd.hidden = true

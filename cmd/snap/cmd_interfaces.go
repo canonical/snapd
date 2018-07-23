@@ -34,12 +34,12 @@ type cmdInterfaces struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfacesHelp = i18n.G("Lists interfaces in the system")
+var shortInterfacesHelp = i18n.G("List interfaces in the system")
 var longInterfacesHelp = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
 By default all slots and plugs, used and offered by all snaps, are displayed.
- 
+
 $ snap interfaces <snap>:<slot or plug>
 
 Lists only the specified slot or plug.
@@ -50,7 +50,8 @@ Lists the slots offered and plugs used by the specified snap.
 
 $ snap interfaces -i=<interface> [<snap>]
 
-Filters the complete output so only plugs and/or slots matching the provided details are listed.
+Filters the complete output so only plugs and/or slots matching the provided
+details are listed.
 `)
 
 func init() {
@@ -59,7 +60,9 @@ func init() {
 	}, map[string]string{
 		"i": i18n.G("Constrain listing to specific interfaces"),
 	}, []argDesc{{
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<snap>:<slot or plug>"),
+		// TRANSLATORS: This should probably not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
 	}})
 }
@@ -69,7 +72,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := Client().Interfaces()
+	ifaces, err := Client().Connections()
 	if err != nil {
 		return err
 	}
@@ -79,11 +82,20 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
+
+	wantedSnap := x.Positionals.Query.Snap
+
 	for _, slot := range ifaces.Slots {
-		if wanted := x.Positionals.Query.Snap; wanted != "" {
-			ok := wanted == slot.Snap
+		if wantedSnap != "" {
+			var ok bool
+			if wantedSnap == slot.Snap {
+				ok = true
+			}
+
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
-				ok = wanted == slot.Connections[i].Snap
+				if wantedSnap == slot.Connections[i].Snap {
+					ok = true
+				}
 			}
 			if !ok {
 				continue
@@ -97,7 +109,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		}
 		// The OS snap is special and enable abbreviated
 		// display syntax on the slot-side of the connection.
-		if slot.Snap == "core" || slot.Snap == "ubuntu-core" {
+		if slot.Snap == "system" {
 			fmt.Fprintf(w, ":%s\t", slot.Name)
 		} else {
 			fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)
@@ -121,8 +133,10 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	// Plugs are treated differently. Since the loop above already printed each connected
 	// plug, the loop below focuses on printing just the disconnected plugs.
 	for _, plug := range ifaces.Plugs {
-		if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
-			continue
+		if wantedSnap != "" {
+			if wantedSnap != plug.Snap {
+				continue
+			}
 		}
 		if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Name {
 			continue

@@ -24,9 +24,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Alias represents a command alias with a name and its application target.
@@ -46,6 +46,12 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 			return fmt.Errorf("cannot remove alias symlink: %v", err)
 		}
 		removed[alias.Name] = true
+		completer := filepath.Join(dirs.CompletersDir, alias.Name)
+		target, err := os.Readlink(completer)
+		if err != nil || target != alias.Target {
+			continue
+		}
+		os.Remove(completer)
 	}
 
 	for _, alias := range add {
@@ -61,13 +67,23 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 		if err != nil {
 			return fmt.Errorf("cannot create alias symlink: %v", err)
 		}
+
+		target, err := os.Readlink(filepath.Join(dirs.CompletersDir, alias.Target))
+		if err == nil && target == dirs.CompleteSh {
+			os.Symlink(alias.Target, filepath.Join(dirs.CompletersDir, alias.Name))
+		}
 	}
 	return nil
 }
 
 // RemoveSnapAliases removes all the aliases targeting the given snap.
 func (b Backend) RemoveSnapAliases(snapName string) error {
-	cands, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	removeSymlinksTo(dirs.CompletersDir, snapName)
+	return removeSymlinksTo(dirs.SnapBinariesDir, snapName)
+}
+
+func removeSymlinksTo(dir, snapName string) error {
+	cands, err := filepath.Glob(filepath.Join(dir, "*"))
 	if err != nil {
 		return err
 	}
@@ -75,19 +91,20 @@ func (b Backend) RemoveSnapAliases(snapName string) error {
 	var firstErr error
 	// best effort
 	for _, cand := range cands {
-		if osutil.IsSymlink(cand) {
-			target, err := os.Readlink(cand)
-			if err != nil {
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
+		target, err := os.Readlink(cand)
+		if err, ok := err.(*os.PathError); ok && err.Err == syscall.EINVAL {
+			continue
+		}
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
 			}
-			if target == snapName || strings.HasPrefix(target, prefix) {
-				err := os.Remove(cand)
-				if err != nil && firstErr == nil {
-					firstErr = fmt.Errorf("cannot remove alias symlink: %v", err)
-				}
+			continue
+		}
+		if target == snapName || strings.HasPrefix(target, prefix) {
+			err := os.Remove(cand)
+			if err != nil && firstErr == nil {
+				firstErr = fmt.Errorf("cannot remove alias symlink: %v", err)
 			}
 		}
 	}

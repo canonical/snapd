@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "$1" | dd bs=4 seek=1024 of=/dev/fb0

@@ -1,0 +1,17 @@
+summary: Check install of a snap with socket activation
+
+details: |
+    This installs a snap which define sockets for systemd socket activation.
+
+prepare: |
+    snap pack "$TESTSLIB"/snaps/socket-activation
+    snap install --dangerous socket-activation_1.0_all.snap
+
+restore: |
+    rm -f socket-activation_1.0_all.snap
+    systemctl daemon-reload
+
+execute: |
+    [ -f /etc/systemd/system/snap.socket-activation.sleep-daemon.sock.socket ]
+    [ -S /var/snap/socket-activation/common/socket ]
+    

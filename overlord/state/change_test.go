@@ -20,6 +20,8 @@
 package state_test
 
 import (
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -141,6 +143,75 @@ func (cs *changeSuite) TestStatusExplicitlyDefined(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	chg.SetStatus(state.ErrorStatus)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (cs *changeSuite) TestLaneTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	lane1 := st.NewLane()
+	lane2 := st.NewLane()
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t4 := st.NewTask("task4", "...")
+	t5 := st.NewTask("task5", "...")
+	t6 := st.NewTask("task6", "...")
+
+	// lane1: task1, task2, task4
+	// lane2: task3, task4
+	t1.JoinLane(lane1)
+	t2.JoinLane(lane1)
+	t3.JoinLane(lane2)
+	t4.JoinLane(lane1)
+	t4.JoinLane(lane2)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	chg.AddTask(t4)
+	chg.AddTask(t5)
+	chg.AddTask(t6)
+
+	checkTasks := func(obtained, expected []*state.Task) {
+		c.Assert(obtained, HasLen, len(expected))
+
+		tasks1 := make([]string, len(obtained))
+		tasks2 := make([]string, len(expected))
+
+		for i, t := range obtained {
+			tasks1[i] = t.ID()
+		}
+		for i, t := range expected {
+			tasks2[i] = t.ID()
+		}
+
+		sort.Strings(tasks1)
+		sort.Strings(tasks2)
+
+		c.Assert(tasks1, DeepEquals, tasks2)
+	}
+
+	c.Assert(chg.LaneTasks(), HasLen, 0)
+
+	tasks := chg.LaneTasks(0)
+	checkTasks(tasks, []*state.Task{t5, t6})
+
+	tasks = chg.LaneTasks(0, lane2)
+	checkTasks(tasks, []*state.Task{t3, t4, t5, t6})
+
+	tasks = chg.LaneTasks(lane1)
+	checkTasks(tasks, []*state.Task{t1, t2, t4})
+
+	tasks = chg.LaneTasks(lane2)
+	checkTasks(tasks, []*state.Task{t3, t4})
+
+	tasks = chg.LaneTasks(lane1, lane2)
+	checkTasks(tasks, []*state.Task{t1, t2, t3, t4})
 }
 
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
@@ -386,6 +457,69 @@ func (cs *changeSuite) TestAbort(c *C) {
 		default:
 			c.Assert(t.Status(), Equals, s)
 		}
+	}
+}
+
+func (cs *changeSuite) TestAbortCircular(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("circular", "...")
+
+	t1 := st.NewTask("one", "one")
+	t2 := st.NewTask("two", "two")
+	t1.WaitFor(t2)
+	t2.WaitFor(t1)
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	chg.Abort()
+
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		c.Assert(t.Status(), Equals, state.HoldStatus)
+	}
+}
+
+func (cs *changeSuite) TestAbortKⁿ(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("Kⁿ", "...")
+
+	var prev *state.TaskSet
+	N := 22 // ∛10,000
+	for i := 0; i < N; i++ {
+		ts := make([]*state.Task, N)
+		for j := range ts {
+			name := fmt.Sprintf("task-%d", j)
+			ts[j] = st.NewTask(name, name)
+		}
+		t := state.NewTaskSet(ts...)
+		if prev != nil {
+			t.WaitAll(prev)
+		}
+		prev = t
+		chg.AddAll(t)
+
+		for j := 0; j < N; j++ {
+			lid := st.NewLane()
+			for k := range ts {
+				name := fmt.Sprintf("task-%d-%d", lid, k)
+				ts[k] = st.NewTask(name, name)
+			}
+			t := state.NewTaskSet(ts...)
+			t.WaitAll(prev)
+			chg.AddAll(t)
+		}
+	}
+	chg.Abort()
+
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		c.Assert(t.Status(), Equals, state.HoldStatus)
 	}
 }
 

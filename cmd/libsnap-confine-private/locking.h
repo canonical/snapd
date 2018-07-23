@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,17 +17,19 @@
 #ifndef SNAP_CONFINE_LOCKING_H
 #define SNAP_CONFINE_LOCKING_H
 
+// Include config.h which pulls in _GNU_SOURCE which in turn allows sys/types.h
+// to define O_PATH. Since locking.h is included from locking.c this is
+// required to see O_PATH there.
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <sys/types.h>
+
 /**
- * Obtain a flock-based, exclusive lock.
+ * Obtain a flock-based, exclusive, globally scoped, lock.
  *
- * The scope may be the name of a snap or NULL (global lock).  Each subsequent
- * argument is of type sc_locked_fn and gets called with the scope argument.
- * The function guarantees that a filesystem lock is reliably acquired and
- * released on call to sc_unlock() immediately upon process death.
- *
- * The actual lock is placed in "/run/snapd/ns" and is either called
- * "/run/snapd/ns/.lock" if scope is NULL or
- * "/run/snapd/ns/$scope.lock" otherwise.
+ * The actual lock is placed in "/run/snap/ns/.lock"
  *
  * If the lock cannot be acquired for three seconds (via
  * sc_enable_sanity_timeout) then the function fails and the process dies.
@@ -35,29 +37,42 @@
  * The return value needs to be passed to sc_unlock(), there is no need to
  * check for errors as the function will die() on any problem.
  **/
-int sc_lock(const char *scope);
+int sc_lock_global(void);
+
+/**
+ * Obtain a flock-based, exclusive, snap-scoped, lock.
+ *
+ * The actual lock is placed in "/run/snapd/ns/$SNAP_NAME.lock"
+ * It should be acquired only when holding the global lock.
+ *
+ * If the lock cannot be acquired for three seconds (via
+ * sc_enable_sanity_timeout) then the function fails and the process dies.
+ *
+ * The return value needs to be passed to sc_unlock(), there is no need to
+ * check for errors as the function will die() on any problem.
+ **/
+int sc_lock_snap(const char *snap_name);
+
+/**
+ * Obtain a flock-based, exclusive, snap-scoped, lock.
+ *
+ * The actual lock is placed in "/run/snapd/ns/$SNAP_NAME.$UID.lock"
+ * It should be acquired only when holding the snap-specific lock.
+ *
+ * If the lock cannot be acquired for three seconds (via
+ * sc_enable_sanity_timeout) then the function fails and the process dies.
+ * The return value needs to be passed to sc_unlock(), there is no need to
+ * check for errors as the function will die() on any problem.
+ **/
+int sc_lock_snap_user(const char *snap_name, uid_t uid);
 
 /**
  * Release a flock-based lock.
  *
- * This function simply unlocks the lock and closes the file descriptor.
+ * All kinds of locks can be unlocked the same way. This function simply
+ * unlocks the lock and closes the file descriptor.
  **/
-void sc_unlock(const char *scope, int lock_fd);
-
-/**
- * Obtain a flock-based, exclusive, globally scoped, lock.
- *
- * This function is exactly like sc_lock(NULL), that is the acquired lock is
- * not specific to any snap but global.
- **/
-int sc_lock_global();
-
-/**
- * Release a flock-based, globally scoped, lock
- *
- * This function is exactly like sc_unlock(NULL, lock_fd).
- **/
-void sc_unlock_global(int lock_fd);
+void sc_unlock(int lock_fd);
 
 /**
  * Enable a sanity-check timeout.
@@ -71,7 +86,7 @@ void sc_unlock_global(int lock_fd);
  * disables the alarm and acts on the flag, aborting the process if the timeout
  * gets exceeded.
  **/
-void sc_enable_sanity_timeout();
+void sc_enable_sanity_timeout(void);
 
 /**
  * Disable sanity-check timeout and abort the process if it expired.
@@ -79,6 +94,6 @@ void sc_enable_sanity_timeout();
  * This call has to be paired with sc_enable_sanity_timeout(), see the function
  * description for more details.
  **/
-void sc_disable_sanity_timeout();
+void sc_disable_sanity_timeout(void);
 
 #endif				// SNAP_CONFINE_LOCKING_H

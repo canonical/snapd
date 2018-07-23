@@ -1,0 +1,57 @@
+summary: Ensure that the ssh-keys interface works.
+
+details: |
+    The ssh-keys interface allows to access ssh configuration, keys and
+    make ssh connections.
+
+environment:
+    KEYSDIR: "/$HOME/.ssh"
+    TESTKEY: "$HOME/.ssh/testkey"
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-ssh-keys
+
+    if [ -d "$KEYSDIR" ]; then
+        cp -rf "$KEYSDIR" "$KEYSDIR".old
+    else
+        mkdir "$KEYSDIR"
+    fi
+    echo "testkey" > "$TESTKEY"
+    echo "testkey.pub" > "$TESTKEY".pub
+
+restore: |
+    rm -f call.error
+    rm -rf "$KEYSDIR"
+    if [ -d "$KEYSDIR".old ]; then
+        mv "$KEYSDIR".old "$KEYSDIR"
+    fi
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i ssh-keys | MATCH "\- +test-snapd-ssh-keys:ssh-keys"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-ssh-keys:ssh-keys
+
+    echo "Then the snap is able to check the ssh version"
+    test-snapd-ssh-keys.sh -c "ssh -V"
+
+    echo "And the snap is able to read public/private keys and ssh configuration files as well"
+    test-snapd-ssh-keys.sh -c "cat $TESTKEY"
+    test-snapd-ssh-keys.sh -c "cat $TESTKEY.pub"
+    test-snapd-ssh-keys.sh -c "cat /etc/ssh/ssh_config"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-ssh-keys:ssh-keys
+
+    echo "Then the snap is not able to read a ssh private key"
+    if test-snapd-ssh-keys.sh -c "cat $TESTKEY" 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to ssh"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

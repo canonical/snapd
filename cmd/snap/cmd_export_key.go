@@ -39,13 +39,18 @@ type cmdExportKey struct {
 func init() {
 	cmd := addCommand("export-key",
 		i18n.G("Export cryptographic public key"),
-		i18n.G("Export a public key assertion body that may be imported by other systems."),
+		i18n.G(`
+The export-key command exports a public key assertion body that may be
+imported by other systems.
+`),
 		func() flags.Commander {
 			return &cmdExportKey{}
 		}, map[string]string{
 			"account": i18n.G("Format public key material as a request for an account-key for this account-id"),
 		}, []argDesc{{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<key-name>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Name of key to export"),
 		}})
 	cmd.hidden = true

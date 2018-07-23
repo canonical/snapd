@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,23 +20,28 @@
 package snapstate
 
 import (
+	"io"
+
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-
-	"golang.org/x/net/context"
 )
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
-	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
-	Sections(user *auth.UserState) ([]string, error)
+
+	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
+
+	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
+	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
+
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -44,15 +49,16 @@ type StoreService interface {
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
+	ConnectivityCheck() (map[string]bool, error)
 }
 
 type managerBackend interface {
 	// install releated
-	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) error
+	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	LinkSnap(info *snap.Info) error
+	LinkSnap(info *snap.Info, model *asserts.Model) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
-	StopServices(svcs []*snap.AppInfo, meter progress.Meter) error
+	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error

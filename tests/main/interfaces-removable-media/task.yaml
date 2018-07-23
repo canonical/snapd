@@ -1,0 +1,69 @@
+summary: Ensure that the removable-media interface works.
+
+details: |
+    The removable-media interface allows to access to removable storage filesystems.
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-removable-media
+
+    if ! [ -d /media ]; then
+        mkdir -p /media
+        touch /media/fake
+    fi
+    mkdir -p /media/testdir
+    touch /media/testdir/testfile
+
+    if ! [ -d /run/media ]; then
+        mkdir -p /run/media
+        touch /run/media/fake
+    fi
+    mkdir -p /run/media/testdir
+    touch /run/media/testdir/testfile
+
+
+restore: |
+    rm -f call.error
+
+    rm -rf /media/testdir
+    if [ -f /media/fake ]; then
+        rm -rf /media
+    fi
+
+    rm -rf /run/media/testdir
+    if [ -f /run/media/fake ]; then
+        rm -rf /run/media/
+    fi
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i removable-media | MATCH "\- +test-snapd-removable-media:removable-media"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-removable-media:removable-media
+
+    echo "Then the snap is able to read inside /run"
+    test-snapd-removable-media.sh -c "ls /run"
+
+    echo "And the snap is able to access to read/write removable storage filesystems"
+    test-snapd-removable-media.sh -c "ls /media"
+    test-snapd-removable-media.sh -c "ls /media/testdir"
+    test-snapd-removable-media.sh -c "echo test >> /media/testdir/testfile"
+
+    test-snapd-removable-media.sh -c "ls /run/media"
+    test-snapd-removable-media.sh -c "ls /run/media/testdir"
+    test-snapd-removable-media.sh -c "echo test >> /run/media/testdir/testfile"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-removable-media:removable-media
+
+    echo "Then the snap is not able to access read the test media file"
+    if test-snapd-removable-media.sh -c "ls /run" 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to removable storage filesystems"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

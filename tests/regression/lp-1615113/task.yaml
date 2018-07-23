@@ -1,7 +1,7 @@
 summary: Check that entire snap can be shared with the content interface
 prepare: |
     echo "Having installed a pair of snaps that share content"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-content-slot
     install_local test-snapd-content-plug
     echo "We can connect them together"
@@ -10,4 +10,4 @@ execute: |
     echo "We can now see that the content is shared"
     test-snapd-content-plug.content-plug | grep "Some shared content"
     echo "And fstab files are created"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name '*.fstab' | wc -l)" -gt 0 ]

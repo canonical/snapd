@@ -1,2 +1,0 @@
-#!/bin/sh
-exec /sbin/hwclock -r -f /dev/rtc

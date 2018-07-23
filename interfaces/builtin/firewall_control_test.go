@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,22 +28,29 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type FirewallControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
-const firewallControlMockPlugSnapInfoYaml = `name: other
-version: 1.0
+const firewallControlConsumerYaml = `name: consumer
+version: 0
 apps:
- app2:
-  command: foo
+ app:
   plugs: [firewall-control]
+`
+
+const firewallControlCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  firewall-control:
 `
 
 var _ = Suite(&FirewallControlInterfaceSuite{
@@ -51,15 +58,8 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 })
 
 func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "firewall-control",
-			Interface: "firewall-control",
-		},
-	}
-	plugSnap := snaptest.MockInfo(c, firewallControlMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["firewall-control"]}
+	s.plug, s.plugInfo = MockConnectedPlug(c, firewallControlConsumerYaml, nil, "firewall-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, firewallControlCoreYaml, nil, "firewall-control")
 }
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {
@@ -67,51 +67,55 @@ func (s *FirewallControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *FirewallControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "firewall-control",
 		Interface: "firewall-control",
-	}})
-	c.Assert(err, ErrorMatches, "firewall-control slots are reserved for the operating system snap")
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"firewall-control slots are reserved for the core snap")
 }
 
 func (s *FirewallControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *FirewallControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "firewall-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "firewall-control"`)
+func (s *FirewallControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability net_raw`)
 }
 
-func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `capability net_raw`)
+func (s *FirewallControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
+}
 
-	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.Snippets(), HasLen, 1)
-
+func (s *FirewallControlInterfaceSuite) TestKModSpec(c *C) {
 	spec := &kmod.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"arp_tables":      true,
 		"br_netfilter":    true,
 		"ip6table_filter": true,
 		"iptable_filter":  true,
 	})
+}
+
+func (s *FirewallControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, "allows control over network firewall")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "firewall-control")
+}
+
+func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *FirewallControlInterfaceSuite) TestInterfaces(c *C) {

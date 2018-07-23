@@ -6,15 +6,15 @@ execute: |
     snap install test-snapd-auto-aliases
 
     echo "Sanity check"
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test -h $SNAP_MOUNT_DIR/bin/test_snapd_wellknown1
+    test -h $SNAP_MOUNT_DIR/bin/test_snapd_wellknown2
 
     echo "Disable the auto-aliases"
     snap unalias test-snapd-auto-aliases
 
     echo "Auto-aliases are gone"
-    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test ! -e $SNAP_MOUNT_DIR/bin/test_snapd_wellknown1
+    test ! -e $SNAP_MOUNT_DIR/bin/test_snapd_wellknown2
 
     echo "Check listing"
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +disabled"
@@ -24,8 +24,8 @@ execute: |
     snap prefer test-snapd-auto-aliases|MATCH ".*- test-snapd-auto-aliases.wellknown1 as test_snapd_wellknown1.*"
 
     echo "Test that the  auto-aliases are back"
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test -h $SNAP_MOUNT_DIR/bin/test_snapd_wellknown1
+    test -h $SNAP_MOUNT_DIR/bin/test_snapd_wellknown2
     test_snapd_wellknown1|MATCH "ok wellknown 1"
     test_snapd_wellknown2|MATCH "ok wellknown 2"
 

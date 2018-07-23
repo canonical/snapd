@@ -2,8 +2,6 @@ summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
 systems: [ubuntu-core-16-64]
-environment:
-    TEST_SNAP_ID: aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -15,16 +13,26 @@ prepare: |
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
     snap download --edge test-snapd-with-configure
-    unsquashfs /var/lib/snapd/snaps/pc_*.snap
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
     # fill in defaults
+    TEST_SNAP_ID=
+    if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
+        TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+    else
+        TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
+    fi
     cat >> squashfs-root/meta/gadget.yaml <<EOF
 
     defaults:
        ${TEST_SNAP_ID}:
          a: A
          b: B
+       system:
+         service:
+           rsyslog:
+             disable: true
     EOF
-    mksquashfs squashfs-root pc_x1.snap -comp xz
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     cp test-snapd-with-configure_*.snap /var/lib/snapd/seed/snaps/
@@ -43,6 +51,11 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    echo "Undo the rsyslog disable"
+    systemctl unmask rsyslog.service || true
+    systemctl enable rsyslog.service || true
+    systemctl start rsyslog.service || true
+
     . $TESTSLIB/systemd.sh
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
@@ -69,11 +82,11 @@ restore: |
     rm /var/lib/snapd/seed/snaps/test-snapd-with-configure_*.snap
 
     cp seed.yaml.bak /var/lib/snapd/seed/seed.yaml
-    rm /var/lib/snapd/seed/assertions/developer1.account
-    rm /var/lib/snapd/seed/assertions/developer1.account-key
-    rm /var/lib/snapd/seed/assertions/developer1-pc-w-config.model
-    rm /var/lib/snapd/seed/assertions/testrootorg-store.account-key
-    rm /var/lib/snapd/seed/assertions/test-snapd-with-configure_*.assert
+    rm -f /var/lib/snapd/seed/assertions/developer1.account
+    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
+    rm -f /var/lib/snapd/seed/assertions/developer1-pc-w-config.model
+    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
+    rm -f /var/lib/snapd/seed/assertions/test-snapd-with-configure_*.assert
     cp model.bak /var/lib/snapd/seed/assertions/model
     rm -f *.bak
     # kick first boot again
@@ -96,3 +109,8 @@ execute: |
     echo "The configuration defaults from the gadget where applied"
     snap get test-snapd-with-configure a|MATCH "^A$"
     snap get test-snapd-with-configure b|MATCH "^B$"
+
+    echo "The configuration for core is applied"
+    snap get core service.rsyslog.disable|MATCH true
+    echo "And the service is masked"
+    systemctl status rsyslog.service|MATCH masked

@@ -1,0 +1,17 @@
+summary: Ensure all services on Core are active
+
+systems: [ubuntu-core-16-*]
+
+execute: |
+    echo "Ensure one-shot services are working"
+    for oneshot in snapd.autoimport.service snapd.sshd-keygen.service; do
+        systemctl status $oneshot |MATCH SUCCESS
+    done
+
+    echo "Ensure services are working"
+    systemctl status snapd.service |MATCH active
+    
+    echo "Ensure timers are working"
+    for timer in snapd.snap-repair.timer; do
+        systemctl is-active $timer
+    done

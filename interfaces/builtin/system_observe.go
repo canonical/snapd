@@ -21,6 +21,14 @@ package builtin
 
 const systemObserveSummary = `allows observing all processes and drivers`
 
+const systemObserveBaseDeclarationSlots = `
+  system-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
@@ -48,16 +56,23 @@ deny ptrace (trace),
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
-@{PROC}/meminfo r,
+@{PROC}/partitions r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
 @{PROC}/*/{,task/*/}auxv r,
 @{PROC}/*/{,task/*/}cmdline r,
 @{PROC}/*/{,task/*/}exe r,
+@{PROC}/*/{,task/*/}fdinfo/* r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
+
+# Allow discovering the os-release of the host
+/var/lib/snapd/hostfs/etc/os-release rk,
+/var/lib/snapd/hostfs/usr/lib/os-release rk,
+
+#include <abstractions/dbus-strict>
 
 dbus (send)
     bus=system
@@ -72,6 +87,22 @@ dbus (send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
+    peer=(label=unconfined),
+
+# Allow clients to enumerate DBus connection names on common buses
+dbus (send)
+    bus={session,system}
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=ListNames
+    peer=(label=unconfined),
+
+# Allow clients to obtain the DBus machine ID on common buses. We do not
+# mediate the path since any peer can be used.
+dbus (send)
+    bus={session,system}
+    interface=org.freedesktop.DBus.Peer
+    member=GetMachineId
     peer=(label=unconfined),
 `
 
@@ -92,6 +123,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "system-observe",
 		summary:               systemObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,

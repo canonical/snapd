@@ -30,16 +30,15 @@ import (
 
 func (s *SnapSuite) TestUnaliasHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] unalias [<alias-or-snap>]
+  snap.test unalias [unalias-OPTIONS] [<alias-or-snap>]
 
-The unalias command tears down a manual alias when given one or disables all
-aliases of a snap, removing also all manual ones, when given a snap name.
+The unalias command removes a single alias if the provided argument is a manual
+alias, or disables all aliases of a snap, including manual ones, if the
+argument is a snap name.
 
-Application Options:
-      --version              Print the version and exit
-
-Help Options:
-  -h, --help                 Show this help message
+[unalias command options]
+          --no-wait          Do not wait for the operation to finish but just
+                             print the change id.
 `
 	rest, err := Parser().ParseArgs([]string{"unalias", "--help"})
 	c.Assert(err.Error(), Equals, msg)

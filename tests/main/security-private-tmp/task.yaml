@@ -1,7 +1,7 @@
 summary: Ensure that the security rules for private tmp are in place.
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 
 environment:
     SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
@@ -15,18 +15,19 @@ prepare: |
     mkdir -p $SNAP_INSTALL_DIR
     cp -ra $TESTSLIB/snaps/test-snapd-tools/* $SNAP_INSTALL_DIR
     sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $SNAP_INSTALL_DIR/meta/snap.yaml
-    snapbuild $SNAP_INSTALL_DIR .
+    snap pack $SNAP_INSTALL_DIR
     snap install --dangerous not-test-snapd-tools_1.0_all.snap
 
 restore: |
-    rm -rf not-test-snapd-tools_1.0_all.snap \
-          $SNAP_INSTALL_DIR /tmp/foo *stat.error
+    rm -rf not-test-snapd-tools_1.0_all.snap "$SNAP_INSTALL_DIR" /tmp/foo *stat.error
 
 execute: |
+    . $TESTSLIB/dirs.sh
+
     echo "When a temporary file is created by one snap"
     expect -d -f tmp-create.exp
 
-    if [ -e /usr/lib/snapd/snap-discard-ns ]; then
+    if [ -e "$LIBEXECDIR/snapd/snap-discard-ns" ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"
         if ! test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
             echo "Expected the file to be present"

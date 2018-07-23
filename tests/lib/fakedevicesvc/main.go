@@ -59,17 +59,17 @@ func main() {
 }
 
 func internalError(w http.ResponseWriter, msg string, a ...interface{}) {
-	http.Error(w, fmt.Sprintf(msg, a...), http.StatusInternalServerError)
+	http.Error(w, fmt.Sprintf(msg, a...), 500)
 }
 
 func badRequestError(w http.ResponseWriter, msg string, a ...interface{}) {
-	http.Error(w, fmt.Sprintf(msg, a...), http.StatusBadRequest)
+	http.Error(w, fmt.Sprintf(msg, a...), 400)
 }
 
 func handle(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/request-id":
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		io.WriteString(w, fmt.Sprintf(`{"request-id": "REQ-ID"}`))
 	case "/serial":
 		db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
@@ -129,7 +129,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", asserts.MediaType)
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		w.Write(asserts.Encode(serial))
 	}
 }

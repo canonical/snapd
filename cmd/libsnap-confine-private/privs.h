@@ -33,6 +33,6 @@
  * dropped. When the process itself was started by root then this function does
  * nothing at all.
  **/
-void sc_privs_drop();
+void sc_privs_drop(void);
 
 #endif

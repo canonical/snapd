@@ -1,6 +1,6 @@
 summary: Check that undo for snap refresh works
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -31,6 +31,7 @@ restore: |
 
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
+    rm -rf $BLOB_DIR
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -38,9 +39,16 @@ execute: |
         exit
     fi
 
+    echo "Sanity check for the fake store"
+    snap refresh 2>&1 | MATCH "All snaps up to date"
+
     echo "When the store is configured to make them refreshable"
+    . $TESTSLIB/files.sh
     . $TESTSLIB/store.sh
-    init_fake_refreshes $GOOD_SNAP,$BAD_SNAP $BLOB_DIR
+    init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
+    wait_for_file "$BLOB_DIR"/"${GOOD_SNAP}"*fake1*.snap 4 .5
+    init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
+    wait_for_file "$BLOB_DIR"/"${BAD_SNAP}"*fake1*.snap 4 .5
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> $BLOB_DIR/${BAD_SNAP}*fake1*.snap

@@ -13,21 +13,17 @@ summary: |
     extended later.
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a snap declaring a plug on the process-control interface is installed"
-    snapbuild $TESTSLIB/snaps/process-control-consumer .
-    snap install --dangerous process-control-consumer_1.0_all.snap
+    install_local process-control-consumer
 
 restore: |
-    rm -f process-control-consumer_1.0_all.snap process-kill.error process-nice.error
+    rm -f process-kill.error process-nice.error
 
 execute: |
-    CONNECTED_PATTERN=":process-control +process-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +process-control-consumer:process-control"
-
-    echo "Then it is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "The interface is disconnected by default"
+    snap interfaces -i process-control | MATCH "\- +process-control-consumer:process-control"
 
     echo "When the plug is connected"
     snap connect process-control-consumer:process-control
@@ -39,11 +35,9 @@ execute: |
     process-control-consumer.signal "SIGTERM" $pid
     ! ps ax | grep -Pq "^ *$pid"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
-
-    echo "==================================="
 
     echo "When the plug is disconnected"
     snap disconnect process-control-consumer:process-control

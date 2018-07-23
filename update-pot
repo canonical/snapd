@@ -3,7 +3,26 @@
 
 set -e
 
-HERE="$(dirname "$0")"
+# In LP#1758684 we got reports that the pot file generation
+# is broken. To get to the bottom of this add checks here
+# so that we error the build if this happens. Note that the
+# strings may be update if those change but spread tests will
+# tell us when it is needed.
+check_canaries() {
+    c1="Alternative command to run"
+    c2="Name of the key to use, otherwise use the default key"
+    c3="too many arguments for command"
+
+    for canary in "$c1" "$c2" "$c3"; do
+	if ! grep -q "$canary" "$OUTPUT"; then
+	    echo "canary '$canary' not found, pot extraction broken"
+	    ls -lh "$OUTPUT"
+	    exit 1
+	fi
+    done
+}
+
+HERE="$(readlink -f "$(dirname "$0")")"
 
 OUTPUT="$HERE/po/snappy.pot"
 if [ -n "$1" ]; then
@@ -13,8 +32,14 @@ fi
 # ensure we have our xgettext-go
 go install github.com/snapcore/snapd/i18n/xgettext-go
 
-find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
-    "${GOPATH%%:*}/bin/xgettext-go" \
+# exclude vendor and _build subdir
+I18N_FILES="$(mktemp -d)/i18n.files"
+find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print > "$I18N_FILES"
+# shellcheck disable=SC2064
+trap "rm -rf $(dirname "$I18N_FILES")" EXIT
+
+"${GOPATH%%:*}/bin/xgettext-go" \
+    -f "$I18N_FILES" \
     -o "$OUTPUT" \
     --add-comments-tag=TRANSLATORS: \
     --no-location \
@@ -24,15 +49,25 @@ find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
     --keyword=i18n.G \
     --keyword-plural=i18n.DG
 
-#xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
-#	--indent --add-comments=TRANSLATORS: --no-location --sort-output \
-#	--package-name=snappy \
-#	--msgid-bugs-address=snappy-devel@lists.ubuntu.com \
-#	--keyword=NG:1,2 --keyword=G \
-#	$HERE/*/*.go $HERE/cmd/*/*.go
+# check canary
+check_canaries
+
+sed -i 's/charset=CHARSET/charset=UTF-8/' "$OUTPUT"
+
+# we need the || true because of
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=891347
+xgettext "$HERE"/data/polkit/*.policy \
+    -o "$OUTPUT" \
+    --its="$HERE/po/its/polkit.its" \
+    --no-location \
+    --package-name=snappy \
+    --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
+    --join-existing || true
+
+check_canaries
 
 # language packs
-for p in ${HERE}/po/*.po; do
+for p in "${HERE}"/po/*.po; do
 	lang=$(basename "$p" .po)
 	mkdir -p "$HERE/share/locale/$lang/LC_MESSAGES"
 	msgfmt -v -o "$HERE/share/locale/$lang/LC_MESSAGES/snappy.mo" "$p"

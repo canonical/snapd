@@ -22,6 +22,7 @@ package strutil_test
 import (
 	"math"
 	"math/rand"
+	"sort"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -82,22 +83,57 @@ func (ts *strutilSuite) TestSizeToStr(c *check.C) {
 	}
 }
 
-func (ts *strutilSuite) TestWordWrap(c *check.C) {
-	for _, t := range []struct {
-		in  string
-		out []string
-		n   int
-	}{
-		// pathological
-		{"12345", []string{"12345"}, 3},
-		{"123 456789", []string{"123", "456789"}, 3},
-		// valid
-		{"abc def ghi", []string{"abc", "def", "ghi"}, 3},
-		{"a b c d e f", []string{"a b", "c d", "e f"}, 3},
-		{"ab cd ef", []string{"ab cd", "ef"}, 5},
-		// intentional (but slightly strange)
-		{"ab            cd", []string{"ab", "cd"}, 2},
+func (ts *strutilSuite) TestListContains(c *check.C) {
+	for _, xs := range [][]string{
+		{},
+		nil,
+		{"foo"},
+		{"foo", "baz", "barbar"},
 	} {
-		c.Check(strutil.WordWrap(t.in, t.n), check.DeepEquals, t.out)
+		c.Check(strutil.ListContains(xs, "bar"), check.Equals, false)
+		sort.Strings(xs)
+		c.Check(strutil.SortedListContains(xs, "bar"), check.Equals, false)
 	}
+
+	for _, xs := range [][]string{
+		{"bar"},
+		{"foo", "bar", "baz"},
+		{"bar", "foo", "baz"},
+		{"foo", "baz", "bar"},
+		{"bar", "bar", "bar", "bar", "bar", "bar"},
+	} {
+		c.Check(strutil.ListContains(xs, "bar"), check.Equals, true)
+		sort.Strings(xs)
+		c.Check(strutil.SortedListContains(xs, "bar"), check.Equals, true)
+	}
+}
+
+func (ts *strutilSuite) TestTruncateOutput(c *check.C) {
+	data := []byte("ab\ncd\nef\ngh\nij")
+	out := strutil.TruncateOutput(data, 3, 500)
+	c.Assert(out, check.DeepEquals, []byte("ef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, 8)
+	c.Assert(out, check.DeepEquals, []byte("ef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, 1000)
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 99, 5)
+	c.Assert(out, check.DeepEquals, []byte("gh\nij"))
+
+	out = strutil.TruncateOutput(data, 99, 6)
+	c.Assert(out, check.DeepEquals, []byte("\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 5, 1000)
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, len(data))
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, 1000)
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 0, 0)
+	c.Assert(out, check.HasLen, 0)
 }

@@ -1,10 +1,12 @@
 summary: Ensure that our debs have the "built-using" header
-systems: [-ubuntu-core-*]
+
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+
 execute: |
-    out=$(dpkg -I $GOHOME/snapd_*.deb)
+    out=$(dpkg -I "$GOHOME"/snapd_*.deb)
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
         # Apparmor & seccomp is only compiled in on Ubuntu for now.
-        echo $out | MATCH "Built-Using:.*apparmor \(="
-        echo $out | MATCH "Built-Using:.*libseccomp \(="
+        echo "$out" | MATCH 'Built-Using:.*apparmor \(='
+        echo "$out" | MATCH 'Built-Using:.*libseccomp \(='
     fi
-    echo $out | MATCH "Built-Using:.*libcap2 \(="
+    echo "$out" | MATCH 'Built-Using:.*libcap2 \(='

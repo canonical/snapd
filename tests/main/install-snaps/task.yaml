@@ -1,0 +1,124 @@
+summary: Check install popular snaps
+
+details: |
+    This test is intended to install some popular snaps from
+    different channels. The idea is to detect any problem
+    installing that are currently published and some of them
+    with many revisions.
+    The execution of this test is made on the nightly build.
+
+manual: true
+
+environment:
+    # High Profile
+    SNAP/azurecli: azure-cli
+    SNAP/awscli: aws-cli
+    SNAP/heroku: heroku
+    SNAP/hiri: hiri
+    SNAP/kubectl: kubectl
+    SNAP/rocketchatserver: rocketchat-server
+    # Selected from recent insights posts
+    SNAP/corebird: corebird
+    SNAP/gitterdesktop: gitter-desktop
+    SNAP/helm: helm
+    SNAP/mattermostdesktop: mattermost-desktop
+    SNAP/mentaplexmediaserver: menta-plexmediaserver
+    SNAP/openspades: openspades
+    SNAP/pintown: pin-town
+    SNAP/postgresql10: postgresql10
+    SNAP/storjshare: storjshare
+    SNAP/slackterm: slack-term
+    SNAP/vectr: vectr
+    SNAP/wekan: wekan
+    SNAP/wormhole: wormhole
+    # Featured snaps in Ubuntu Software
+    SNAP/anboxinstaller: anbox-installer
+    SNAP/lxd: lxd
+    # Top non canonical snaps
+    SNAP/atom: atom
+    SNAP/discord: discord
+    SNAP/docker: docker
+    SNAP/etcd: etcd
+    SNAP/geocoder: geocoder
+    SNAP/gimp: gimp
+    SNAP/huggle: huggle
+    SNAP/hugo: hugo
+    SNAP/ia: ia
+    SNAP/kurly: kurly
+    SNAP/micro: micro
+    SNAP/nikola: nikola
+    SNAP/parity: parity
+    SNAP/paritybitcoin: parity-bitcoin
+    SNAP/remmina: remmina
+    SNAP/skype: skype
+    SNAP/slack: slack
+    SNAP/spotify: spotify
+    SNAP/telegramsergiusens: telegram-sergiusens
+    SNAP/zeronet: zeronet
+    SNAP/zeronetjs: zeronet-js
+    # Top canonical snaps
+    SNAP/bare: bare
+    SNAP/bluez: bluez
+    SNAP/conjureup: conjure-up
+    SNAP/gedit: gedit
+    SNAP/go: go
+    SNAP/juju: juju
+    SNAP/neutron: neutron
+    SNAP/nova: nova
+    SNAP/snapcraft: snapcraft
+    SNAP/solc: solc
+    SNAP/vault: vault
+
+prepare: |
+    cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
+    sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
+    systemctl daemon-reload
+    systemctl restart snapd.socket
+
+restore: |
+    mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
+    systemctl daemon-reload
+    systemctl restart snapd.socket
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    CHANNELS="stable candidate beta edge"
+    for CHANNEL in $CHANNELS; do
+        # shellcheck disable=SC2153
+        if ! CHANNEL_INFO="$(snap info "$SNAP" | grep " $CHANNEL: ")"; then
+            echo "Snap $SNAP not found"
+            exit
+        fi
+        if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*–"; then
+            continue
+        fi
+
+        if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*classic"; then
+            if is_classic_confinement_supported; then
+                snap install "$SNAP" "--$CHANNEL" --classic
+            else
+                echo "The snap $SNAP requires classic confinement which is not supported yet"
+                exit
+            fi
+        elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*jailmode"; then
+            snap install "$SNAP" "--$CHANNEL" --jailmode
+        elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*devmode"; then
+            snap install "$SNAP" "--$CHANNEL" --devmode
+        else
+            snap install "$SNAP" "--$CHANNEL"
+        fi
+        break
+    done
+
+    echo "Check the snap is properly installed"
+    snap list | MATCH "$SNAP"
+
+    echo "Check the snap is properly removed"
+    snap remove "$SNAP"
+
+    if snap list | MATCH "$SNAP"; then
+        echo "Snap $SNAP not removed properly"
+        exit 1
+    fi

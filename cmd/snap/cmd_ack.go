@@ -34,11 +34,11 @@ type cmdAck struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortAckHelp = i18n.G("Adds an assertion to the system")
+var shortAckHelp = i18n.G("Add an assertion to the system")
 var longAckHelp = i18n.G(`
 The ack command tries to add an assertion to the system assertion database.
 
-The assertion may also be a newer revision of a preexisting assertion that it
+The assertion may also be a newer revision of a pre-existing assertion that it
 will replace.
 
 To succeed the assertion must be valid, its signature verified with a known
@@ -50,7 +50,9 @@ func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
 		return &cmdAck{}
 	}, nil, []argDesc{{
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<assertion file>"),
+		// TRANSLATORS: This should probably not start with a lowercase letter.
 		desc: i18n.G("Assertion file"),
 	}})
 }

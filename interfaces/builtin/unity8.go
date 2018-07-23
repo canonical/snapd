@@ -20,15 +20,27 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const unity8Summary = `allows operating as or interacting with Unity 8`
+
+const unity8BaseDeclarationPlugs = `
+  unity8:
+    allow-installation: false
+`
+
+const unity8BaseDeclarationSlots = `
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+`
 
 const unity8ConnectedPlugAppArmor = `
 # Description: Can access unity8 desktop services
@@ -74,14 +86,6 @@ dbus (receive)
      path=/
      member={PasteboardChanged,PasteFormatsChanged,PasteSelected,PasteSelectionCancelled}
      peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
-
-# Lttng tracing is very noisy and should not be allowed by confined apps.
-# Can safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
-`
-
-const unity8ConnectedPlugSecComp = `
-shutdown
 `
 
 type unity8Interface struct{}
@@ -90,9 +94,11 @@ func (iface *unity8Interface) Name() string {
 	return "unity8"
 }
 
-func (iface *unity8Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: unity8Summary,
+func (iface *unity8Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              unity8Summary,
+		BaseDeclarationPlugs: unity8BaseDeclarationPlugs,
+		BaseDeclarationSlots: unity8BaseDeclarationSlots,
 	}
 }
 
@@ -100,7 +106,7 @@ func (iface *unity8Interface) String() string {
 	return iface.Name()
 }
 
-func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	oldTags := "###SLOT_SECURITY_TAGS###"
 	newTags := slotAppLabelExpr(slot)
 	snippet := strings.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
@@ -108,26 +114,7 @@ func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(unity8ConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity8Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

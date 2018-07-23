@@ -11,20 +11,16 @@ details: |
     more interfaces declare udev snippets.
 
 prepare: |
-    echo "Given a snap declaring a slot with associated udev rules is installed"
-    snapbuild $TESTSLIB/snaps/modem-manager-consumer .
-    snap install --dangerous modem-manager-consumer_1.0_all.snap
+    . $TESTSLIB/snaps.sh
 
-restore: |
-    rm -f modem-manager-consumer_1.0_all.snap
+    echo "Given a snap declaring a slot with associated udev rules is installed"
+    install_local modem-manager-consumer
 
 execute: |
     echo "Then the udev rules files specific to it are created"
     test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
     expected="ATTRS{idVendor}==\".*?\", ATTRS{idProduct}==\".*?\""
     grep -Pq "$expected" /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
-
-    echo "======================================="
 
     echo "When the snap is removed"
     snap remove modem-manager-consumer

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,87 +25,98 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type TimeControlTestInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+type TimeControlInterfaceSuite struct {
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&TimeControlTestInterfaceSuite{
+var _ = Suite(&TimeControlInterfaceSuite{
 	iface: builtin.MustInterface("time-control"),
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "time-control",
-			Interface: "time-control",
-		},
-	},
-	plug: nil,
 })
 
-func (s *TimeControlTestInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
+const timectlConsumerYaml = `name: consumer
+version: 0
 apps:
-  app-accessing-time-control:
-    command: foo
-    plugs: [time-control]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["time-control"]}
+ app:
+  plugs: [time-control]
+`
+
+const timectlCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  time-control:
+`
+
+func (s *TimeControlInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, timectlConsumerYaml, nil, "time-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, timectlCoreYaml, nil, "time-control")
 }
 
-func (s *TimeControlTestInterfaceSuite) TestName(c *C) {
+func (s *TimeControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "time-control")
 }
 
-func (s *TimeControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+func (s *TimeControlInterfaceSuite) TestSanitizeSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "time-control",
 		Interface: "time-control",
-	}})
-	c.Assert(err, ErrorMatches, "time-control slots are reserved for the operating system snap")
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"time-control slots are reserved for the core snap")
 }
 
-func (s *TimeControlTestInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+func (s *TimeControlInterfaceSuite) TestSanitizePlug(c *C) {
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *TimeControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "time-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "time-control"`)
+func (s *TimeControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "org/freedesktop/timedate1")
 }
 
-func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedUDevSnippet := `KERNEL=="/dev/rtc0", TAG+="snap_client-snap_app-accessing-time-control"`
+func (s *TimeControlInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "settimeofday")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT")
+}
 
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-time-control"})
-	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-time-control"), testutil.Contains, "org/freedesktop/timedate1")
-
-	// connected plugs have a non-nil security snippet for udev
+func (s *TimeControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	snippet := spec.Snippets()[0]
-	c.Assert(snippet, DeepEquals, expectedUDevSnippet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# time-control
+SUBSYSTEM=="rtc", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
-func (s *TimeControlTestInterfaceSuite) TestInterfaces(c *C) {
+func (s *TimeControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows setting system date and time`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "time-control")
+}
+
+func (s *TimeControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
+}
+
+func (s *TimeControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

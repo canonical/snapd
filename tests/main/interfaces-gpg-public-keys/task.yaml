@@ -1,0 +1,71 @@
+summary: Ensure that the gpg-public-keys interface works.
+
+details: |
+    The gpg-public-keys interface allows to access gpg binary and public keys.
+
+# no gpg on core18
+systems: [-ubuntu-core-18-*]
+
+environment:
+    KEYSDIR: "$HOME/.gnupg"
+    TRUSTDB: "$HOME/.gnupg/trustdb.gpg"
+    TRUSTEDKEYS: "$HOME/.gnupg/trustedkeys.gpg"
+    CONFIG: "$HOME/.gnupg/gpg.conf"
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-gpg-public-keys
+
+    if [ -d "$KEYSDIR" ]; then
+        cp -rf "$KEYSDIR" "$KEYSDIR".old
+    else
+        mkdir "$KEYSDIR"
+    fi
+
+    touch "$TRUSTEDKEYS" || true
+    touch "$TRUSTDB" || true
+    touch "$CONFIG" || true
+
+restore: |
+    rm -f call.error
+    rm -rf "$KEYSDIR"
+    if [ -d "$KEYSDIR".old ]; then
+        mv "$KEYSDIR".old "$KEYSDIR"
+    fi
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i gpg-public-keys | MATCH '^- +test-snapd-gpg-public-keys:gpg-public-keys'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-gpg-public-keys:gpg-public-keys
+
+    echo "Then the snap is able to run gpg"
+    test-snapd-gpg-public-keys.sh -c "gpg --list-keys"
+
+    echo "And the snap is able to access to config files and keys"
+    test-snapd-gpg-public-keys.sh -c "cat /usr/share/gnupg/options.skel"
+    test-snapd-gpg-public-keys.sh -c "cat $CONFIG"
+    test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "And then the snap is not able to write the trust.db file"
+    if test-snapd-gpg-public-keys.sh -c "sed -i 's/ / /g' $TRUSTDB" 2> call.error; then
+        echo "Expected permission error accessing to trust db"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-gpg-public-keys:gpg-public-keys
+
+    echo "Then the snap is not able to read gpg keys"
+    if test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS" 2> call.error; then
+        echo "Expected permission error accessing to gpg keys"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

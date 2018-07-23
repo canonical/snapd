@@ -25,11 +25,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdWatch struct {
-	Positional struct {
-		ChangeID changeID `positional-arg-name:"<change-id>"`
-	} `positional-args:"yes" required:"yes"`
-}
+type cmdWatch struct{ changeIDMixin }
 
 var shortWatchHelp = i18n.G("Watch a change in progress")
 var longWatchHelp = i18n.G(`
@@ -40,10 +36,7 @@ The watch command waits for the given change-id to finish and shows progress
 func init() {
 	addCommand("watch", shortWatchHelp, longWatchHelp, func() flags.Commander {
 		return &cmdWatch{}
-	}, nil, []argDesc{{
-		name: i18n.G("<change-id>"),
-		desc: i18n.G("Change ID"),
-	}})
+	}, changeIDMixinOptDesc, changeIDMixinArgDesc)
 }
 
 func (x *cmdWatch) Execute(args []string) error {
@@ -51,7 +44,14 @@ func (x *cmdWatch) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	cli := Client()
-	_, err := wait(cli, string(x.Positional.ChangeID))
+	id, err := x.GetChangeID(cli)
+	if err != nil {
+		return err
+	}
+
+	// this is the only valid use of wait without a waitMixin (ie
+	// without --no-wait), so we fake it here.
+	_, err = waitMixin{skipAbort: true}.wait(cli, id)
 
 	return err
 }

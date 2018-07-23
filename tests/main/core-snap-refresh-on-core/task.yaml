@@ -1,0 +1,123 @@
+summary: Check that the core snap can be refreshed on a core device
+
+systems: [ubuntu-core-16-64]
+
+details: |
+    This test checks that the core snap can be refreshed from an installed
+    revision to a new one. It expects to find a new snap revision in the
+    channel pointed by the NEW_CORE_CHANNEL env var.
+
+manual: true
+
+restore: |
+    rm -f prevBoot nextBoot
+    rm -f core_*.{assert,snap}
+        
+prepare: |
+    snap install test-snapd-tools
+
+execute: |
+    wait_core_pre_boot() {
+        chg_id="$1"
+
+        # save change id to wait later or abort
+        echo "${chg_id}" >curChg
+
+        # wait for the link task to be done
+        while ! snap change "${chg_id}"|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+
+    }
+    wait_core_post_boot() {
+        # booted
+        while [ "$(bootenv snap_mode)" != "" ]; do
+            sleep 1
+        done
+        # and change fully done
+        while ! snap changes | grep "^$(cat curChg).* Done "; do
+            sleep 1;
+        done
+    }
+
+    if [ "$NEW_CORE_CHANNEL" = "" ]; then
+        echo "please set the SPREAD_NEW_CORE_CHANNEL environment"
+        exit 1
+    fi
+  
+    #shellcheck source=tests/lib/boot.sh
+    . "$TESTSLIB"/boot.sh
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # ensure we have a good starting place
+    
+        # sanity
+        test-snapd-tools.echo hello | MATCH hello
+
+        # go to known good starting place
+        snap download core "--${CORE_CHANNEL}"
+        snap ack core_*.assert
+        wait_core_pre_boot "$(snap install --no-wait core_*.snap)"
+        REBOOT
+        
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        # from our good starting place we refresh
+
+        wait_core_post_boot
+        
+        # save current core revision
+        snap list | awk "/^core / {print(\$3)}" > prevBoot
+
+        # refresh
+        wait_core_pre_boot "$(snap refresh core "--${NEW_CORE_CHANNEL}" --no-wait)"
+
+        # check boot env vars
+        snap list | awk "/^core / {print(\$3)}" > nextBoot
+
+        test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
+        test "$(bootenv snap_try_core)" = "core_$(cat nextBoot).snap"
+
+        # there are no errors in the changes list
+        ! snap changes | MATCH '^[0-9]+ +Error'
+
+        # test-snapd-tools works
+        test-snapd-tools.echo hello | MATCH hello
+
+        REBOOT
+    elif [  "$SPREAD_REBOOT" = 2 ]; then
+        # after refresh to NEW_CHANNEL
+
+        wait_core_post_boot
+
+        # check boot env vars
+        test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
+        test "$(bootenv snap_try_core)" = ""
+
+        # and there are no errors in the changes list
+        ! snap changes | MATCH '^[0-9]+ +Error'
+
+        # test-snapd-tools works
+        test-snapd-tools.echo hello | MATCH hello
+
+        # revert core
+        wait_core_pre_boot "$(snap revert core --no-wait)"
+
+        test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
+        test "$(bootenv snap_try_core)" = "core_$(cat prevBoot).snap"
+
+        # there are no errors in the changes list
+        ! snap changes | MATCH '^[0-9]+ +Error'
+
+        REBOOT
+    elif [  "$SPREAD_REBOOT" = 3 ]; then
+        # after revert
+
+        wait_core_post_boot
+
+        # check that we reverted
+        test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
+        test "$(bootenv snap_try_core)" = ""
+
+        # and there are no errors in the changes list
+        ! snap changes | MATCH '^[0-9]+ +Error'
+
+        # test-snapd-tools works
+        test-snapd-tools.echo hello | MATCH hello
+    fi

@@ -1,4 +1,5 @@
 summary: Check that the refresh command works.
+
 details: |
     These tests exercise the refresh command using different store backends.
     The concrete store to be used is controlled with the STORE_TYPE variant,
@@ -16,8 +17,11 @@ environment:
     STORE_TYPE/remote: ${REMOTE_STORE}
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -35,12 +39,15 @@ prepare: |
 
         echo "And a new version of that snap put in the controlled store"
         . $TESTSLIB/store.sh
-        init_fake_refreshes test-snapd-tools $BLOB_DIR
+        init_fake_refreshes $BLOB_DIR test-snapd-tools
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -52,8 +59,11 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then

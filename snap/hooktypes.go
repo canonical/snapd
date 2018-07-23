@@ -24,10 +24,14 @@ import (
 )
 
 var supportedHooks = []*HookType{
-	newHookType(regexp.MustCompile("^prepare-device$")),
-	newHookType(regexp.MustCompile("^configure$")),
-	newHookType(regexp.MustCompile("^prepare-(?:plug|slot)-[-a-z0-9]+$")),
-	newHookType(regexp.MustCompile("^connect-(?:plug|slot)-[-a-z0-9]+$")),
+	NewHookType(regexp.MustCompile("^prepare-device$")),
+	NewHookType(regexp.MustCompile("^configure$")),
+	NewHookType(regexp.MustCompile("^install$")),
+	NewHookType(regexp.MustCompile("^pre-refresh$")),
+	NewHookType(regexp.MustCompile("^post-refresh$")),
+	NewHookType(regexp.MustCompile("^remove$")),
+	NewHookType(regexp.MustCompile("^prepare-(?:plug|slot)-[-a-z0-9]+$")),
+	NewHookType(regexp.MustCompile("^connect-(?:plug|slot)-[-a-z0-9]+$")),
 }
 
 // HookType represents a pattern of supported hook names.
@@ -35,8 +39,8 @@ type HookType struct {
 	pattern *regexp.Regexp
 }
 
-// newHookType returns a new HookType with the given pattern.
-func newHookType(pattern *regexp.Regexp) *HookType {
+// NewHookType returns a new HookType with the given pattern.
+func NewHookType(pattern *regexp.Regexp) *HookType {
 	return &HookType{
 		pattern: pattern,
 	}
@@ -57,4 +61,16 @@ func IsHookSupported(hookName string) bool {
 	}
 
 	return false
+}
+
+func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
+	old := supportedHooks
+	supportedHooks = hookTypes
+	return func() { supportedHooks = old }
+}
+
+func MockAppendSupportedHookTypes(hookTypes []*HookType) (restore func()) {
+	old := supportedHooks
+	supportedHooks = append(supportedHooks, hookTypes...)
+	return func() { supportedHooks = old }
 }

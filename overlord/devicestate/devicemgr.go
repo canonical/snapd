@@ -26,14 +26,18 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -41,18 +45,21 @@ import (
 type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
-	runner     *state.TaskRunner
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
 
+	ensureSeedInConfigRan bool
+
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
+	registered                   bool
+	reg                          chan struct{}
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
-	runner := state.NewTaskRunner(s)
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner) (*DeviceManager, error) {
+	delayedCrossMgrInit()
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
@@ -60,7 +67,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, reg: make(chan struct{})}
+
+	if err := m.confirmRegistered(); err != nil {
+		return nil, err
+	}
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
 
@@ -69,6 +80,29 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	return m, nil
+}
+
+func (m *DeviceManager) confirmRegistered() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return err
+	}
+
+	if device.Serial != "" {
+		m.markRegistered()
+	}
+	return nil
+}
+
+func (m *DeviceManager) markRegistered() {
+	if m.registered {
+		return
+	}
+	m.registered = true
+	close(m.reg)
 }
 
 type prepareDeviceHandler struct{}
@@ -148,30 +182,83 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
+	// conditions to trigger device registration
+	//
+	// * have a model assertion with a gadget (core and
+	//   device-like classic) in which case we need also to wait
+	//   for the gadget to have been installed though
+	// TODO: consider a way to support lazy registration on classic
+	// even with a gadget and some preseeded snaps
+	//
+	// * classic with a model assertion with a non-default store specified
+	// * lazy classic case (might have a model with no gadget nor store
+	//   or no model): we wait to have some snaps installed or be
+	//   in the process to install some
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	if device.Brand == "" || device.Model == "" {
-		// cannot proceed until seeding has loaded the model
-		// assertion and set the brand and model, that is
-		// optional on classic
-		// TODO: later we can check if
-		// "seeded" was set and we still don't have a brand/model
-		// and use a fallback assertion
-		return nil
+		if !release.OnClassic || !seeded {
+			return nil
+		}
+		// we are on classic and seeded but there is no model:
+		// use a fallback model!
+		err = assertstate.Add(m.state, sysdb.GenericClassicModel())
+		if err != nil && !asserts.IsUnaccceptedUpdate(err) {
+			return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
+		}
+		device.Brand = "generic"
+		device.Model = "generic-classic"
+		if err := auth.SetDevice(m.state, device); err != nil {
+			return err
+		}
 	}
 
 	if m.changeInFlight("become-operational") {
 		return nil
 	}
 
-	// TODO: make presence of gadget optional on classic? that is
-	// sensible only for devices that the store can give directly
-	// serials to and when we will have a general fallback
-	gadgetInfo, err := snapstate.GadgetInfo(m.state)
-	if err == state.ErrNoState {
-		// no gadget installed yet, cannot proceed
-		return nil
-	}
-	if err != nil {
+	var storeID, gadget string
+	model, err := Model(m.state)
+	if err != nil && err != state.ErrNoState {
 		return err
+	}
+	if err == nil {
+		gadget = model.Gadget()
+		storeID = model.Store()
+	} else {
+		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+	}
+
+	if gadget == "" && storeID == "" {
+		// classic: if we have no gadget and no non-default store
+		// wait to have snaps or snap installation
+
+		n, err := snapstate.NumSnaps(m.state)
+		if err != nil {
+			return err
+		}
+		if n == 0 && !snapstate.Installing(m.state) {
+			return nil
+		}
+	}
+
+	// if there's a gadget specified wait for it
+	var gadgetInfo *snap.Info
+	if gadget != "" {
+		var err error
+		gadgetInfo, err = snapstate.GadgetInfo(m.state)
+		if err == state.ErrNoState {
+			// no gadget installed yet, cannot proceed
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	// have some backoff between full retries
@@ -188,14 +275,17 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks := []*state.Task{}
 
 	var prepareDevice *state.Task
-	if gadgetInfo.Hooks["prepare-device"] != nil {
+	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.Name(),
+			Snap: gadgetInfo.InstanceName(),
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
+		// hooks are under a different manager, make sure we consider
+		// it immediately
+		m.state.EnsureBefore(0)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
@@ -281,6 +371,51 @@ func (m *DeviceManager) ensureBootOk() error {
 	return nil
 }
 
+func markSeededInConfig(st *state.State) error {
+	var seedDone bool
+	tr := config.NewTransaction(st)
+	if err := tr.Get("core", "seed.loaded", &seedDone); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !seedDone {
+		if err := tr.Set("core", "seed.loaded", true); err != nil {
+			return err
+		}
+		tr.Commit()
+	}
+	return nil
+}
+
+func (m *DeviceManager) ensureSeedInConfig() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if !m.ensureSeedInConfigRan {
+		// get global seeded option
+		var seeded bool
+		if err := m.state.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+			return err
+		}
+		if !seeded {
+			// wait for ensure again, this is fine because
+			// doMarkSeeded will run "EnsureBefore(0)"
+			return nil
+		}
+
+		// Sync seeding with the configuration state. We need to
+		// do this here to ensure that old systems which did not
+		// set the configuration on seeding get the configuration
+		// update too.
+		if err := markSeededInConfig(m.state); err != nil {
+			return err
+		}
+		m.ensureSeedInConfigRan = true
+	}
+
+	return nil
+
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -311,23 +446,15 @@ func (m *DeviceManager) Ensure() error {
 		errs = append(errs, err)
 	}
 
-	m.runner.Ensure()
+	if err := m.ensureSeedInConfig(); err != nil {
+		errs = append(errs, err)
+	}
 
 	if len(errs) > 0 {
 		return &ensureError{errs}
 	}
 
 	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *DeviceManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *DeviceManager) Stop() {
-	m.runner.Stop()
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
@@ -367,19 +494,29 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
-func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error) {
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
+}
+
+// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
+func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	model, err := Model(m.state)
+	if err != nil {
+		return nil, err
+	}
+
 	serial, err := Serial(m.state)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	privKey, err := m.keyPair()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
@@ -390,9 +527,21 @@ func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessi
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, privKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return a.(*asserts.DeviceSessionRequest), serial, err
+	return &auth.DeviceSessionRequestParams{
+		Request: a.(*asserts.DeviceSessionRequest),
+		Serial:  serial,
+		Model:   model,
+	}, err
 
+}
+
+// ProxyStore returns the store assertion for the proxy store if one is set.
+func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return ProxyStore(m.state)
 }

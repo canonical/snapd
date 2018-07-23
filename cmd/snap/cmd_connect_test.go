@@ -33,7 +33,7 @@ import (
 
 func (s *SnapSuite) TestConnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] connect [<snap>:<plug>] [<snap>:<slot>]
+  snap.test connect [connect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
 
 The connect command connects a plug to a slot.
 It may be called in the following ways:
@@ -53,11 +53,9 @@ $ snap connect <snap>:<plug>
 Connects the provided plug to the slot in the core snap with a name matching
 the plug name.
 
-Application Options:
-      --version            Print the version and exit
-
-Help Options:
-  -h, --help               Show this help message
+[connect command options]
+          --no-wait        Do not wait for the operation to finish but just
+                           print the change id.
 `
 	rest, err := Parser().ParseArgs([]string{"connect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -196,7 +194,7 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-var fortestingInterfaceList = client.Interfaces{
+var fortestingConnectionList = client.Connections{
 	Slots: []client.Slot{
 		{
 			Snap:      "core",
@@ -284,7 +282,7 @@ func (s *SnapSuite) TestConnectCompletion(c *C) {
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
-				"result": fortestingInterfaceList,
+				"result": fortestingConnectionList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)

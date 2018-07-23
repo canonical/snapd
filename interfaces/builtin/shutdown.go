@@ -21,6 +21,14 @@ package builtin
 
 const shutdownSummary = `allows shutting down or rebooting the system`
 
+const shutdownBaseDeclarationSlots = `
+  shutdown:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const shutdownConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
 
@@ -37,7 +45,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown}
+    member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown,SetWallMessage}
     peer=(label=unconfined),
 
 # Allow clients to introspect
@@ -60,6 +68,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "shutdown",
 		summary:               shutdownSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

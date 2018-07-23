@@ -114,32 +114,32 @@ PKG_CHECK_MODULES([UDEV], [udev])
 # PKG_CHECK_MODULES([LIBCAP], [libcap])
 
 # Enable special support for hosts with proprietary nvidia drivers on Ubuntu.
-AC_ARG_ENABLE([nvidia-ubuntu],
-    AS_HELP_STRING([--enable-nvidia-ubuntu], [Support for proprietary nvidia drivers (Ubuntu)]),
+AC_ARG_ENABLE([nvidia-multiarch],
+    AS_HELP_STRING([--enable-nvidia-multiarch], [Support for proprietary nvidia drivers (Ubuntu/Debian)]),
     [case "${enableval}" in
-        yes) enable_nvidia_ubuntu=yes ;;
-        no)  enable_nvidia_ubuntu=no ;;
-        *) AC_MSG_ERROR([bad value ${enableval} for --enable-nvidia-ubuntu])
-    esac], [enable_nvidia_ubuntu=no])
-AM_CONDITIONAL([NVIDIA_UBUNTU], [test "x$enable_nvidia_ubuntu" = "xyes"])
+        yes) enable_nvidia_multiarch=yes ;;
+        no)  enable_nvidia_multiarch=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-nvidia-multiarch])
+    esac], [enable_nvidia_multiarch=no])
+AM_CONDITIONAL([NVIDIA_MULTIARCH], [test "x$enable_nvidia_multiarch" = "xyes"])
 
-AS_IF([test "x$enable_nvidia_ubuntu" = "xyes"], [
-    AC_DEFINE([NVIDIA_UBUNTU], [1],
-        [Support for proprietary nvidia drivers (Ubuntu)])])
+AS_IF([test "x$enable_nvidia_multiarch" = "xyes"], [
+    AC_DEFINE([NVIDIA_MULTIARCH], [1],
+        [Support for proprietary nvidia drivers (Ubuntu/Debian)])])
 
 # Enable special support for hosts with proprietary nvidia drivers on Arch.
-AC_ARG_ENABLE([nvidia-arch],
-    AS_HELP_STRING([--enable-nvidia-arch], [Support for proprietary nvidia drivers (Arch)]),
+AC_ARG_ENABLE([nvidia-biarch],
+    AS_HELP_STRING([--enable-nvidia-biarch], [Support for proprietary nvidia drivers (bi-arch distributions)]),
     [case "${enableval}" in
-        yes) enable_nvidia_arch=yes ;;
-        no)  enable_nvidia_arch=no ;;
-        *) AC_MSG_ERROR([bad value ${enableval} for --enable-nvidia-arch])
-    esac], [enable_nvidia_arch=no])
-AM_CONDITIONAL([NVIDIA_ARCH], [test "x$enable_nvidia_arch" = "xyes"])
+        yes) enable_nvidia_biarch=yes ;;
+        no)  enable_nvidia_biarch=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-nvidia-biarch])
+    esac], [enable_nvidia_biarch=no])
+AM_CONDITIONAL([NVIDIA_BIARCH], [test "x$enable_nvidia_biarch" = "xyes"])
 
-AS_IF([test "x$enable_nvidia_arch" = "xyes"], [
-    AC_DEFINE([NVIDIA_ARCH], [1],
-        [Support for proprietary nvidia drivers (Arch)])])
+AS_IF([test "x$enable_nvidia_biarch" = "xyes"], [
+    AC_DEFINE([NVIDIA_BIARCH], [1],
+        [Support for proprietary nvidia drivers (bi-arch distributions)])])
 
 AC_ARG_ENABLE([merged-usr],
     AS_HELP_STRING([--enable-merged-usr], [Enable support for merged /usr directory]),
@@ -208,6 +208,25 @@ AC_ARG_ENABLE([static-libseccomp],
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libseccomp])
     esac], [enable_static_libseccomp=no])
 AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes"])
+
+LIB32_DIR="${prefix}/lib32"
+AC_ARG_WITH([32bit-libdir],
+    AS_HELP_STRING([--with-32bit-libdir=DIR], [Use an alternate lib32 directory]),
+    [LIB32_DIR="$withval"])
+AC_SUBST(LIB32_DIR)
+AC_DEFINE_UNQUOTED([LIB32_DIR], "${LIB32_DIR}", [Location of the lib32 directory])
+
+AC_ARG_WITH([host-arch-triplet],
+    AS_HELP_STRING([--with-host-arch-triplet=triplet], [Arch triplet for host libraries]),
+    [HOST_ARCH_TRIPLET="$withval"])
+AC_SUBST(HOST_ARCH_TRIPLET)
+AC_DEFINE_UNQUOTED([HOST_ARCH_TRIPLET], "${HOST_ARCH_TRIPLET}", [Arch triplet for host libraries])
+
+AC_ARG_WITH([host-arch-32bit-triplet],
+    AS_HELP_STRING([--with-host-arch-32bit-triplet=triplet], [Arch triplet for 32bit libraries]),
+    [HOST_ARCH32_TRIPLET="$withval"])
+AC_SUBST(HOST_ARCH32_TRIPLET)
+AC_DEFINE_UNQUOTED([HOST_ARCH32_TRIPLET], "${HOST_ARCH32_TRIPLET}", [Arch triplet for 32bit libraries])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

@@ -11,56 +11,32 @@ details: |
 environment:
     DISPLAY: :0
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
 
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
-
-    echo "And the D-bus X11 dependencies are installed"
-    apt install -y dbus-x11
 
     echo "And a snap declaring a matching dbus plug is installed"
     snap install --edge test-snapd-dbus-consumer
 
     echo "And the provider dbus loop is started"
-    dbus-launch > dbus.env
-    export $(cat dbus.env | xargs)
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        cat <<EOF > /etc/init/dbus-provider.conf
-    env DISPLAY="$DISPLAY"
-    env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
-    env DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID"
-    script
-        $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
-    end script
-    EOF
-        initctl reload-configuration
-        start dbus-provider
-    else
-        systemd-run --unit dbus-provider \
-                    --setenv=DISPLAY=$DISPLAY \
-                    --setenv=DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
-                    --setenv=DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID \
-                    $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
-    fi
+    #shellcheck source=tests/lib/dbus.sh
+    . "$TESTSLIB/dbus.sh"
+    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
-    rm -f call.error dbus.env
-    apt remove --purge -y dbus-x11
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        stop dbus-provider
-        rm -f /etc/init/dbus-provider.conf
-    else
-        systemctl stop dbus-provider
-    fi
+    rm -f call.error
+    #shellcheck source=tests/lib/dbus.sh
+    . "$TESTSLIB/dbus.sh"
+    stop_dbus_unit || true
 
 execute: |
-    CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
-    DISCONNECTED_PATTERN="^\- +test-snapd-dbus-consumer:dbus-test"
-    export $(cat dbus.env | xargs)
+    #shellcheck disable=SC2046
+    export $(cat dbus.env)
 
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"
     while ! dbus-send --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"; do
@@ -68,22 +44,21 @@ execute: |
     done
 
     echo "And plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-test'
 
-    if [ "$(snap debug confinement)" = none ]; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
     echo "And the consumer is not able to access the provided method"
-    if test-snapd-dbus-consumer.dbus-consumer 2>${PWD}/call.error; then
+    if test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
         echo "Expected permission error calling dbus method with disconnected plug"
         exit 1
     fi
-    cat call.error | MATCH "Permission denied"
+    MATCH "Permission denied" < call.error
 
     echo "When the plug is connected"
     snap connect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the consumer is able to call the provided method"
     test-snapd-dbus-consumer.dbus-consumer | MATCH "hello world"

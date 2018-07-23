@@ -1,0 +1,45 @@
+summary: Ensure that the desktop interface gives access to host fonts
+
+details: |
+    In order to ensure that confined applications have access to fonts
+    covering the user's spoken language, the host system's fonts are
+    bind mounted into the sandbox.
+
+systems: [-ubuntu-core-*]
+
+execute: |
+    mkdir -p /usr/share/fonts
+    echo "Distribution font" > /usr/share/fonts/dist-font.txt
+
+    mkdir -p /usr/local/share/fonts
+    echo "Local font" > /usr/local/share/fonts/local-font.txt
+
+    mkdir -p /var/cache/fontconfig
+    echo "Cache file" > /var/cache/fontconfig/cache.txt
+
+    mkdir -p "$HOME"/.fonts
+    echo "User font 1" > "$HOME"/.fonts/user-font1.txt
+
+    mkdir -p "$HOME"/.local/share/fonts
+    echo "User font 2" > "$HOME"/.local/share/fonts/user-font2.txt
+
+    echo "Install the test-snapd-desktop snap"
+    snap try "$TESTSLIB"/snaps/test-snapd-desktop
+
+    echo "The plug is connected by default"
+    snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
+
+    echo "Checking access to host /usr/share/fonts"
+    test-snapd-desktop.check-files /usr/share/fonts/dist-font.txt | MATCH "Distribution font"
+
+    echo "Checking access to host /usr/local/share/fonts"
+    test-snapd-desktop.check-files /usr/local/share/fonts/local-font.txt | MATCH "Local font"
+
+    echo "Checking access to host /var/cache/fontconfig"
+    test-snapd-desktop.check-files /var/cache/fontconfig/cache.txt | MATCH "Cache file"
+
+    echo "Checking access to host ~/.fonts"
+    test-snapd-desktop.check-files "$HOME"/.fonts/user-font1.txt | MATCH "User font 1"
+
+    echo "Checking access to host ~/.local/share/fonts"
+    test-snapd-desktop.check-files "$HOME"/.local/share/fonts/user-font2.txt | MATCH "User font 2"

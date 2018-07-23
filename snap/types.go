@@ -31,8 +31,11 @@ type Type string
 const (
 	TypeApp    Type = "app"
 	TypeGadget Type = "gadget"
-	TypeOS     Type = "os"
 	TypeKernel Type = "kernel"
+	TypeBase   Type = "base"
+
+	// FIXME: this really should be TypeCore
+	TypeOS Type = "os"
 )
 
 // UnmarshalJSON sets *m to a copy of data.
@@ -45,7 +48,7 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 	return m.fromString(str)
 }
 
-// UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
+// UnmarshalYAML so Type implements yaml's Unmarshaler interface
 func (m *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
@@ -65,7 +68,7 @@ func (m *Type) fromString(str string) error {
 		t = TypeApp
 	}
 
-	if t != TypeApp && t != TypeGadget && t != TypeOS && t != TypeKernel {
+	if t != TypeApp && t != TypeGadget && t != TypeOS && t != TypeKernel && t != TypeBase {
 		return fmt.Errorf("invalid snap type: %q", str)
 	}
 
@@ -115,3 +118,11 @@ func (confinementType *ConfinementType) fromString(str string) error {
 
 	return nil
 }
+
+type ServiceStopReason string
+
+const (
+	StopReasonRefresh ServiceStopReason = "refresh"
+	StopReasonRemove  ServiceStopReason = "remove"
+	StopReasonDisable ServiceStopReason = "disable"
+)

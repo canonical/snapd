@@ -40,8 +40,11 @@ type cmdPrepareImage struct {
 
 func init() {
 	cmd := addCommand("prepare-image",
-		i18n.G("Prepare a snappy image"),
-		i18n.G("Prepare a snappy image"),
+		i18n.G("Prepare a core device image"),
+		i18n.G(`
+The prepare-image command performs some of the steps necessary for creating
+core device images.
+`),
 		func() flags.Commander {
 			return &cmdPrepareImage{}
 		}, map[string]string{
@@ -49,10 +52,14 @@ func init() {
 			"channel":     "The channel to use",
 		}, []argDesc{
 			{
+				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<model-assertion>"),
+				// TRANSLATORS: This should probably not start with a lowercase letter.
 				desc: i18n.G("The model assertion name"),
 			}, {
+				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<root-dir>"),
+				// TRANSLATORS: This should probably not start with a lowercase letter.
 				desc: i18n.G("The output directory"),
 			},
 		})

@@ -53,6 +53,10 @@ type Flags struct {
 	// Unaliased is set to request that no automatic aliases are created
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`
+
+	// Amend allows refreshing out of a snap unknown to the store
+	// and into one that is known.
+	Amend bool `json:"amend,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
@@ -62,7 +66,6 @@ func (f Flags) DevModeAllowed() bool {
 
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)
 func (f Flags) ForSnapSetup() Flags {
-	f.IgnoreValidation = false
 	f.SkipConfigure = false
 	return f
 }

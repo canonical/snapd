@@ -24,7 +24,12 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
+
+func init() {
+	snap.SanitizePlugsSlots = SanitizePlugsSlots
+}
 
 var (
 	allInterfaces map[string]interfaces.Interface
@@ -49,6 +54,79 @@ func registerIface(iface interfaces.Interface) {
 		allInterfaces = make(map[string]interfaces.Interface)
 	}
 	allInterfaces[iface.Name()] = iface
+}
+
+func SanitizePlugsSlots(snapInfo *snap.Info) {
+	var badPlugs []string
+	var badSlots []string
+
+	for plugName, plugInfo := range snapInfo.Plugs {
+		iface, ok := allInterfaces[plugInfo.Interface]
+		if !ok {
+			snapInfo.BadInterfaces[plugName] = fmt.Sprintf("unknown interface %q", plugInfo.Interface)
+			badPlugs = append(badPlugs, plugName)
+			continue
+		}
+		// Reject plug with invalid name
+		if err := snap.ValidatePlugName(plugName); err != nil {
+			snapInfo.BadInterfaces[plugName] = err.Error()
+			badPlugs = append(badPlugs, plugName)
+			continue
+		}
+		if err := interfaces.BeforePreparePlug(iface, plugInfo); err != nil {
+			snapInfo.BadInterfaces[plugName] = err.Error()
+			badPlugs = append(badPlugs, plugName)
+			continue
+		}
+	}
+
+	for slotName, slotInfo := range snapInfo.Slots {
+		iface, ok := allInterfaces[slotInfo.Interface]
+		if !ok {
+			snapInfo.BadInterfaces[slotName] = fmt.Sprintf("unknown interface %q", slotInfo.Interface)
+			badSlots = append(badSlots, slotName)
+			continue
+		}
+		// Reject slot with invalid name
+		if err := snap.ValidateSlotName(slotName); err != nil {
+			snapInfo.BadInterfaces[slotName] = err.Error()
+			badSlots = append(badSlots, slotName)
+			continue
+		}
+		if err := interfaces.BeforePrepareSlot(iface, slotInfo); err != nil {
+			snapInfo.BadInterfaces[slotName] = err.Error()
+			badSlots = append(badSlots, slotName)
+			continue
+		}
+	}
+
+	// remove any bad plugs and slots
+	for _, plugName := range badPlugs {
+		delete(snapInfo.Plugs, plugName)
+		for _, app := range snapInfo.Apps {
+			delete(app.Plugs, plugName)
+		}
+		for _, hook := range snapInfo.Hooks {
+			delete(hook.Plugs, plugName)
+		}
+	}
+	for _, slotName := range badSlots {
+		delete(snapInfo.Slots, slotName)
+		for _, app := range snapInfo.Apps {
+			delete(app.Slots, slotName)
+		}
+		for _, hook := range snapInfo.Hooks {
+			delete(hook.Slots, slotName)
+		}
+	}
+}
+
+func MockInterface(iface interfaces.Interface) func() {
+	name := iface.Name()
+	allInterfaces[name] = iface
+	return func() {
+		delete(allInterfaces, name)
+	}
 }
 
 type byIfaceName []interfaces.Interface

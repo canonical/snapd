@@ -5,10 +5,10 @@ details: |
     the host filesystem. While this would never work in an all-snap image it is
     still important to ensure that it works in classic devmode environment.
 # This test only applies to classic systems
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 prepare: |
     echo "Having installed the test snap in devmode"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
     echo "Having created a canary file in /var/lib/lxd"
     mkdir -p /var/lib/lxd

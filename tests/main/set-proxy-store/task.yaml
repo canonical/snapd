@@ -1,0 +1,74 @@
+summary: Check that the setting proxy.store config works
+systems: [-ubuntu-core-*]
+environment:
+    SNAP_NAME: test-snapd-tools
+    SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Given a snap is installed"
+    snap install $SNAP_NAME
+
+    . $TESTSLIB/store.sh
+    setup_fake_store $BLOB_DIR
+    # undo the setup through envvars
+    systemctl stop snapd.service snapd.socket
+    rm /etc/systemd/system/snapd.service.d/store.conf
+    systemctl daemon-reload
+    systemctl start snapd.socket
+
+    # prepare bundle
+    cat $TESTSLIB/assertions/testrootorg-store.account-key >fake.store
+    echo >>fake.store
+    cat $TESTSLIB/assertions/developer1.account >>fake.store
+    echo >>fake.store
+    cat $TESTSLIB/assertions/fake.store >>fake.store
+    echo "Ack fake store assertion"
+    snap ack fake.store
+
+    echo "And a new version of that snap put in the controlled store"
+    init_fake_refreshes $BLOB_DIR $SNAP_NAME
+
+restore: |
+    rm -f fake.store
+    rm -f stderr.out
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    snap set core proxy.store=
+
+    . $TESTSLIB/store.sh
+    teardown_fake_store $BLOB_DIR
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Configure to use the fakestore through store assertion and proxy.store"
+    snap set core proxy.store=fake
+
+    echo "Then the new version is listed as candidate refresh"
+    expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
+    snap refresh --list | grep -Pzq "$expected"
+
+    echo "Switch back temporarely to the main store"
+    snap set core proxy.store=
+    ! snap refresh --list | grep -Pzq "$expected"
+
+    echo "Configure back to use fakestore"
+    snap set core proxy.store=fake
+
+    echo "Now we can proceed with the refresh from the fakestore"
+    snap refresh $SNAP_NAME
+
+    echo "Then the new version is listed"
+    snap list | grep -Pzq "$expected"

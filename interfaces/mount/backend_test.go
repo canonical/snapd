@@ -35,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) {
@@ -99,12 +101,8 @@ func (s *backendSuite) TestRemove(c *C) {
 	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
-	content, err := ioutil.ReadFile(appCanaryToStay)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "stay!")
-	content, err = ioutil.ReadFile(snapCanaryToStay)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "stay!")
+	c.Assert(appCanaryToStay, testutil.FileEquals, "stay!")
+	c.Assert(snapCanaryToStay, testutil.FileEquals, "stay!")
 }
 
 var mockSnapYaml = `name: snap-name
@@ -124,15 +122,19 @@ slots:
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {
-	fsEntry1 := mount.Entry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
-	fsEntry2 := mount.Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 
 	// Give the plug a permanent effect
-	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddMountEntry(fsEntry1)
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		if err := spec.AddMountEntry(fsEntry1); err != nil {
+			return err
+		}
+		return spec.AddUserMountEntry(fsEntry3)
 	}
 	// Give the slot a permanent effect
-	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *interfaces.Slot) error {
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
 		return spec.AddMountEntry(fsEntry2)
 	}
 
@@ -150,28 +152,33 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	got := strings.Split(string(content), "\n")
 	sort.Strings(got)
 	c.Check(got, DeepEquals, expected)
-	// and that we have the legacy, per app/hook files as well.
-	for _, binary := range []string{"app1", "app2", "hook.configure"} {
-		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
-		content, err := ioutil.ReadFile(fn)
-		c.Assert(err, IsNil, Commentf("Expected mount profile for %q", binary))
-		got := strings.Split(string(content), "\n")
-		sort.Strings(got)
-		c.Check(got, DeepEquals, expected)
-	}
+
+	// Check that the user-fstab file was written with the user mount
+	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.user-fstab")
+	content, err = ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected user mount profile for the whole snap"))
+	c.Check(string(content), Equals, fsEntry3.String()+"\n")
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
-	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddMountEntry(mount.Entry{})
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		return spec.AddMountEntry(osutil.MountEntry{})
 	}
 
 	// Ensure that backend.Setup() creates the required dir on demand
 	os.Remove(dirs.SnapMountPolicyDir)
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
+}
 
-	for _, binary := range []string{"app1", "app2", "hook.configure"} {
-		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
-		c.Assert(osutil.FileExists(fn), Equals, true, Commentf("Expected mount file for %q", binary))
-	}
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"freezer-cgroup-v1",
+		"layouts-beta",
+		"mount-namespace",
+		"per-snap-persistency",
+		"per-snap-profiles",
+		"per-snap-updates",
+		"per-snap-user-profiles",
+		"stale-base-invalidation",
+	})
 }

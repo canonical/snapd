@@ -40,17 +40,12 @@ var DecodePrivateKeyInTest = decodePrivateKey
 // NewDecoderStressed makes a Decoder with a stressed setup with the given buffer and maximum sizes.
 func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
 	return (&Decoder{
-		rd:             r,
-		initialBufSize: bufSize,
-		maxHeadersSize: maxHeadersSize,
-		maxBodySize:    maxBodySize,
-		maxSigSize:     maxSigSize,
+		rd:                 r,
+		initialBufSize:     bufSize,
+		maxHeadersSize:     maxHeadersSize,
+		maxSigSize:         maxSigSize,
+		defaultMaxBodySize: maxBodySize,
 	}).initBuffer()
-}
-
-// Encoder.append exposed for tests
-func EncoderAppend(enc *Encoder, encoded []byte) error {
-	return enc.append(encoded)
 }
 
 func BootstrapAccountForTest(authorityID string) *Account {
@@ -60,7 +55,7 @@ func BootstrapAccountForTest(authorityID string) *Account {
 				"type":         "account",
 				"authority-id": authorityID,
 				"account-id":   authorityID,
-				"validation":   "certified",
+				"validation":   "verified",
 			},
 		},
 		timestamp: time.Now().UTC(),

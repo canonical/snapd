@@ -1,0 +1,45 @@
+summary: Ensure that the password-manager-service interface works
+
+# Only test on classic systems with AppArmor DBus mediation
+systems: [ ubuntu-1* ]
+
+prepare: |
+    . $TESTSLIB/pkgdb.sh
+    echo "Ensure we have a working gnome-keyring"
+    snap install --edge test-snapd-password-manager-consumer
+
+restore: |
+    . $TESTSLIB/pkgdb.sh
+    if [ -f dbus-launch.pid ]; then
+        kill $(cat dbus-launch.pid)
+    fi
+    rm -f  dbus-launch.pid
+
+execute: |
+    echo "Ensure things run"
+    eval $(dbus-launch --sh-syntax)
+    eval $(printf password|gnome-keyring-daemon --login)
+    eval $(gnome-keyring-daemon --start)
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+
+    echo "The interface is disconnected by default"
+    snap interfaces -i password-manager-service | MATCH "\- +test-snapd-password-manager-consumer:password-manager-service"
+
+    echo "When the plug is connected"
+    snap connect test-snapd-password-manager-consumer:password-manager-service
+
+    echo "Then the snap command is able use the libsecret service"
+    test-snapd-password-manager-consumer.secret-tool clear foo bar
+
+    if [ "$(snap debug confinement)" = "partial" ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-password-manager-consumer:password-manager-service
+
+    echo "Then the snap command is not able to use the secret-tool"
+    if test-snapd-password-manager-consumer.secret-tool clear foo bar; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi

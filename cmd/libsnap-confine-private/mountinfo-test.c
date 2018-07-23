@@ -20,7 +20,7 @@
 
 #include <glib.h>
 
-static void test_parse_mountinfo_entry__sysfs()
+static void test_parse_mountinfo_entry__sysfs(void)
 {
 	const char *line =
 	    "19 25 0:18 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw";
@@ -44,7 +44,7 @@ static void test_parse_mountinfo_entry__sysfs()
 
 // Parse the /run/snapd/ns bind mount (over itself)
 // Note that /run is itself a tmpfs mount point.
-static void test_parse_mountinfo_entry__snapd_ns()
+static void test_parse_mountinfo_entry__snapd_ns(void)
 {
 	const char *line =
 	    "104 23 0:19 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=99840k,mode=755";
@@ -65,7 +65,7 @@ static void test_parse_mountinfo_entry__snapd_ns()
 	g_assert_null(entry->next);
 }
 
-static void test_parse_mountinfo_entry__snapd_mnt()
+static void test_parse_mountinfo_entry__snapd_mnt(void)
 {
 	const char *line =
 	    "256 104 0:3 mnt:[4026532509] /run/snapd/ns/hello-world.mnt rw - nsfs nsfs rw";
@@ -86,14 +86,14 @@ static void test_parse_mountinfo_entry__snapd_mnt()
 	g_assert_null(entry->next);
 }
 
-static void test_parse_mountinfo_entry__garbage()
+static void test_parse_mountinfo_entry__garbage(void)
 {
 	const char *line = "256 104 0:3";
 	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_null(entry);
 }
 
-static void test_parse_mountinfo_entry__no_tags()
+static void test_parse_mountinfo_entry__no_tags(void)
 {
 	const char *line =
 	    "1 2 3:4 root mount-dir mount-opts - fs-type mount-source super-opts";
@@ -114,7 +114,7 @@ static void test_parse_mountinfo_entry__no_tags()
 	g_assert_null(entry->next);
 }
 
-static void test_parse_mountinfo_entry__one_tag()
+static void test_parse_mountinfo_entry__one_tag(void)
 {
 	const char *line =
 	    "1 2 3:4 root mount-dir mount-opts tag:1 - fs-type mount-source super-opts";
@@ -135,7 +135,7 @@ static void test_parse_mountinfo_entry__one_tag()
 	g_assert_null(entry->next);
 }
 
-static void test_parse_mountinfo_entry__many_tags()
+static void test_parse_mountinfo_entry__many_tags(void)
 {
 	const char *line =
 	    "1 2 3:4 root mount-dir mount-opts tag:1 tag:2 tag:3 tag:4 - fs-type mount-source super-opts";
@@ -156,7 +156,29 @@ static void test_parse_mountinfo_entry__many_tags()
 	g_assert_null(entry->next);
 }
 
-static void __attribute__ ((constructor)) init()
+static void test_parse_mountinfo_entry__empty_source(void)
+{
+	const char *line =
+	    "304 301 0:45 / /snap/test-snapd-content-advanced-plug/x1 rw,relatime - tmpfs  rw";
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
+	g_assert_nonnull(entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_cmpint(entry->mount_id, ==, 304);
+	g_assert_cmpint(entry->parent_id, ==, 301);
+	g_assert_cmpint(entry->dev_major, ==, 0);
+	g_assert_cmpint(entry->dev_minor, ==, 45);
+	g_assert_cmpstr(entry->root, ==, "/");
+	g_assert_cmpstr(entry->mount_dir, ==,
+			"/snap/test-snapd-content-advanced-plug/x1");
+	g_assert_cmpstr(entry->mount_opts, ==, "rw,relatime");
+	g_assert_cmpstr(entry->optional_fields, ==, "");
+	g_assert_cmpstr(entry->fs_type, ==, "tmpfs");
+	g_assert_cmpstr(entry->mount_source, ==, "");
+	g_assert_cmpstr(entry->super_opts, ==, "rw");
+	g_assert_null(entry->next);
+}
+
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/sysfs",
 			test_parse_mountinfo_entry__sysfs);
@@ -172,4 +194,7 @@ static void __attribute__ ((constructor)) init()
 			test_parse_mountinfo_entry__one_tag);
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/many_tags",
 			test_parse_mountinfo_entry__many_tags);
+	g_test_add_func
+	    ("/mountinfo/parse_mountinfo_entry/empty_source",
+	     test_parse_mountinfo_entry__empty_source);
 }

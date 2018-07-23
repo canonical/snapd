@@ -26,10 +26,23 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const networkManagerSummary = `allows operating as the NetworkManager service`
+
+const networkManagerBaseDeclarationSlots = `
+  network-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
 
 const networkManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the NetworkManager service. This gives
@@ -102,9 +115,33 @@ network packet,
 /etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
+
+# Explicitly deny plugging snaps from ptracing the slot to silence noisy
+# denials. Neither the NetworkManager service nor nmcli require ptrace
+# trace for full functionality.
+deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 
 # DBus accesses
 #include <abstractions/dbus-strict>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
    bus=system
@@ -216,6 +253,11 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
+const networkManagerConnectedPlugSecComp = `
+# Description: This is needed to talk to the network-manager service
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+
 const networkManagerPermanentSlotSecComp = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
@@ -224,7 +266,6 @@ accept4
 bind
 listen
 sethostname
-shutdown
 # netlink
 socket AF_NETLINK - -
 `
@@ -379,13 +420,15 @@ func (iface *networkManagerInterface) Name() string {
 	return "network-manager"
 }
 
-func (iface *networkManagerInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: networkManagerSummary,
+func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              networkManagerSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: networkManagerBaseDeclarationSlots,
 	}
 }
 
-func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
 	if release.OnClassic {
@@ -400,7 +443,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
@@ -408,30 +451,32 @@ func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *networkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.TagDevice(`KERNEL=="rfkill"`)
 	return nil
 }
 
-func (iface *networkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *networkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

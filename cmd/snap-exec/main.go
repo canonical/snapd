@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapenv"
 )
 
 // for the tests
@@ -40,6 +41,11 @@ var syscallExec = syscall.Exec
 var opts struct {
 	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
 	Hook    string `long:"hook" description:"hook to run" hidden:"yes"`
+}
+
+func init() {
+	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 
 func main() {
@@ -83,10 +89,10 @@ func run() error {
 
 	// Now actually handle the dispatching
 	if opts.Hook != "" {
-		return snapExecHook(snapApp, revision, opts.Hook)
+		return execHook(snapApp, revision, opts.Hook)
 	}
 
-	return snapExecApp(snapApp, revision, opts.Command, extraArgs)
+	return execApp(snapApp, revision, opts.Command, extraArgs)
 }
 
 const defaultShell = "/bin/bash"
@@ -106,7 +112,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 		cmd = app.ReloadCommand
 	case "post-stop":
 		cmd = app.PostStopCommand
-	case "":
+	case "", "gdb":
 		cmd = app.Command
 	default:
 		return "", fmt.Errorf("cannot use %q command", command)
@@ -118,7 +124,22 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func snapExecApp(snapApp, revision, command string, args []string) error {
+// expandEnvCmdArgs takes the string list of commandline arguments
+// and expands any $VAR with the given var from the env argument.
+func expandEnvCmdArgs(args []string, env map[string]string) []string {
+	cmdArgs := make([]string, 0, len(args))
+	for _, arg := range args {
+		maybeExpanded := os.Expand(arg, func(k string) string {
+			return env[k]
+		})
+		if maybeExpanded != "" {
+			cmdArgs = append(cmdArgs, maybeExpanded)
+		}
+	}
+	return cmdArgs
+}
+
+func execApp(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
@@ -141,40 +162,52 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	if err != nil {
 		return err
 	}
-	// strings.Split() is ok here because we validate all app fields
-	// and the whitelist is pretty strict (see
-	// snap/validate.go:appContentWhitelist)
-	cmdArgv := strings.Split(cmdAndArgs, " ")
-	cmd := cmdArgv[0]
-	cmdArgs := cmdArgv[1:]
 
-	// build the environment from the yaml
-	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
+	// build the environment from the yaml, translating TMPDIR and
+	// similar variables back from where they were hidden when
+	// invoking the setuid snap-confine.
+	env := []string{}
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, snapenv.PreservedUnsafePrefix) {
+			kv = kv[len(snapenv.PreservedUnsafePrefix):]
+		}
+		env = append(env, kv)
+	}
+	env = append(env, osutil.SubstituteEnv(app.Env())...)
+
+	// strings.Split() is ok here because we validate all app fields and the
+	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
+	// (see also overlord/snapstate/check_snap.go's normPath)
+	tmpArgv := strings.Split(cmdAndArgs, " ")
+	cmd := tmpArgv[0]
+	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
 
 	// run the command
-	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
+	fullCmd := []string{filepath.Join(app.Snap.MountDir(), cmd)}
 	switch command {
 	case "shell":
-		fullCmd = defaultShell
+		fullCmd[0] = defaultShell
 		cmdArgs = nil
 	case "complete":
-		fullCmd = defaultShell
+		fullCmd[0] = defaultShell
 		cmdArgs = []string{
 			dirs.CompletionHelper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
 		}
+	case "gdb":
+		fullCmd = append(fullCmd, fullCmd[0])
+		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdb-shim")
 	}
-	fullCmdArgs := []string{fullCmd}
-	fullCmdArgs = append(fullCmdArgs, cmdArgs...)
-	fullCmdArgs = append(fullCmdArgs, args...)
-	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {
-		return fmt.Errorf("cannot exec %q: %s", fullCmd, err)
+	fullCmd = append(fullCmd, cmdArgs...)
+	fullCmd = append(fullCmd, args...)
+	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
+		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
 	// this is never reached except in tests
 	return nil
 }
 
-func snapExecHook(snapName, revision, hookName string) error {
+func execHook(snapName, revision, hookName string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return err
@@ -193,7 +226,7 @@ func snapExecHook(snapName, revision, hookName string) error {
 	}
 
 	// build the environment
-	env := append(os.Environ(), hook.Env()...)
+	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
 
 	// run the hook
 	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)

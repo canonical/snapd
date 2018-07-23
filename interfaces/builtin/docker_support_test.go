@@ -32,9 +32,11 @@ import (
 )
 
 type DockerSupportInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const dockerSupportMockPlugSnapInfoYaml = `name: docker
@@ -50,17 +52,17 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 })
 
 func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "core",
-				Type:          snap.TypeOS},
-			Name:      "docker-support",
-			Interface: "docker-support",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "core",
+			Type:          snap.TypeOS},
+		Name:      "docker-support",
+		Interface: "docker-support",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, dockerSupportMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["docker-support"]}
+	s.plugInfo = plugSnap.Plugs["docker-support"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *DockerSupportInterfaceSuite) TestName(c *C) {
@@ -70,39 +72,37 @@ func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `pivot_root`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "pivot_root\n")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
@@ -122,18 +122,17 @@ apps:
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	plug := info.Plugs["privileged"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile -> *,`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "@unrestricted")
@@ -156,39 +155,35 @@ apps:
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
+	plug := info.Plugs["privileged"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile -> *,`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "@unrestricted")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {
-	var mockSnapYaml = []byte(`name: docker
+	var mockSnapYaml = `name: docker
 version: 1.0
 plugs:
  privileged:
   interface: docker-support
   privileged-containers: bad
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
+	plug := info.Plugs["privileged"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }
 
 func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {

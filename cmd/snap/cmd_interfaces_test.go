@@ -31,45 +31,7 @@ import (
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestInterfacesHelp(c *C) {
-	msg := `Usage:
-  snap.test [OPTIONS] interfaces [interfaces-OPTIONS] [<snap>:<slot or plug>]
-
-The interfaces command lists interfaces available in the system.
-
-By default all slots and plugs, used and offered by all snaps, are displayed.
-
-$ snap interfaces <snap>:<slot or plug>
-
-Lists only the specified slot or plug.
-
-$ snap interfaces <snap>
-
-Lists the slots offered and plugs used by the specified snap.
-
-$ snap interfaces -i=<interface> [<snap>]
-
-Filters the complete output so only plugs and/or slots matching the provided
-details are listed.
-
-Application Options:
-      --version                    Print the version and exit
-
-Help Options:
-  -h, --help                       Show this help message
-
-[interfaces command options]
-      -i=                          Constrain listing to specific interfaces
-
-[interfaces command arguments]
-  <snap>:<slot or plug>:           Constrain listing to a specific snap or snap:name
-`
-	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
-}
-
-func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
+func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -78,7 +40,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Plugs: []client.Plug{
 					{
 						Snap: "keyboard-lights",
@@ -98,7 +60,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
+func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -107,7 +69,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -129,7 +91,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
+func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -138,7 +100,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -196,7 +158,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
+func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -205,7 +167,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -237,7 +199,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
+func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -246,7 +208,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -304,7 +266,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
+func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -313,10 +275,10 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
-						Snap:      "core",
+						Snap:      "system",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
@@ -340,7 +302,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "core",
+								Snap: "system",
 								Name: "network-listening",
 							},
 						},
@@ -352,7 +314,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "core",
+								Snap: "system",
 								Name: "network-listening",
 							},
 						},
@@ -371,7 +333,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
+func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -380,7 +342,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "canonical-pi2",
@@ -420,7 +382,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
+func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -429,7 +391,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "cheese",
@@ -464,7 +426,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
+func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -473,7 +435,62 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
+				Slots: []client.Slot{
+					{
+						Snap:        "system",
+						Name:        "core-support",
+						Interface:   "some-iface",
+						Connections: []client.PlugRef{{Snap: "core", Name: "core-support-plug"}},
+					}, {
+						Snap:      "foo",
+						Name:      "foo-slot",
+						Interface: "foo-slot-iface",
+					},
+				},
+				Plugs: []client.Plug{
+					{
+						Snap:        "core",
+						Name:        "core-support-plug",
+						Interface:   "some-iface",
+						Connections: []client.SlotRef{{Snap: "system", Name: "core-support"}},
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "system"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Slot           Plug\n" +
+		":core-support  core:core-support-plug\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	// when called with system nickname we get the same output
+	rest, err = Parser().ParseArgs([]string{"interfaces", "system"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdoutSystem := "" +
+		"Slot           Plug\n" +
+		":core-support  core:core-support-plug\n"
+	c.Assert(s.Stdout(), Equals, expectedStdoutSystem)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "cheese",
@@ -507,7 +524,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
+func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -516,7 +533,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type":   "sync",
-			"result": client.Interfaces{},
+			"result": client.Connections{},
 		})
 	})
 	rest, err := Parser().ParseArgs([]string{"interfaces"})
@@ -528,7 +545,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
+func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -537,7 +554,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.Interfaces{
+			"result": client.Connections{
 				Slots: []client.Slot{
 					{
 						Snap:      "cheese",
@@ -573,14 +590,14 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesCompletion(c *C) {
+func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
-				"result": fortestingInterfaceList,
+				"result": fortestingConnectionList,
 			})
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)

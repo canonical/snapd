@@ -5,34 +5,61 @@ details: |
     can access the /dev/rtc device node exposed by a slot on the OS
     snap properly.
 
-systems: [ubuntu-core-16-64]
+# s390x virtualization does not support hwclock
+systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x,-arch-*]
 
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    echo "Given a snap declaring a plug on time-control is installed"
     . $TESTSLIB/snaps.sh
-    install_local time-control-consumer
 
-    echo "And the time-control plug is connected"
-    . $TESTSLIB/names.sh
-    snap connect time-control-consumer:time-control :time-control
+    # Install a snap declaring a plug on time-control
+    install_local test-snapd-timedate-control-consumer
+
+restore: |
+    # Restore the initial rtc configuration
+    if [ -f rtc.txt ]; then
+        timedatectl set-local-rtc "$(cat rtc.txt)"
+        rm -f rtc.txt
+    fi
+    rm -f call.error
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+    # hwclock with libaudit (ie, core 16) also needs netlink-audit connected.
+    # This interface is tested elsewhere, so simply connect it here so we can
+    # test the time-control interface in isolation.
+    snap connect test-snapd-timedate-control-consumer:netlink-audit
+
+    echo "The interface is disconnected by default"
+    snap interfaces -i time-control | MATCH "\- +test-snapd-timedate-control-consumer:time-control"
+
+    # When the interface is connected
+    snap connect test-snapd-timedate-control-consumer:time-control
+
+    # Read/write to hwclock access should be possible
+    test-snapd-timedate-control-consumer.hwclock-time -r -f /dev/rtc
+    test-snapd-timedate-control-consumer.hwclock-time --systohc -f /dev/rtc
+
+    # Read access should be possible
+    test-snapd-timedate-control-consumer.timedatectl-time status | MATCH "RTC in local TZ:"
+
+    # Save the RTC initial value
+    test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)' > rtc.txt
+
+    # Set the local rtc and check the status
+    test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc yes
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "yes" ]
+
+    # Re-set the local rtc and check the status
+    test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc no
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
     fi
 
-    . $TESTSLIB/dirs.sh
-
-    # Read/write access should be possible
-    test -n "`$SNAPMOUNTDIR/bin/time-control-consumer.read`"
-    $SNAPMOUNTDIR/bin/time-control-consumer.write
-
-    # Read/write access should be possible
-    test -n "`$SNAPMOUNTDIR/bin/time-control-consumer.timedatectl status`"
-    $SNAPMOUNTDIR/bin/time-control-consumer.timedatectl set-local-rtc no
+    # Disconnect the interface and check access to timedatectl status
+    snap disconnect test-snapd-timedate-control-consumer:time-control
+    if test-snapd-timedate-control-consumer.timedatectl-time status 2>${PWD}/call.error; then
+        echo "Expected permission error calling timedatectl status with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

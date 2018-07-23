@@ -1,0 +1,5 @@
+summary: Files inside the core snap are not owned by test.test
+execute: |
+    [ "$(find /snap/core/current/ -user test | wc -l)" = 0 ]
+debug: |
+    find /snap/core/current/ -user test

@@ -3,45 +3,54 @@ summary: Ensure that classic confinement works
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
+# Classic confinement isn't working yet on Fedora
+systems: [-ubuntu-core-*]
+
 prepare: |
-    . $TESTSLIB/snaps.sh
-    snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
+
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
+        # although classic snaps do not work out of the box on fedora,
+        # we still want to verify if the basics do work if the user
+        # symlinks /snap to $SNAP_MOUNT_DIR themselves
+        ln -sf $SNAP_MOUNT_DIR /snap
+    fi
 
 execute: |
     echo "Check that classic snaps work only with --classic"
-    if snap install --dangerous ${CLASSIC_SNAP}_1.0_all.snap; then
+    if snap install --dangerous "${CLASSIC_SNAP}_1.0_all.snap"; then
         echo "snap install needs --classic to install local snaps with classic confinment"
         exit 1
     fi
 
-    if snap install $CLASSIC_SNAP; then
+    if snap install "$CLASSIC_SNAP"; then
         echo "snap install needs --classic to install remote snaps with classic confinment"
         exit 1
     fi
 
-    if [[ "$SPREAD_SYSTEM" =~ core ]]; then
-        echo "Check that the classic snap is not installable even with --classic"
-        ( snap install --dangerous --classic ${CLASSIC_SNAP}_1.0_all.snap 2>&1 && exit 1 || true ) | MATCH $'cannot install snap file: classic confinement is only supported on classic\n *systems'
-        echo "Not from the store either"
-        ( snap install --classic $CLASSIC_SNAP 2>&1 && exit 1 || true ) | MATCH "requires classic confinement"
-
-        exit 0
-    fi
     echo "Check that the classic snap works (it skips the entire sandbox)"
-    snap install --dangerous --classic ${CLASSIC_SNAP}_1.0_all.snap
+    snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap"
     touch /tmp/lala
-    $CLASSIC_SNAP | MATCH lala
-    snap remove $CLASSIC_SNAP
+    "$CLASSIC_SNAP" | MATCH lala
+    snap remove "$CLASSIC_SNAP"
 
     echo "Check that we can install classic confinement snaps from the store"
-    snap install --classic $CLASSIC_SNAP
+    snap install --classic "$CLASSIC_SNAP"
     snap list | MATCH "$CLASSIC_SNAP .*1.0 .*classic"
-    snap info  $CLASSIC_SNAP|MATCH "installed:.* 1.0 .*classic"
-    $CLASSIC_SNAP | MATCH lala
+    snap info "$CLASSIC_SNAP"|MATCH "installed:.* 1.0 .*classic"
+    "$CLASSIC_SNAP" | MATCH lala
 
     echo "Snap refresh from the store also works (2.0 is in beta, 1.0 in stable)"
-    snap refresh --beta $CLASSIC_SNAP
+    snap refresh --beta "$CLASSIC_SNAP"
     snap list | MATCH "$CLASSIC_SNAP .*2.0 .*classic"
-    snap info  $CLASSIC_SNAP|MATCH "installed:.* 2.0 .*classic"
-    $CLASSIC_SNAP | MATCH lala
+    snap info "$CLASSIC_SNAP"|MATCH "installed:.* 2.0 .*classic"
+    "$CLASSIC_SNAP" | MATCH lala
 
+restore: |
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
+        rm -f /snap
+    fi

@@ -24,8 +24,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
@@ -102,8 +104,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		}
 		key := parts[0]
 		var value interface{}
-		err := json.Unmarshal([]byte(parts[1]), &value)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON-- just save the string as-is.
 			value = parts[1]
 		}
@@ -112,6 +113,38 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	}
 
 	return nil
+}
+
+func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, value interface{}) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
+	}
+	raw := json.RawMessage(data)
+
+	subkeys, err := config.ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	// We're called from setInterfaceSetting, subkeys is derived from key
+	// part of key=value argument and is guaranteed to be non-empty at this
+	// point.
+	if len(subkeys) == 0 {
+		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
+	}
+	var existing interface{}
+	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, staticAttrs, &existing)
+	if err == nil {
+		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
+	}
+	// we expect NoOptionError here, any other error is unexpected (a real error)
+	if !config.IsNoOption(err) {
+		return err
+	}
+
+	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, dynamicAttrs, &raw)
+	return err
 }
 
 func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
@@ -133,18 +166,22 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	var which string
 	if hookType == preparePlugHook {
-		which = "plug-attrs"
+		which = "plug"
 	} else {
-		which = "slot-attrs"
+		which = "slot"
 	}
 
-	st := context.State()
-	st.Lock()
-	defer st.Unlock()
+	context.Lock()
+	defer context.Unlock()
 
-	attributes := make(map[string]interface{})
-	if err := attrsTask.Get(which, &attributes); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
+	var staticAttrs, dynamicAttrs map[string]interface{}
+	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
+	}
+
+	dynKey := which + "-dynamic"
+	if err = attrsTask.Get(dynKey, &dynamicAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -154,57 +191,16 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		err := json.Unmarshal([]byte(parts[1]), &value)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		attributes[parts[0]] = value
+		err = setInterfaceAttribute(context, staticAttrs, dynamicAttrs, parts[0], value)
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
+		}
 	}
 
-	attrsTask.Set(which, attributes)
+	attrsTask.Set(dynKey, dynamicAttrs)
 	return nil
-}
-
-func copyAttributes(value map[string]interface{}) (map[string]interface{}, error) {
-	cpy, err := copyRecursive(value)
-	if err != nil {
-		return nil, err
-	}
-	return cpy.(map[string]interface{}), err
-}
-
-func copyRecursive(value interface{}) (interface{}, error) {
-	switch v := value.(type) {
-	case string:
-		return v, nil
-	case bool:
-		return v, nil
-	case int:
-		return int64(v), nil
-	case int64:
-		return v, nil
-	case []interface{}:
-		arr := make([]interface{}, len(v))
-		for i, el := range v {
-			tmp, err := copyRecursive(el)
-			if err != nil {
-				return nil, err
-			}
-			arr[i] = tmp
-		}
-		return arr, nil
-	case map[string]interface{}:
-		mp := make(map[string]interface{}, len(v))
-		for key, item := range v {
-			tmp, err := copyRecursive(item)
-			if err != nil {
-				return nil, err
-			}
-			mp[key] = tmp
-		}
-		return mp, nil
-	default:
-		return nil, fmt.Errorf("unsupported attribute type '%T', value '%v'", value, value)
-	}
 }

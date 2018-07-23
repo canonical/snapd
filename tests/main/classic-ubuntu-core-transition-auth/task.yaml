@@ -2,18 +2,29 @@ summary: Ensure that the ubuntu-core -> core transition works with auth.json
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+# Fedora, openSUSE and Arch are disabled at the moment as there is something
+# fishy going on and the snapd service gets terminated during the process.
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*]
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
 
 warn-timeout: 1m
 kill-timeout: 5m
+debug: |
+    snap changes
+    #shellcheck source=tests/lib/changes.sh
+    . "$TESTSLIB/changes.sh"
+    snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
-    . "$TESTSLIB/apt.sh"
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge --force-depends snapd
-    apt-get install -f -y
-    install_build_snapd
+    distro_purge_package snapd
+    distro_install_build_snapd
 
-    snap download --${CORE_CHANNEL} ubuntu-core
+    snap download "--${CORE_CHANNEL}" ubuntu-core
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
@@ -23,17 +34,37 @@ execute: |
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"
+    # wait for steady state or ensure-state-soon will be pointless
+    ok=0
+    for i in $(seq 40); do
+        if ! snap changes|grep -q ".*.Doing.*" ; then
+            ok=1
+            break
+        fi
+        sleep .5
+    done
+    if [ $ok -ne 1 ] ; then
+        echo "Did not reach steady state"
+        exit 1
+    fi
     snap debug ensure-state-soon
 
-    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
-        snap changes
+
+    # wait for transition
+    ok=0
+    for i in $(seq 240); do
+        if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
+            ok=1
+            break
+        fi
         sleep 1
     done
+    if [ $ok -ne 1 ] ; then
+        echo "Transition did not start or finish"
+        exit 1
+    fi
 
     if snap list|grep ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-
-    echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"

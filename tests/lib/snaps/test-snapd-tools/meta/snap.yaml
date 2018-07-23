@@ -1,5 +1,6 @@
 name: test-snapd-tools
 version: 1.0
+architectures: ["all"]
 environment:
   EXTRA_GLOBAL: extra-global
   EXTRA_CACHE_DIR: $SNAP_USER_DATA/.cache
@@ -21,6 +22,7 @@ apps:
         environment:
           EXTRA_LOCAL: extra-local
           EXTRA_LOCAL_NESTED: ${EXTRA_GLOBAL}-nested
+          EXTRA_LOCAL_PATH: $SNAP/bin:$SNAP/usr/bin:/usr/bin
     sh:
         command: bin/sh
     cmd:

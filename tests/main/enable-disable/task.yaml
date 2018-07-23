@@ -1,42 +1,49 @@
 summary: Check that enable/disable works
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     echo "Install test-snapd-tools and ensure it runs"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     test-snapd-tools.echo Hello|MATCH Hello
     echo "Disable test-snapd-tools and ensure it is listed as disabled"
     snap disable test-snapd-tools|MATCH disabled
 
     echo "Ensure the test-snapd-tools command is no longer there"
-    if ls $SNAPMOUNTDIR/bin/test-snapd-tools*; then
+    if ls $SNAP_MOUNT_DIR/bin/test-snapd-tools*; then
         echo "test-snapd-tools binaries are not disabled"
         exit 1
     fi
 
-    echo "Ensure the test-snapd-tools security profiles are no longer there"
-    if ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
-        echo "test-snapd-tools securiry profiles are not disabled"
-        exit 1
+    if [ "$(snap debug confinement)" = strict ]; then
+        echo "Ensure the test-snapd-tools security profiles are no longer there"
+        if ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
+            echo "test-snapd-tools securiry profiles are not disabled"
+            exit 1
+        fi
     fi
 
     echo "Enable test-snapd-tools again and ensure it is no longer listed as disabled"
     snap enable test-snapd-tools|MATCH -v disabled
 
-    echo "Ensure the test-snapd-tools security profiles are present"
-    if !ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
-        echo "test-snapd-tools securiry profiles are not present"
-        exit 1
+    if [ "$(snap debug confinement)" = strict ]; then
+        echo "Ensure the test-snapd-tools security profiles are present"
+        if ! ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
+            echo "test-snapd-tools securiry profiles are not present"
+            exit 1
+        fi
     fi
 
     echo "Ensure test-snapd-tools runs normally after it was enabled"
     test-snapd-tools.echo Hello |MATCH Hello
 
     echo "Ensure the important snaps can not be disabled"
-    . $TESTSLIB/names.sh
+    #shellcheck source=tests/lib/names.sh
+    . "$TESTSLIB"/names.sh
     for sn in core $kernel_name $gadget_name; do
-        if snap disable $sn; then
+        if snap disable "$sn"; then
             echo "It should not be possible to disable $sn"
             exit 1
         fi

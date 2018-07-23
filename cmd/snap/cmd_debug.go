@@ -25,7 +25,7 @@ import (
 
 type cmdDebug struct{}
 
-var shortDebugHelp = i18n.G("Runs debug commands")
+var shortDebugHelp = i18n.G("Run debug commands")
 var longDebugHelp = i18n.G(`
 The debug command contains a selection of additional sub-commands.
 

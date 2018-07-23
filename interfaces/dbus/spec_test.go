@@ -29,71 +29,71 @@ import (
 )
 
 type specSuite struct {
-	iface *ifacetest.TestInterface
-	spec  *dbus.Specification
-	plug  *interfaces.Plug
-	slot  *interfaces.Slot
+	iface    *ifacetest.TestInterface
+	spec     *dbus.Specification
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		DBusConnectedSlotCallback: func(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		DBusConnectedSlotCallback: func(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		DBusPermanentPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		DBusPermanentPlugCallback: func(spec *dbus.Specification, plug *snap.PlugInfo) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		DBusPermanentSlotCallback: func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		DBusPermanentSlotCallback: func(spec *dbus.Specification, slot *snap.SlotInfo) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap1"},
-			Name:      "name",
-			Interface: "test",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "snap1",
-					},
-					Name: "app1"}},
-		},
+	plugInfo: &snap.PlugInfo{
+		Snap:      &snap.Info{SuggestedName: "snap1"},
+		Name:      "name",
+		Interface: "test",
+		Apps: map[string]*snap.AppInfo{
+			"app1": {
+				Snap: &snap.Info{
+					SuggestedName: "snap1",
+				},
+				Name: "app1"}},
 	},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap2"},
-			Name:      "name",
-			Interface: "test",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "snap2",
-					},
-					Name: "app2"}},
-		},
+	slotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "snap2"},
+		Name:      "name",
+		Interface: "test",
+		Apps: map[string]*snap.AppInfo{
+			"app2": {
+				Snap: &snap.Info{
+					SuggestedName: "snap2",
+				},
+				Name: "app2"}},
 	},
 })
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &dbus.Specification{}
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},

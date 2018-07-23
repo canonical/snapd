@@ -1,12 +1,22 @@
 summary: Check commands help
-environment:
-    CMD/abort: abort
-    CMD/changes: changes
-    CMD/find: find
-    CMD/install: install
-    CMD/interfaces: interfaces
-    CMD/remove: remove
+systems: [+fedora-*]
 execute: |
-    echo "Checking help for command $CMD"
-    expected="(?s)Usage:\n  snap \[OPTIONS\] $CMD.*?\n\nThe $CMD command .*?\nHelp Options:\n  -h, --help +Show this help message\n.*?"
-    snap $CMD --help | grep -Pzq "$expected"
+    bad=""
+    for CMD in $( GO_FLAGS_COMPLETION=1 snap | grep -vFx help ); do
+        printf "Checking help for command %-16s" "'$CMD':"
+        expected="Usage:\\n\\s+snap $CMD\\b.*\\n\\nThe $CMD command (?s).*\\.\\n"
+        actual="$( snap "$CMD" --help )"
+        if ! grep -Pzq "$expected" <<<"$actual"; then
+            bad=1
+            echo
+            echo "The output of 'snap $CMD --help' does not match the regular expression"
+            echo "'$expected':"
+            echo
+            echo "----------------"
+            echo "$actual"
+            echo "----------------"
+        else
+            echo " Ok."
+        fi
+    done
+    test ! "$bad"

@@ -20,21 +20,26 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type AccountControlSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&AccountControlSuite{
@@ -50,22 +55,22 @@ apps:
 `
 
 func (s *AccountControlSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "account-control",
-			Interface: "account-control",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "core",
-					},
-					Name: "app1"}},
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "account-control",
+		Interface: "account-control",
+		Apps: map[string]*snap.AppInfo{
+			"app1": {
+				Snap: &snap.Info{
+					SuggestedName: "core",
+				},
+				Name: "app1"}},
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 
 	plugSnap := snaptest.MockInfo(c, accountCtlMockPlugSnapInfo, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["account-control"]}
+	s.plugInfo = plugSnap.Plugs["account-control"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *AccountControlSuite) TestName(c *C) {
@@ -73,41 +78,36 @@ func (s *AccountControlSuite) TestName(c *C) {
 }
 
 func (s *AccountControlSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	si := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "account-control",
 		Interface: "account-control",
-	}})
-	c.Assert(err, ErrorMatches, "account-control slots are reserved for the operating system snap")
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, si), ErrorMatches,
+		"account-control slots are reserved for the core snap")
 }
 
 func (s *AccountControlSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *AccountControlSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "account-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "account-control"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,usr/}sbin/chpasswd")
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - 0 42\n")
+	group, err := osutil.FindGidOwning("/etc/shadow")
+	c.Assert(err, IsNil)
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains,
+		fmt.Sprintf("\nfchown - u:root %v\n", group))
 }
 
 func (s *AccountControlSuite) TestInterfaces(c *C) {

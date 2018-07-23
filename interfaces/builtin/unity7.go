@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -31,6 +30,13 @@ import (
 
 const unity7Summary = `allows interacting with Unity 7 services`
 
+const unity7BaseDeclarationSlots = `
+  unity7:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
@@ -38,9 +44,19 @@ const unity7ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
+
+# Allow finding the DBus session bus id (eg, via dbus_bus_get_id())
+dbus (send)
+     bus=session
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member=GetId
+     peer=(name=org.freedesktop.DBus, label=unconfined),
+
 #include <abstractions/X>
 
 #include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
@@ -78,14 +94,33 @@ const unity7ConnectedPlugAppArmor = `
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
-/usr/local/bin/xdg-open ixr,
-/usr/local/share/applications/{,*} r,
-/usr/bin/dbus-send ixr,
+/usr/bin/xdg-open ixr,
+/usr/share/applications/{,*} r,
+
+# This allow access to the first version of the snapd-xdg-open
+# version which was shipped outside of snapd
 dbus (send)
     bus=session
     path=/
     interface=com.canonical.SafeLauncher
     member=OpenURL
+    peer=(label=unconfined),
+# ... and this allows access to the new xdg-open service which
+# is now part of snapd itself.
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Launcher
+    interface=io.snapcraft.Launcher
+    member={OpenURL,OpenFile}
+    peer=(label=unconfined),
+
+# Allow use of snapd's internal 'xdg-settings'
+/usr/bin/xdg-settings ixr,
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Settings
+    interface=io.snapcraft.Settings
+    member={Check,Get,Set}
     peer=(label=unconfined),
 
 # input methods (ibus)
@@ -188,11 +223,26 @@ dbus send
     member=GetAll
     peer=(label=unconfined),
 
+# Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
+# raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
+# filtering.
+network netlink raw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:* r,
 
 # subset of freedesktop.org
 /usr/share/mime/**                   r,
 owner @{HOME}/.local/share/mime/**   r,
-owner @{HOME}/.config/user-dirs.dirs r,
+owner @{HOME}/.config/user-dirs.* r,
+
+/etc/xdg/user-dirs.conf r,
+/etc/xdg/user-dirs.defaults r,
+
+# gtk settings (subset of gnome abstraction)
+owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
+# Note: this leaks directory names that wouldn't otherwise be known to the snap
+owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
 # accessibility
 #include <abstractions/dbus-accessibility-strict>
@@ -201,6 +251,12 @@ dbus (send)
     path=/org/a11y/bus
     interface=org.a11y.Bus
     member=GetAddress
+    peer=(label=unconfined),
+dbus (send)
+    bus=session
+    path=/org/a11y/bus
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
     peer=(label=unconfined),
 
 # unfortunate, but org.a11y.atspi is not designed for separation
@@ -280,6 +336,11 @@ dbus (send)
     bus=session
     interface=com.canonical.SafeLauncher.OpenURL
     peer=(label=unconfined),
+# new url helper (part of snap userd)
+dbus (send)
+    bus=session
+    interface=io.snapcraft.Launcher.OpenURL
+    peer=(label=unconfined),
 
 # dbusmenu
 dbus (send)
@@ -301,6 +362,13 @@ dbus (receive)
     path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=unconfined),
 
 # app-indicators
@@ -369,14 +437,14 @@ dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member="{GetCapabilities,GetServerInformation,Notify}"
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member=NotificationClosed
+    member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
 dbus (send)
@@ -485,8 +553,8 @@ dbus (receive)
 
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
-# interested in are pressed.
-dbus (send)
+# interested in are pressed, and allows us to receive those events.
+dbus (receive, send)
   bus=session
   interface=org.gnome.SettingsDaemon.MediaKeys
   path=/org/gnome/SettingsDaemon/MediaKeys
@@ -498,9 +566,48 @@ dbus (send)
   member="Get{,All}"
   peer=(label=unconfined),
 
-# Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
+# Allow checking status, activating and locking the screensaver
+# mate
+dbus (send)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member="{GetActive,GetActiveTime,Lock,SetActive}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member=ActiveChanged
+    peer=(label=unconfined),
+
+# Unity
+dbus (send)
+  bus=session
+  interface=com.canonical.Unity.Session
+  path=/com/canonical/Unity/Session
+  member="{ActivateScreenSaver,IsLocked,Lock}"
+  peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+# gtk2/gvfs gtk_show_uri()
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=ListMountableInfo,
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=LookupMount,
 `
 
 const unity7ConnectedPlugSeccomp = `
@@ -508,8 +615,9 @@ const unity7ConnectedPlugSeccomp = `
 # to various DBus services and this environment does not prevent eavesdropping
 # or apps interfering with one another.
 
-# X
-shutdown
+# Needed by QtSystems on X to detect mouse and keyboard
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 type unity7Interface struct{}
@@ -518,51 +626,37 @@ func (iface *unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *unity7Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: unity7Summary,
+func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              unity7Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: unity7BaseDeclarationSlots,
 	}
 }
 
-func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
 	// with the snap name, perform this conversion on the snap name.
-	new := strings.Replace(plug.Snap.Name(), "-", "_", -1)
+	// TODO parallel-install: use of proper instance/store name
+	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(unity7ConnectedPlugSeccomp)
 	return nil
 }
 
-func (iface *unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
-	return nil
+func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-
-	// Creation of the slot of this type is allowed only by the os snap
-	if !(slot.Snap.Type == snap.TypeOS) {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-
-	return nil
-}
-
-func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity7Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

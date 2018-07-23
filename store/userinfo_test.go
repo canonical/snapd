@@ -20,7 +20,6 @@
 package store
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +35,8 @@ import (
 
 type userInfoSuite struct {
 	testutil.BaseTest
+
+	restoreLogger func()
 }
 
 var _ = check.Suite(&userInfoSuite{})
@@ -53,9 +54,7 @@ var mockServerJSON = `{
 }`
 
 func (t *userInfoSuite) SetUpTest(c *check.C) {
-	l, err := logger.New(&bytes.Buffer{}, logger.DefaultFlags)
-	c.Assert(err, check.IsNil)
-	logger.SetLogger(l)
+	_, t.restoreLogger = logger.MockLogger()
 
 	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
@@ -63,6 +62,10 @@ func (t *userInfoSuite) SetUpTest(c *check.C) {
 			Factor:  1.1,
 		},
 	)))
+}
+
+func (t *userInfoSuite) TearDownTest(c *check.C) {
+	t.restoreLogger()
 }
 
 func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
@@ -77,7 +80,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0, 1:
-			w.WriteHeader(http.StatusInternalServerError) // force retry of the request
+			w.WriteHeader(500) // force retry of the request
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
@@ -101,7 +104,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		n++
 	})
 

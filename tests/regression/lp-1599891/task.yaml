@@ -2,9 +2,12 @@ summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/15998
 systems:
     # No confinement (AppArmor, Seccomp) available on these systems
     - -debian-*
+    - -fedora-*
+    - -opensuse-*
+    - -arch-*
 execute: |
     snap_confine=/usr/lib/snapd/snap-confine
     echo "Seeing that snap-confine is in $snap_confine"
 
     echo "I also see a corresponding apparmor profile"
-    cat "/sys/kernel/security/apparmor/profiles" | MATCH "$snap_confine \(enforce\)"
+    MATCH "$snap_confine \(enforce\)" < /sys/kernel/security/apparmor/profiles

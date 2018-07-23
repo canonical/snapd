@@ -1,5 +1,6 @@
 name: basic-desktop
 version: 1.0
+license: GPL-3.0
 apps:
  echo:
   command: bin/echo

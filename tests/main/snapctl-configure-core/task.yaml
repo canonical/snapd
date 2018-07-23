@@ -1,0 +1,78 @@
+summary: Ensure "snapctl core-configure" works
+
+# the test is only meaningful on core devices
+systems: [ubuntu-core-16-*]
+
+prepare: |
+    cat > new-configure-core  <<EOF
+    #!/bin/sh
+    snapctl internal configure-core
+    EOF
+    chmod +x new-configure-core
+    mount -o bind new-configure-core /snap/core/current/meta/hooks/configure
+
+restore: |
+    umount /snap/core/current/meta/hooks/configure
+    systemctl enable rsyslog.service
+    systemctl start rsyslog.service
+    rm -f /etc/systemd/login.conf.d/00-snap-core.conf
+    rm -f config.txt.save
+
+execute: |
+    echo "Check that service disable works"
+    systemctl status rsyslog.service|MATCH "Active: active"
+    snap set core service.rsyslog.disable=true
+    systemctl status rsyslog.service|MATCH "Active: inactive"
+    systemctl status rsyslog.service|MATCH "Loaded: masked"
+    snap set core service.rsyslog.disable=false
+    
+    echo "Check that powerkey handling works"
+    snap set core system.power-key-action=reboot
+    cat /etc/systemd/logind.conf.d/00-snap-core.conf | MATCH HandlePowerKey=reboot
+    echo "Ensure unsetting cleans the file again"
+    snap set core system.power-key-action=""
+    if test -f /etc/systemd/logind.conf.d/00-snap-core.conf; then
+        echo "unsetting system.power-key-action did not cleanup correctly"
+        exit 1
+    fi
+
+    
+    echo "Check that pi config handline works"
+    if [ -e /boot/uboot/config.txt ]; then
+        cp /boot/uboot/config.txt config.txt.save
+
+        snap set core pi-config.hdmi-mode=1
+        cat /boot/uboot/config.txt | MATCH ^hdmi_mode=1
+        snap set core pi-config.hdmi-mode=""
+        cat /boot/uboot/config.txt | MATCH ^#hdmi_mode=1
+
+        echo "Ensure the config.txt are fully undo when an option is unset"
+        if ! diff -u /boot/uboot/config.txt config.txt.save; then
+            echo "error: unexpected diff in /boot/uboot/config.txt"
+            exit 1
+        fi
+    fi
+
+    echo "Check that the proxy config handling works"
+    for proto in http https ftp; do
+        snap set core proxy.${proto}=http://example.com:8021/
+        cat /etc/environment | MATCH "^${proto}_proxy=http://example.com:8021"
+        snap set core proxy.${proto}=""
+        if cat /etc/environment | grep "^{proto}_proxy="; then
+            echo "proxy setting was not properly cleaned up"
+            cat /etc/environment
+            exit 1
+        fi
+    done
+
+    echo "Check that the no_proxy config handling works"
+    snap set core proxy.no-proxy="example.com,bar.com"
+    cat /etc/environment | MATCH "^no_proxy=example.com,bar.com"
+    snap set core proxy.no-proxy=""
+    if cat /etc/environment | grep "^no_proxy="; then
+        echo "proxy setting was not properly cleaned up"
+        cat /etc/environment
+        exit 1
+    fi
+
+

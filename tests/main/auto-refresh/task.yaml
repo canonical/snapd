@@ -1,37 +1,55 @@
 summary: Check that auto-refresh works
 
+# FIXME: core18 right now does not have a canonical model. This means
+# that it will not get a serial. We code in devicestate.go that will only
+# try to auto-refresh after the systems has tried at least 3 times to get
+# a serial. But this means this test will timeout because the first retry
+# for the serial happens after 5min, then 10min, then 20min.
+systems: [-ubuntu-core-18-*]
+
 prepare: |
     snap install --devmode jq
 
-restore: |
-    . $TESTSLIB/dirs.sh
-    if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
-        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-        snap set core refresh.disabled=true
-    fi
-
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    echo "Auto refresh information is shown"
+    output=$(snap refresh --time)
+    for expected in ^schedule: ^last: ^next:; do
+        echo "$output" | MATCH "$expected"
+    done
+
+    if is_core_system; then
+        # no holding
+        ! echo "$output" | MATCH "^hold:"
+    else
+        # holding
+        echo "$output" | MATCH "^hold:"
+    fi
 
     echo "Install a snap from stable"
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
-    if [ -e $SNAPMOUNTDIR/core/current/meta/hooks/configure ]; then
-        snap set core refresh.schedule="0:00-23:59"
-        snap set core refresh.disabled=false
-    fi
 
+    snap set core refresh.schedule="0:00-23:59"
     systemctl stop snapd.{service,socket}
+
     echo "Modify the snap to track the edge channel"
     jq '.data.snaps["test-snapd-tools"].channel = "edge"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+
+    echo "And force auto-refresh to happen"
     jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 
     systemctl start snapd.{service,socket}
 
     echo "wait for auto-refresh to happen"
-    for i in $(seq 120); do
+    for _ in $(seq 120); do
         if snap changes|grep -q "Done.*Auto-refresh snap \"test-snapd-tools\""; then
             break
         fi
@@ -41,7 +59,9 @@ execute: |
     done
 
     echo "Ensure our snap got updated"
-    snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
+    snap list|MATCH 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
 
     echo "Ensure refresh.last is set"
-    jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH $(date +%Y)
+    jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH "$(date +%Y)"
+    echo "No refresh hold at this point"
+    ! snap refresh --time| MATCH "^hold:"

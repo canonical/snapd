@@ -1,6 +1,6 @@
 summary: Check that more than one snap is refreshed.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 details: |
     We use only the fake store for this test because we currently
@@ -34,6 +34,7 @@ restore: |
 
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
+    rm -rf $BLOB_DIR
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -41,9 +42,16 @@ execute: |
         exit
     fi
 
+    echo "Sanity check for the fake store"
+    snap refresh 2>&1 | MATCH "All snaps up to date."
+
     echo "When the store is configured to make them refreshable"
+    . $TESTSLIB/files.sh
     . $TESTSLIB/store.sh
-    init_fake_refreshes test-snapd-tools,test-snapd-python-webserver $BLOB_DIR
+    init_fake_refreshes $BLOB_DIR test-snapd-tools 
+    wait_for_file $BLOB_DIR/test-snapd-tools*fake1*.snap 4 .5
+    init_fake_refreshes  $BLOB_DIR test-snapd-python-webserver
+    wait_for_file $BLOB_DIR/test-snapd-python-webserver*fake1*.snap 4 .5
 
     echo "And a refresh is performed"
     snap refresh

@@ -2,20 +2,20 @@ summary: Check that `snap set` runs configure hook.
 
 prepare: |
     echo "Build basic test package (without hooks)"
-    snapbuild $TESTSLIB/snaps/basic .
+    snap pack $TESTSLIB/snaps/basic
     snap install --dangerous basic_1.0_all.snap
 
     echo "Build failing hooks package"
-    snapbuild $TESTSLIB/snaps/failing-config-hooks .
+    snap pack $TESTSLIB/snaps/failing-config-hooks
 
     echo "Build package with hook to run snapctl set"
-    snapbuild $TESTSLIB/snaps/snapctl-hooks .
+    snap pack $TESTSLIB/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
 restore: |
-    rm basic_1.0_all.snap
-    rm failing-config-hooks_1.0_all.snap
-    rm snapctl-hooks_1.0_all.snap
+    rm -f basic_1.0_all.snap
+    rm -f failing-config-hooks_1.0_all.snap
+    rm -f snapctl-hooks_1.0_all.snap
 
 execute: |
     echo "Test that snap set fails without configure hook"
@@ -35,6 +35,14 @@ execute: |
         echo "Expected hook to be able to retrieve set value"
         exit 1
     fi
+
+    echo "Test that the set value can be null and can be retrieved"
+    if ! snap set snapctl-hooks command=test-snapctl-get-foo-null foo=null; then
+        echo "Expected hook to be able to retrieve set value"
+        exit 1
+    fi
+    obtained=$(snap get snapctl-hooks foo)
+    [[ "$obtained" == "" ]]
 
     echo "Test that an invalid key results in an error"
     if obtained=$(snap set snapctl-hooks invalid_key=value 2>&1); then

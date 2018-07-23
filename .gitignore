@@ -19,6 +19,7 @@ po/snappy.pot
 cmd/decode-mount-opts/decode-mount-opts
 cmd/libsnap-confine-private/unit-tests
 cmd/snap-confine/snap-confine
+cmd/snap-confine/snap-confine-debug
 cmd/snap-confine/snap-confine.apparmor
 cmd/snap-confine/unit-tests
 cmd/snap-discard-ns/snap-discard-ns
@@ -33,6 +34,12 @@ cmd/*/*.[1-9]
 # auto-generated systemd units
 data/systemd/*.service
 
+# auto-generated dbus services
+data/dbus/*.service
+
+data/info
+data/env/snapd.sh
+
 # test-driver
 *.log
 *.trs
@@ -44,17 +51,17 @@ snap-confine-*.tar.gz
 .deps
 
 # Autoconf
-aclocal.m4
-autom4te.cache
-compile
-config.guess
-config.h
-config.h.in
-config.status
-config.sub
-configure
-depcomp
-install-sh
-missing
-stamp-h1
-test-driver
+cmd/aclocal.m4
+cmd/autom4te.cache
+cmd/compile
+cmd/config.guess
+cmd/config.h
+cmd/config.h.in
+cmd/config.status
+cmd/config.sub
+cmd/configure
+cmd/depcomp
+cmd/install-sh
+cmd/missing
+cmd/stamp-h1
+cmd/test-driver

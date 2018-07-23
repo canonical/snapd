@@ -11,32 +11,29 @@ details: |
     A snap declaring the shutdown plug is defined, its command just calls
     the Introspect method on org.freedesktop.login1.
 
-execute: |
-    echo "Given a snap declaring a plug on the shutdown interface is installed"
+prepare: |
     . $TESTSLIB/snaps.sh
+
+    echo "Given a snap declaring a plug on the shutdown interface is installed"
     install_local shutdown-introspection-consumer
 
-    CONNECTED_PATTERN=":shutdown +shutdown-introspection-consumer"
-    DISCONNECTED_PATTERN="\- +shutdown-introspection-consumer:shutdown"
-
-    echo "Then the plug is shown as disconnected"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==========================================="
+execute: |
+    echo "The interface is disconnected by default"
+    snap interfaces -i shutdown | MATCH "\- +shutdown-introspection-consumer:shutdown"
 
     echo "When the plug is connected"
     snap connect shutdown-introspection-consumer:shutdown
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to get introspect org.freedesktop.login1"
     expected="<interface name=\"org.freedesktop.login1.Manager\">"
     su -l -c "shutdown-introspection-consumer" test | MATCH "$expected"
 
-    echo "==========================================="
-
     echo "When the plug is disconnected"
     snap disconnect shutdown-introspection-consumer:shutdown
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit
+    fi
 
     echo "Then the snap is not able to get system information"
     if su -l -c "shutdown-introspection-consumer" test; then

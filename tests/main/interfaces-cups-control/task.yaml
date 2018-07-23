@@ -1,7 +1,8 @@
 summary: Ensure that the cups interface works.
 
-systems:
-    - -ubuntu-core-16-*
+# Default cups/cups-pdf configuration on these distributions isn't
+# working yet without further tweaks.
+systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -arch-*]
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -23,51 +24,51 @@ prepare: |
     echo "Given a snap declaring a cups plug is installed"
     snap install test-snapd-cups-control-consumer
 
-    echo "And the pdf printer is available"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get install -y --no-install-recommends cups-pdf
-    else
-        apt-get install -y --no-install-recommends printer-driver-cups-pdf
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        # Not all distributions are starting the cups service directly after
+        # the package was installed.
+        echo "Enabling cups service in case it is not enabled"
+        if ! systemctl is-enabled cups ; then
+            # We can't use --now as this isn't supported by all distributions
+            systemctl enable cups
+        fi
+        echo "Starting cups service in case it is not active"
+        if ! systemctl is-active cups; then
+            systemctl start cups
+        fi
     fi
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get purge -y --auto-remove cups-pdf
-    else
-        apt-get purge -y --auto-remove printer-driver-cups-pdf
-    fi
-    rm -rf $HOME/PDF $TEST_FILE print.error
+    rm -rf "$HOME"/PDF "$TEST_FILE" print.error
+
+debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    systemctl status cups || true
+    get_journalctl_log -u cpus || true
 
 execute: |
-    CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-cups-control-consumer:cups-control"
-
-    echo "Then it is not shown as connected"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "===================================="
+    echo "Then the plug is disconnected by default"
+    snap interfaces -i cups-control | MATCH '^- +test-snapd-cups-control-consumer:cups-control'
 
     echo "When the plug is connected"
     snap connect test-snapd-cups-control-consumer:cups-control
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to print files"
-    echo "Hello World" > $TEST_FILE
-    test-snapd-cups-control-consumer.lpr $TEST_FILE
-    while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
+    echo "Hello World" > "$TEST_FILE"
+    test-snapd-cups-control-consumer.lpr "$TEST_FILE"
+    while "$(find "$HOME"/PDF -name '*.pdf' | wc -l)" -lt 1 ; do sleep 1; done
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
-    echo "===================================="
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-cups-control-consumer:cups-control
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to print files"
-    if test-snapd-cups-control-consumer.lpr $TEST_FILE 2>print.error; then
+    if test-snapd-cups-control-consumer.lpr "$TEST_FILE" 2>print.error; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

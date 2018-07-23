@@ -1,6 +1,7 @@
 summary: Test that snapd reexecs itself into core
 
-systems: [-ubuntu-core-16-*]
+# Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
 
 restore: |
     . $TESTSLIB/dirs.sh
@@ -8,10 +9,10 @@ restore: |
     rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
     systemctl stop snapd.service snapd.socket
     if mount|grep "/snap/core/.*/usr/lib/snapd/info"; then
-        umount $SNAPMOUNTDIR/core/current/usr/lib/snapd/info
+        umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
     fi
     if mount|grep "/snap/core/.*/usr/lib/snapd/snapd"; then
-        umount $SNAPMOUNTDIR/core/current/usr/lib/snapd/snapd
+        umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd
     fi
     rm -f /tmp/old-info
 
@@ -26,23 +27,25 @@ execute: |
     fi
 
     echo "Ensure we re-exec by default"
-    snap list
-    journalctl | MATCH "DEBUG: restarting into"
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
 
-    . $TESTSLIB/dirs.sh
+    # shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
 
     echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
     echo "mount something older than our freshly build snapd"
     echo "VERSION=1.0">/tmp/old-info
-    mount --bind /tmp/old-info $SNAPMOUNTDIR/core/current/usr/lib/snapd/info
+    mount --bind /tmp/old-info $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
     systemctl start snapd.service snapd.socket
     snap list
-    journalctl | MATCH "core snap \(at .*\) is older \(.*\) than distribution package"
+    check_journalctl_log "core snap \(at .*\) is older \(.*\) than distribution package"
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount $SNAPMOUNTDIR/core/current/usr/lib/snapd/info
+    umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
 
     echo "Ensure SNAP_REEXEC=0 is honored for snapd"
     cat > /etc/systemd/system/snapd.service.d/reexec.conf <<EOF
@@ -56,7 +59,7 @@ execute: |
     exit 1
     EOF
     chmod +x /tmp/broken-snapd
-    mount --bind /tmp/broken-snapd $SNAPMOUNTDIR/core/current/usr/lib/snapd/snapd
+    mount --bind /tmp/broken-snapd $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
     echo "Ensure that snap list works normally"
@@ -65,21 +68,21 @@ execute: |
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount $SNAPMOUNTDIR/core/current/usr/lib/snapd/snapd
+    umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd
     rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
 
     echo "Ensure SNAP_REEXEC=0 is honored for snap"
-    mount --bind /tmp/broken-snapd $SNAPMOUNTDIR/core/current/usr/bin/snap
+    mount --bind /tmp/broken-snapd $SNAP_MOUNT_DIR/core/current/usr/bin/snap
     snap list|MATCH "from the core snap"
     SNAP_REEXEC=0 snap list|MATCH "core"
-    umount $SNAPMOUNTDIR/core/current/usr/bin/snap
+    umount $SNAP_MOUNT_DIR/core/current/usr/bin/snap
 
     echo "Ensure a core refresh restart snapd"
     prev_core=$(snap list | awk "/^core / {print(\$3)}")
     snap install --dangerous /var/lib/snapd/snaps/core_${prev_core}.snap
-    journalctl | MATCH "Requested daemon restart"
+    snap change --last=install | MATCH "Requested daemon restart"
 
     echo "Ensure the right snapd (from the new core) is running"
     now_core=$(snap list | awk "/^core / {print(\$3)}")

@@ -1,7 +1,10 @@
 #!/bin/bash
-gadget_name=$(snap list | sed -n 's/^\(pc\|pi[23]\|dragonboard\) .*/\1/p')
-kernel_name=$gadget_name-kernel
+# shellcheck disable=SC2034
 
-if [ "$kernel_name" = "pi3-kernel" ]; then
-    kernel_name=pi2-kernel
+gadget_name=$(snap list | grep 'gadget$' | awk '{ print $1 }')
+kernel_name=$(snap list | grep 'kernel$' | awk '{ print $1 }')
+
+core_name="$(snap known model | awk '/^base: / { print $2 }' || true)"
+if [ -z "$core_name" ]; then
+    core_name="core"
 fi

@@ -19,13 +19,23 @@
 
 package builtin
 
+import (
+	"strconv"
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
+)
+
 const accountControlSummary = `allows managing non-system user accounts`
 
-const accountControlDescription = `
-The account-control interface allows connected plugs to create, modify and
-delete non-system users as well as to change account passwords.
-
-The core snap provides the slot that is shared by all the snaps.
+const accountControlBaseDeclarationSlots = `
+  account-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
 `
 
 const accountControlConnectedPlugAppArmor = `
@@ -55,25 +65,58 @@ capability fsetid,
 /var/log/faillog rwk,
 `
 
-// Needed because useradd uses a netlink socket
-const accountControlConnectedPlugSecComp = `
-# useradd requires chowning to 'shadow'
-# TODO: dynamically determine the shadow gid to support alternate cores
-fchown - 0 42
-fchown32 - 0 42
+// Needed because useradd uses a netlink socket, {{group}} is used as a
+// placeholder argument for the actual ID of a group owning /etc/shadow
+const accountControlConnectedPlugSecCompTemplate = `
+# useradd requires chowning to 0:'{{group}}'
+fchown - u:root {{group}}
+fchown32 - u:root {{group}}
 
 # from libaudit1
 bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
+type accountControlInterface struct {
+	commonInterface
+	secCompSnippet string
+}
+
+func makeAccountControlSecCompSnippet() (string, error) {
+	gid, err := osutil.FindGidOwning("/etc/shadow")
+	if err != nil {
+		return "", err
+	}
+
+	snippet := strings.Replace(accountControlConnectedPlugSecCompTemplate,
+		"{{group}}", strconv.FormatUint(gid, 10), -1)
+
+	return snippet, nil
+}
+
+func (iface *accountControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if iface.secCompSnippet == "" {
+		// Cache the snippet after it's successfully computed once
+		snippet, err := makeAccountControlSecCompSnippet()
+		if err != nil {
+			return err
+		}
+		iface.secCompSnippet = snippet
+	}
+	spec.AddSnippet(iface.secCompSnippet)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
+	registerIface(&accountControlInterface{commonInterface: commonInterface{
 		name:                  "account-control",
 		summary:               accountControlSummary,
-		description:           accountControlDescription,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  accountControlBaseDeclarationSlots,
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
-		reservedForOS:         true,
-	})
+		// handled by SecCompConnectedPlug
+		connectedPlugSecComp: "",
+		reservedForOS:        true,
+	}})
 }

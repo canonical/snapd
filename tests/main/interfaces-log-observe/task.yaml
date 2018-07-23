@@ -10,56 +10,37 @@ details: |
 
 environment:
     SNAP_NAME: log-observe-consumer
-    SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"
     PLUG: log-observe
 
 prepare: |
-    echo "Given a snap declaring the $PLUG plug is installed"
-    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-    snap install --dangerous $SNAP_FILE
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
 
-restore: |
-    rm -f $SNAP_FILE
+    echo "Given a snap declaring the $PLUG plug is installed"
+    install_local log-observe-consumer
 
 execute: |
-    CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    :$PLUG +$SNAP_NAME"
-    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    - +$SNAP_NAME:$PLUG"
-
-    echo "Then the snap is not listed as connected"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "============================================"
+    echo "The interface is not connected by default"
+    snap interfaces -i log-observe | MATCH "^- +$SNAP_NAME:$PLUG"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:$PLUG
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap connect "$SNAP_NAME:$PLUG"
 
     echo "Then the plug can be disconnected again"
-    snap disconnect $SNAP_NAME:$PLUG
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "============================================"
+    snap disconnect "$SNAP_NAME:$PLUG"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:$PLUG
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap connect "$SNAP_NAME:$PLUG"
 
     echo "Then the snap is able to access the system logs"
-    log-observe-consumer | grep -Pqz "ok\n"
+    log-observe-consumer | MATCH 'ok$'
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
-    echo "============================================"
-
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:$PLUG
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    snap disconnect "$SNAP_NAME:$PLUG"
 
     echo "Then snap can't access the system logs"
     if log-observe-consumer; then

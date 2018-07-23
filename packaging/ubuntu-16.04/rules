@@ -1,5 +1,13 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
+#
+# These rules should work for any debian-ish distro that uses systemd
+# as init.  That does _not_ include Ubuntu 14.04 ("trusty"); look for
+# its own special rule file.
+#
+# Please keep the diff between that and this relatively small, even if
+# it means having suboptimal code; these need to be kept in sync by
+# sentient bags of meat.
 
 #export DH_VERBOSE=1
 export DH_OPTIONS
@@ -21,7 +29,16 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
-BUILDFLAGS:=-buildmode=pie -pkgdir=$(CURDIR)/_build/std
+# Disable -buildmode=pie mode on i386 as can panics in spectacular
+# ways (LP: #1711052).
+# See also https://forum.snapcraft.io/t/artful-i386-panics/
+# Note while the panic is only on artful, that's because artful
+# detects it; the issue potentially there on older things.
+BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),i386)
+BUILDFLAGS+= -buildmode=pie
+endif
+
 GCCGOFLAGS=
 ifeq ($(GCCGO),yes)
 GOARCH := $(shell go env GOARCH)
@@ -29,6 +46,8 @@ GOOS := $(shell go env GOOS)
 BUILDFLAGS:=
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
 export DH_GOLANG_GO_GENERATE=0
+# workaround for https://github.com/golang/go/issues/23721
+export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
@@ -36,6 +55,8 @@ TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
+
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 BUILT_USING_PACKAGES=
 # export DEB_BUILD_MAINT_OPTIONS = hardening=+all
@@ -46,18 +67,20 @@ BUILT_USING_PACKAGES=
 # because derivatives may have different kernels that don't support all the
 # required confinement features and we don't to mislead anyone about the
 # security of the system.  Discuss a proper approach to this for downstreams
-# if and when they approach us
+# if and when they approach us.
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # On Ubuntu 16.04 we need to produce a build that can be used on wide
     # variety of systems. As such we prefer static linking over dynamic linking
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH),amd64)
+		VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
+endif
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
-    VENDOR_ARGS=--disable-apparmor --disable-seccomp
     BUILT_USING_PACKAGES=libcap-dev
 else
     VENDOR_ARGS=--disable-apparmor
@@ -96,8 +119,11 @@ ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
         )
 endif
 	dh_clean
+	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	# XXX: hacky^2
+	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -105,83 +131,68 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+
+	# this is the main go build
+	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+
+	# (static linking on powerpc with cgo is broken)
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
+	# Generate static snap-exec and snap-update-ns - it somehow includes CGO so
+	# we must force a static build here. We need a static snap-{exec,update-ns}
+	# inside the core snap because not all bases will have a libc
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+
+	# ensure we generated a static build
+	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
+	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
+endif
+
+	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+	# (static linking on powerpc with cgo is broken)
+ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
+	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	# ensure that libseccomp is not dynamically linked
+	ldd _build/bin/snap-seccomp
+	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
+	# revert again so that the subsequent tests work
+	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+ endif
+endif
+
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
-	# Generate the real systemd units out of the available templates
-	$(MAKE) -C data/systemd all
+	# Generate the real systemd/dbus/env config files
+	$(MAKE) -C data all
+
+	# build squashfuse and rename to snapfuse
+	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	# check that only the main trusted account-key is included
-	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
+	# check that only the main trusted account-keys are included
+	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 2 ]
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
+	strings _build/bin/snapd|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
+	# same for snap-repair
+	[ $$(strings _build/bin/snap-repair|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 3 ]
+	# common with snapd
+	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
+	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
+	# repair-root
+	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t$$"
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
 endif
-
-override_dh_systemd_enable:
-	# enable auto-import
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
-	# we want the auto-update timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but the auto-update service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# we want the repair timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snap-repair.timer
-	# but the repair service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snap-repair.service
-	# enable snapd
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.service
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.system-shutdown.service
-
-override_dh_systemd_start:
-	# we want to start the auto-update timer
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but not start the service
-	dh_systemd_start \
-		--no-start \
-		-psnapd \
-		data/systemd/snapd.refresh.service
-	# start snapd
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.socket
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.service
-	# start autoimport
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.autoimport.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build
@@ -196,23 +207,24 @@ override_dh_install:
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
 
-	# install snapd's systemd units, done here instead of
-	# debian/snapd.install because the ubuntu/14.04 release
-	# branch adds/changes bits here
-	$(MAKE) -C data/systemd install DESTDIR=$(CURDIR)/debian/snapd/ SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+	# Install snapd's systemd units / upstart jobs, done
+	# here instead of debian/snapd.install because the
+	# ubuntu/14.04 release branch adds/changes bits here
+	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
+		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+	# We called this apps-bin-path.sh instead of snapd.sh, and
+	# it's a conf file so we're stuck with it
+	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
-ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-else
-	# HACK: As we want to share the packaging bits between Debian and Ubuntu
-	# we have to get an empty file in place which satisfies the item in
-	# the snapd.install file.
-	install -d $(CURDIR)/debian/tmp/etc/apparmor.d
-	touch $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-endif
+
+	# On Ubuntu and Debian we don't need to install the apparmor helper service.
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
+	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
+
 	dh_install
 
 override_dh_auto_install: snap.8

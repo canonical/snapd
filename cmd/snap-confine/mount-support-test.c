@@ -30,7 +30,7 @@ static void replace_slashes_with_NUL(char *path, size_t len)
 	}
 }
 
-static void test_get_nextpath__typical()
+static void test_get_nextpath__typical(void)
 {
 	char path[] = "/some/path";
 	size_t offset = 0;
@@ -50,7 +50,7 @@ static void test_get_nextpath__typical()
 	g_assert_cmpstr(result, ==, NULL);
 }
 
-static void test_get_nextpath__weird()
+static void test_get_nextpath__weird(void)
 {
 	char path[] = "..///path";
 	size_t offset = 0;
@@ -68,7 +68,7 @@ static void test_get_nextpath__weird()
 	g_assert_cmpstr(result, ==, NULL);
 }
 
-static void test_is_subdir()
+static void test_is_subdir(void)
 {
 	// Sensible exaples are sensible
 	g_assert_true(is_subdir("/dir/subdir", "/dir/"));
@@ -91,7 +91,7 @@ static void test_is_subdir()
 	g_assert_false(is_subdir("/", ""));
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/mount/get_nextpath/typical",
 			test_get_nextpath__typical);

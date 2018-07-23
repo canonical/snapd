@@ -1,5 +1,9 @@
 summary: Ensure that the security rules related to device cgroups work.
 
+# We don't run the native kernel on these distributions yet so we can't
+# load kernel modules coming from distribution packages yet.
+systems: [-fedora-*, -opensuse-*]
+
 environment:
     DEVICE_NAME/kmsg: kmsg
     UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg
@@ -17,15 +21,61 @@ environment:
 
 prepare: |
     if [ ! -e /sys/devices/virtual/misc/uinput ]; then
-        modprobe uinput
+        if ! modprobe uinput; then
+            echo "no uinput support, cannot run test"
+            exit 0
+        fi
+    fi
+    # create nvidia devices if they don't exist
+    if [ ! -e /dev/nvidia0 ]; then
+        mknod /dev/nvidia0 c 195 0
+        touch /dev/nvidia0.spread
+    fi
+    if [ ! -e /dev/nvidiactl ]; then
+        mknod /dev/nvidiactl c 195 255
+        touch /dev/nvidiactl.spread
+    fi
+    if [ ! -e /dev/nvidia-uvm ]; then
+        mknod /dev/nvidia-uvm c 247 0
+        touch /dev/nvidia-uvm.spread
+    fi
+    # move aside an existing nvidia device
+    if [ -e /dev/nvidia254 ]; then
+        mv /dev/nvidia254 /dev/nvidia254.spread
+    fi
+    # create uhid device if it doesn't exist
+    if [ ! -e /dev/uhid ]; then
+        mknod /dev/uhid c 10 239
+        touch /dev/uhid.spread
     fi
 
 restore: |
+    if [ -e /dev/nvidia0.spread ]; then
+        rm -f /dev/nvidia0 /dev/nvidia0.spread
+    fi
+    if [ -e /dev/nvidiactl.spread ]; then
+        rm -f /dev/nvidiactl /dev/nvidiactl.spread
+    fi
+    if [ -e /dev/nvidia-uvm.spread ]; then
+        rm -f /dev/nvidia-uvm /dev/nvidia-uvm.spread
+    fi
+    if [ -e /dev/nvidia254.spread ]; then
+        mv /dev/nvidia254.spread /dev/nvidia254
+    fi
+    if [ -e /dev/uhid.spread ]; then
+        rm -f /dev/uhid /dev/uhid.spread
+    fi
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
     udevadm trigger
 
 execute: |
+    # some systems (like s390x) do not have support for this
+    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
+        echo "no uinput support, cannot run test"
+        exit 0
+    fi
+
     echo "Given a snap is installed"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
@@ -65,5 +115,16 @@ execute: |
 
     echo "And other devices are not shown in the snap device list"
     MATCH -v "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "But existing nvidia devices are in the snap's device cgroup"
+    MATCH "c 195:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH "c 195:255 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    MATCH "c 247:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "But nonexisting nvidia devices are not"
+    MATCH -v "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "But the existing uhid device is in the snap's device cgroup"
+    MATCH "c 10:239 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     # TODO: check device unassociated after removing the udev file and rebooting

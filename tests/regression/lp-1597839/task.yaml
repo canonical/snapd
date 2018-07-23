@@ -1,13 +1,13 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1597839
 # This test only applies to classic systems
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 details: |
     The snappy execution environment should contain the /lib/modules directory
     from the host filesystem when running on a classic distribution
 prepare: |
     echo "Having installed the test snap"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
 execute: |
     echo "We can ensure that the /lib/modules/$(uname -r) directory exists"
-    test-snapd-tools.cmd test -d /lib/modules/$(uname -r)
+    test-snapd-tools.cmd test -d "/lib/modules/$(uname -r)"

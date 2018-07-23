@@ -22,7 +22,8 @@ prepare: |
     snap disconnect $PLUG_SNAP:shared-content-plug || :
     # Ensure there is no preserved mount namespace of the -plug snap.
     # (This one gets created because by connect hooks).
-    /usr/lib/snapd/snap-discard-ns $PLUG_SNAP
+    . "$TESTSLIB/dirs.sh"
+    $LIBEXECDIR/snapd/snap-discard-ns $PLUG_SNAP
     rm -f /run/snapd/ns/$PLUG_SNAP.mnt
 execute: |
     # NOTE: All the commands here will focus on the -plug snap as this is where
@@ -30,8 +31,10 @@ execute: |
     # inert, as a way to provide content, but it does not execute and does not
     # need a namespace namespace.
 
+    . "$TESTSLIB/dirs.sh"
+
     # Check that update tool doesn't fail if there is no namespace yet.
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
+    $LIBEXECDIR/snapd/snap-update-ns $PLUG_SNAP
 
     # Run a trivial command to build and preserve a mount namespace.
     snap run --shell $PLUG_SNAP.content-plug -c 'true'
@@ -44,7 +47,7 @@ execute: |
     # is exactly as it needs to be. The snap-confine program has just
     # constructed it according to the desired description.
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
+    $LIBEXECDIR/snapd/snap-update-ns $PLUG_SNAP
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Connect the plug to the slot.
@@ -52,7 +55,7 @@ execute: |
 
     # Run the update tool manually to see that it is idempotent.
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
+    $LIBEXECDIR/snapd/snap-update-ns $PLUG_SNAP
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Check that the shared content is mounted.
@@ -63,12 +66,12 @@ execute: |
 
     # Run the update tool manually to see that it is idempotent.
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
+    $LIBEXECDIR/snapd/snap-update-ns $PLUG_SNAP
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Check that the shared content is not mounted.
     snap run --shell $PLUG_SNAP.content-plug -c 'test ! -e $SNAP/import/shared-content'
 
     # Discard the namespace so that update has nothing useful to do.
-    /usr/lib/snapd/snap-discard-ns $PLUG_SNAP
-    /usr/lib/snapd/snap-update-ns $PLUG_SNAP
+    $LIBEXECDIR/snapd/snap-discard-ns $PLUG_SNAP
+    $LIBEXECDIR/snapd/snap-update-ns $PLUG_SNAP

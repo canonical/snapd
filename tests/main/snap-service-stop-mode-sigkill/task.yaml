@@ -1,0 +1,42 @@
+summary: "Check that refresh-modes sigkill works"
+
+kill-timeout: 5m
+
+restore: |
+    # remove to ensure all services are stopped
+    snap remove test-snapd-service || true
+    killall sleep || true
+
+debug: |
+    ps afx
+
+execute: |
+    echo "Ensure no stray sleep processes are around"
+    killall sleep || true
+
+    echo "When the service snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-service
+    # Because we cannot use daemon: notify easily yet just wait for a "ready"
+    # file to show up.  The file is removed when the service is stopped. This
+    # pattern repeats around the test without additional comments.
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+
+    refresh_modes="sigterm sigterm-all"
+    for s in $refresh_modes; do
+        systemctl show -p ActiveState snap.test-snapd-service.test-snapd-${s}-service | MATCH "ActiveState=active"
+    done
+
+    echo "we expect two sleep processes (children) from the two sigterm services"
+    n=$(ps afx | grep [3]133731337 | grep -v grep | wc -l)
+    [ "$n" = "2" ]
+
+    echo "When it is re-installed one process uses sigterm, the other sigterm-all"
+    install_local test-snapd-service
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+
+    echo "After reinstall the sigterm-all service and all children got killed"
+    echo "but the sigterm service only got a kill for the main process "
+    echo "and one sleep is still alive"
+    n=$(ps afx | grep [3]133731337 | wc -l)
+    [ "$n" = "3" ]

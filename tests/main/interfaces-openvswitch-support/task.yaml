@@ -1,0 +1,45 @@
+summary: Ensure that the openvswitch-support interface works.
+
+details: |
+    The openvswitch-support interface allows to access to /run/uuidd/request
+
+# ubuntu-core, ubuntu-14 and fedora are skipped due to /run/uuidd/request file does not
+# exist. On those systems different files are being used instead.
+# arch: uses /run/run/uuidd/request, filed a bug report https://bugs.archlinux.org/task/58122
+systems: [-ubuntu-14.04-*,-ubuntu-core-*,-fedora-*, -arch-*]
+
+prepare: |
+    snap install test-snapd-openvswitch-support
+
+restore: |
+    rm -f call.error
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i openvswitch-support | MATCH "\- +test-snapd-openvswitch-support:openvswitch-support"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-openvswitch-support:openvswitch-support
+
+    # This is to start the uuidd daemon in case it not active. By default in opensuse the
+    # daemon is not automatically started as it happens in the other systems.
+    if [[ "$SPREAD_SYSTEM" == opensuse-* ]] && ! systemctl is-active uuidd.service; then
+        systemctl start uuidd.service;
+    fi
+
+    echo "Then the snap is able to get a random uuid"
+    test-snapd-openvswitch-support.random-uuid
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-openvswitch-support:openvswitch-support
+
+    echo "Then the snap is not able to get a random uuid"
+    if test-snapd-openvswitch-support.random-uuid 2>${PWD}/call.error; then
+        echo "Expected permission error getting random uuid"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

@@ -1,0 +1,41 @@
+#!/bin/sh
+
+set -ue
+
+echo "Setting and getting attribute value from prepare-plug-consumer hook"
+
+# Read the value of static 'consumer-attr-1' attribute
+if ! output=$(snapctl get :consumer consumer-attr-1); then
+    echo "Expected snapctl get to be able to read the value of own 'consumer-attr1' attribute"
+    exit 1
+fi
+expected_output="consumer-value-1"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Set a dynamic attribute.
+if ! snapctl set :consumer before-connect=consumer-value; then
+    echo "Expected snapctl set to be able to set the value of own 'before-connect' attribute"
+    exit 1
+fi
+
+# Read dynamic attribute
+if ! output=$(snapctl get :consumer before-connect); then
+    echo "Expected snapctl get to be able to read the value of own dynamic attribute"
+    exit 1
+fi
+expected_output="consumer-value"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Count executions of the hook using snap config; store exec-count in the config and in the dynamic attribute of the interface
+count=$(snapctl get exec-count)
+count=$((count + 1))
+snapctl set "exec-count=$count"
+snapctl set :consumer "exec-count=$count"
+
+touch "$SNAP_COMMON/prepare-plug-consumer-done"

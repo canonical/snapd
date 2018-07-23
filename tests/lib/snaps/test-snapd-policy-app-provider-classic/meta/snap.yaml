@@ -1,0 +1,99 @@
+name: test-snapd-policy-app-provider-classic
+version: 1.0
+summary: Test policy app for providing slot interface policy from snapd
+description: Test policy app for non-implicitOnClassic slots
+confinement: strict
+
+slots:
+  content-read:
+    interface: content
+    content: test-content
+    read:
+    - $SNAP/content
+  dbus-session:
+    interface: dbus
+    bus: session
+    name: test.session
+  dbus-system:
+    interface: dbus
+    bus: system
+    name: test.system
+  fwupd: null
+  location-control: null
+  location-observe: null
+  lxd: null
+  maliit: null
+  media-hub: null
+  mir: null
+  mpris:
+    name: test-policy-app-provider-classic
+  network-status: null
+  online-accounts-service: null
+  storage-framework-service: null
+  thumbnailer-service: null
+  ubuntu-download-manager: null
+  unity8: null
+  unity8-calendar: null
+  unity8-contacts: null
+
+apps:
+  content-read:
+    command: bin/run
+    slots: [ content-read ]
+  dbus-session:
+    command: bin/run
+    slots: [ dbus-session ]
+  dbus-system:
+    command: bin/run
+    slots: [ dbus-system ]
+  docker:
+    command: bin/run
+    slots: [ docker ]
+  fwupd:
+    command: bin/run
+    slots: [ fwupd ]
+  location-control:
+    command: bin/run
+    slots: [ location-control ]
+  location-observe:
+    command: bin/run
+    slots: [ location-observe ]
+  lxd:
+    command: bin/run
+    slots: [ lxd ]
+  maliit:
+    command: bin/run
+    slots: [ maliit ]
+  media-hub:
+    command: bin/run
+    slots: [ media-hub ]
+  mir:
+    command: bin/run
+    slots: [ mir ]
+  mpris:
+    command: bin/run
+    slots: [ mpris ]
+  network-status:
+    command: bin/run
+    slots: [ network-status ]
+  online-accounts-service:
+    command: bin/run
+    slots: [ online-accounts-service ]
+  storage-framework-service:
+    command: bin/run
+    slots: [ storage-framework-service ]
+  thumbnailer-service:
+    command: bin/run
+    slots: [ thumbnailer-service ]
+  ubuntu-download-manager:
+    command: bin/run
+    slots: [ ubuntu-download-manager ]
+  unity8:
+    command: bin/run
+    slots: [ unity8 ]
+  unity8-calendar:
+    command: bin/run
+    slots: [ unity8-calendar ]
+  unity8-contacts:
+    command: bin/run
+    slots: [ unity8-contacts ]

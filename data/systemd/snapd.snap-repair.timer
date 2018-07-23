@@ -1,0 +1,14 @@
+[Unit]
+Description=Timer to automatically fetch and run repair assertions
+# don't run on classic
+ConditionKernelCommandLine=snap_core
+
+[Timer]
+OnCalendar=*-*-* 5,11,17,23:00
+RandomizedDelaySec=2h
+AccuracySec=10min
+Persistent=true
+OnStartupSec=15m
+
+[Install]
+WantedBy=timers.target

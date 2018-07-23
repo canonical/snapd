@@ -1,0 +1,119 @@
+summary: Test that snaps still work when /home is a NFS mount
+details: |
+    Snapd now contains a feature where NFS-mounted /home (or any sub-directory)
+    initializes a workaround mode where all snaps gain minimal amount of network
+    permissions sufficient for NFS to operate.
+systems: [ubuntu-16.04-64]  # TODO: expand this list
+prepare: |
+    . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-sh
+execute: |
+    ensure_extra_perms() {
+        MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+        MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+    }
+
+    ensure_normal_perms() {
+        test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
+        MATCH -v 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+    }
+
+    # Export /home over NFS.
+    mkdir -p /etc/exports.d/
+    echo '/home localhost(rw,no_subtree_check,no_root_squash)' > /etc/exports.d/test.exports
+    systemctl restart nfs-kernel-server
+    exportfs -r
+
+    # Ensure that apparmor profiles don't permit network access
+    ensure_normal_perms
+
+    # Mount NFS-exported /home over real /home using NFSv3 and TCP transport
+    mount -t nfs localhost:/home /home -o nfsvers=3,proto=tcp
+
+    # Restart snapd to observe the active NFS mount.
+    systemctl restart snapd
+
+    # Ensure that snap-confine's apparmor profile and the test snap's apparmor
+    # profile now permit network access.
+    ensure_extra_perms
+
+    # As a non-root user perform a write over NFS-mounted /home
+    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-tcp"' test
+
+    # Unmount /home and restart snapd so that we can check another thing.
+    umount /home
+    systemctl restart snapd
+
+    # Ensure that this removed the extra permissions.
+    ensure_normal_perms
+
+    # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
+    mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
+
+    # Restart snapd to observe the active NFS mount.
+    systemctl restart snapd
+
+    # Ensure that snap-confine's apparmor profile and the test snap's apparmor
+    # profile now permit network access.
+    ensure_extra_perms
+
+    # As a non-root user perform a write over NFS-mounted /home
+    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-udp"' test
+
+    # Unmount /home and restart snapd so that we can check another thing.
+    umount /home
+    systemctl restart snapd
+
+    # Ensure that this removed the extra permissions.
+    ensure_normal_perms
+
+    # Mount NFS-exported /home over real /home using NFSv4
+    mount -t nfs localhost:/home /home -o nfsvers=4
+
+    # Restart snapd to observe the active NFS mount.
+    systemctl restart snapd
+
+    # Ensure that snap-confine's apparmor profile and the test snap's apparmor
+    # profile now permit network access.
+    ensure_extra_perms
+
+    # As a non-root user perform a write over NFS-mounted /home
+    su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs4"' test
+
+    # Unmount /home and restart snapd so that we can check another thing.
+    umount /home
+    systemctl restart snapd
+
+    # Ensure that this removed the extra permissions.
+    ensure_normal_perms
+
+    # Back up the /etc/fstab file and define a NFS mount mount there.
+    cp /etc/fstab fstab.orig
+    echo 'localhost:/home /home nfs defaults 0 0' >> /etc/fstab
+
+    # Restart snapd and ensure that we have extra permissions again.
+    #
+    # Note that at this time /home is not mounted as NFS yet but the mere
+    # presence of the entry in /etc/fstab is sufficient to grant extra
+    # permissions.
+    systemctl restart snapd
+    ensure_extra_perms
+restore: |
+    . "$TESTSLIB/pkgdb.sh"
+
+    # Unmount NFS mount over /home if one exists.
+    umount /home || true
+
+    # Restore the fstab backup file if one exists.
+    if [ -e fstab.orig ]; then
+        mv fstab.orig /etc/fstab
+    fi
+
+    # Remove the NFS server and its configuration data.
+    rm -f /etc/exports.d/test.exports
+    rm -f -d /etc/exports.d
+    exportfs -r
+
+    # Restart snapd in to ensure it doesn't know about NFS configuration anymore.
+    systemctl restart snapd.service

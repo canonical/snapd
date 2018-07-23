@@ -1,6 +1,9 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
-systems: [-ubuntu-core-16-*]
+systems:
+    - -ubuntu-core-*
+    # The test fails on Arch right now, disable it temporarily
+    - -arch-*
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
@@ -8,15 +11,16 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    . $TESTSLIB/systemd.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
 
-    snapbuild $TESTSLIB/snaps/classic-gadget .
-    snap download --$CORE_CHANNEL core
+    snap pack "$TESTSLIB/snaps/classic-gadget"
+    snap download "--$CORE_CHANNEL" core
 
-    $TESTSLIB/reset.sh --keep-stopped
-    mkdir -p $SEED_DIR/snaps
-    mkdir -p $SEED_DIR/assertions
-    cat > $SEED_DIR/seed.yaml <<EOF
+    "$TESTSLIB/reset.sh" --keep-stopped
+    mkdir -p "$SEED_DIR/snaps"
+    mkdir -p "$SEED_DIR/assertions"
+    cat > "$SEED_DIR/seed.yaml" <<EOF
     snaps:
       - name: core
         channel: $CORE_CHANNEL
@@ -26,29 +30,30 @@ prepare: |
         file: classic-gadget.snap
     EOF
 
-    echo Copy the needed assertions to /var/lib/snapd/
-    cp core_*.assert $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/developer1.account-key $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/developer1-my-classic-w-gadget.model $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/testrootorg-store.account-key $SEED_DIR/assertions
-    echo Copy the needed snaps to $SEED_DIR/snaps
-    cp ./core_*.snap $SEED_DIR/snaps/core.snap
-    cp ./classic-gadget_1.0_all.snap $SEED_DIR/snaps/classic-gadget.snap
+    echo "Copy the needed assertions to /var/lib/snapd/"
+    cp core_*.assert "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/developer1.account" "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/developer1.account-key" "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/developer1-my-classic-w-gadget.model" "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/testrootorg-store.account-key" "$SEED_DIR/assertions"
+    echo "Copy the needed snaps to $SEED_DIR/snaps"
+    cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
+    cp ./classic-gadget_1.0_all.snap "$SEED_DIR/snaps/classic-gadget.snap"
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(which fakedevicesvc) localhost:11029"
+    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    . $TESTSLIB/systemd.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc
 
-    rm -r $SEED_DIR
-    rm -f *.snap
-    rm -f *.assert
+    rm -rf "$SEED_DIR"
+    rm -f -- *.snap
+    rm -f -- *.assert
     systemctl start snapd.socket snapd.service
 kill-timeout: 3m
 execute: |

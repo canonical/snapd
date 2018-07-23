@@ -22,11 +22,32 @@
 package asserts
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"time"
 )
+
+// NotFoundError is returned when an assertion can not be found.
+type NotFoundError struct {
+	Type    *AssertionType
+	Headers map[string]string
+}
+
+func (e *NotFoundError) Error() string {
+	pk, err := PrimaryKeyFromHeaders(e.Type, e.Headers)
+	if err != nil || len(e.Headers) != len(pk) {
+		// TODO: worth conveying more information?
+		return fmt.Sprintf("%s assertion not found", e.Type.Name)
+	}
+
+	return fmt.Sprintf("%v not found", &Ref{Type: e.Type, PrimaryKey: pk})
+}
+
+// IsNotFound returns whether err is an assertion not found error.
+func IsNotFound(err error) bool {
+	_, ok := err.(*NotFoundError)
+	return ok
+}
 
 // A Backstore stores assertions. It can store and retrieve assertions
 // by type under unique primary key headers (whose names are available
@@ -37,8 +58,9 @@ type Backstore interface {
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision with the same primary key headers.
 	Put(assertType *AssertionType, assert Assertion) error
-	// Get returns the assertion with the given unique key for its primary key headers.
-	// If none is present it returns ErrNotFound.
+	// Get returns the assertion with the given unique key for its
+	// primary key headers.  If none is present it returns a
+	// NotFoundError, usually with omitted Headers.
 	Get(assertType *AssertionType, key []string, maxFormat int) (Assertion, error)
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
@@ -52,7 +74,7 @@ func (nbs nullBackstore) Put(t *AssertionType, a Assertion) error {
 }
 
 func (nbs nullBackstore) Get(t *AssertionType, k []string, maxFormat int) (Assertion, error) {
-	return nil, ErrNotFound
+	return nil, &NotFoundError{Type: t}
 }
 
 func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion), maxFormat int) error {
@@ -72,8 +94,11 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// trusted set of assertions (account and account-key supported)
+	// trusted set of assertions (account and account-key supported),
+	// used to establish root keys and trusted authorities
 	Trusted []Assertion
+	// predefined assertions but that do not establish foundational trust
+	OtherPredefined []Assertion
 	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
 	// manager/backstore for keypairs, defaults to in-memory implementation
@@ -81,11 +106,6 @@ type DatabaseConfig struct {
 	// assertion checkers used by Database.Check, left unset DefaultCheckers will be used which is recommended
 	Checkers []Checker
 }
-
-// Well-known errors
-var (
-	ErrNotFound = errors.New("assertion not found")
-)
 
 // RevisionError indicates a revision improperly used for an operation.
 type RevisionError struct {
@@ -141,15 +161,26 @@ type RODatabase interface {
 	IsTrustedAccount(accountID string) bool
 	// Find an assertion based on arbitrary headers.
 	// Provided headers must contain the primary key for the assertion type.
-	// It returns ErrNotFound if the assertion cannot be found.
+	// It returns a NotFoundError if the assertion cannot be found.
 	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
-	// FindTrusted finds an assertion in the trusted set based on arbitrary headers.
-	// Provided headers must contain the primary key for the assertion type.
-	// It returns ErrNotFound if the assertion cannot be found.
+	// FindPredefined finds an assertion in the predefined sets
+	// (trusted or not) based on arbitrary headers.  Provided
+	// headers must contain the primary key for the assertion
+	// type.  It returns a NotFoundError if the assertion cannot
+	// be found.
+	FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error)
+	// FindTrusted finds an assertion in the trusted set based on
+	// arbitrary headers.  Provided headers must contain the
+	// primary key for the assertion type.  It returns a
+	// NotFoundError if the assertion cannot be found.
 	FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindMany finds assertions based on arbitrary headers.
-	// It returns ErrNotFound if no assertion can be found.
+	// It returns a NotFoundError if no assertion can be found.
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
+	// FindManyPredefined finds assertions in the predefined sets
+	// (trusted or not) based on arbitrary headers.  It returns a
+	// NotFoundError if no assertion can be found.
+	FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
 }
@@ -165,6 +196,7 @@ type Database struct {
 	bs         Backstore
 	keypairMgr KeypairManager
 	trusted    Backstore
+	predefined Backstore
 	backstores []Backstore
 	checkers   []Checker
 }
@@ -189,17 +221,26 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 			accKey := accepted
 			err := trustedBackstore.Put(AccountKeyType, accKey)
 			if err != nil {
-				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
+				return nil, fmt.Errorf("cannot predefine trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
 			}
 
 		case *Account:
 			acct := accepted
 			err := trustedBackstore.Put(AccountType, acct)
 			if err != nil {
-				return nil, fmt.Errorf("error loading for use trusted account %q: %v", acct.DisplayName(), err)
+				return nil, fmt.Errorf("cannot predefine trusted account %q: %v", acct.DisplayName(), err)
 			}
 		default:
-			return nil, fmt.Errorf("cannot load trusted assertions that are not account-key or account: %s", a.Type().Name)
+			return nil, fmt.Errorf("cannot predefine trusted assertions that are not account-key or account: %s", a.Type().Name)
+		}
+	}
+
+	otherPredefinedBackstore := NewMemoryBackstore()
+
+	for _, a := range cfg.OtherPredefined {
+		err := otherPredefinedBackstore.Put(a.Type(), a)
+		if err != nil {
+			return nil, fmt.Errorf("cannot predefine assertion %v: %v", a.Ref(), err)
 		}
 	}
 
@@ -214,10 +255,11 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		bs:         bs,
 		keypairMgr: keypairMgr,
 		trusted:    trustedBackstore,
+		predefined: otherPredefinedBackstore,
 		// order here is relevant, Find* precedence and
 		// findAccountKey depend on it, trusted should win over the
 		// general backstore!
-		backstores: []Backstore{trustedBackstore, bs},
+		backstores: []Backstore{trustedBackstore, otherPredefinedBackstore, bs},
 		checkers:   dbCheckers,
 	}, nil
 }
@@ -274,11 +316,11 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 			}
 			return hit, nil
 		}
-		if err != ErrNotFound {
+		if !IsNotFound(err) {
 			return nil, err
 		}
 	}
-	return nil, ErrNotFound
+	return nil, &NotFoundError{Type: AccountKeyType}
 }
 
 // IsTrustedAccount returns whether the account is part of the trusted set.
@@ -304,7 +346,7 @@ func (db *Database) Check(assert Assertion) error {
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
 		accKey, err = db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
-		if err == ErrNotFound {
+		if IsNotFound(err) {
 			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 		}
 		if err != nil {
@@ -339,7 +381,7 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		if ufe, ok := err.(*UnsupportedFormatError); ok {
 			_, err := ref.Resolve(db.Find)
-			if err != nil && err != ErrNotFound {
+			if err != nil && !IsNotFound(err) {
 				return err
 			}
 			return &UnsupportedFormatError{Ref: ufe.Ref, Format: ufe.Format, Update: err == nil}
@@ -357,8 +399,13 @@ func (db *Database) Add(assert Assertion) error {
 	// through the os snap this seems the safest policy until we
 	// know more/better
 	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-	if err != ErrNotFound {
+	if !IsNotFound(err) {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
+	}
+
+	_, err = db.predefined.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+	if !IsNotFound(err) {
+		return fmt.Errorf("cannot add %q assertion with primary key clashing with a predefined assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
 	return db.bs.Put(ref.Type, assert)
@@ -387,13 +434,10 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 			return nil, fmt.Errorf("cannot find %q assertions for format %d higher than supported format %d", assertionType.Name, maxFormat, maxSupp)
 		}
 	}
-	keyValues := make([]string, len(assertionType.PrimaryKey))
-	for i, k := range assertionType.PrimaryKey {
-		keyVal := headers[k]
-		if keyVal == "" {
-			return nil, fmt.Errorf("must provide primary key: %v", k)
-		}
-		keyValues[i] = keyVal
+
+	keyValues, err := PrimaryKeyFromHeaders(assertionType, headers)
+	if err != nil {
+		return nil, err
 	}
 
 	var assert Assertion
@@ -403,13 +447,13 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 			assert = a
 			break
 		}
-		if err != ErrNotFound {
+		if !IsNotFound(err) {
 			return nil, err
 		}
 	}
 
 	if assert == nil || !searchMatch(assert, headers) {
-		return nil, ErrNotFound
+		return nil, &NotFoundError{Type: assertionType, Headers: headers}
 	}
 
 	return assert, nil
@@ -417,28 +461,34 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
-// It returns ErrNotFound if the assertion cannot be found.
+// It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	return find(db.backstores, assertionType, headers, -1)
 }
 
 // FindMaxFormat finds an assertion like Find but such that its
 // format is <= maxFormat by passing maxFormat along to the backend.
-// It returns ErrNotFound if such an assertion cannot be found.
+// It returns a NotFoundError if such an assertion cannot be found.
 func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
 	return find(db.backstores, assertionType, headers, maxFormat)
 }
 
+// FindPredefined finds an assertion in the predefined sets (trusted
+// or not) based on arbitrary headers.  Provided headers must contain
+// the primary key for the assertion type.  It returns a NotFoundError
+// if the assertion cannot be found.
+func (db *Database) FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+	return find([]Backstore{db.trusted, db.predefined}, assertionType, headers, -1)
+}
+
 // FindTrusted finds an assertion in the trusted set based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
-// It returns ErrNotFound if the assertion cannot be found.
+// It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	return find([]Backstore{db.trusted}, assertionType, headers, -1)
 }
 
-// FindMany finds assertions based on arbitrary headers.
-// It returns ErrNotFound if no assertion can be found.
-func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+func (db *Database) findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -451,7 +501,7 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 
 	// TODO: Find variant taking this
 	maxFormat := assertionType.MaxSupportedFormat()
-	for _, bs := range db.backstores {
+	for _, bs := range backstores {
 		err = bs.Search(assertionType, headers, foundCb, maxFormat)
 		if err != nil {
 			return nil, err
@@ -459,9 +509,22 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 	}
 
 	if len(res) == 0 {
-		return nil, ErrNotFound
+		return nil, &NotFoundError{Type: assertionType, Headers: headers}
 	}
 	return res, nil
+}
+
+// FindMany finds assertions based on arbitrary headers.
+// It returns a NotFoundError if no assertion can be found.
+func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return db.findMany(db.backstores, assertionType, headers)
+}
+
+// FindManyPrefined finds assertions in the predefined sets (trusted
+// or not) based on arbitrary headers.  It returns a NotFoundError if
+// no assertion can be found.
+func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return db.findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers)
 }
 
 // assertion checkers

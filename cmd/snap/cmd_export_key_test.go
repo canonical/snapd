@@ -58,9 +58,7 @@ func (s *SnapKeysSuite) TestExportKeyNonDefault(c *C) {
 }
 
 func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	storeSigning := assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
+	storeSigning := assertstest.NewStoreStack("canonical", nil)
 	manager := asserts.NewGPGKeypairManager()
 	assertstest.NewAccount(storeSigning, "developer1", nil, "")
 	rest, err := snap.Parser().ParseArgs([]string{"export-key", "another", "--account=developer1"})

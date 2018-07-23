@@ -20,10 +20,11 @@
 package osutil
 
 import (
-	"io/ioutil"
 	"os"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *cpSuite) TestCpMulti(c *C) {
@@ -31,9 +32,7 @@ func (s *cpSuite) TestCpMulti(c *C) {
 	defer func() { maxcp = maxint }()
 
 	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
-	bs, err := ioutil.ReadFile(s.f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, s.data)
+	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestDoCpErr(c *C) {

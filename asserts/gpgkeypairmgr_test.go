@@ -80,7 +80,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
-	store := assertstest.NewStoreStack("trusted", testPrivKey0, testPrivKey1)
+	store := assertstest.NewStoreStack("trusted", nil)
 
 	devKey, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Assert(err, IsNil)

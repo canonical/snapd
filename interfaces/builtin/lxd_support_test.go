@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,38 +27,38 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type LxdSupportInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
-
-const lxdsupportMockPlugSnapInfoYaml = `name: lxd
-version: 1.0
-apps:
- app:
-  command: foo
-  plugs: [lxd-support]
-`
 
 var _ = Suite(&LxdSupportInterfaceSuite{
 	iface: builtin.MustInterface("lxd-support"),
 })
 
+const lxdSupportConsumerYaml = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [lxd-support]
+`
+
+const lxdSupportCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  lxd-support:
+`
+
 func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "lxd-support",
-			Interface: "lxd-support",
-		},
-	}
-	plugSnap := snaptest.MockInfo(c, lxdsupportMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["lxd-support"]}
+	s.plug, s.plugInfo = MockConnectedPlug(c, lxdSupportConsumerYaml, nil, "lxd-support")
+	s.slot, s.slotInfo = MockConnectedSlot(c, lxdSupportCoreYaml, nil, "lxd-support")
 }
 
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {
@@ -66,37 +66,42 @@ func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "lxd-support",
+		Interface: "lxd-support",
+	}
+
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"lxd-support slots are reserved for the core snap")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *LxdSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
+func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
 }
 
-func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
+func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@unrestricted\n")
 }
 
-func (s *LxdSupportInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
-	c.Check(seccompSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "@unrestricted\n")
+func (s *LxdSupportInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows operating as the LXD service`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "lxd-support")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "lxd-support")
 }
 
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {

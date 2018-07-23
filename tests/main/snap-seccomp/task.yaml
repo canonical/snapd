@@ -1,0 +1,141 @@
+summary: Ensure that the snap-seccomp bpf handling works
+
+# FIXME: once $(snap debug confinment) can be used (in 2.27+) remove
+#        the systems line
+systems: [ubuntu-16*, ubuntu-18*]
+
+# Start early as it takes a long time.
+priority: 100
+
+environment:
+    PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-tools.echo
+    SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
+
+execute: |
+    echo "Install test-snapd-tools and verify it works"
+    snap install test-snapd-tools
+    test-snapd-tools.echo hello | MATCH hello
+
+    # FIXME: use dirs.sh in 2.27+
+    echo "Ensure snap-seccomp is statically linked"
+    if ldd /usr/lib/snapd/snap-seccomp | MATCH libseccomp ; then
+        echo "found dynamically linked libseccomp, we need a staticly linked one"
+        exit 1
+    fi
+
+    # from the old test_complain
+    echo "Test that the @complain keyword works"
+    rm -f ${PROFILE}.bin
+    cat >"${PROFILE}.src" <<EOF
+    # some comment
+    @complain
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin
+    echo "Ensure the code still runs"
+    test-snapd-tools.echo hello | MATCH hello
+
+    # from the old test_complain_missed
+    rm -f ${PROFILE}.bin
+    cat >"${PROFILE}.src" <<EOF
+    # super strict filter
+    @complai
+    @complaim
+    @omplain
+    @COMPLAIN
+    complain
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin
+    echo "Ensure the code cannot not run due to impossible filtering"
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+    
+    # from the old test_unrestricted
+    echo "Test that the @unrestricted keyword works"
+    rm -f ${PROFILE}.bin
+    cat >"${PROFILE}.src" <<EOF
+    # some comment
+    @unrestricted
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin
+    echo "Ensure the code still runs"
+    test-snapd-tools.echo hello | MATCH hello
+
+    # from the old test_unrestricted_missed
+    rm -f ${PROFILE}.bin
+    cat >"${PROFILE}.src" <<EOF
+    # super strict filter
+    @unrestricte
+    @unrestrictes
+    @nrestricted
+    @UNRESTRICTED
+    unrestricted
+    EOF
+    $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin
+    echo "Ensure the code cannot not run due to impossible filtering"
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+
+    # from the old test_noprofile
+    rm -f ${PROFILE}.bin
+    echo "Ensure the code cannot not run due to missing filter"
+    if SNAP_CONFINE_MAX_PROFILE_WAIT=3 test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+
+    echo "Break snapd.test-snapd-tools.bin to ensure (kernel) validation works"
+    dd if=/dev/urandom of=${PROFILE}.bin count=1 bs=1024
+    if output=$(test-snapd-tools.echo hello 2>&1 ); then
+        echo "test-snapd-tools.echo should fail with invalid seccomp profile"
+        exit 1
+    fi
+    echo $output | MATCH "cannot apply seccomp profile: Invalid argument"
+
+    echo "Add huge snapd.test-snapd-tools.bin to ensure size limit works"
+    dd if=/dev/zero of=${PROFILE}.bin count=50 bs=1M
+    if output=$(test-snapd-tools.echo hello 2>&1 ); then
+        echo "test-snapd-tools.echo should fail with big seccomp profile"
+        exit 1
+    fi
+    echo $output | MATCH "profile .* exceeds .* bytes"
+
+    
+    echo "Ensure the code cannot not run with a missing .bin profile"
+    rm -f ${PROFILE}.bin
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+
+    echo "Ensure the code cannot not run with an empty seccomp profile"
+    rm -f ${PROFILE}.bin
+    echo "" > ${PROFILE}.src
+    $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin
+    if test-snapd-tools.echo hello; then
+        echo "filtering broken: program should have failed to run"
+        exit 1
+    fi
+
+    echo "Ensure snap-confine waits for security profiles to appear"
+    rm -f ${PROFILE}.bin
+    cat >"${PROFILE}.src" <<EOF
+    @unrestricted
+    EOF
+    ( (sleep 3; $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin) &)
+    echo "Ensure the code still runs"
+    test-snapd-tools.echo hello | MATCH hello
+
+    if [ "$(uname -p)" = "x86_64" ]; then
+        echo "Ensure secondary arch works for amd64 with i386 binaries"
+        snap install --edge test-snapd-hello-multi-arch
+        test-snapd-hello-multi-arch.hello-i386
+
+        echo "Ensure secondary arch works in @complain mode too"
+        snap remove test-snapd-hello-multi-arch
+        snap install --devmode --edge test-snapd-hello-multi-arch
+        test-snapd-hello-multi-arch.hello-i386
+    fi

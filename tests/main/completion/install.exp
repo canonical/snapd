@@ -1,10 +1,11 @@
 source lib.exp0
 
 # install completes directories and snaps
-chat "snap ins\t\t\t" "bar.snap*testdir/"
+chat "snap ins\t./\t\t" "bar.snap*testdir/"
+cancel
 
-# install with 3+ chars also completes store stuff
-chat "tes\t\t\t" "test-assumes" true
+# install also completes store stuff
+chat "snap install tes\t\t\t" "test-assumes" true
 # TODO: don't list things already installed:
 chat "" "test-snapd-tools" true
 chat "" "testdir/"

@@ -32,9 +32,11 @@ import (
 )
 
 type OnlineAccountsServiceInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&OnlineAccountsServiceInterfaceSuite{
@@ -53,7 +55,8 @@ apps:
   slots: [online-accounts-service]
 `
 	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: providerInfo.Slots["online-accounts-service"]}
+	s.slotInfo = providerInfo.Slots["online-accounts-service"]
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 
 	var consumerYaml = `name: consumer
 version: 1.0
@@ -63,7 +66,8 @@ apps:
   plugs: [online-accounts-service]
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["online-accounts-service"]}
+	s.plugInfo = consumerInfo.Plugs["online-accounts-service"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestName(c *C) {
@@ -71,33 +75,26 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {
-	c.Assert(s.iface.SanitizePlug(s.plug), IsNil)
-	c.Assert(s.iface.SanitizeSlot(s.slot), IsNil)
-}
-
-func (s *OnlineAccountsServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "online-accounts-service"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "online-accounts-service"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app")`)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.OnlineAccounts.Manager"`)
@@ -105,7 +102,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "listen\n")
 }
 

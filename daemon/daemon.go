@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	unix "syscall"
@@ -35,15 +36,20 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/systemd"
 )
+
+var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
@@ -57,6 +63,9 @@ type Daemon struct {
 	router        *mux.Router
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
+	// set to remember we need to restart the system
+	restartSystem bool
+	mu            sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -77,60 +86,128 @@ type Command struct {
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
+	// can polkit grant access? set to polkit action ID if so
+	PolkitOK string
+
 	d *Daemon
 }
 
-func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
+type accessResult int
+
+const (
+	accessOK accessResult = iota
+	accessUnauthorized
+	accessForbidden
+)
+
+var polkitCheckAuthorization = polkit.CheckAuthorization
+
+// canAccess checks the following properties:
+//
+// - if a user is logged in (via `snap login`) everything is allowed
+// - if the user is `root` everything is allowed
+// - POST/PUT/DELETE all require `snap login` or `root`
+//
+// Otherwise for GET requests the following parameters are honored:
+// - GuestOK: anyone can access GET
+// - UserOK: any uid on the local system can access GET
+// - SnapOK: a snap can access this via `snapctl`
+func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
 	if user != nil {
 		// Authenticated users do anything for now.
-		return true
+		return accessOK
 	}
 
+	// isUser means we have a UID for the request
 	isUser := false
-	uid, err := ucrednetGetUID(r.RemoteAddr)
+	pid, uid, socket, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
-		if uid == 0 {
-			// Superuser does anything.
-			return true
+		isUser = true
+	} else if err != errNoID {
+		logger.Noticef("unexpected error when attempting to get UID: %s", err)
+		return accessForbidden
+	}
+	isSnap := (socket == dirs.SnapSocket)
+
+	// ensure that snaps can only access SnapOK things
+	if isSnap {
+		if c.SnapOK {
+			return accessOK
+		}
+		return accessUnauthorized
+	}
+
+	if r.Method == "GET" {
+		// Guest and user access restricted to GET requests
+		if c.GuestOK {
+			return accessOK
 		}
 
-		isUser = true
-	} else if err != errNoUID {
-		logger.Noticef("unexpected error when attempting to get UID: %s", err)
-		return false
-	} else if c.SnapOK {
-		return true
+		if isUser && c.UserOK {
+			return accessOK
+		}
 	}
 
-	if r.Method != "GET" {
-		return false
+	// Remaining admin checks rely on identifying peer uid
+	if !isUser {
+		return accessUnauthorized
 	}
 
-	if isUser && c.UserOK {
-		return true
+	if uid == 0 {
+		// Superuser does anything.
+		return accessOK
 	}
 
-	if c.GuestOK {
-		return true
+	if c.PolkitOK != "" {
+		var flags polkit.CheckFlags
+		allowHeader := r.Header.Get(client.AllowInteractionHeader)
+		if allowHeader != "" {
+			if allow, err := strconv.ParseBool(allowHeader); err != nil {
+				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
+			} else if allow {
+				flags |= polkit.CheckAllowInteraction
+			}
+		}
+		// Pass both pid and uid from the peer ucred to avoid pid race
+		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
+			if authorized {
+				// polkit says user is authorised
+				return accessOK
+			}
+		} else if err == polkit.ErrDismissed {
+			return accessForbidden
+		} else {
+			logger.Noticef("polkit error: %s", err)
+		}
 	}
 
-	return false
+	return accessUnauthorized
+}
+
+type maintenanceTransmitter interface {
+	transmitMaintenance(kind errorKind, message string)
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	state := c.d.overlord.State()
-	state.Lock()
+	st := c.d.overlord.State()
+	st.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
-	user, _ := UserFromRequest(state, r)
-	state.Unlock()
+	user, _ := UserFromRequest(st, r)
+	st.Unlock()
 
-	if !c.canAccess(r, user) {
+	switch c.canAccess(r, user) {
+	case accessOK:
+		// nothing
+	case accessUnauthorized:
 		Unauthorized("access denied").ServeHTTP(w, r)
+		return
+	case accessForbidden:
+		Forbidden("forbidden").ServeHTTP(w, r)
 		return
 	}
 
 	var rspf ResponseFunc
-	var rsp = BadMethod("method %q not allowed", r.Method)
+	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -145,6 +222,16 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rspf != nil {
 		rsp = rspf(c, r, user)
+	}
+
+	if maintTransmitter, ok := rsp.(maintenanceTransmitter); ok {
+		_, rst := st.Restarting()
+		switch rst {
+		case state.RestartSystem:
+			maintTransmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
+		case state.RestartDaemon:
+			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+		}
 	}
 
 	rsp.ServeHTTP(w, r)
@@ -166,6 +253,12 @@ func (w *wrappedWriter) Write(bs []byte) (int, error) {
 func (w *wrappedWriter) WriteHeader(s int) {
 	w.w.WriteHeader(s)
 	w.s = s
+}
+
+func (w *wrappedWriter) Flush() {
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func logit(handler http.Handler) http.Handler {
@@ -219,7 +312,6 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	t0 := time.Now()
 	listeners, err := activation.Listeners(false)
 	if err != nil {
 		return err
@@ -239,18 +331,15 @@ func (d *Daemon) Init() error {
 	}
 
 	if listener, err := getListener(dirs.SnapSocket, listenerMap); err == nil {
-		// Note that the SnapSocket listener does not use ucrednet. We use the lack
-		// of remote information as an indication that the request originated with
-		// this socket. This listener may also be nil if that socket wasn't among
+		// This listener may also be nil if that socket wasn't among
 		// the listeners, so check it before using it.
-		d.snapListener = listener
+		d.snapListener = &ucrednetListener{listener}
 	} else {
 		logger.Debugf("cannot get listener for %q: %v", dirs.SnapSocket, err)
 	}
 
 	d.addRoutes()
 
-	logger.Debugf("init done in %s", time.Now().Sub(t0))
 	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil
@@ -348,8 +437,6 @@ func (srv *shutdownServer) finishShutdown() error {
 	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
 }
 
-var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
-
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
@@ -358,10 +445,17 @@ func (d *Daemon) Start() {
 		case state.RestartDaemon:
 			d.tomb.Kill(nil)
 		case state.RestartSystem:
-			cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				logger.Noticef("%s", osutil.OutputErr(out, err))
+			// try to schedule a fallback slow reboot already here
+			// in case we get stuck shutting down
+			if err := reboot(rebootWaitTimeout); err != nil {
+				logger.Noticef("%s", err)
 			}
+
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			// remember we need to restart the system
+			d.restartSystem = true
+			d.tomb.Kill(nil)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)
@@ -393,14 +487,58 @@ func (d *Daemon) Start() {
 
 		return nil
 	})
+
+	// notify systemd that we are ready
+	systemdSdNotify("READY=1")
 }
+
+var shutdownMsg = i18n.G("reboot scheduled to update the system")
+
+func rebootImpl(rebootDelay time.Duration) error {
+	if rebootDelay < 0 {
+		rebootDelay = 0
+	}
+	mins := int64((rebootDelay + time.Minute - 1) / time.Minute)
+	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(out, err)
+	}
+	return nil
+}
+
+var reboot = rebootImpl
+
+var (
+	rebootNoticeWait  = 3 * time.Second
+	rebootWaitTimeout = 10 * time.Minute
+)
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
+
+	d.mu.Lock()
+	restartSystem := d.restartSystem
+	d.mu.Unlock()
+
 	d.snapdListener.Close()
+
 	if d.snapListener != nil {
+		// stop running hooks first
+		// and do it more gracefully if we are restarting
+		hookMgr := d.overlord.HookManager()
+		if ok, _ := d.overlord.State().Restarting(); ok {
+			logger.Noticef("gracefully waiting for running hooks")
+			hookMgr.GracefullyWaitRunningHooks()
+			logger.Noticef("done waiting for running hooks")
+		}
+		hookMgr.StopHooks()
 		d.snapListener.Close()
+	}
+
+	if restartSystem {
+		// give time to polling clients to notice restart
+		time.Sleep(rebootNoticeWait)
 	}
 
 	d.tomb.Kill(d.snapdServe.finishShutdown())
@@ -408,9 +546,40 @@ func (d *Daemon) Stop() error {
 		d.tomb.Kill(d.snapServe.finishShutdown())
 	}
 
+	if !restartSystem {
+		// tell systemd that we are stopping
+		systemdSdNotify("STOPPING=1")
+
+	}
+
 	d.overlord.Stop()
 
-	return d.tomb.Wait()
+	err := d.tomb.Wait()
+	if err != nil {
+		return err
+	}
+
+	if restartSystem {
+		// ask for shutdown and wait for it to happen.
+		// if we exit snapd will be restared by systemd
+		rebootDelay := 1 * time.Minute
+		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
+		if ovr != "" {
+			d, err := time.ParseDuration(ovr)
+			if err == nil {
+				rebootDelay = d
+			}
+		}
+		if err := reboot(rebootDelay); err != nil {
+			return err
+		}
+		// wait for reboot to happen
+		logger.Noticef("Waiting for system reboot")
+		time.Sleep(rebootWaitTimeout)
+		return fmt.Errorf("expected reboot did not happen")
+	}
+
+	return nil
 }
 
 // Dying is a tomb-ish thing

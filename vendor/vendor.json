@@ -7,16 +7,22 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "f4UJKXymPS31lDRMfsmPA4PvwVw=",
-			"path": "github.com/cheggaaa/pb",
-			"revision": "6e9d17711bb763b26b68b3931d47f24c1323abab",
-			"revisionTime": "2016-08-12T10:57:48Z"
+			"checksumSHA1": "RBwpnMpfQt7Jo7YWrRph0Vwe+f0=",
+			"path": "github.com/coreos/go-systemd/activation",
+			"revision": "48702e0da86bd25e76cfef347e2adeb434a0d0a6",
+			"revisionTime": "2016-11-14T12:22:54Z"
 		},
 		{
-			"checksumSHA1": "ab0MZfSfbTzqPQ1lVEJWpzZ5PJM=",
-			"path": "github.com/coreos/go-systemd/activation",
-			"revision": "f743bc15d6bddd23662280b4ad20f7c874cdd5ad",
-			"revisionTime": "2014-05-03T19:37:39Z"
+			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
+			"path": "github.com/godbus/dbus",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
+			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
+			"path": "github.com/godbus/dbus/introspect",
+			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
+			"revisionTime": "2017-08-22T15:24:03Z"
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
@@ -25,22 +31,28 @@
 			"revisionTime": "2015-08-20T05:12:45Z"
 		},
 		{
-			"checksumSHA1": "8jXj6IMkk1B0LdIYgVG5Vn01/NU=",
+			"checksumSHA1": "xF+WqeL9eAlbUkiO2bLghMQzO4k=",
 			"path": "github.com/gorilla/mux",
-			"revision": "ee1815431e497d3850809578c93ab6705f1a19f7",
-			"revisionTime": "2015-08-20T05:15:06Z"
+			"revision": "0eeaf8392f5b04950925b8a69fe70f110fa7cbfc",
+			"revisionTime": "2016-03-17T21:34:30Z"
 		},
 		{
-			"checksumSHA1": "Fsff4Yngdyqbq9ulSyTT4LGrxck=",
+			"checksumSHA1": "Ihm00CfTHuuTYXgXJkgH7TFP0L4=",
 			"path": "github.com/jessevdk/go-flags",
-			"revision": "6b9493b3cb60367edd942144879646604089e3f7",
-			"revisionTime": "2016-02-27T09:34:14Z"
+			"revision": "96dc06278ce32a0e9d957d590bb987c81ee66407",
+			"revisionTime": "2017-07-20T12:40:56Z"
 		},
 		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
 			"revisionTime": "2015-02-12T09:37:50Z"
+		},
+		{
+			"checksumSHA1": "uSjL89zodhV0X/LvyZ67FlKYKvg=",
+			"path": "github.com/mvo5/libseccomp-golang",
+			"revision": "f4de83b52afb3c19190eb65cc92429feaaf0e8b6",
+			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
@@ -55,29 +67,102 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
-			"checksumSHA1": "E28iXtNf9DZVsymruqAnTFGNNnE=",
-			"path": "golang.org/x/crypto",
-			"revision": "351dc6a5bf92a5f2ae22fadeee08eb6a45aa2d93",
-			"revisionTime": "2016-08-24T13:50:57Z",
+			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
+			"path": "github.com/snapcore/bolt",
+			"revision": "9eca199504ee1299394669820724322b5bfc070a",
+			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
+			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
+			"path": "github.com/snapcore/squashfuse",
+			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
+			"revisionTime": "2017-12-20T16:53:23Z",
 			"tree": true
 		},
 		{
-			"checksumSHA1": "9jjO5GjLa0XF/nfWihF02RoH4qc=",
+			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
+			"path": "golang.org/x/crypto/cast5",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d"
+		},
+		{
+			"checksumSHA1": "Y/FcWB2/xSfX1rRp7HYhktHNw8s=",
+			"path": "golang.org/x/crypto/nacl/secretbox",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "olOKkhrdkYQHZ0lf1orrFQPQrv4=",
+			"path": "golang.org/x/crypto/openpgp/armor",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "eo/KtdjieJQXH7Qy+faXFcF70ME=",
+			"path": "golang.org/x/crypto/openpgp/elgamal",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "rlxVSaGgqdAgwblsErxTxIfuGfg=",
+			"path": "golang.org/x/crypto/openpgp/errors",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "LWdaR8Q9yn6eBCcnGl0HvJRDUBE=",
+			"path": "golang.org/x/crypto/openpgp/packet",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "s2qT4UwvzBSkzXuiuMkowif1Olw=",
+			"path": "golang.org/x/crypto/openpgp/s2k",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "kVKE0OX1Xdw5mG7XKT86DLLKE2I=",
+			"path": "golang.org/x/crypto/poly1305",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-07-23T04:49:35Z"
+		},
+		{
+			"checksumSHA1": "RUr1Owi1/hTpuAqKeeus6YuEyz8=",
+			"path": "golang.org/x/crypto/salsa20/salsa",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-07-23T04:49:35Z"
+		},
+		{
+			"checksumSHA1": "DDHnuGCrmkKSXdNzc8pmn6P5O28=",
+			"path": "golang.org/x/crypto/sha3",
+			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
+			"revisionTime": "2017-06-29T04:06:47Z"
+		},
+		{
+			"checksumSHA1": "9C4Av3ypK5pi173F76ogJT/d8x4=",
+			"comment": "using revision before x/sys/unix/ was added to allow building on powerpc",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "a19fa444682e099bed1a53260e1d755754cd098a",
+			"revisionTime": "2015-11-02T21:41:26Z"
+		},
+		{
+			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",
 			"path": "golang.org/x/net/context",
-			"revision": "6250b412798208e6c90b03b7c4f226de5aa299e2",
-			"revisionTime": "2016-08-24T22:20:41Z"
+			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
+			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
 			"checksumSHA1": "WHc3uByvGaMcnSoI21fhzYgbOgg=",
 			"path": "golang.org/x/net/context/ctxhttp",
-			"revision": "6250b412798208e6c90b03b7c4f226de5aa299e2",
-			"revisionTime": "2016-08-24T22:20:41Z"
+			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
+			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "XeOje6FklwIZfFMTgE583al/ZDo=",
+			"checksumSHA1": "CEFTYXtWmgSh+3Ik1NmDaJcz4E0=",
 			"path": "gopkg.in/check.v1",
-			"revision": "64131543e7896d5bcc6bd5a76287eb75ea96c673",
-			"revisionTime": "2014-10-24T13:38:53Z"
+			"revision": "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
+			"revisionTime": "2016-12-08T18:13:25Z"
 		},
 		{
 			"checksumSHA1": "mWrTCVjXPLevlqKUqpzSoEM3tu8=",
@@ -86,10 +171,10 @@
 			"revisionTime": "2015-01-21T11:42:31Z"
 		},
 		{
-			"checksumSHA1": "YsB2DChSV9HxdzHaKATllAUKWSI=",
+			"checksumSHA1": "/xRHTpN8WOK4nmZjJ1f96ER1b/o=",
 			"path": "gopkg.in/mgo.v2/bson",
-			"revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
-			"revisionTime": "2016-08-18T02:01:20Z"
+			"revision": "a7e2c1d573e19a65a0caa1c2f70758cd889c416e",
+			"revisionTime": "2018-07-04T14:44:55Z"
 		},
 		{
 			"checksumSHA1": "XQsrqoNT1U0KzLxOFcAZVvqhLfk=",
@@ -116,10 +201,10 @@
 			"revisionTime": "2016-08-29T01:00:30Z"
 		},
 		{
-			"checksumSHA1": "TXfll3dCoaPKSntwHO0yR8eZ4JY=",
+			"checksumSHA1": "HmUAWd1Jm25cGH4Pyf3Zgp2RhkI=",
 			"path": "gopkg.in/yaml.v2",
-			"revision": "49c95bdc21843256fb6c4e0d370a05f24a0bf213",
-			"revisionTime": "2015-02-24T22:57:58Z"
+			"revision": "86f5ed62f8a0ee96bd888d2efdfd6d4fb100a4eb",
+			"revisionTime": "2018-03-26T05:07:29Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"

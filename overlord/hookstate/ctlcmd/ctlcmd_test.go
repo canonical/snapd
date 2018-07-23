@@ -50,12 +50,12 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(task, setup, handler)
+	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, handler, "")
 	c.Assert(err, IsNil)
 }
 
 func (s *ctlcmdSuite) TestNonExistingCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"foo"}, 0)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, ErrorMatches, ".*[Uu]nknown command.*")
@@ -68,7 +68,7 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 	mockCommand.FakeStdout = "test stdout"
 	mockCommand.FakeStderr = "test stderr"
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"mock", "foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"mock", "foo"}, 0)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")

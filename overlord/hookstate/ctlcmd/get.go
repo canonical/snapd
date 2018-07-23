@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -282,24 +282,43 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	var which string
 	if c.ForcePlugSide || (isPlugSide && !c.ForceSlotSide) {
-		which = "plug-attrs"
+		which = "plug"
 	} else {
-		which = "slot-attrs"
+		which = "slot"
 	}
 
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
 
-	attributes := make(map[string]interface{})
-	if err = attrsTask.Get(which, &attributes); err != nil {
+	var staticAttrs, dynamicAttrs map[string]interface{}
+	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
+	}
+	if err = attrsTask.Get(which+"-dynamic", &dynamicAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
 	return c.printValues(func(key string) (interface{}, bool, error) {
-		if value, ok := attributes[key]; ok {
+		subkeys, err := config.ParseKey(key)
+		if err != nil {
+			return nil, false, err
+		}
+
+		var value interface{}
+		err = config.GetFromChange(context.SnapName(), subkeys, 0, staticAttrs, &value)
+		if err == nil {
 			return value, true, nil
 		}
-		return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+		if config.IsNoOption(err) {
+			err = config.GetFromChange(context.SnapName(), subkeys, 0, dynamicAttrs, &value)
+			if err == nil {
+				return value, true, nil
+			}
+			if config.IsNoOption(err) {
+				return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+			}
+		}
+		return nil, false, err
 	})
 }

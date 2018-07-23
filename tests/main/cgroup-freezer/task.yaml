@@ -1,0 +1,45 @@
+summary: Each snap process is moved to appropriate freezer cgroup
+details: |
+    This test creates a snap process that suspends itself and ensures that it
+    placed into the appropriate hierarchy under the freezer cgroup.
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-sh
+execute: |
+    # Start a "sleep" process in the background
+    #shellcheck disable=SC2016
+    test-snapd-sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 1h' &
+    pid1=$!
+    # Ensure that snap-confine has finished its task and that the snap process
+    # is active. Note that we don't want to wait forever either.
+    for _ in $(seq 30); do
+        test -e /var/snap/test-snapd-sh/current/1.stamp && break
+        sleep 0.1
+    done
+    # While the process is alive its PID can be seen in the tasks file of the
+    # control group.
+    MATCH "$pid1" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
+
+    # Start a second process so that we can check adding tasks to an existing
+    # control group.
+    #shellcheck disable=SC2016
+    test-snapd-sh -c 'touch $SNAP_DATA/2.stamp && exec sleep 1h' &
+    pid2=$!
+    for _ in $(seq 30); do
+        test -e /var/snap/test-snapd-sh/current/2.stamp && break
+        sleep 0.1
+    done
+    MATCH "$pid2" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
+
+    # When the process terminates the control group is updated and the task no
+    # longer registers there.
+    kill "$pid1"
+    wait -n || true  # wait returns the exit code and we kill the process
+    MATCH -v "$pid1" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
+
+    kill "$pid2"
+    wait -n || true  # same as above
+    MATCH -v "$pid2" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
+restore: |
+    rmdir /sys/fs/cgroup/freezer/snap.test-snapd-sh || true

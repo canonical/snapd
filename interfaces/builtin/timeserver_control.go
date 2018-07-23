@@ -21,6 +21,14 @@ package builtin
 
 const timeserverControlSummary = `allows setting system time synchronization servers`
 
+const timeserverControlBaseDeclarationSlots = `
+  timeserver-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
@@ -70,12 +78,22 @@ dbus (receive)
 # D-Bus method for controlling network time synchronization via
 # timedatectl's set-ntp command.
 /usr/bin/timedatectl{,.real} ixr,
+
+# Silence this noisy denial. systemd utilities look at /proc/1/environ to see
+# if running in a container, but they will fallback gracefully. No other
+# interfaces allow this denial, so no problems with silencing it for now. Note
+# that allowing this triggers a 'ptrace trace peer=unconfined' denial, which we
+# want to avoid.
+deny @{PROC}/1/environ r,
 `
 
 func init() {
 	registerIface(&commonInterface{
 		name:                  "timeserver-control",
 		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

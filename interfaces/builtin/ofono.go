@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,9 +28,21 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const ofonoSummary = `allows operating as the ofono service`
+
+const ofonoBaseDeclarationSlots = `
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+`
 
 const ofonoPermanentSlotAppArmor = `
 # Description: Allow operating as the ofono service. This gives privileged
@@ -77,9 +89,28 @@ network packet,
 network bluetooth,
 
 include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
 
 # DBus accesses
 include <abstractions/dbus-strict>
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
     bus=system
@@ -164,7 +195,6 @@ accept
 accept4
 bind
 listen
-shutdown
 socket AF_NETLINK - NETLINK_ROUTE
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
@@ -265,13 +295,15 @@ func (iface *ofonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *ofonoInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: ofonoSummary,
+func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              ofonoSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: ofonoBaseDeclarationSlots,
 	}
 }
 
-func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -283,42 +315,44 @@ func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 
 }
 
-func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotUDev)
+	/*
+	   1.Linux modem drivers set up the modem device /dev/modem as a symbolic link
+	     to the actual device to /dev/ttyS*
+	   2./dev/socket/rild is just a socket, not device node created by rild daemon.
+	     Similar case for chnlat*.
+	   So we intetionally skipped modem, rild and chnlat.
+	*/
+	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tun"`)
+	spec.TagDevice(`KERNEL=="dsp"`)
 	return nil
 }
 
-func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *ofonoInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *ofonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
-func (iface *ofonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ofonoInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

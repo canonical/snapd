@@ -1,13 +1,14 @@
 summary: Check auto-aliases mechanism
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
 
     echo "Install the snap with auto-aliases"
     snap install test-snapd-auto-aliases
 
     echo "Test the auto-aliases"
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
+    test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     test_snapd_wellknown1|MATCH "ok wellknown 1"
     test_snapd_wellknown2|MATCH "ok wellknown 2"
 
@@ -17,21 +18,21 @@ execute: |
 
     echo "Removing the snap should remove the aliases"
     snap remove test-snapd-auto-aliases
-    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
+    test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     ! snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1"
     ! snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2"
 
     echo "Installing the snap with --unaliased doesn't create the aliases"
     snap install --unaliased test-snapd-auto-aliases
-    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test ! -e $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
+    test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +disabled"
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +disabled"
 
     echo "snap prefer will enable them after the fact"
     snap prefer test-snapd-auto-aliases
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown1
-    test -h $SNAPMOUNTDIR/bin/test_snapd_wellknown2
+    test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
+    test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"

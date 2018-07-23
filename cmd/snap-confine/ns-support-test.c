@@ -35,11 +35,17 @@ static void sc_set_ns_dir(const char *dir)
 	sc_ns_dir = dir;
 }
 
+// A variant of unsetenv that is compatible with GDestroyNotify
+static void my_unsetenv(const char *k)
+{
+	unsetenv(k);
+}
+
 // Use temporary directory for namespace groups.
 //
 // The directory is automatically reset to the real value at the end of the
 // test.
-static const char *sc_test_use_fake_ns_dir()
+static const char *sc_test_use_fake_ns_dir(void)
 {
 	char *ns_dir = NULL;
 	if (g_test_subprocess()) {
@@ -53,7 +59,7 @@ static const char *sc_test_use_fake_ns_dir()
 		g_test_queue_free(ns_dir);
 		g_assert_cmpint(setenv("SNAP_CONFINE_NS_DIR", ns_dir, 0), ==,
 				0);
-		g_test_queue_destroy((GDestroyNotify) unsetenv,
+		g_test_queue_destroy((GDestroyNotify) my_unsetenv,
 				     "SNAP_CONFINE_NS_DIR");
 		g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, ns_dir);
 	}
@@ -64,7 +70,7 @@ static const char *sc_test_use_fake_ns_dir()
 
 // Check that allocating a namespace group sets up internal data structures to
 // safe values.
-static void test_sc_alloc_ns_group()
+static void test_sc_alloc_ns_group(void)
 {
 	struct sc_ns_group *group = NULL;
 	group = sc_alloc_ns_group();
@@ -101,7 +107,7 @@ static struct sc_ns_group *sc_test_open_ns_group(const char *group_name)
 
 // Check that initializing a namespace group creates the appropriate
 // filesystem structure.
-static void test_sc_open_ns_group()
+static void test_sc_open_ns_group(void)
 {
 	const char *ns_dir = sc_test_use_fake_ns_dir();
 	sc_test_open_ns_group(NULL);
@@ -110,7 +116,7 @@ static void test_sc_open_ns_group()
 		      (ns_dir, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR));
 }
 
-static void test_sc_open_ns_group_graceful()
+static void test_sc_open_ns_group_graceful(void)
 {
 	sc_set_ns_dir("/nonexistent");
 	g_test_queue_destroy((GDestroyNotify) sc_set_ns_dir, SC_NS_DIR);
@@ -124,7 +130,7 @@ static void unmount_dir(void *dir)
 	umount(dir);
 }
 
-static void test_sc_is_ns_group_dir_private()
+static void test_sc_is_ns_group_dir_private(void)
 {
 	if (geteuid() != 0) {
 		g_test_skip("this test needs to run as root");
@@ -152,7 +158,7 @@ static void test_sc_is_ns_group_dir_private()
 	g_test_trap_assert_passed();
 }
 
-static void test_sc_initialize_ns_groups()
+static void test_sc_initialize_ns_groups(void)
 {
 	if (geteuid() != 0) {
 		g_test_skip("this test needs to run as root");
@@ -174,7 +180,7 @@ static void test_sc_initialize_ns_groups()
 
 // Sanity check, ensure that the namespace filesystem identifier is what we
 // expect, aka NSFS_MAGIC.
-static void test_nsfs_fs_id()
+static void test_nsfs_fs_id(void)
 {
 	struct utsname uts;
 	if (uname(&uts) < 0) {
@@ -198,7 +204,7 @@ static void test_nsfs_fs_id()
 	g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/ns/sc_alloc_ns_group", test_sc_alloc_ns_group);
 	g_test_add_func("/ns/sc_open_ns_group", test_sc_open_ns_group);

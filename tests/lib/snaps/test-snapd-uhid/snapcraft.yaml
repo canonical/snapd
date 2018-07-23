@@ -1,0 +1,17 @@
+name: test-snapd-uhid
+version: 1.0
+summary: Basic snap declaring a plug on the uhid interface
+description: Basic snap declaring a plug on the uhid interface
+grade: stable
+confinement: strict
+
+apps:
+    test-device:
+        command: uhid-test
+        plugs: [uhid]
+
+parts:
+    test:
+        source: .
+        plugin: make
+        artifacts: [uhid-test]
