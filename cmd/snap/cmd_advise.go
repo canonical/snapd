@@ -20,8 +20,12 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
 
 	"github.com/jessevdk/go-flags"
 
@@ -31,11 +35,16 @@ import (
 
 type cmdAdviseSnap struct {
 	Positionals struct {
-		CommandOrPkg string `required:"yes"`
+		CommandOrPkg string
 	} `positional-args:"true"`
 
-	Format  string `long:"format" default:"pretty" choice:"pretty" choice:"json"`
-	Command bool   `long:"command"`
+	Format string `long:"format" default:"pretty" choice:"pretty" choice:"json"`
+	// Command makes advise try to find snaps that provide this command
+	Command bool `long:"command"`
+
+	// FromApt tells advise that it got started from an apt hook
+	// and needs to communicate over a socket
+	FromApt bool `long:"from-apt"`
 }
 
 var shortAdviseSnapHelp = i18n.G("Advise on available snaps")
@@ -50,8 +59,9 @@ func init() {
 	cmd := addCommand("advise-snap", shortAdviseSnapHelp, longAdviseSnapHelp, func() flags.Commander {
 		return &cmdAdviseSnap{}
 	}, map[string]string{
-		"command": i18n.G("Advise on snaps that provide the given command"),
-		"format":  i18n.G("Use the given output format"),
+		"command":  i18n.G("Advise on snaps that provide the given command"),
+		"from-apt": i18n.G("Advise will talk to apt via an apt hook"),
+		"format":   i18n.G("Use the given output format"),
 	}, []argDesc{
 		{name: "<command or pkg>"},
 	})
@@ -90,9 +100,122 @@ func outputAdviseJSON(command string, results []advisor.Command) error {
 	return nil
 }
 
+type jsonRPC struct {
+	JsonRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  struct {
+		Command         string   `json:"command"`
+		SearchTerms     []string `json:"search-terms"`
+		UnknownPackages []string `json:"unknown-packages"`
+		Packages        []string `json:"packages"`
+	} `json:"params"`
+}
+
+// readRpc reads a apt json rpc protocol 0.1 message as described in
+// https://salsa.debian.org/apt-team/apt/blob/master/doc/json-hooks-protocol.md#wire-protocol
+func readRpc(r *bufio.Reader) (*jsonRPC, error) {
+	line, _, err := r.ReadLine()
+	if err != nil {
+		return nil, fmt.Errorf("cannot read json-rpc: %v", err)
+	}
+
+	var rpc jsonRPC
+	if err := json.Unmarshal(line, &rpc); err != nil {
+		return nil, err
+	}
+	// empty \n
+	emptyNL, _, err := r.ReadLine()
+	if err != nil {
+		return nil, err
+	}
+	if string(emptyNL) != "" {
+		return nil, fmt.Errorf("unexpected line: %q (empty)", emptyNL)
+	}
+
+	return &rpc, nil
+}
+
+func adviseViaAptHook() error {
+	sockFd := os.Getenv("APT_HOOK_SOCKET")
+	if sockFd == "" {
+		return fmt.Errorf("cannot find APT_HOOK_SOCKET env")
+	}
+	fd, err := strconv.Atoi(sockFd)
+	if err != nil {
+		return fmt.Errorf("expected APT_HOOK_SOCKET to be a decimal integer, found %q", sockFd)
+	}
+
+	f := os.NewFile(uintptr(fd), "apt-hook-socket")
+	if f == nil {
+		return fmt.Errorf("cannot open file descriptor %v", fd)
+	}
+	defer f.Close()
+
+	conn, err := net.FileConn(f)
+	if err != nil {
+		return fmt.Errorf("cannot connect to %v: %v", fd, err)
+	}
+	defer conn.Close()
+
+	r := bufio.NewReader(conn)
+
+	// handshake
+	rpc, err := readRpc(r)
+	if err != nil {
+		return err
+	}
+	if rpc.Method != "org.debian.apt.hooks.hello" {
+		return fmt.Errorf("expected 'hello' method, got: %v", rpc.Method)
+	}
+	if _, err := conn.Write([]byte(`{"jsonrpc":"2.0","id":0,"result":{"version":"0.1"}}` + "\n\n")); err != nil {
+		return err
+	}
+
+	// payload
+	rpc, err = readRpc(r)
+	if err != nil {
+		return err
+	}
+	if rpc.Method == "org.debian.apt.hooks.install.fail" {
+		for _, pkgName := range rpc.Params.UnknownPackages {
+			match, err := advisor.FindPackage(pkgName)
+			if err == nil && match != nil {
+				fmt.Fprintf(Stdout, "\n")
+				fmt.Fprintf(Stdout, i18n.G("No apt package %q, but there is a snap with that name.\n"), pkgName)
+				fmt.Fprintf(Stdout, i18n.G("Try \"snap install %s\"\n"), pkgName)
+				fmt.Fprintf(Stdout, "\n")
+			}
+		}
+
+	}
+	if rpc.Method == "org.debian.apt.hooks.search.post" {
+		// FIXME: do a snap search here
+		// FIXME2: figure out why apt does not tell us the search results
+	}
+
+	// bye
+	rpc, err = readRpc(r)
+	if err != nil {
+		return err
+	}
+	if rpc.Method != "org.debian.apt.hooks.bye" {
+		return fmt.Errorf("expected 'bye' method, got: %v", rpc.Method)
+	}
+
+	return nil
+}
+
 func (x *cmdAdviseSnap) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.FromApt {
+		return adviseViaAptHook()
+	}
+
+	if len(x.Positionals.CommandOrPkg) == 0 {
+		return fmt.Errorf("the required argument `<command or pkg>` was not provided")
 	}
 
 	if x.Command {

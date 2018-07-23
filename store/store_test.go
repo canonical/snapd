@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2799,18 +2800,22 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 		case 0:
 			c.Check(name, Equals, "hello")
 			c.Check(q, Equals, "")
+			c.Check(query.Get("scope"), Equals, "")
 			c.Check(section, Equals, "")
 		case 1:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
+			c.Check(query.Get("scope"), Equals, "maastricht")
 			c.Check(section, Equals, "")
 		case 2:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "")
+			c.Check(query.Get("scope"), Equals, "")
 			c.Check(section, Equals, "db")
 		case 3:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
+			c.Check(query.Get("scope"), Equals, "")
 			c.Check(section, Equals, "db")
 		default:
 			c.Fatalf("what? %d", n)
@@ -2831,7 +2836,7 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 
 	for _, query := range []Search{
 		{Query: "hello", Prefix: true},
-		{Query: "hello"},
+		{Query: "hello", Scope: "maastricht"},
 		{Section: "db"},
 		{Query: "hello", Section: "db"},
 	} {
@@ -5654,7 +5659,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
-		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
 			"instance-key":     helloWorldSnapID,
@@ -5662,20 +5667,32 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
-		c.Assert(req.Actions, HasLen, 3)
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          "snap2-id",
+			"instance-key":     "snap2-id",
+			"revision":         float64(2),
+			"tracking-channel": "edge",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 4)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
-			"channel":      "stable",
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": "snap2-id",
+			"snap-id":      "snap2-id",
+			"channel":      "candidate",
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
 		})
-		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+		c.Assert(req.Actions[3], DeepEquals, map[string]interface{}{
 			"action":       "download",
 			"instance-key": "download-1",
 			"name":         "bar",
@@ -5691,6 +5708,19 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
      "error": {
        "code": "revision-not-found",
        "message": "msg1"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "snap2-id",
+     "snap-id": "snap2-id",
+     "name": "snap2",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg1",
+       "extra": {
+         "releases": [{"architecture": "amd64", "channel": "beta"},
+                      {"architecture": "arm64", "channel": "beta"}]
+       }
      }
   }, {
      "result": "error",
@@ -5732,11 +5762,21 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
+		{
+			Name:            "snap2",
+			SnapID:          "snap2-id",
+			TrackingChannel: "edge",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
 	}, []*SnapAction{
 		{
+			Action: "refresh",
+			SnapID: helloWorldSnapID,
+		}, {
 			Action:  "refresh",
-			SnapID:  helloWorldSnapID,
-			Channel: "stable",
+			SnapID:  "snap2-id",
+			Channel: "candidate",
 		}, {
 			Action:  "install",
 			Name:    "foo",
@@ -5750,13 +5790,30 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrRevisionNotAvailable,
+			"hello-world": &RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "stable",
+			},
+			"snap2": &RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "candidate",
+				Releases: []snap.Channel{
+					snaptest.MustParseChannel("beta", "amd64"),
+					snaptest.MustParseChannel("beta", "arm64"),
+				},
+			},
 		},
 		Install: map[string]error{
-			"foo": ErrRevisionNotAvailable,
+			"foo": &RevisionNotAvailableError{
+				Action:  "install",
+				Channel: "stable",
+			},
 		},
 		Download: map[string]error{
-			"bar": ErrRevisionNotAvailable,
+			"bar": &RevisionNotAvailableError{
+				Action:  "download",
+				Channel: "",
+			},
 		},
 	})
 }

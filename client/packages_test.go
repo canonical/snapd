@@ -82,6 +82,17 @@ func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	c.Check(cs.req.URL.Query().Get("select"), check.Equals, "private")
 }
 
+func (cs *clientSuite) TestClientFindWithScopeSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Scope: "mouthwash",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"q": []string{""}, "scope": []string{"mouthwash"},
+	})
+}
+
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",

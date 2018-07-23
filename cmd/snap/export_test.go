@@ -167,3 +167,7 @@ func MockWaitConfTimeout(d time.Duration) (restore func()) {
 func Wait(cli *client.Client, id string) (*client.Change, error) {
 	return waitMixin{}.wait(cli, id)
 }
+
+func CmdAdviseSnap() *cmdAdviseSnap {
+	return &cmdAdviseSnap{}
+}
