@@ -189,3 +189,7 @@ func Wait(cli *client.Client, id string) (*client.Change, error) {
 func ColorMixin(cmode, umode string) colorMixin {
 	return colorMixin{Color: cmode, Unicode: umode}
 }
+
+func CmdAdviseSnap() *cmdAdviseSnap {
+	return &cmdAdviseSnap{}
+}

@@ -87,21 +87,16 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		}
 	}
 
-	var checkConflict func(otherTask *state.Task) bool
+	var ignoreChangeID string
 	if context != nil && !context.IsEphemeral() {
 		if task, ok := context.Task(); ok {
-			chg := task.Change()
-			checkConflict = func(otherTask *state.Task) bool {
-				if chg != nil && otherTask.Change() != nil {
-					// if same change, then return false (no conflict)
-					return chg.ID() != otherTask.Change().ID()
-				}
-				return true
+			if chg := task.Change(); chg != nil {
+				ignoreChangeID = chg.ID()
 			}
 		}
 	}
 
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, snapNames, ignoreChangeID); err != nil {
 		return nil, &ServiceActionConflictError{err}
 	}
 

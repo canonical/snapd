@@ -999,24 +999,6 @@ func JoinSnapApp(snap, app string) string {
 	return fmt.Sprintf("%s.%s", snap, app)
 }
 
-// UseNick returns the nickname for given snap name. If there is none, returns
-// the original name.
-func UseNick(snapName string) string {
-	if snapName == "core" {
-		return "system"
-	}
-	return snapName
-}
-
-// DropNick returns the snap name for given nickname. If there is none, returns
-// the original name.
-func DropNick(nick string) string {
-	if nick == "system" {
-		return "core"
-	}
-	return nick
-}
-
 // InstanceSnap splits the instance name and returns the name of the snap.
 func InstanceSnap(instanceName string) string {
 	snapName, _ := SplitInstanceName(instanceName)
