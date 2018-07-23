@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,10 +21,21 @@ package builtin
 
 const rawusbSummary = `allows raw access to all USB devices`
 
+const rawusbBaseDeclarationSlots = `
+  raw-usb:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const rawusbConnectedPlugAppArmor = `
 # Description: Allow raw access to all connected USB devices.
 # This gives privileged access to the system.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
+
+# Allow access to all ttyUSB devices too
+/dev/ttyUSB[0-9]* rw,
 
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
@@ -37,11 +48,20 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 `
 
+var rawusbConnectedPlugUDev = []string{
+	`SUBSYSTEM=="usb"`,
+	`SUBSYSTEM=="tty", ENV{ID_BUS}=="usb"`,
+}
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "raw-usb",
 		summary:               rawusbSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  rawusbBaseDeclarationSlots,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
+		connectedPlugUDev:     rawusbConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

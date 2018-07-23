@@ -1,0 +1,48 @@
+summary: smoke tests for user mounts
+details: |
+    When a confined snap has a user-fstab file, additional bind mounts will
+    be performed prior to running the application.  These mounts are private
+    to the invocation of the application, so can be used to manipulate how
+    per-user data is presented.
+# This test makes use of the user mount provided by the desktop
+# interface.  When we have an interface providing user mounts that is
+# available on core, we can switch to that.
+systems: [-ubuntu-core-*]
+prepare: |
+    snap try "$TESTSLIB"/snaps/test-snapd-desktop
+    snap disconnect test-snapd-desktop:desktop
+restore: |
+    rm -rf /run/user/12345/*
+    rm -f /tmp/check-user-mount.sh
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . $TESTSLIB/dirs.sh
+
+    echo "Create XDG_RUNTIME_DIR for test user"
+    USER_RUNTIME_DIR=/run/user/"$(id -u test)"
+    mkdir -p $USER_RUNTIME_DIR || true
+    #shellcheck disable=SC2115
+    rm -rf $USER_RUNTIME_DIR/*
+    chmod u=rwX,go= $USER_RUNTIME_DIR
+    chown test:test $USER_RUNTIME_DIR
+
+    echo "Without desktop interface connected, there is no user-fstab file"
+    [ ! -f /var/lib/snapd/mount/snap.test-snapd-desktop.user-fstab ]
+
+    echo "With desktop interface connected, it is created"
+    snap connect test-snapd-desktop:desktop
+    [ -f /var/lib/snapd/mount/snap.test-snapd-desktop.user-fstab ]
+    diff -u /var/lib/snapd/mount/snap.test-snapd-desktop.user-fstab - << \EOF
+    $XDG_RUNTIME_DIR/doc/by-app/snap.test-snapd-desktop $XDG_RUNTIME_DIR/doc none bind,rw,x-snapd.ignore-missing 0 0
+    EOF
+
+    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-sh
+
+    echo "The user-fstab file is used to prepare the confinement sandbox"
+    cat << \EOF > /tmp/check-user-mount.sh
+    mkdir -p /run/user/12345/doc/by-app/snap.test-snapd-desktop
+    touch /run/user/12345/doc/by-app/snap.test-snapd-desktop/in-source
+    touch /run/user/12345/doc/in-target
+    test-snapd-desktop.check-dirs /run/user/12345/doc
+    EOF
+    su -l -c "sh /tmp/check-user-mount.sh" test | MATCH in-source

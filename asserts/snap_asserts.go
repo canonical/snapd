@@ -104,7 +104,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": snapdcl.PublisherID(),
 	})
-	if err == ErrNotFound {
+	if IsNotFound(err) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) does not have a matching account assertion for the publisher %q", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.PublisherID())
 	}
 	if err != nil {
@@ -436,7 +436,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": snaprev.DeveloperID(),
 	})
-	if err == ErrNotFound {
+	if IsNotFound(err) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching account assertion for the developer %q", snaprev.SnapID(), snaprev.DeveloperID())
 	}
 	if err != nil {
@@ -447,7 +447,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
 	})
-	if err == ErrNotFound {
+	if IsNotFound(err) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching snap-declaration assertion", snaprev.SnapID())
 	}
 	if err != nil {
@@ -557,7 +557,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
 	})
-	if err == ErrNotFound {
+	if IsNotFound(err) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for approved-snap-id %q", validation.SnapID(), validation.ApprovedSnapID())
 	}
 	if err != nil {
@@ -567,7 +567,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
 	})
-	if err == ErrNotFound {
+	if IsNotFound(err) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
 	}
 	if err != nil {
@@ -802,14 +802,20 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		"series":  release.Series,
 		"snap-id": snapdev.SnapID(),
 	})
-	if err == ErrNotFound {
-		return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
+	if err != nil {
+		if IsNotFound(err) {
+			return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
+		}
+		return err
 	}
 
 	// check there's an account for the publisher-id
 	_, err = db.Find(AccountType, map[string]string{"account-id": publisherID})
-	if err == ErrNotFound {
-		return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
+	if err != nil {
+		if IsNotFound(err) {
+			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
+		}
+		return err
 	}
 
 	// check there's an account for each developer
@@ -818,8 +824,11 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 			continue
 		}
 		_, err = db.Find(AccountType, map[string]string{"account-id": developerID})
-		if err == ErrNotFound {
-			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
+		if err != nil {
+			if IsNotFound(err) {
+				return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
+			}
+			return err
 		}
 	}
 

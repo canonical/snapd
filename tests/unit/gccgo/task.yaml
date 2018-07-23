@@ -1,13 +1,16 @@
 summary: Check that snapd builds with gccgo
-# We only need to check that snapd builds with gccgo in one architecture.
+
+# Only check that gccgo is vaguely happy once.
 systems: [ubuntu-16.04-64]
+
+# Start before anything else as it takes a long time.
+priority: 1000
+
 prepare: |
     echo Installing gccgo-6 and pretending it is the default go
-    apt install -y gccgo-6
     ln -s /usr/bin/go-6 /usr/local/bin/go
 restore: |
     rm -f /usr/local/bin/go
-    apt-get autoremove -y gccgo-6
 execute: |
     echo Ensure we really build with gccgo
     go version|MATCH gccgo

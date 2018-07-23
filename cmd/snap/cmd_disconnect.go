@@ -22,19 +22,21 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )
 
 type cmdDisconnect struct {
+	waitMixin
 	Positionals struct {
 		Offer disconnectSlotOrPlugSpec `required:"true"`
 		Use   disconnectSlotSpec
 	} `positional-args:"true"`
 }
 
-var shortDisconnectHelp = i18n.G("Disconnects a plug from a slot")
+var shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
 var longDisconnectHelp = i18n.G(`
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -52,8 +54,10 @@ The snap name may be omitted for the core snap.
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
-	}, nil, []argDesc{
+	}, waitDescs, []argDesc{
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<plug>")},
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<slot>")},
 	})
 }
@@ -79,9 +83,20 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	cli := Client()
 	id, err := cli.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name)
 	if err != nil {
+		if client.IsInterfacesUnchangedError(err) {
+			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
+			fmt.Fprintf(Stdout, "\n")
+			return nil
+		}
 		return err
 	}
 
-	_, err = wait(cli, id)
-	return err
+	if _, err := x.wait(cli, id); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }

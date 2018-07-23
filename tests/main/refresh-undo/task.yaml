@@ -3,6 +3,9 @@ details: |
     When a snap is refreshed and the refresh fails, the undo code had
     a bug that removed the security confinement (LP: #1637981)
 
+# trusty has unreliable journalctl output for unknown reasonsg
+systems: [-ubuntu-14.04-*]
+
 environment:
     SNAP_NAME: test-snapd-service
     SNAP_NAME_GOOD: ${SNAP_NAME}-v1-good
@@ -12,11 +15,13 @@ environment:
 
 prepare: |
     echo "Given a good (v1) and a bad (v2) snap"
-    snapbuild $TESTSLIB/snaps/$SNAP_NAME_GOOD .
-    snapbuild $TESTSLIB/snaps/$SNAP_NAME_BAD .
+    snap pack $TESTSLIB/snaps/$SNAP_NAME_GOOD
+    snap pack $TESTSLIB/snaps/$SNAP_NAME_BAD
 
 debug: |
-    journalctl -u snap.test-snapd-service.service.service
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh
+    get_journalctl_log -u snap.test-snapd-service.service.service
 
 execute: |
     wait_for_service_status() {

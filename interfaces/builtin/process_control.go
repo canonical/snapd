@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,24 +21,35 @@ package builtin
 
 const processControlSummary = `allows controlling other processes`
 
+const processControlBaseDeclarationSlots = `
+  process-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const processControlConnectedPlugAppArmor = `
 # Description: This interface allows for controlling other processes via
-# signals and nice. This is reserved because it grants privileged access to
-# all processes under root or processes running under the same UID otherwise.
+# signals, cpu affinity and nice. This is reserved because it grants privileged
+# access to all processes under root or processes running under the same UID
+# otherwise.
 
-# /{,usr/}bin/nice is already in default policy, so just allow renice here
+# /{,usr/}bin/nice is already in default policy
 /{,usr/}bin/renice ixr,
+/{,usr/}bin/taskset ixr,
 
 capability sys_resource,
 capability sys_nice,
 
-signal,
+signal (send),
 `
 
 const processControlConnectedPlugSecComp = `
 # Description: This interface allows for controlling other processes via
-# signals and nice. This is reserved because it grants privileged access to
-# all processes under root or processes running under the same UID otherwise.
+# signals, cpu affinity and nice. This is reserved because it grants privileged
+# access to all processes under root or processes running under the same UID
+# otherwise.
 
 # Allow setting the nice value/priority for any process
 nice
@@ -52,6 +63,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "process-control",
 		summary:               processControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  processControlBaseDeclarationSlots,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
 		reservedForOS:         true,

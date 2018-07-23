@@ -1,0 +1,3 @@
+#!/bin/sh
+
+dd if=/dev/mem of=/dev/null bs=1024 count=1

@@ -36,16 +36,18 @@ type cmdLogin struct {
 	} `positional-args:"yes"`
 }
 
-var shortLoginHelp = i18n.G("Authenticates on snapd and the store")
+var shortLoginHelp = i18n.G("Authenticate to snapd and the store")
 
 var longLoginHelp = i18n.G(`
-The login command authenticates on snapd and the snap store and saves credentials
-into the ~/.snap/auth.json file. Further communication with snapd will then be made
-using those credentials.
+The login command authenticates the user to snapd and the snap store, and saves
+credentials into the ~/.snap/auth.json file. Further communication with snapd
+will then be made using those credentials.
 
-Login only works for local users in the sudo, admin or wheel groups.
+It's not necessary to log in to interact with snapd. Doing so, however, enables
+purchasing of snaps using 'snap buy', as well as some some developer-oriented
+features as detailed in the help for the find, install and refresh commands.
 
-An account can be setup at https://login.ubuntu.com
+An account can be set up at https://login.ubuntu.com
 `)
 
 func init() {
@@ -55,8 +57,9 @@ func init() {
 		func() flags.Commander {
 			return &cmdLogin{}
 		}, nil, []argDesc{{
-			// TRANSLATORS: noun
+			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 			name: i18n.G("<email>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("The login.ubuntu.com email to login as"),
 		}})
 }
@@ -107,6 +110,10 @@ func (x *cmdLogin) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+
+	//TRANSLATORS: after the "... at" follows a URL in the next line
+	fmt.Fprint(Stdout, i18n.G("Personal information is handled as per our privacy notice at\n"))
+	fmt.Fprint(Stdout, "https://www.ubuntu.com/legal/dataprivacy/snap-store\n\n")
 
 	email := x.Positional.Email
 	if email == "" {

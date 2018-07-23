@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,12 +21,40 @@ package builtin
 
 const firewallControlSummary = `allows control over network firewall`
 
+const firewallControlBaseDeclarationSlots = `
+  firewall-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
 # Description: Can configure firewall. This is restricted because it gives
 # privileged access to networking and should only be used with trusted apps.
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
 
 capability net_admin,
 
@@ -84,6 +112,9 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/bridge/bridge-nf-call-arptables rw,
 @{PROC}/sys/net/bridge/bridge-nf-call-iptables rw,
 @{PROC}/sys/net/bridge/bridge-nf-call-ip6tables rw,
+@{PROC}/sys/net/bridge/bridge-nf-filter-pppoe-tagged rw,
+@{PROC}/sys/net/bridge/bridge-nf-filter-vlan-tagged rw,
+@{PROC}/sys/net/bridge/bridge-nf-pass-vlan-input-dev rw,
 @{PROC}/sys/net/ipv4/conf/*/rp_filter w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_source_route w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_redirects w,
@@ -94,6 +125,7 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/ipv4/conf/*/log_martians w,
 @{PROC}/sys/net/ipv4/tcp_syncookies w,
 @{PROC}/sys/net/ipv6/conf/*/forwarding w,
+@{PROC}/sys/net/netfilter/nf_conntrack_helper rw,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/firewall-control
@@ -125,6 +157,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                     "firewall-control",
 		summary:                  firewallControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     firewallControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,

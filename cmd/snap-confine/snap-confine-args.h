@@ -77,7 +77,7 @@ void sc_args_free(struct sc_args *args);
  * Cleanup an error with sc_args_free()
  *
  * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_args))).
+ * SC_CLEANUP(sc_cleanup_args).
  **/
 void sc_cleanup_args(struct sc_args **ptr);
 
@@ -112,5 +112,13 @@ const char *sc_args_security_tag(struct sc_args *args);
  * the argument parser.
  **/
 const char *sc_args_executable(struct sc_args *args);
+
+/**
+ * Get the name of the base snap to use.
+ *
+ * The return value must not be freed(). It is bound to the lifetime of
+ * the argument parser.
+ **/
+const char *sc_args_base_snap(struct sc_args *args);
 
 #endif

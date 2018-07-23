@@ -31,30 +31,67 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 // Backend is responsible for maintaining DBus policy files.
 type Backend struct{}
 
+// Initialize does nothing.
+func (b *Backend) Initialize() error {
+	return nil
+}
+
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
+}
+
+// setupDbusServiceForUserd will setup the service file for the new
+// `snap userd` instance on re-exec
+func setupDbusServiceForUserd(snapInfo *snap.Info) error {
+	coreRoot := snapInfo.MountDir()
+
+	for _, srv := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
+		src := filepath.Join(coreRoot, dst)
+		if !osutil.FilesAreEqual(src, dst) {
+			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
+	}
+
+	// core on classic is special
+	//
+	// TODO: we need to deal with the "snapd" snap here soon
+	if snapName == "core" && release.OnClassic {
+		if err := setupDbusServiceForUserd(snapInfo); err != nil {
+			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+		}
 	}
 
 	// Get the files that this snap should have
@@ -132,4 +169,9 @@ func addContent(securityTag string, snippet string, content map[string]*osutil.F
 
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns list of features supported by snapd for dbus communication.
+func (b *Backend) SandboxFeatures() []string {
+	return []string{"mediated-bus-access"}
 }

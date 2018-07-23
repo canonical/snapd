@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -32,6 +31,16 @@ import (
 )
 
 const upowerObserveSummary = `allows operating as or reading from the UPower service`
+
+const upowerObserveBaseDeclarationSlots = `
+  upower-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - app
+    deny-connection:
+      on-classic: false
+`
 
 const upowerObservePermanentSlotAppArmor = `
 # Description: Allow operating as the UPower service.
@@ -183,6 +192,13 @@ dbus (send)
 
 dbus (send)
     bus=system
+    path=/org/freedesktop/UPower
+    interface=org.freedesktop.UPower
+    member=GetDisplayDevice
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
     path=/org/freedesktop/UPower/devices/**
     interface=org.freedesktop.UPower.Device
     member=GetHistory
@@ -211,13 +227,15 @@ func (iface *upowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *upowerObserveInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: upowerObserveSummary,
+func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              upowerObserveSummary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
 	}
 }
 
-func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	if release.OnClassic {
@@ -229,22 +247,22 @@ func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 	return nil
 }
 
-func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(upowerObservePermanentSlotDBus)
 	return nil
 }
 
-func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
@@ -252,24 +270,11 @@ func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	return nil
+func (iface *upowerObserveInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 
-func (iface *upowerObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if slot.Snap.Type != snap.TypeApp && slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system or application snaps", iface.Name())
-	}
-	return nil
-}
-
-func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *upowerObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

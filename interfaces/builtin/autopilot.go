@@ -21,6 +21,14 @@ package builtin
 
 const autopilotIntrospectionSummary = `allows introspection of application user interface`
 
+const autopilotIntrospectionBaseDeclarationSlots = `
+  autopilot-introspection:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const autopilotIntrospectionPlugAppArmor = `
 # Description: Allows an application to be introspected and export its ui
 # status over DBus
@@ -58,6 +66,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "autopilot-introspection",
 		summary:               autopilotIntrospectionSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  autopilotIntrospectionBaseDeclarationSlots,
 		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
 		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
 		reservedForOS:         true,

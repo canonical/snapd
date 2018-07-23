@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,13 +24,17 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
 
+	"golang.org/x/net/context"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -62,6 +66,14 @@ type UserState struct {
 	Discharges      []string `json:"discharges,omitempty"`
 	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
 	StoreDischarges []string `json:"store-discharges,omitempty"`
+}
+
+// HasStoreAuth returns true if the user has store authorization.
+func (u *UserState) HasStoreAuth() bool {
+	if u == nil {
+		return false
+	}
+	return u.StoreMacaroon != ""
 }
 
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
@@ -156,11 +168,16 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 	return &authenticatedUser, nil
 }
 
+var ErrInvalidUser = errors.New("invalid user")
+
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -177,7 +194,7 @@ func RemoveUser(st *state.State, userID int) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 func Users(st *state.State) ([]*UserState, error) {
@@ -203,6 +220,9 @@ func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return nil, ErrInvalidUser
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +232,7 @@ func User(st *state.State, id int) (*UserState, error) {
 			return &user, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid user")
+	return nil, ErrInvalidUser
 }
 
 // UpdateUser updates user in state
@@ -220,6 +240,9 @@ func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -232,7 +255,7 @@ func UpdateUser(st *state.State, user *UserState) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 // Device returns the device details from the state.
@@ -329,23 +352,54 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
+// DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.
+type DeviceSessionRequestParams struct {
+	Request *asserts.DeviceSessionRequest
+	Serial  *asserts.Serial
+	Model   *asserts.Model
+}
+
+func (p *DeviceSessionRequestParams) EncodedRequest() string {
+	return string(asserts.Encode(p.Request))
+}
+
+func (p *DeviceSessionRequestParams) EncodedSerial() string {
+	return string(asserts.Encode(p.Serial))
+}
+
+func (p *DeviceSessionRequestParams) EncodedModel() string {
+	return string(asserts.Encode(p.Model))
+}
+
 // DeviceAssertions helps exposing the assertions about device identity.
 // All methods should return state.ErrNoState if the underlying needed
 // information is not (yet) available.
 type DeviceAssertions interface {
 	// Model returns the device model assertion.
 	Model() (*asserts.Model, error)
-	// Serial returns the device model assertion.
+	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
 
-	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
-	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
+	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
+	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	// ProxyStore returns the store assertion for the proxy store if one is set.
+	ProxyStore() (*asserts.Store, error)
 }
 
 var (
 	// ErrNoSerial indicates that a device serial is not set yet.
 	ErrNoSerial = errors.New("no device serial yet")
 )
+
+// CloudInfo reflects cloud information for the system (as captured in the core configuration).
+type CloudInfo struct {
+	Name             string `json:"name"`
+	Region           string `json:"region,omitempty"`
+	AvailabilityZone string `json:"availability-zone,omitempty"`
+}
+
+// TODO: move AuthContext to something like a storecontext package, it
+// is about more than just authorization now.
 
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
@@ -357,7 +411,10 @@ type AuthContext interface {
 
 	StoreID(fallback string) (string, error)
 
-	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
+	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
+
+	CloudInfo() (*CloudInfo, error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -421,10 +478,11 @@ func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (
 	return cur, nil
 }
 
-// StoreID returns the store set in the model assertion, if mod != nil,
-// or the override from the UBUNTU_STORE_ID envvar.
+// StoreID returns the store set in the model assertion, if mod != nil
+// and it's not the generic classic model, or the override from the
+// UBUNTU_STORE_ID envvar.
 func StoreID(mod *asserts.Model) string {
-	if mod != nil {
+	if mod != nil && mod.Ref().Unique() != sysdb.GenericClassicModel().Ref().Unique() {
 		return mod.Store()
 	}
 	return os.Getenv("UBUNTU_STORE_ID")
@@ -448,17 +506,64 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.
-func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, err error) {
+// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
 	if ac.deviceAsserts == nil {
-		return nil, nil, ErrNoSerial
+		return nil, ErrNoSerial
 	}
-	req, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	params, err := ac.deviceAsserts.DeviceSessionRequestParams(nonce)
 	if err == state.ErrNoState {
-		return nil, nil, ErrNoSerial
+		return nil, ErrNoSerial
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return asserts.Encode(req), asserts.Encode(ser), nil
+	return params, nil
+}
+
+// ProxyStoreParams returns the id and URL of the proxy store if one is set. Returns the defaultURL otherwise and id = "".
+func (ac *authContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+	var sto *asserts.Store
+	if ac.deviceAsserts != nil {
+		var err error
+		sto, err = ac.deviceAsserts.ProxyStore()
+		if err != nil && err != state.ErrNoState {
+			return "", nil, err
+		}
+	}
+	if sto != nil {
+		return sto.Store(), sto.URL(), nil
+	}
+	return "", defaultURL, nil
+}
+
+// CloudInfo returns the cloud instance information (if available).
+func (ac *authContext) CloudInfo() (*CloudInfo, error) {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+	tr := config.NewTransaction(ac.state)
+	var cloudInfo CloudInfo
+	err := tr.Get("core", "cloud", &cloudInfo)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if cloudInfo.Name != "" {
+		return &cloudInfo, nil
+	}
+	return nil, nil
+}
+
+type ensureContextKey struct{}
+
+// EnsureContextTODO returns a provisional context marked as
+// pertaining to an Ensure loop.
+// TODO: see Overlord.Loop to replace it with a proper context passed to all Ensures.
+func EnsureContextTODO() context.Context {
+	ctx := context.TODO()
+	return context.WithValue(ctx, ensureContextKey{}, struct{}{})
+}
+
+// IsEnsureContext returns whether context was marked as pertaining to an Ensure loop.
+func IsEnsureContext(ctx context.Context) bool {
+	return ctx.Value(ensureContextKey{}) != nil
 }

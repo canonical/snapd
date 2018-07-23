@@ -1,0 +1,36 @@
+summary: Check that snap userd can autostart user session applications
+
+execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    echo "When the snap is installed"
+    install_local test-snapd-xdg-autostart
+
+    # run the app directly, it will dump a *.desktop file
+    snap run test-snapd-xdg-autostart.foo
+
+    echo "And snap application autostart file exists"
+    test -e ~/snap/test-snapd-xdg-autostart/current/.config/autostart/foo.desktop
+
+    echo "Applications can be automatically started by snap userd --autostart"
+
+    test ! -e ~/snap/test-xdg-snap-autostart/current/foo-autostarted
+    cursor=$(get_last_journalctl_cursor)
+    snap userd --autostart > autostart.log 2>&1
+
+    # when app is autostarted it dumps a file at $SNAP_USER_DATA/foo-autostarted,
+    # applications are forked by userd, but userd does not wait for them
+    for i in `seq 20`; do
+        test -e ~/snap/test-snapd-xdg-autostart/current/foo-autostarted && break
+        sleep 1
+    done
+    test -e ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
+
+    test "$(get_journalctl_log_from_cursor "$cursor" | grep foo.desktop | wc -l)" -gt 0
+
+restore: |
+    rm -f ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
+    rm -f ~/snap/test-snapd-xdg-autostart/current/.config/autostart/foo.desktop

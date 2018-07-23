@@ -45,6 +45,20 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 	c.Check(cs.req.URL.Path, Equals, "/v2/assertions")
 }
 
+func (cs *clientSuite) TestClientAssertsTypes(c *C) {
+	cs.rsp = `{
+    "result": {
+        "types": ["one", "two"]
+    },
+    "status": "OK",
+    "status-code": 200,
+    "type": "sync"
+}`
+	typs, err := cs.cli.AssertionTypes()
+	c.Assert(err, IsNil)
+	c.Check(typs, DeepEquals, []string{"one", "two"})
+}
+
 func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
 	_, _ = cs.cli.Known("snap-revision", nil)
 	c.Check(cs.req.Method, Equals, "GET")
@@ -72,7 +86,7 @@ func (cs *clientSuite) TestClientAssertsHttpError(c *C) {
 }
 
 func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
-	cs.status = http.StatusBadRequest
+	cs.status = 400
 	cs.header = http.Header{}
 	cs.header.Add("Content-type", "application/json")
 	cs.rsp = `{
@@ -129,7 +143,7 @@ func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
 	cs.header = http.Header{}
 	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
-	cs.status = http.StatusOK
+	cs.status = 200
 	a, err := cs.cli.Known("snap-revision", nil)
 	c.Assert(err, IsNil)
 	c.Check(a, HasLen, 0)
@@ -139,7 +153,7 @@ func (cs *clientSuite) TestClientAssertsMissingAssertions(c *C) {
 	cs.header = http.Header{}
 	cs.header.Add("X-Ubuntu-Assertions-Count", "4")
 	cs.rsp = ""
-	cs.status = http.StatusOK
+	cs.status = 200
 	_, err := cs.cli.Known("snap-build", nil)
 	c.Assert(err, ErrorMatches, "response did not have the expected number of assertions")
 }

@@ -26,6 +26,8 @@ struct sc_args {
 	char *security_tag;
 	// The executable that should be invoked
 	char *executable;
+	// Name of the base snap to use.
+	char *base_snap;
 
 	// Flag indicating that --version was passed on command line.
 	bool is_version_query;
@@ -97,6 +99,31 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 			goto done;
 		} else if (strcmp(argv[optind], "--classic") == 0) {
 			args->is_classic_confinement = true;
+		} else if (strcmp(argv[optind], "--base") == 0) {
+			if (optind + 1 >= argc) {
+				err =
+				    sc_error_init(SC_ARGS_DOMAIN,
+						  SC_ARGS_ERR_USAGE,
+						  "Usage: snap-confine <security-tag> <executable>\n"
+						  "\n"
+						  "the --base option requires an argument");
+				goto out;
+			}
+			if (args->base_snap != NULL) {
+				err =
+				    sc_error_init(SC_ARGS_DOMAIN,
+						  SC_ARGS_ERR_USAGE,
+						  "Usage: snap-confine <security-tag> <executable>\n"
+						  "\n"
+						  "the --base option can be used only once");
+				goto out;
+
+			}
+			args->base_snap = strdup(argv[optind + 1]);
+			if (args->base_snap == NULL) {
+				die("cannot allocate memory for base snap name");
+			}
+			optind += 1;
 		} else {
 			// Report unhandled option switches
 			err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
@@ -183,6 +210,8 @@ void sc_args_free(struct sc_args *args)
 		args->security_tag = NULL;
 		free(args->executable);
 		args->executable = NULL;
+		free(args->base_snap);
+		args->base_snap = NULL;
 		free(args);
 	}
 }
@@ -223,4 +252,12 @@ const char *sc_args_executable(struct sc_args *args)
 		die("cannot obtain executable from NULL argument parser");
 	}
 	return args->executable;
+}
+
+const char *sc_args_base_snap(struct sc_args *args)
+{
+	if (args == NULL) {
+		die("cannot obtain base snap name from NULL argument parser");
+	}
+	return args->base_snap;
 }

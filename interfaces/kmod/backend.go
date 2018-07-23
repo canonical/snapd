@@ -51,6 +51,11 @@ import (
 // Backend is responsible for maintaining kernel modules
 type Backend struct{}
 
+// Initialize does nothing.
+func (b *Backend) Initialize() error {
+	return nil
+}
+
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return "kmod"
@@ -62,7 +67,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -83,7 +88,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 
 	if len(changed) > 0 {
-		return loadModules(modules)
+		loadModules(modules)
 	}
 	return nil
 }
@@ -116,7 +121,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil
 		buffer.WriteString(module)
 		buffer.WriteRune('\n')
 	}
-	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.Name()))] = &osutil.FileState{
+	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.FileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
@@ -125,4 +130,9 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil
 
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns the list of features supported by snapd for loading kernel modules.
+func (b *Backend) SandboxFeatures() []string {
+	return []string{"mediated-modprobe"}
 }

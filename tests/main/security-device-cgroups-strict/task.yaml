@@ -1,0 +1,44 @@
+summary: Check that plugged and unplugged device nodes are available in strict
+
+details: |
+    This tests that a framebuffer device is accessible in strict and makes
+    sure that other devices not included in the snap's plugged interfaces are
+    still accessible (ie, the cgroup is not in effect).
+
+systems: [-fedora-*, -opensuse-*,-debian-*, -arch-*]
+
+prepare: |
+    # Create framebuffer device node and give it some content we can verify
+    # the test snap can read.
+    if [ ! -e /dev/fb0 ]; then
+        mknod /dev/fb0 c 29 0
+        touch /dev/fb0.spread
+    fi
+
+    echo "Given a snap declaring a plug on framebuffer is installed in strict"
+    . $TESTSLIB/snaps.sh
+    install_local test-strict-cgroup
+
+restore: |
+    if [ -e /dev/fb0.spread ]; then
+        rm -f /dev/fb0 /dev/fb0.spread
+    fi
+
+execute: |
+    . $TESTSLIB/dirs.sh
+
+    echo "And the framebuffer plug is connected"
+    snap connect test-strict-cgroup:framebuffer
+    echo "the strict snap can access the framebuffer"
+    "$SNAP_MOUNT_DIR"/bin/test-strict-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+
+    echo "the strict snap cannot access other devices"
+    "$SNAP_MOUNT_DIR"/bin/test-strict-cgroup.read-kmsg 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+
+    echo "And the framebuffer plug is disconnected"
+    snap disconnect test-strict-cgroup:framebuffer
+    echo "the strict snap cannot access the framebuffer"
+    "$SNAP_MOUNT_DIR"/bin/test-strict-cgroup.read-fb 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+
+    echo "the strict snap cannot access other devices"
+    "$SNAP_MOUNT_DIR"/bin/test-strict-cgroup.read-kmsg 2>&1 | MATCH '(Permission denied|Operation not permitted)'

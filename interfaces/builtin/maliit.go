@@ -20,15 +20,24 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const maliitSummary = `allows operating as the Maliit service`
+
+const maliitBaseDeclarationSlots = `
+  maliit:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+`
 
 const maliitPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
@@ -121,13 +130,14 @@ func (iface *maliitInterface) Name() string {
 	return "maliit"
 }
 
-func (iface *maliitInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: maliitSummary,
+func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              maliitSummary,
+		BaseDeclarationSlots: maliitBaseDeclarationSlots,
 	}
 }
 
-func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(maliitConnectedPlugAppArmor, old, new, -1)
@@ -135,17 +145,17 @@ func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *maliitInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *maliitInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(maliitPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *maliitInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *maliitInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(maliitPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(maliitConnectedSlotAppArmor, old, new, -1)
@@ -153,21 +163,7 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *maliitInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *maliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-	return nil
-}
-
-func (iface *maliitInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *maliitInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

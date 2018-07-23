@@ -1,0 +1,55 @@
+summary: Ensure that the hardware-random-observe interface works.
+
+summary: |
+    The hardware-observe interface allows a snap to access hardware-random information.
+
+    A snap which access to the hardware-random information must be shown in the interfaces list.
+    The plug must not be connected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to read files in
+    /sys/class/misc/hw_random/{rng_available,rng_current} and /dev/hwrng
+
+# Execution skipped on debian and arch due to device /dev/hwrng not created by default
+systems: [-debian-*, -arch-*]
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    echo "Given a snap declaring a plug on the hardware-random-observe interface is installed"
+    install_local test-snapd-hardware-random-observe
+
+restore: |
+    rm -f hw.error
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i hardware-random-observe | MATCH '^- +test-snapd-hardware-random-observe:hardware-random-observe'
+
+    echo "When the plug is connected"
+    snap connect test-snapd-hardware-random-observe:hardware-random-observe
+
+    echo "Then the snap is able to read hardware random information"
+    test-snapd-hardware-random-observe.check 2>hw.error
+    if MATCH "Permission denied" < hw.error; then
+        echo "Permission error accessing hardware random information"
+        exit 1
+    fi
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-hardware-random-observe:hardware-random-observe
+
+    echo "Then the snap is not able to read the hardware random information"
+    if test-snapd-hardware-random-observe.check 2>hw.error; then
+        echo "Expected permission error accessing hardware control information with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" hw.error
+
+    echo "And the snap is able to reconnect"
+    snap connect test-snapd-hardware-random-observe:hardware-random-observe

@@ -1,0 +1,59 @@
+summary: Ensure that the wayland interface works
+
+# Only test on classic Ubuntu amd64 systems that have wayland
+systems: [ ubuntu-1*-*64 ]
+
+prepare: |
+    . $TESTSLIB/pkgdb.sh
+    snap install --edge test-snapd-wayland
+
+restore: |
+    echo "Stop weston compositor"
+    /usr/bin/killall -9 /usr/bin/weston || true
+
+execute: |
+    echo "The interface is connected by default"
+    snap interfaces -i wayland | MATCH ":wayland .*test-snapd-wayland"
+
+    echo "When the plug is connected"
+    snap connect test-snapd-wayland:wayland
+
+    if [ "$(snap debug confinement)" = "partial" ] ; then
+        exit 0
+    fi
+
+    echo "Create XDG_RUNTIME_DIR=/run/user/12345"
+    mkdir -p /run/user/12345 || true
+    chmod 700 /run/user/12345
+    chown test:test /run/user/12345
+
+    echo "Start weston compositor under test user"
+    XDG_RUNTIME_DIR=/run/user/12345 su -p -c "weston --backend=headless-backend.so" test &
+
+    echo "Then wait for the socket to show up"
+    count=0
+    while sleep 1 && [ ! -S /run/user/12345/wayland-0 ]; do
+        echo $count
+        count=$((count+1))
+        if [ "$count" -gt 10 ]; then
+           echo "Could not find wayland socket"
+           exit 1
+        fi
+    done
+
+    echo "Then the snap command under the test user is able connect to the wayland socket"
+    XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-snapd-wayland test | MATCH wl_compositor
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-wayland:wayland
+
+    echo "Then the snap command is not able to connect to the wayland socket"
+    if XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-snapd-wayland test; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
+
+    # If this is in 'restore', execute doesn't exit and spread must timeout
+    # the test.
+    echo "Stop weston compositor"
+    /usr/bin/killall -9 /usr/bin/weston || true

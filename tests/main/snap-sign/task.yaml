@@ -1,10 +1,16 @@
 summary: Run snap sign to sign a model assertion
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
 prepare: |
-    "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
+
+debug: |
+    . "$TESTSLIB"/random.sh
+    debug_random
 
 execute: |
     echo "Creating a new key without a password"

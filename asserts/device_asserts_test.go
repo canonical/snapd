@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 type modelSuite struct {
@@ -57,7 +58,9 @@ const (
 		"display-name: Baz 3000\n" +
 		"architecture: amd64\n" +
 		"gadget: brand-gadget\n" +
+		"base: core18\n" +
 		"kernel: baz-linux\n" +
+		"kernel-track: 4.15\n" +
 		"store: brand-store\n" +
 		sysUserAuths +
 		reqSnaps +
@@ -100,6 +103,8 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
+	c.Check(model.KernelTrack(), Equals, "4.15")
+	c.Check(model.Base(), Equals, "core18")
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
@@ -118,6 +123,36 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeKernelTrackIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "kernel-track: 4.15\n", "kernel-track: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.KernelTrack(), Equals, "")
+
+	encoded = strings.Replace(withTimestamp, "kernel-track: 4.15\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.KernelTrack(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeBaseIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "base: core18\n", "base: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.Base(), Equals, "")
+
+	encoded = strings.Replace(withTimestamp, "base: core18\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.Base(), Equals, "")
 }
 
 func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
@@ -187,6 +222,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
+		{"kernel-track: 4.15\n", "kernel-track:\n  - 123\n", `"kernel-track" header must be a string`},
 		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
@@ -209,7 +245,7 @@ func (mods *modelSuite) TestModelCheck(c *C) {
 	c.Assert(err, IsNil)
 
 	storeDB, db := makeStoreAndCheckDB(c)
-	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
+	brandDB := setup3rdPartySigning(c, "brand-id1", storeDB, db)
 
 	headers := ex.Headers()
 	headers["brand-id"] = brandDB.AuthorityID
@@ -226,7 +262,7 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	storeDB, db := makeStoreAndCheckDB(c)
-	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
+	brandDB := setup3rdPartySigning(c, "brand-id1", storeDB, db)
 
 	headers := ex.Headers()
 	headers["brand-id"] = brandDB.AuthorityID
@@ -266,6 +302,8 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"architecture: amd64\n", "architecture:\n  - foo\n", `"architecture" header must be a string`},
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
 		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
+		{"gadget: brand-gadget\n", "kernel-track: edge\n", `cannot specify kernel-track with a classic model`},
+		{"gadget: brand-gadget\n", "base: some-base\n", `cannot specify a base with a classic model`},
 	}
 
 	for _, test := range invalidTests {
@@ -350,6 +388,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand: "random" != "brand-id1"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"model: baz-3000\n", "model: _what\n", `"model" header contains invalid characters: "_what"`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
 		{"serial: 2700\n", "serial: \n", `"serial" header should not be empty`},
 		{ss.tsLine, "", `"timestamp" header is mandatory`},
@@ -377,6 +416,42 @@ func (ss *serialSuite) TestDecodeKeyIDMismatch(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, serialErrPrefix+"device key does not match provided key id")
+}
+
+func (ss *serialSuite) TestSerialCheck(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
+	encoded = strings.Replace(encoded, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
+	ex, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	storeDB, db := makeStoreAndCheckDB(c)
+	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
+
+	tests := []struct {
+		signDB  assertstest.SignerDB
+		brandID string
+		authID  string
+		keyID   string
+	}{
+		{brandDB, brandDB.AuthorityID, "", brandDB.KeyID},
+	}
+
+	for _, test := range tests {
+		headers := ex.Headers()
+		headers["brand-id"] = test.brandID
+		if test.authID != "" {
+			headers["authority-id"] = test.authID
+		} else {
+			headers["authority-id"] = test.brandID
+		}
+		headers["timestamp"] = time.Now().Format(time.RFC3339)
+		serial, err := test.signDB.Sign(asserts.SerialType, headers, nil, test.keyID)
+		c.Assert(err, IsNil)
+
+		err = db.Check(serial)
+		c.Check(err, IsNil)
+	}
 }
 
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {

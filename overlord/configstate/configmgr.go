@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,23 +22,31 @@ package configstate
 import (
 	"regexp"
 
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state *state.State
+var configcoreRun = configcore.Run
+
+func MockConfigcoreRun(f func(conf configcore.Conf) error) (restore func()) {
+	origConfigcoreRun := configcoreRun
+	configcoreRun = f
+	return func() {
+		configcoreRun = origConfigcoreRun
+	}
 }
 
-// Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
-	manager := &ConfigManager{
-		state: s,
-	}
-
+func Init(hookManager *hookstate.HookManager) {
+	// Most configuration is handled via the "configure" hook of the
+	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
-
-	return manager, nil
+	// Ensure that we run configure for the core snap internally.
+	// Note that we use the func() indirection so that mocking configcoreRun
+	// in tests works correctly.
+	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
+		ctx.Lock()
+		tr := ContextTransaction(ctx)
+		ctx.Unlock()
+		return configcoreRun(tr)
+	})
 }

@@ -25,20 +25,29 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type GpioInterfaceSuite struct {
-	iface                   interfaces.Interface
-	gadgetGpioSlot          *interfaces.Slot
-	gadgetMissingNumberSlot *interfaces.Slot
-	gadgetBadNumberSlot     *interfaces.Slot
-	gadgetBadInterfaceSlot  *interfaces.Slot
-	gadgetPlug              *interfaces.Plug
-	gadgetBadInterfacePlug  *interfaces.Plug
-	osGpioSlot              *interfaces.Slot
-	appGpioSlot             *interfaces.Slot
+	iface                       interfaces.Interface
+	gadgetGpioSlotInfo          *snap.SlotInfo
+	gadgetGpioSlot              *interfaces.ConnectedSlot
+	gadgetMissingNumberSlotInfo *snap.SlotInfo
+	gadgetMissingNumberSlot     *interfaces.ConnectedSlot
+	gadgetBadNumberSlotInfo     *snap.SlotInfo
+	gadgetBadNumberSlot         *interfaces.ConnectedSlot
+	gadgetBadInterfaceSlotInfo  *snap.SlotInfo
+	gadgetBadInterfaceSlot      *interfaces.ConnectedSlot
+	gadgetPlugInfo              *snap.PlugInfo
+	gadgetPlug                  *interfaces.ConnectedPlug
+	gadgetBadInterfacePlugInfo  *snap.PlugInfo
+	gadgetBadInterfacePlug      *interfaces.ConnectedPlug
+	osGpioSlotInfo              *snap.SlotInfo
+	osGpioSlot                  *interfaces.ConnectedSlot
+	appGpioSlotInfo             *snap.SlotInfo
+	appGpioSlot                 *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&GpioInterfaceSuite{
@@ -48,6 +57,7 @@ var _ = Suite(&GpioInterfaceSuite{
 func (s *GpioInterfaceSuite) SetUpTest(c *C) {
 	gadgetInfo := snaptest.MockInfo(c, `
 name: my-device
+version: 0
 type: gadget
 slots:
     my-pin:
@@ -63,15 +73,22 @@ plugs:
     plug: gpio
     bad-interface-plug: other-interface
 `, nil)
-	s.gadgetGpioSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["my-pin"]}
-	s.gadgetMissingNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["missing-number"]}
-	s.gadgetBadNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-number"]}
-	s.gadgetBadInterfaceSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-interface-slot"]}
-	s.gadgetPlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["plug"]}
-	s.gadgetBadInterfacePlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["bad-interface-plug"]}
+	s.gadgetGpioSlotInfo = gadgetInfo.Slots["my-pin"]
+	s.gadgetGpioSlot = interfaces.NewConnectedSlot(s.gadgetGpioSlotInfo, nil)
+	s.gadgetMissingNumberSlotInfo = gadgetInfo.Slots["missing-number"]
+	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, nil)
+	s.gadgetBadNumberSlotInfo = gadgetInfo.Slots["bad-number"]
+	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, nil)
+	s.gadgetBadInterfaceSlotInfo = gadgetInfo.Slots["bad-interface-slot"]
+	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, nil)
+	s.gadgetPlugInfo = gadgetInfo.Plugs["plug"]
+	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, nil)
+	s.gadgetBadInterfacePlugInfo = gadgetInfo.Plugs["bad-interface-plug"]
+	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, nil)
 
 	osInfo := snaptest.MockInfo(c, `
 name: my-core
+version: 0
 type: os
 slots:
     my-pin:
@@ -79,17 +96,20 @@ slots:
         number: 777
         direction: out
 `, nil)
-	s.osGpioSlot = &interfaces.Slot{SlotInfo: osInfo.Slots["my-pin"]}
+	s.osGpioSlotInfo = osInfo.Slots["my-pin"]
+	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, nil)
 
 	appInfo := snaptest.MockInfo(c, `
 name: my-app
+version: 0
 slots:
     my-pin:
         interface: gpio
         number: 154
         direction: out
 `, nil)
-	s.appGpioSlot = &interfaces.Slot{SlotInfo: appInfo.Slots["my-pin"]}
+	s.appGpioSlotInfo = appInfo.Slots["my-pin"]
+	s.appGpioSlot = interfaces.NewConnectedSlot(s.appGpioSlotInfo, nil)
 }
 
 func (s *GpioInterfaceSuite) TestName(c *C) {
@@ -98,44 +118,35 @@ func (s *GpioInterfaceSuite) TestName(c *C) {
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 	// gpio slot on gadget accepeted
-	err := s.iface.SanitizeSlot(s.gadgetGpioSlot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetGpioSlotInfo), IsNil)
 
 	// slots without number attribute are rejected
-	err = s.iface.SanitizeSlot(s.gadgetMissingNumberSlot)
-	c.Assert(err, ErrorMatches, "gpio slot must have a number attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetMissingNumberSlotInfo), ErrorMatches,
+		"gpio slot must have a number attribute")
 
 	// slots with number attribute that isnt a number
-	err = s.iface.SanitizeSlot(s.gadgetBadNumberSlot)
-	c.Assert(err, ErrorMatches, "gpio slot number attribute must be an int")
-
-	// Must be right interface type
-	c.Assert(func() { s.iface.SanitizeSlot(s.gadgetBadInterfaceSlot) }, PanicMatches, `slot is not of interface "gpio"`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetBadNumberSlotInfo), ErrorMatches,
+		"gpio slot number attribute must be an int")
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
 	// gpio slot on OS accepeted
-	err := s.iface.SanitizeSlot(s.osGpioSlot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.osGpioSlotInfo), IsNil)
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 	// gpio slot not accepted on app snap
-	err := s.iface.SanitizeSlot(s.appGpioSlot)
-	c.Assert(err, ErrorMatches, "gpio slots only allowed on gadget or core snaps")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.appGpioSlotInfo), ErrorMatches,
+		"gpio slots are reserved for the core and gadget snaps")
 }
 
 func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.gadgetPlug)
-	c.Assert(err, IsNil)
-
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
-	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches, `plug is not of interface "gpio"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.gadgetPlugInfo), IsNil)
 }
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	spec := &systemd.Specification{}
-	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, nil, s.gadgetGpioSlot, nil)
+	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"snap.my-device.interface.gpio-100.service": {

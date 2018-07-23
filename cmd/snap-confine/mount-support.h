@@ -18,6 +18,17 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
+#include "apparmor-support.h"
+
+/**
+ * Return a file descriptor referencing the snap-update-ns utility
+ *
+ * By calling this prior to changing the mount namespace, it is
+ * possible to execute the utility even if a different version is now
+ * mounted at the expected location.
+ **/
+int sc_open_snap_update_ns(void);
+
 /**
  * Assuming a new mountspace, populate it accordingly.
  *
@@ -31,14 +42,28 @@
  * The function will also try to preserve the current working directory but if
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
-void sc_populate_mount_ns(const char *snap_name);
+void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *base_snap_name, const char *snap_name);
 
 /**
- * Ensure that / or /snap is mounted with the SHARED option. 
+ * Ensure that / or /snap is mounted with the SHARED option.
  *
- * If the system is found to be not having a shared mount for "/" 
+ * If the system is found to be not having a shared mount for "/"
  * snap-confine will create a shared bind mount for "/snap" to
  * ensure that "/snap" is mounted shared. See LP:#1668659
  */
-void sc_ensure_shared_snap_mount();
+void sc_ensure_shared_snap_mount(void);
+
+/**
+ * Set up user mounts, private to this process.
+ *
+ * If any user mounts have been configured for this process, this does
+ * the following:
+ * - create a new mount namespace
+ * - reconfigure all existing mounts to slave mode
+ * - perform all user mounts
+ */
+void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *snap_name);
+
 #endif

@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
@@ -80,6 +82,17 @@ func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	c.Check(cs.req.URL.Query().Get("select"), check.Equals, "private")
 }
 
+func (cs *clientSuite) TestClientFindWithScopeSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Scope: "mouthwash",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"q": []string{""}, "scope": []string{"mouthwash"},
+	})
+}
+
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
@@ -106,19 +119,28 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		"type": "sync",
 		"result": [{
 			"id": "funky-snap-id",
+			"title": "Title",
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
 			"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
 			"installed-size": -1,
+			"license": "GPL-3.0",
 			"name": "hello-world",
 			"developer": "canonical",
+			"publisher": {
+                            "id": "canonical",
+                            "username": "canonical",
+                            "display-name": "Canonical",
+                            "validation": "verified"
+                        },
 			"resource": "/v2/snaps/hello-world.canonical",
 			"status": "available",
 			"type": "app",
 			"version": "1.0.18",
 			"confinement": "strict",
-			"private": true
+			"private": true,
+                        "common-ids": ["org.funky.snap"]
 		}],
 		"suggested-currency": "GBP"
 	}`
@@ -126,19 +148,28 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		ID:            "funky-snap-id",
+		Title:         "Title",
 		Summary:       "salutation snap",
 		Description:   "hello-world",
 		DownloadSize:  22212,
 		Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
 		InstalledSize: -1,
+		License:       "GPL-3.0",
 		Name:          "hello-world",
 		Developer:     "canonical",
-		Status:        client.StatusAvailable,
-		Type:          client.TypeApp,
-		Version:       "1.0.18",
-		Confinement:   client.StrictConfinement,
-		Private:       true,
-		DevMode:       false,
+		Publisher: &snap.StoreAccount{
+			ID:          "canonical",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "verified",
+		},
+		Status:      client.StatusAvailable,
+		Type:        client.TypeApp,
+		Version:     "1.0.18",
+		Confinement: client.StrictConfinement,
+		Private:     true,
+		DevMode:     false,
+		CommonIDs:   []string{"org.funky.snap"},
 	}})
 }
 
@@ -171,18 +202,27 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		"type": "sync",
 		"result": {
 			"id": "funky-snap-id",
+			"title": "Title",
 			"summary": "bla bla",
 			"description": "WebRTC Video chat server for Snappy",
 			"download-size": 6930947,
 			"icon": "/v2/icons/chatroom.ogra/icon",
 			"installed-size": 18976651,
 			"install-date": "2016-01-02T15:04:05Z",
+			"license": "GPL-3.0",
 			"name": "chatroom",
 			"developer": "ogra",
+			"publisher": {
+                            "id": "ogra-id",
+                            "username": "ogra",
+                            "display-name": "Ogra",
+                            "validation": "unproven"
+                        },
 			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
 			"type": "app",
 			"version": "0.1-8",
+                        "revision": 42,
 			"confinement": "strict",
 			"private": true,
 			"devmode": true,
@@ -190,7 +230,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                         "screenshots": [
                             {"url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"url":"http://example.com/shot2.png"}
-                        ]
+                        ],
+                        "common-ids": ["org.funky.snap"]
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -200,23 +241,85 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
+		Title:         "Title",
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
 		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
+		License:       "GPL-3.0",
 		Name:          "chatroom",
 		Developer:     "ogra",
-		Status:        client.StatusActive,
-		Type:          client.TypeApp,
-		Version:       "0.1-8",
-		Confinement:   client.StrictConfinement,
-		Private:       true,
-		DevMode:       true,
-		TryMode:       true,
+		Publisher: &snap.StoreAccount{
+			ID:          "ogra-id",
+			Username:    "ogra",
+			DisplayName: "Ogra",
+			Validation:  "unproven",
+		},
+		Status:      client.StatusActive,
+		Type:        client.TypeApp,
+		Version:     "0.1-8",
+		Revision:    snap.R(42),
+		Confinement: client.StrictConfinement,
+		Private:     true,
+		DevMode:     true,
+		TryMode:     true,
 		Screenshots: []client.Screenshot{
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
 			{URL: "http://example.com/shot2.png"},
 		},
+		CommonIDs: []string{"org.funky.snap"},
 	})
+}
+
+func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello"}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"name": "hello"
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoServiceDaemon(c *check.C) {
+	buf, err := json.MarshalIndent(client.AppInfo{
+		Snap:    "foo",
+		Name:    "hello",
+		Daemon:  "daemon",
+		Enabled: true,
+		Active:  false,
+	}, "\t", "\t")
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Equals, `{
+		"snap": "foo",
+		"name": "hello",
+		"daemon": "daemon",
+		"enabled": true
+	}`)
+}
+
+func (cs *clientSuite) TestAppInfoNilNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoNoDaemonNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello"}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoEmptyDaemonNotService(c *check.C) {
+	var app *client.AppInfo
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": ""}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, false)
+}
+
+func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
+	var app *client.AppInfo
+
+	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
+	c.Check(app.Name, check.Equals, "hello")
+	c.Check(app.IsService(), check.Equals, true)
 }

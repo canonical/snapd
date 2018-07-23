@@ -1,7 +1,6 @@
 summary: Ensure that the locale-control interface works.
 
-systems:
-    - -ubuntu-core-16-*
+systems: [-fedora-*, -opensuse-*, -arch-*]
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
@@ -11,12 +10,24 @@ summary: |
     reconnected.
 
     A snap declaring a plug on this interface must be able to access the /etc/default/locale
-    file both for reading and writing.
+    file both for reading and writing. This path doesn't exist on the excluded distributions.
 
 prepare: |
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        if snap interfaces | MATCH locale-control; then
+            echo "locale-control should be only available on core"
+            exit 1
+        else
+            exit 0
+        fi
+    fi
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a snap declaring a plug on the locale-control interface is installed"
-    snapbuild $TESTSLIB/snaps/locale-control-consumer .
-    snap install --dangerous locale-control-consumer_1.0_all.snap
+    install_local locale-control-consumer
+
     mv /etc/default/locale locale.back
     cat > /etc/default/locale <<EOF
     LANG="$LANG"
@@ -24,25 +35,36 @@ prepare: |
     EOF
 
 restore: |
-    rm -f locale-control-consumer_1.0_all.snap locale-read.error locale-write.error
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        if snap interfaces | MATCH locale-control; then
+            echo "locale-control should be only available on core"
+            exit 1
+        else
+            exit 0
+        fi
+    fi
+
+    rm -f locale-read.error locale-write.error
     mv locale.back /etc/default/locale
 
 execute: |
-    CONNECTED_PATTERN=":locale-control +locale-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +locale-control-consumer:locale-control"
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+        if snap interfaces | MATCH locale-control; then
+            echo "locale-control should be only available on core"
+            exit 1
+        else
+            exit 0
+        fi
+    fi
 
-    echo "Then it is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "The interface is not connected by default"
+    snap interfaces -i locale-control | MATCH '^- +locale-control-consumer:locale-control'
 
     echo "When the plug is connected"
     snap connect locale-control-consumer:locale-control
 
     echo "Then the snap is able to read the locale configuration"
     [ "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG" ]
-
-    echo "==================================="
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
@@ -54,8 +76,6 @@ execute: |
             exit 1
         fi
         grep -q "Permission denied" locale-read.error
-
-        echo "==================================="
     fi
 
     echo "When the plug is connected"
@@ -66,13 +86,11 @@ execute: |
     grep -q "LANG=\"mylang\"" /etc/default/locale
 
     if [ "$(snap debug confinement)" = strict ] ; then
-        echo "==================================="
-
         echo "When the plug is disconnected"
         snap disconnect locale-control-consumer:locale-control
 
         echo "Then the snap is not able to read the locale configuration"
-        if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
+        if locale-control-consumer.set LANG mysecondlang 2> locale-write.error; then
             echo "Expected permission error accessing locale configuration with disconnected plug"
             exit 1
         fi

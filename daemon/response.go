@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,22 @@
 package daemon
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // ResponseType is the response type
@@ -53,6 +60,14 @@ type resp struct {
 	Type   ResponseType `json:"type"`
 	Result interface{}  `json:"result,omitempty"`
 	*Meta
+	Maintenance *errorResult `json:"maintenance,omitempty"`
+}
+
+func (r *resp) transmitMaintenance(kind errorKind, message string) {
+	r.Maintenance = &errorResult{
+		Kind:    kind,
+		Message: message,
+	}
 }
 
 // TODO This is being done in a rush to get the proper external
@@ -61,14 +76,8 @@ type resp struct {
 //      these fields inside resp.
 type Meta struct {
 	Sources           []string `json:"sources,omitempty"`
-	Paging            *Paging  `json:"paging,omitempty"`
 	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
 	Change            string   `json:"change,omitempty"`
-}
-
-type Paging struct {
-	Page  int `json:"page"`
-	Pages int `json:"pages"`
 }
 
 type respJSON struct {
@@ -77,15 +86,17 @@ type respJSON struct {
 	StatusText string       `json:"status"`
 	Result     interface{}  `json:"result"`
 	*Meta
+	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(respJSON{
-		Type:       r.Type,
-		Status:     r.Status,
-		StatusText: http.StatusText(r.Status),
-		Result:     r.Result,
-		Meta:       r.Meta,
+		Type:        r.Type,
+		Status:      r.Status,
+		StatusText:  http.StatusText(r.Status),
+		Result:      r.Result,
+		Meta:        r.Meta,
+		Maintenance: r.Maintenance,
 	})
 }
 
@@ -95,11 +106,11 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
-		status = http.StatusInternalServerError
+		status = 500
 	}
 
 	hdr := w.Header()
-	if r.Status == http.StatusAccepted || r.Status == http.StatusCreated {
+	if r.Status == 202 || r.Status == 201 {
 		if m, ok := r.Result.(map[string]interface{}); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
@@ -128,13 +139,32 @@ const (
 
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
+	errorKindSnapNotFound          = errorKind("snap-not-found")
+	errorKindAppNotFound           = errorKind("app-not-found")
+	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
+
+	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
+	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
+	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
+
+	errorKindSnapChangeConflict = errorKind("snap-change-conflict")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
 	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
+
+	errorKindBadQuery = errorKind("bad-query")
+
+	errorKindNetworkTimeout      = errorKind("network-timeout")
+	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
+
+	errorKindConfigNoSuchOption = errorKind("option-not-found")
+
+	errorKindDaemonRestart = errorKind("daemon-restart")
+	errorKindSystemRestart = errorKind("system-restart")
 )
 
 type errorValue interface{}
@@ -157,7 +187,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 
 	return &resp{
 		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
+		Status: 200,
 		Result: result,
 		Meta:   meta,
 	}
@@ -167,7 +197,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 	return &resp{
 		Type:   ResponseTypeAsync,
-		Status: http.StatusAccepted,
+		Status: 202,
 		Result: result,
 		Meta:   meta,
 	}
@@ -179,7 +209,7 @@ func makeErrorResponder(status int) errorResponder {
 		res := &errorResult{
 			Message: fmt.Sprintf(format, v...),
 		}
-		if status == http.StatusUnauthorized {
+		if status == 401 {
 			res.Kind = errorKindLoginRequired
 		}
 		return &resp{
@@ -200,6 +230,68 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
+// A journalLineReaderSeqResponse's ServeHTTP method reads lines (presumed to
+// be, each one on its own, a JSON dump of a systemd.Log, as output by
+// journalctl -o json) from an io.ReadCloser, loads that into a client.Log, and
+// outputs the json dump of that, padded with RS and LF to make it a valid
+// json-seq response.
+//
+// The reader is always closed when done (this is important for
+// osutil.WatingStdoutPipe).
+//
+// Tip: “jq” knows how to read this; “jq --seq” both reads and writes this.
+type journalLineReaderSeqResponse struct {
+	io.ReadCloser
+	follow bool
+}
+
+func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json-seq")
+
+	flusher, hasFlusher := w.(http.Flusher)
+
+	var err error
+	dec := json.NewDecoder(rr)
+	writer := bufio.NewWriter(w)
+	enc := json.NewEncoder(writer)
+	for {
+		var log systemd.Log
+		if err = dec.Decode(&log); err != nil {
+			break
+		}
+
+		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
+
+		// ignore the error...
+		t, _ := log.Time()
+		if err = enc.Encode(client.Log{
+			Timestamp: t,
+			Message:   log.Message(),
+			SID:       log.SID(),
+			PID:       log.PID(),
+		}); err != nil {
+			break
+		}
+
+		if rr.follow {
+			if e := writer.Flush(); e != nil {
+				break
+			}
+			if hasFlusher {
+				flusher.Flush()
+			}
+		}
+	}
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
+		logger.Noticef("cannot stream response; problem reading: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		logger.Noticef("cannot stream response; problem writing: %v", err)
+	}
+	rr.Close()
+}
+
 type assertResponse struct {
 	assertions []asserts.Assertion
 	bundle     bool
@@ -213,6 +305,20 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 	return &assertResponse{assertions: asserts, bundle: bundle}
 }
 
+// InterfacesUnchanged is an error responder used when an operation
+// that would normally change interfaces finds it has nothing to do
+func InterfacesUnchanged(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindInterfacesUnchanged,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 400,
+	}
+}
+
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t := asserts.MediaType
 	if ar.bundle {
@@ -220,7 +326,7 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", t)
 	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(200)
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
@@ -238,12 +344,114 @@ type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
-	Unauthorized   = makeErrorResponder(http.StatusUnauthorized)
-	NotFound       = makeErrorResponder(http.StatusNotFound)
-	BadRequest     = makeErrorResponder(http.StatusBadRequest)
-	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)
-	InternalError  = makeErrorResponder(http.StatusInternalServerError)
-	NotImplemented = makeErrorResponder(http.StatusNotImplemented)
-	Forbidden      = makeErrorResponder(http.StatusForbidden)
-	Conflict       = makeErrorResponder(http.StatusConflict)
+	Unauthorized     = makeErrorResponder(401)
+	NotFound         = makeErrorResponder(404)
+	BadRequest       = makeErrorResponder(400)
+	MethodNotAllowed = makeErrorResponder(405)
+	InternalError    = makeErrorResponder(500)
+	NotImplemented   = makeErrorResponder(501)
+	Forbidden        = makeErrorResponder(403)
+	Conflict         = makeErrorResponder(409)
 )
+
+// SnapNotFound is an error responder used when an operation is
+// requested on a snap that doesn't exist.
+func SnapNotFound(snapName string, err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
+		},
+		Status: 404,
+	}
+}
+
+// SnapRevisionNotAvailable is an error responder used when an
+// operation is requested for which no revivision can be found
+// in the given context (e.g. request an install from a stable
+// channel when this channel is empty).
+func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) Response {
+	var value interface{} = snapName
+	kind := errorKindSnapRevisionNotAvailable
+	msg := rnaErr.Error()
+	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
+		thisArch := arch.UbuntuArchitecture()
+		values := map[string]interface{}{
+			"snap-name":    snapName,
+			"action":       rnaErr.Action,
+			"channel":      rnaErr.Channel,
+			"architecture": thisArch,
+		}
+		archOK := false
+		releases := make([]map[string]interface{}, 0, len(rnaErr.Releases))
+		for _, c := range rnaErr.Releases {
+			if c.Architecture == thisArch {
+				archOK = true
+			}
+			releases = append(releases, map[string]interface{}{
+				"architecture": c.Architecture,
+				"channel":      c.Name,
+			})
+		}
+		// we return all available releases (arch x channel)
+		// as reported in the store error, but we hint with
+		// the error kind whether there was anything at all
+		// available for this architecture
+		if archOK {
+			kind = errorKindSnapChannelNotAvailable
+			msg = "no snap revision on specified channel"
+		} else {
+			kind = errorKindSnapArchitectureNotAvailable
+			msg = "no snap revision on specified architecture"
+		}
+		values["releases"] = releases
+		value = values
+	}
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: msg,
+			Kind:    kind,
+			Value:   value,
+		},
+		Status: 404,
+	}
+}
+
+// SnapChangeConflict is an error responder used when an operation is
+// conflicts with another change.
+func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
+	value := map[string]interface{}{}
+	if cce.Snap != "" {
+		value["snap-name"] = cce.Snap
+	}
+	if cce.ChangeKind != "" {
+		value["change-kind"] = cce.ChangeKind
+	}
+
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: cce.Error(),
+			Kind:    errorKindSnapChangeConflict,
+			Value:   value,
+		},
+		Status: 409,
+	}
+}
+
+// AppNotFound is an error responder used when an operation is
+// requested on a app that doesn't exist.
+func AppNotFound(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAppNotFound,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 404,
+	}
+}

@@ -1,14 +1,16 @@
 summary: Ensure create-user functionality
 
-systems: [-ubuntu-core-16-*]
+# Disabled for Fedora, openSUSE and Arch as none have all options for add user
+# the `snap create-user` command requires. Needs code rework.
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo
 
 restore: |
-    userdel -r $USER_NAME || true
-    rm -rf /etc/sudoers.d/create-user-$USER_NAME
+    userdel -r "$USER_NAME" || true
+    rm -rf "/etc/sudoers.d/create-user-$USER_NAME"
 
 execute: |
     echo "snap create-user -- ensure failure when run as non-root user without sudo"
@@ -16,15 +18,24 @@ execute: |
     if obtained=$(su - test /bin/sh -c "snap create-user $USER_EMAIL 2>&1"); then
         echo "create-user command should have failed"
     fi
-    [[ "$obtained" =~ "$expected" ]]
+    [[ "$obtained" =~ $expected ]]
 
     echo "snap create-user -- ensure success when run as non-root user with sudo"
     expected="created user \"$USER_NAME\""
     obtained=$(su - test /bin/sh -c "sudo snap create-user --force-managed --sudoer $USER_EMAIL 2>&1")
-    [[ "$obtained" =~ "$expected" ]]
+    [[ "$obtained" =~ $expected ]]
 
     echo "ensure user exists in /etc/passwd"
     MATCH "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" < /etc/passwd
 
     echo "ensure proper sudoers.d file"
-    MATCH "$USER_NAME ALL=\(ALL\) NOPASSWD:ALL" < /etc/sudoers.d/create-user-$USER_NAME
+    MATCH "$USER_NAME ALL=\\(ALL\\) NOPASSWD:ALL" < "/etc/sudoers.d/create-user-$USER_NAME"
+
+    echo "ensure the user's home directory exists"
+    test -d "/home/$USER_NAME"
+
+    echo "ensure ~/.snap/auth.json was created"
+    test -f "/home/$USER_NAME/.snap/auth.json"
+
+    echo "ensure user's email was stored in ~/.snap/auth.json"
+    MATCH "\"email\":\"$USER_EMAIL\"" < "/home/$USER_NAME/.snap/auth.json"

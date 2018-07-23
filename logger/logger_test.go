@@ -21,7 +21,9 @@ package logger_test
 
 import (
 	"bytes"
+	"log"
 	"os"
+	"runtime"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -36,27 +38,48 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&LogSuite{})
 
 type LogSuite struct {
-	oldLogger logger.Logger
+	logbuf        *bytes.Buffer
+	restoreLogger func()
 }
 
 func (s *LogSuite) SetUpTest(c *C) {
-	s.oldLogger = logger.GetLogger()
-	logger.SetLogger(logger.NullLogger)
+	s.logbuf, s.restoreLogger = logger.MockLogger()
 }
 
 func (s *LogSuite) TearDownTest(c *C) {
-	logger.SetLogger(s.oldLogger)
+	s.restoreLogger()
 }
 
 func (s *LogSuite) TestDefault(c *C) {
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	oldTerm, hadTerm := os.LookupEnv("TERM")
+	defer func() {
+		if hadTerm {
+			os.Setenv("TERM", oldTerm)
+		} else {
+			os.Unsetenv("TERM")
+		}
+	}()
+
 	if logger.GetLogger() != nil {
 		logger.SetLogger(nil)
 	}
 	c.Check(logger.GetLogger(), IsNil)
 
+	os.Setenv("TERM", "dumb")
 	err := logger.SimpleSetup()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
+
+	os.Unsetenv("TERM")
+	err = logger.SimpleSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
 }
 
 func (s *LogSuite) TestNew(c *C) {
@@ -67,48 +90,24 @@ func (s *LogSuite) TestNew(c *C) {
 }
 
 func (s *LogSuite) TestDebugf(c *C) {
-	var logbuf bytes.Buffer
-	l, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-
-	logger.SetLogger(l)
-
 	logger.Debugf("xyzzy")
-	c.Check(logbuf.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *LogSuite) TestDebugfEnv(c *C) {
-	var logbuf bytes.Buffer
-	l, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-
-	logger.SetLogger(l)
-
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	logger.Debugf("xyzzy")
-	c.Check(logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
+	c.Check(s.logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }
 
 func (s *LogSuite) TestNoticef(c *C) {
-	var logbuf bytes.Buffer
-	l, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-
-	logger.SetLogger(l)
-
 	logger.Noticef("xyzzy")
-	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
+	c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
 }
 
 func (s *LogSuite) TestPanicf(c *C) {
-	var logbuf bytes.Buffer
-	l, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-
-	logger.SetLogger(l)
-
 	c.Check(func() { logger.Panicf("xyzzy") }, Panics, "xyzzy")
-	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
+	c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,15 +19,15 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-)
-
 const timeControlSummary = `allows setting system date and time`
+
+const timeControlBaseDeclarationSlots = `
+  time-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 const timeControlConnectedPlugAppArmor = `
 # Description: Can set time and date via systemd' timedated D-Bus interface.
@@ -74,6 +74,13 @@ dbus (receive)
 # set-local-rtc commands.
 /usr/bin/timedatectl{,.real} ixr,
 
+# Silence this noisy denial. systemd utilities look at /proc/1/environ to see
+# if running in a container, but they will fallback gracefully. No other
+# interfaces allow this denial, so no problems with silencing it for now. Note
+# that allowing this triggers a 'ptrace trace peer=unconfined' denial, which we
+# want to avoid.
+deny @{PROC}/1/environ r,
+
 # Allow write access to system real-time clock
 # See 'man 4 rtc' for details.
 
@@ -88,71 +95,40 @@ capability sys_time,
 
 # As the core snap ships the hwclock utility we can also allow
 # clients to use it now that they have access to the relevant
-# device nodes.
+# device nodes. Note: some invocations of hwclock will try to
+# write to the audit subsystem. We omit 'capability audit_write'
+# and 'capability net_admin' here. Applications requiring audit
+# logging should plug 'netlink-audit'.
 /sbin/hwclock ixr,
 `
 
-// The type for the rtc interface
-type timeControlInterface struct{}
+const timeControlConnectedPlugSecComp = `
+# Description: Can set time and date via systemd' timedated D-Bus interface.
+# Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
+# https://www.freedesktop.org/wiki/Software/systemd/timedated/; This also
+# gives full access to the RTC device nodes and relevant parts of sysfs.
 
-// Getter for the name of the rtc interface
-func (iface *timeControlInterface) Name() string {
-	return "time-control"
-}
+settimeofday
 
-func (iface *timeControlInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: timeControlSummary,
-	}
-}
+# util-linux built with libaudit tries to write to the audit subsystem. We
+# allow the socket call here to avoid seccomp kill, but omit the AppArmor
+# capability rules.
+bind
+socket AF_NETLINK - NETLINK_AUDIT
+`
 
-func (iface *timeControlInterface) String() string {
-	return iface.Name()
-}
-
-// Check validity of the defined slot
-func (iface *timeControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// Creation of the slot of this type
-	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *timeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *timeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(timeControlConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *timeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	}
-	return nil
-}
-
-func (iface *timeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
+var timeControlConnectedPlugUDev = []string{`SUBSYSTEM=="rtc"`}
 
 func init() {
-	registerIface(&timeControlInterface{})
+	registerIface(&commonInterface{
+		name:                  "time-control",
+		summary:               timeControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeControlBaseDeclarationSlots,
+		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
+		connectedPlugUDev:     timeControlConnectedPlugUDev,
+		reservedForOS:         true,
+	})
 }

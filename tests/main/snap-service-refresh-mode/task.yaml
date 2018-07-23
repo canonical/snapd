@@ -1,0 +1,35 @@
+summary: "Check that refresh-modes works"
+
+kill-timeout: 5m
+
+debug: |
+    grep -n '' *.pid || true
+    systemctl status snap.test-snapd-service.test-snapd-endure-service || true
+
+execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    echo "When the service snap is installed"
+    install_local test-snapd-service
+
+    echo "We can see it running"
+    systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > old-main.pid
+
+    echo "When it is re-installed"
+    install_local test-snapd-service
+
+    echo "We can still see it running with the same PID"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > new-main.pid
+
+    test "$(cat new-endure.pid)" = "$(cat old-endure.pid)"
+
+    echo "Once the snap is removed, the service is stopped"
+    snap remove test-snapd-service
+    get_journalctl_log | MATCH "stop endure"
+
+restore:
+    rm -f *.pid || true

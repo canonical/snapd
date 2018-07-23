@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,70 +31,78 @@ import (
 )
 
 type LxdInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&LxdInterfaceSuite{
 	iface: builtin.MustInterface("lxd"),
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "lxd",
-			Interface: "lxd",
-		},
-	},
-
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "lxd",
-			},
-			Name:      "lxd",
-			Interface: "lxd",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "lxd",
-					},
-					Name: "app"}},
-		},
-	},
 })
+
+const lxdConsumerYaml = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [lxd]
+`
+
+const lxdCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  lxd:
+`
+
+func (s *LxdInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, lxdConsumerYaml, nil, "lxd")
+	s.slot, s.slotInfo = MockConnectedSlot(c, lxdCoreYaml, nil, "lxd")
+}
 
 func (s *LxdInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "lxd")
 }
 
 func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "lxd",
+		Interface: "lxd",
+	}
+
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
+func (s *LxdInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
 }
 
-func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
-	c.Check(seccompSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "shutdown\n")
+func (s *LxdInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "socket AF_NETLINK - NETLINK_GENERIC\n")
+}
+
+func (s *LxdInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, false)
+	c.Assert(si.Summary, Equals, `allows access to the LXD socket`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "lxd")
 }
 
 func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {
-	// allow what declarations allowed
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
 

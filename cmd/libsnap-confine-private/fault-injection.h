@@ -60,7 +60,7 @@ void sc_break(const char *name, sc_fault_fn fn);
 /**
  * Remove all the injected faults.
  **/
-void sc_reset_faults();
+void sc_reset_faults(void);
 
 #endif				// ifndef _ENABLE_FAULT_INJECTION
 

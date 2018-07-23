@@ -20,7 +20,16 @@
 package osutil
 
 import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"os/user"
+	"syscall"
+	"time"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
@@ -44,9 +53,95 @@ func MockSudoersDotD(mockDir string) func() {
 	return func() { sudoersDotD = realSudoersD }
 }
 
-func MockMountInfoPath(mockMountInfoPath string) func() {
-	realMountInfoPath := mountInfoPath
-	mountInfoPath = mockMountInfoPath
+func MockSyscallKill(f func(int, syscall.Signal) error) func() {
+	oldSyscallKill := syscallKill
+	syscallKill = f
+	return func() {
+		syscallKill = oldSyscallKill
+	}
+}
 
-	return func() { mountInfoPath = realMountInfoPath }
+func MockSyscallGetpgid(f func(int) (int, error)) func() {
+	oldSyscallGetpgid := syscallGetpgid
+	syscallGetpgid = f
+	return func() {
+		syscallGetpgid = oldSyscallGetpgid
+	}
+}
+
+func MockCmdWaitTimeout(timeout time.Duration) func() {
+	oldCmdWaitTimeout := cmdWaitTimeout
+	cmdWaitTimeout = timeout
+	return func() {
+		cmdWaitTimeout = oldCmdWaitTimeout
+	}
+}
+
+func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
+	wr := r.(*waitingReader)
+	return wr.reader, wr.cmd
+}
+
+func MockChown(f func(*os.File, sys.UserID, sys.GroupID) error) func() {
+	oldChown := chown
+	chown = f
+	return func() {
+		chown = oldChown
+	}
+}
+
+func SetAtomicFileRenamed(aw *AtomicFile, renamed bool) {
+	aw.renamed = renamed
+}
+
+func SetUnsafeIO(b bool) func() {
+	oldSnapdUnsafeIO := snapdUnsafeIO
+	snapdUnsafeIO = b
+	return func() {
+		snapdUnsafeIO = oldSnapdUnsafeIO
+	}
+}
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+
+	return func() { osReadlink = realOsReadlink }
+}
+
+//MockMountInfo mocks content of /proc/self/mountinfo read by IsHomeUsingNFS
+func MockMountInfo(text string) (restore func()) {
+	old := procSelfMountInfo
+	f, err := ioutil.TempFile("", "mountinfo")
+	if err != nil {
+		panic(fmt.Errorf("cannot open temporary file: %s", err))
+	}
+	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+		panic(fmt.Errorf("cannot write mock mountinfo file: %s", err))
+	}
+	procSelfMountInfo = f.Name()
+	return func() {
+		os.Remove(procSelfMountInfo)
+		procSelfMountInfo = old
+	}
+}
+
+// MockEtcFstab mocks content of /etc/fstab read by IsHomeUsingNFS
+func MockEtcFstab(text string) (restore func()) {
+	old := etcFstab
+	f, err := ioutil.TempFile("", "fstab")
+	if err != nil {
+		panic(fmt.Errorf("cannot open temporary file: %s", err))
+	}
+	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+		panic(fmt.Errorf("cannot write mock fstab file: %s", err))
+	}
+	etcFstab = f.Name()
+	return func() {
+		if etcFstab == "/etc/fstab" {
+			panic("respectfully refusing to remove /etc/fstab")
+		}
+		os.Remove(etcFstab)
+		etcFstab = old
+	}
 }

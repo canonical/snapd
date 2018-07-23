@@ -1,0 +1,27 @@
+summary: Build the test suite for C code using gcc and run it
+prepare: |
+    # Sanity check, the core snap is installed
+    snap info core | MATCH "installed:"
+    # Install build dependencies for the test
+    dpkg --get-selections > pkg-list
+    # Remove any autogarbage from sent by developer
+    rm -rf "$SPREAD_PATH/cmd/"{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
+    make -C "$SPREAD_PATH/cmd" distclean || true
+execute: |
+    cd "$SPREAD_PATH/cmd/"
+    build_dir="$SPREAD_PATH/cmd/autogarbage"
+    BUILD_DIR=$build_dir ./autogen.sh
+    cd $build_dir
+    # Build and run unit tests
+    make check
+restore: |
+    # Remove autogarbage leftover from testing
+    rm -rf "$SPREAD_PATH/cmd/"{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
+    # Remove the build tree
+    rm -rf "$SPREAD_PATH/cmd/autogarbage/"
+    # Remove any installed packages
+    dpkg --set-selections < pkg-list
+    rm -f pkg-list
+debug: |
+    # Show the test suite failure log if there's one
+    cat "$SPREAD_PATH/cmd/autogarbage/test-suite.log" || true

@@ -23,17 +23,20 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"text/tabwriter"
+
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var shortListHelp = i18n.G("List installed snaps")
 var longListHelp = i18n.G(`
-The list command displays a summary of snaps installed in the current system.`)
+The list command displays a summary of snaps installed in the current system.
+`)
 
 type cmdList struct {
 	Positional struct {
@@ -59,15 +62,46 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-
-	return listSnaps(names, x.All)
+	return listSnaps(installedSnapNames(x.Positional.Snaps), x.All)
 }
 
 var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
+
+// snapd will give us  and we want
+// "" (local snap)     "-"
+// risk                risk
+// track               track        (not yet returned by snapd)
+// track/stable        track
+// track/risk          track/risk
+// risk/branch         risk/…
+// track/risk/branch   track/risk/…
+func fmtChannel(ch string) string {
+	if ch == "" {
+		// "" -> "-" (local snap)
+		return "-"
+	}
+	idx := strings.IndexByte(ch, '/')
+	if idx < 0 {
+		// risk -> risk
+		return ch
+	}
+	first, rest := ch[:idx], ch[idx+1:]
+	if rest == "stable" && first != "" {
+		// track/stable -> track
+		return first
+	}
+	if idx2 := strings.IndexByte(rest, '/'); idx2 >= 0 {
+		// track/risk/branch -> track/risk/…
+		return ch[:idx2+idx+2] + "…"
+	}
+	// so it's foo/bar -> either risk/branch, or track/risk.
+	if strutil.ListContains(channelRisks, first) {
+		// risk/branch -> risk/…
+		return first + "/…"
+	}
+	// track/risk -> track/risk
+	return ch
+}
 
 func listSnaps(names []string, all bool) error {
 	cli := Client()
@@ -75,7 +109,7 @@ func listSnaps(names []string, all bool) error {
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
 			if len(names) == 0 {
-				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
+				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
 				return nil
 			} else {
 				return ErrNoMatchingSnaps
@@ -90,11 +124,24 @@ func listSnaps(names []string, all bool) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher\tNotes"))
 
 	for _, snap := range snaps {
-		// TODO: make JailMode a flag in the snap itself
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, NotesFromLocal(snap))
+		// Aid parsing of the output by not leaving the field empty.
+		publisher := "-"
+		if snap.Publisher != nil {
+			publisher = snap.Publisher.Username
+		}
+		// doing it this way because otherwise it's a sea of %s\t%s\t%s
+		line := []string{
+			snap.Name,
+			snap.Version,
+			snap.Revision.String(),
+			fmtChannel(snap.TrackingChannel),
+			publisher,
+			NotesFromLocal(snap).String(),
+		}
+		fmt.Fprintln(w, strings.Join(line, "\t"))
 	}
 
 	return nil

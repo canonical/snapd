@@ -1,0 +1,13 @@
+[Unit]
+Description=Wait until snapd is fully seeded
+After=snapd.service snapd.socket
+Requires=snapd.socket
+
+[Service]
+Type=oneshot
+ExecStart=@bindir@/snap wait system seed.loaded
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target cloud-final.service
+

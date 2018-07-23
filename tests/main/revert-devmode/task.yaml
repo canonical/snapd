@@ -1,12 +1,16 @@
 summary: Check that revert of a snap in devmode restores devmode
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -24,12 +28,15 @@ prepare: |
 
         echo "And a new version of that snap put in the controlled store"
         . $TESTSLIB/store.sh
-        init_fake_refreshes test-snapd-tools $BLOB_DIR
+        init_fake_refreshes $BLOB_DIR test-snapd-tools
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -41,8 +48,11 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -58,7 +68,7 @@ execute: |
 
     echo "Then the new version is installed"
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
-    LATEST=$(readlink $SNAPMOUNTDIR/test-snapd-tools/current)
+    LATEST=$(readlink $SNAP_MOUNT_DIR/test-snapd-tools/current)
 
     echo "When a revert is made without --devmode flag"
     snap revert test-snapd-tools
@@ -66,15 +76,17 @@ execute: |
     echo "Then the old version is active"
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+ '
 
-    echo "And the snap runs confined"
-    snap list|MATCH 'test-snapd-tools .* -'
+    echo "And the snap runs in devmode"
+    snap list|MATCH 'test-snapd-tools .* devmode'
 
     echo "When the latest revision is installed again"
     snap remove --revision=$LATEST test-snapd-tools
-    snap refresh --devmode --edge test-snapd-tools
+    snap refresh --edge test-snapd-tools
 
-    echo "And revert is made with --devmode flag"
-    snap revert --devmode test-snapd-tools
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And revert is made with --jailmode flag"
+        snap revert --jailmode test-snapd-tools
 
-    echo "Then snap uses devmode"
-    snap list|MATCH 'test-snapd-tools .* devmode'
+        echo "Then snap now runs confined (in jailmode, bah)"
+        snap list|MATCH 'test-snapd-tools .* jailmode'
+    fi

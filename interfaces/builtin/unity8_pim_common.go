@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -28,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const unity8PimCommonPermanentSlotAppArmor = `
@@ -106,6 +106,7 @@ shutdown
 type unity8PimCommonInterface struct {
 	name                  string
 	summary               string
+	baseDeclarationSlots  string
 	permanentSlotAppArmor string
 	connectedSlotAppArmor string
 	connectedPlugAppArmor string
@@ -115,18 +116,19 @@ func (iface *unity8PimCommonInterface) Name() string {
 	return iface.name
 }
 
-func (iface *unity8PimCommonInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: iface.summary,
+func (iface *unity8PimCommonInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              iface.summary,
+		BaseDeclarationSlots: iface.baseDeclarationSlots,
 	}
 }
 
-func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	//FIXME: Implement support after session services are available.
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 
@@ -142,13 +144,13 @@ func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(unity8PimCommonPermanentSlotAppArmor)
 	spec.AddSnippet(iface.permanentSlotAppArmor)
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := unity8PimCommonConnectedSlotAppArmor
@@ -158,27 +160,12 @@ func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(unity8PimCommonPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
-	}
-
-	return nil
-}
-
-func (iface *unity8PimCommonInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
-	}
-	return nil
-}
-
-func (iface *unity8PimCommonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity8PimCommonInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

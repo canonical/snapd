@@ -20,12 +20,12 @@
 package systemd
 
 import (
+	"io"
 	"time"
 )
 
 var (
-	SystemdRun = run // NOTE: plain Run clashes with check.v1
-	Jctl       = jctl
+	Jctl = jctl
 )
 
 func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
@@ -36,5 +36,25 @@ func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
 	return func() {
 		stopCheckDelay = oldCheckDelay
 		stopNotifyDelay = oldNotifyDelay
+	}
+}
+
+func MockOsGetenv(f func(string) string) func() {
+	oldOsGetenv := osGetenv
+	osGetenv = f
+	return func() { osGetenv = oldOsGetenv }
+}
+
+func MockOsutilStreamCommand(f func(string, ...string) (io.ReadCloser, error)) func() {
+	old := osutilStreamCommand
+	osutilStreamCommand = f
+	return func() { osutilStreamCommand = old }
+}
+
+func MockJournalStdoutPath(path string) func() {
+	oldPath := journalStdoutPath
+	journalStdoutPath = path
+	return func() {
+		journalStdoutPath = oldPath
 	}
 }

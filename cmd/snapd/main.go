@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/selftest"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -77,7 +78,15 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 }
 
 func run() error {
+	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
+
+	if err := selftest.Run(); err != nil {
+		return fmt.Errorf("cannot start snapd: %v", err)
+	}
+
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -98,6 +107,9 @@ func run() error {
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+
+	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
+
 	select {
 	case sig := <-ch:
 		logger.Noticef("Exiting on %s signal.\n", sig)

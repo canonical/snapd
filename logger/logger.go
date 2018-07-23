@@ -20,6 +20,7 @@
 package logger
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -86,6 +87,21 @@ func Debugf(format string, v ...interface{}) {
 	logger.Debug(msg)
 }
 
+// MockLogger replaces the exiting logger with a buffer and returns
+// the log buffer and a restore function.
+func MockLogger() (buf *bytes.Buffer, restore func()) {
+	buf = &bytes.Buffer{}
+	oldLogger := logger
+	l, err := New(buf, DefaultFlags)
+	if err != nil {
+		panic(err)
+	}
+	SetLogger(l)
+	return buf, func() {
+		SetLogger(oldLogger)
+	}
+}
+
 // SetLogger sets the global logger to the given one
 func SetLogger(l Logger) {
 	lock.Lock()
@@ -117,7 +133,12 @@ func New(w io.Writer, flag int) (Logger, error) {
 
 // SimpleSetup creates the default (console) logger
 func SimpleSetup() error {
-	l, err := New(os.Stderr, DefaultFlags)
+	flags := log.Lshortfile
+	if term := os.Getenv("TERM"); term != "" {
+		// snapd is probably not running under systemd
+		flags = DefaultFlags
+	}
+	l, err := New(os.Stderr, flags)
 	if err == nil {
 		SetLogger(l)
 	}

@@ -21,10 +21,38 @@ package builtin
 
 const networkBindSummary = `allows operating as a network service`
 
+const networkBindBaseDeclarationSlots = `
+  network-bind:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 #include <abstractions/ssl_certs>
 
 # These probably shouldn't be something that apps should use, but this offers
@@ -57,7 +85,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # TODO: remove this rule once seccomp errno with logging is implemented.
 # java apps attempt this, presumably to handle interface changes, but a
 # corresponding AppArmor rule is required (eg, network netlink dgram) to use
@@ -71,6 +98,9 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "network-bind",
 		summary:               networkBindSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBindBaseDeclarationSlots,
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,

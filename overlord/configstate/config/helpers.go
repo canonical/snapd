@@ -20,11 +20,13 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -32,6 +34,9 @@ import (
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
 
 func ParseKey(key string) (subkeys []string, err error) {
+	if key == "" {
+		return []string{}, nil
+	}
 	subkeys = strings.Split(key, ".")
 	for _, subkey := range subkeys {
 		if !validKey.MatchString(subkey) {
@@ -56,11 +61,11 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 	case *json.RawMessage:
 		// Raw replaces pristine on commit. Unpack, update, and repack.
 		var configm map[string]interface{}
-		err := json.Unmarshal([]byte(*config), &configm)
-		if err != nil {
+
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
-		_, err = PatchConfig(snapName, subkeys, pos, configm, value)
+		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
 		if err != nil {
 			return nil, err
 		}
@@ -88,6 +93,18 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
 func GetFromChange(snapName string, subkeys []string, pos int, config map[string]interface{}, result interface{}) error {
+	// special case - get root document
+	if len(subkeys) == 0 {
+		if config == nil {
+			return &NoOptionError{SnapName: snapName, Key: ""}
+		}
+		raw := jsonRaw(config)
+
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
+			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
+		}
+		return nil
+	}
 	value, ok := config[subkeys[pos]]
 	if !ok {
 		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
@@ -98,8 +115,7 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		err := json.Unmarshal([]byte(*raw), result)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			key := strings.Join(subkeys, ".")
 			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
 		}
@@ -112,12 +128,51 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		err := json.Unmarshal([]byte(*raw), &configm)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
 			return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
 		}
 	}
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
+}
+
+// GetSnapConfig retrieves the raw configuration of a given snap.
+func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
+	var config map[string]*json.RawMessage
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	snapcfg, ok := config[snapName]
+	if !ok {
+		return nil, nil
+	}
+	return snapcfg, nil
+}
+
+// SetSnapConfig replaces the configuration of a given snap.
+func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) error {
+	var config map[string]*json.RawMessage
+	err := st.Get("config", &config)
+	isNil := snapcfg == nil || len(*snapcfg) == 0
+	if err == state.ErrNoState {
+		if isNil {
+			// bail out early
+			return nil
+		}
+		config = make(map[string]*json.RawMessage, 1)
+	} else if err != nil {
+		return err
+	}
+	if isNil {
+		delete(config, snapName)
+	} else {
+		config[snapName] = snapcfg
+	}
+	st.Set("config", config)
+	return nil
 }
 
 // SaveRevisionConfig makes a copy of config -> snapSnape configuration into the versioned config.

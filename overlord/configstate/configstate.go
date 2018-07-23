@@ -26,17 +26,18 @@ import (
 	"os"
 	"time"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
 	snapstate.Configure = Configure
 }
 
-func configureHookTimeout() time.Duration {
+func ConfigureHookTimeout() time.Duration {
 	timeout := 5 * time.Minute
 	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
 		if to, err := time.ParseDuration(s); err == nil {
@@ -46,8 +47,56 @@ func configureHookTimeout() time.Duration {
 	return timeout
 }
 
+func canConfigure(st *state.State, snapName string) error {
+	// the "core" snap/pseudonym can always be configured as it
+	// is handled internally
+	if snapName == "core" {
+		return nil
+	}
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if !snapst.IsInstalled() {
+		return &snap.NotInstalledError{Snap: snapName}
+	}
+
+	// the "snapd" snap cannot be configured yet
+	if snapName == "snapd" {
+		return fmt.Errorf(`cannot configure the "snapd" snap, please use "system" instead`)
+	}
+
+	// bases cannot be configured for now
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	if typ == snap.TypeBase {
+		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", snapName)
+	}
+
+	return snapstate.CheckChangeConflict(st, snapName, nil)
+}
+
+// ConfigureInstalled returns a taskset to apply the given
+// configuration patch for an installed snap. It returns
+// snap.NotInstalledError if the snap is not installed.
+func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+	if err := canConfigure(st, snapName); err != nil {
+		return nil, err
+	}
+
+	taskset := Configure(st, snapName, patch, flags)
+	return taskset, nil
+}
+
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
+	// regular configuration hook
 	hooksup := &hookstate.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
@@ -55,7 +104,7 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		IgnoreError: flags&snapstate.IgnoreHookError != 0,
 		TrackError:  flags&snapstate.TrackHookError != 0,
 		// all configure hooks must finish within this timeout
-		Timeout: configureHookTimeout(),
+		Timeout: ConfigureHookTimeout(),
 	}
 	var contextData map[string]interface{}
 	if flags&snapstate.UseConfigDefaults != 0 {
@@ -63,12 +112,27 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 	} else if len(patch) > 0 {
 		contextData = map[string]interface{}{"patch": patch}
 	}
-	var summary string
+
 	if hooksup.Optional {
 		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap if present"), snapName)
-	} else {
-		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	}
-	task := hookstate.HookTask(s, summary, hooksup, contextData)
+
+	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
+}
+
+// RemapSnapFromRequest renames a snap as received from an API request
+func RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
+// RemapSnapToResponse renames a snap as about to be sent from an API response
+func RemapSnapToResponse(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
 }

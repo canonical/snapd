@@ -1,0 +1,45 @@
+summary: Check that plugged and unplugged device nodes are available in jailmode
+
+details: |
+    This tests that a framebuffer device is accessible in jailmode and makes
+    sure that other devices not included in the snap's plugged interfaces are
+    still accessible (ie, the cgroup is not in effect).
+
+# None of those systems support strict confinement which is required to formally enable jailmode.
+systems: [-fedora-*, -opensuse-*, -debian-*, -arch-*]
+
+prepare: |
+    # Create framebuffer device node and give it some content we can verify
+    # the test snap can read.
+    if [ ! -e /dev/fb0 ]; then
+        mknod /dev/fb0 c 29 0
+        touch /dev/fb0.spread
+    fi
+
+    echo "Given a snap declaring a plug on framebuffer is installed in jailmode"
+    . $TESTSLIB/snaps.sh
+    install_local_jailmode test-devmode-cgroup
+
+restore: |
+    if [ -e /dev/fb0.spread ]; then
+        rm -f /dev/fb0 /dev/fb0.spread
+    fi
+
+execute: |
+    . $TESTSLIB/dirs.sh
+
+    echo "And the framebuffer plug is connected"
+    snap connect test-devmode-cgroup:framebuffer
+    echo "the jailmode snap can access the framebuffer"
+    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+
+    echo "the jailmode snap cannot access other devices"
+    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-kmsg 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+
+    echo "And the framebuffer plug is disconnected"
+    snap disconnect test-devmode-cgroup:framebuffer
+    echo "the jailmode snap cannot access the framebuffer"
+    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-fb 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+
+    echo "the jailmode snap cannot access other devices"
+    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-kmsg 2>&1 | MATCH '(Permission denied|Operation not permitted)'

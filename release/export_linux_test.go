@@ -21,4 +21,5 @@ package release
 
 var (
 	GetKernelRelease = getKernelRelease
+	GetMachineName   = getMachineName
 )

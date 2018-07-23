@@ -1,6 +1,13 @@
 #!/bin/sh
 # Welcome to the Happy Maintainer's Utility Script
+#
+# Set BUILD_DIR to the directory where the build will happen, otherwise $PWD
+# will be used
 set -eux
+
+BUILD_DIR=${BUILD_DIR:-.}
+selfdir=$(dirname "$0")
+SRC_DIR=$(readlink -f "$selfdir")
 
 # We need the VERSION file to configure
 if [ ! -e VERSION ]; then
@@ -20,33 +27,29 @@ extra_opts=
 . /etc/os-release
 case "$ID" in
 	arch)
-		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-arch --enable-merged-usr"
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-biarch --enable-merged-usr"
 		;;
 	debian)
 		extra_opts="--libexecdir=/usr/lib/snapd"
 		;;
 	ubuntu)
-		case "$VERSION_ID" in
-			16.04)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
-				;;
-			*)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-static-libcap"
-				;;
-		esac
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+		if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
+			extra_opts="$extra_opts --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
+		fi
 		;;
 	fedora|centos|rhel)
 		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
 		;;
 	opensuse)
-		# NOTE: we need to disable apparmor as the version on OpenSUSE
-		# is too old to confine snap-confine and installed snaps
-		# themselves. This should be changed once all the kernel
-		# patches find their way into the distribution.
-		extra_opts="--libexecdir=/usr/lib/snapd --disable-apparmor"
+		extra_opts="--libexecdir=/usr/lib/snapd"
+		;;
+	solus)
+		extra_opts="--enable-nvidia-biarch"
 		;;
 esac
 
-echo "Configuring with: $extra_opts"
+echo "Configuring in build directory $BUILD_DIR with: $extra_opts"
+mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
 # shellcheck disable=SC2086
-./configure --enable-maintainer-mode --prefix=/usr $extra_opts
+"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr $extra_opts "$@"

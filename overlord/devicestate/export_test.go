@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,19 +62,27 @@ func MockRetryInterval(interval time.Duration) (restore func()) {
 	}
 }
 
-func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
+func MockMaxTentatives(max int) (restore func()) {
+	old := maxTentatives
+	maxTentatives = max
+	return func() {
+		maxTentatives = old
+	}
+}
+
+func KeypairManager(m *DeviceManager) asserts.KeypairManager {
 	return m.keypairMgr
 }
 
-func (m *DeviceManager) EnsureOperationalShouldBackoff(now time.Time) bool {
+func EnsureOperationalShouldBackoff(m *DeviceManager, now time.Time) bool {
 	return m.ensureOperationalShouldBackoff(now)
 }
 
-func (m *DeviceManager) BecomeOperationalBackoff() time.Duration {
+func BecomeOperationalBackoff(m *DeviceManager) time.Duration {
 	return m.becomeOperationalBackoff
 }
 
-func (m *DeviceManager) SetLastBecomeOperationalAttempt(t time.Time) {
+func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
@@ -86,7 +94,7 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func (m *DeviceManager) EnsureSeedYaml() error {
+func EnsureSeedYaml(m *DeviceManager) error {
 	return m.ensureSeedYaml()
 }
 
@@ -100,11 +108,11 @@ func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (
 	}
 }
 
-func (m *DeviceManager) EnsureBootOk() error {
+func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
 
-func (m *DeviceManager) SetBootOkRan(b bool) {
+func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 

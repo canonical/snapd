@@ -1,6 +1,8 @@
 [Unit]
 Description=Auto import assertions from block devices
 After=snapd.service snapd.socket
+# don't run on classic
+ConditionKernelCommandLine=snap_core
 
 [Service]
 Type=oneshot

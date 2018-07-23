@@ -1,6 +1,9 @@
 summary: Check that prepare-image works for grub-systems
-systems: [-ubuntu-core-16-*]
+
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+
 backends: [-autopkgtest]
+
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root
@@ -9,6 +12,7 @@ environment:
     STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
     UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -17,6 +21,7 @@ prepare: |
 
     . $TESTSLIB/store.sh
     setup_fake_store $STORE_DIR
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -26,6 +31,7 @@ restore: |
     . $TESTSLIB/store.sh
     teardown_fake_store $STORE_DIR
     rm -rf $ROOT
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -35,7 +41,7 @@ execute: |
     echo Expose the needed assertions through the fakestore
     cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
     cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
-    # have snap use the fakestore for assertions
+    # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image

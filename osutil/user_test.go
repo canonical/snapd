@@ -20,7 +20,6 @@
 package osutil_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -29,6 +28,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -110,9 +110,7 @@ func (s *createUserSuite) TestAddSudoUser(c *check.C) {
 	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
 	c.Assert(fs, check.HasLen, 1)
 	c.Assert(filepath.Base(fs[0]), check.Equals, "create-user-karl%2Esagan")
-	bs, err := ioutil.ReadFile(fs[0])
-	c.Assert(err, check.IsNil)
-	c.Check(string(bs), check.Equals, `
+	c.Check(fs[0], testutil.FileEquals, `
 # Created by snap create-user
 
 # User rules for karl.sagan
@@ -125,9 +123,7 @@ func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 		SSHKeys: []string{"ssh-key1", "ssh-key2"},
 	})
 	c.Assert(err, check.IsNil)
-	sshKeys, err := ioutil.ReadFile(filepath.Join(s.mockHome, ".ssh", "authorized_keys"))
-	c.Assert(err, check.IsNil)
-	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
+	c.Check(filepath.Join(s.mockHome, ".ssh", "authorized_keys"), testutil.FileEquals, "ssh-key1\nssh-key2")
 
 }
 
@@ -185,5 +181,27 @@ func (s *createUserSuite) TestRealUser(c *check.C) {
 		cur, err := osutil.RealUser()
 		c.Assert(err, check.IsNil)
 		c.Check(cur.Username, check.Equals, t.CurrentUsername)
+	}
+}
+
+func (s *createUserSuite) TestUidGid(c *check.C) {
+	for k, t := range map[string]struct {
+		User *user.User
+		Uid  sys.UserID
+		Gid  sys.GroupID
+		Err  string
+	}{
+		"happy":   {&user.User{Uid: "10", Gid: "10"}, 10, 10, ""},
+		"bad uid": {&user.User{Uid: "x", Gid: "10"}, sys.FlagID, sys.FlagID, "cannot parse user id x"},
+		"bad gid": {&user.User{Uid: "10", Gid: "x"}, sys.FlagID, sys.FlagID, "cannot parse group id x"},
+	} {
+		uid, gid, err := osutil.UidGid(t.User)
+		c.Check(uid, check.Equals, t.Uid, check.Commentf(k))
+		c.Check(gid, check.Equals, t.Gid, check.Commentf(k))
+		if t.Err == "" {
+			c.Check(err, check.IsNil, check.Commentf(k))
+		} else {
+			c.Check(err, check.ErrorMatches, ".*"+t.Err+".*", check.Commentf(k))
+		}
 	}
 }

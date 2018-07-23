@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,9 +19,31 @@
 
 package builtin
 
+import (
+	"fmt"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
+)
+
 const homeSummary = `allows access to non-hidden files in the home directory`
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
+const homeBaseDeclarationSlots = `
+  home:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-connection:
+      plug-attributes:
+        read: all
+    deny-auto-connection:
+      -
+        on-classic: false
+      -
+        plug-attributes:
+          read: all
+`
+
 const homeConnectedPlugAppArmor = `
 # Description: Can access non-hidden files in user's $HOME. This is restricted
 # because it gives file access to all of the user's $HOME.
@@ -32,13 +54,21 @@ const homeConnectedPlugAppArmor = `
 owner @{HOME}/ r,
 
 # Allow read/write access to all files in @{HOME}, except snap application
-# data in @{HOME}/snaps and toplevel hidden directories in @{HOME}.
-owner @{HOME}/[^s.]**             rwk,
-owner @{HOME}/s[^n]**             rwk,
-owner @{HOME}/sn[^a]**            rwk,
-owner @{HOME}/sna[^p]**           rwk,
+# data in @{HOME}/snap and toplevel hidden directories in @{HOME}.
+owner @{HOME}/[^s.]**             rwklix,
+owner @{HOME}/s[^n]**             rwklix,
+owner @{HOME}/sn[^a]**            rwklix,
+owner @{HOME}/sna[^p]**           rwklix,
+owner @{HOME}/snap[^/]**          rwklix,
+
 # Allow creating a few files not caught above
-owner @{HOME}/{s,sn,sna}{,/} rwk,
+owner @{HOME}/{s,sn,sna}{,/} rwklix,
+
+# Allow access to @{HOME}/snap/ to allow directory traversals from
+# @{HOME}/snap/@{SNAP_NAME} through @{HOME}/snap to @{HOME}. While this leaks
+# snap names, it fixes usability issues for snaps that require this
+# transitional interface.
+owner @{HOME}/snap/ r,
 
 # Allow access to gvfs mounts for files owned by the user (including hidden
 # files; only allow writes to files, not the mount point).
@@ -46,11 +76,52 @@ owner /run/user/[0-9]*/gvfs/{,**} r,
 owner /run/user/[0-9]*/gvfs/*/**  w,
 `
 
+const homeConnectedPlugAppArmorWithAllRead = `
+# Allow non-owner read to non-hidden and non-snap files and directories
+@{HOME}/               r,
+@{HOME}/[^s.]**        r,
+@{HOME}/s[^n]**        r,
+@{HOME}/sn[^a]**       r,
+@{HOME}/sna[^p]**      r,
+@{HOME}/snap[^/]**     r,
+@{HOME}/{s,sn,sna}{,/} r,
+`
+
+type homeInterface struct {
+	commonInterface
+}
+
+func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// It's fine if 'read' isn't specified, but if it is, it needs to be
+	// 'all'
+	if r, ok := plug.Attrs["read"]; ok && r != "all" {
+		return fmt.Errorf(`home plug requires "read" be 'all'`)
+	}
+
+	return nil
+}
+
+func (iface *homeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var read string
+	_ = plug.Attr("read", &read)
+	// 'owner' is the standard policy
+	spec.AddSnippet(homeConnectedPlugAppArmor)
+
+	// 'all' grants standard policy plus read access to home without owner
+	// match
+	if read == "all" {
+		spec.AddSnippet(homeConnectedPlugAppArmorWithAllRead)
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "home",
-		summary:               homeSummary,
-		connectedPlugAppArmor: homeConnectedPlugAppArmor,
-		reservedForOS:         true,
-	})
+	registerIface(&homeInterface{commonInterface{
+		name:                 "home",
+		summary:              homeSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: homeBaseDeclarationSlots,
+		reservedForOS:        true,
+	}})
 }

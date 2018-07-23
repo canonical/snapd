@@ -27,7 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortWhoAmIHelp = i18n.G("Prints the email the user is logged in with.")
+var shortWhoAmIHelp = i18n.G("Print the email the user is logged in with")
 var longWhoAmIHelp = i18n.G(`
 The whoami command prints the email the user is logged in with.
 `)

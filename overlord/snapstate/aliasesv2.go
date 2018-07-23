@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -537,16 +537,17 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
 	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
+		return nil, &snap.NotInstalledError{Snap: snapName}
 	}
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
@@ -568,7 +569,7 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 		} else {
 			reason = fmt.Sprintf("target application %q is a daemon", target)
 		}
-		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.Name(), reason)
+		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.InstanceName(), reason)
 	}
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
@@ -592,17 +593,18 @@ func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error)
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
 	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
+		return nil, &snap.NotInstalledError{Snap: snapName}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
@@ -619,7 +621,7 @@ func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, snapNa
 		return nil, "", err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, "", err
 	}
 
@@ -675,17 +677,18 @@ func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: name},
 	}
 

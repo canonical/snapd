@@ -1,0 +1,51 @@
+summary: Ensure that the desktop interface works.
+
+details: |
+    The desktop interface allows to access the different resources.
+
+    The test-snapd-desktop snap checks files and dirs are accessible through the
+    desktop interface.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Given the desktop snap is installed"
+    snap try "$TESTSLIB"/snaps/test-snapd-desktop
+
+execute: |
+    dirs="/var/cache/fontconfig /usr/share/icons /usr/share/pixmaps"
+    files="/etc/xdg/user-dirs.conf /etc/xdg/user-dirs.defaults"
+
+    echo "The plug is connected by default"
+    snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
+
+    echo "Then the snap is able to desktop files and directories"
+    # shellcheck disable=SC2086
+    test-snapd-desktop.check-files $files
+    # shellcheck disable=SC2086
+    test-snapd-desktop.check-dirs $dirs
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-desktop:desktop
+
+    echo "Then the snap is not able to access the desktop files"
+    for file in $files; do
+        if test-snapd-desktop.check-files "$file" 2> call.error; then
+            echo "Expected permission error calling desktop with disconnected plug"
+            exit 1
+        fi
+        MATCH "Permission denied" < call.error
+    done
+
+    echo "Then the snap is not able to access the desktop dirs"
+    for dir in $dirs; do
+        if test-snapd-desktop.check-dirs "$dir" 2> call.error; then
+            echo "Expected permission error calling desktop with disconnected plug"
+            exit 1
+        fi
+        MATCH "Permission denied" < call.error
+    done

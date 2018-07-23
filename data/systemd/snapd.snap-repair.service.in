@@ -1,0 +1,11 @@
+[Unit]
+Description=Automatically fetch and run repair assertions
+Documentation=man:snap(1)
+# don't run on classic
+ConditionKernelCommandLine=snap_core
+
+[Service]
+Type=oneshot
+ExecStart=@libexecdir@/snapd/snap-repair run
+EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
+Environment=SNAP_REPAIR_FROM_TIMER=1

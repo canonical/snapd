@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,14 @@ package builtin
 
 const networkControlSummary = `allows configuring networking and network namespaces`
 
+const networkControlBaseDeclarationSlots = `
+  network-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
 # 'ip netns' command (man ip-netns(8)). This interface is restricted because it
@@ -28,6 +36,27 @@ const networkControlConnectedPlugAppArmor = `
 # trusted apps.
 
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 #include <abstractions/ssl_certs>
 
 capability net_admin,
@@ -59,6 +88,10 @@ network sna,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
 
+# For advanced wireless configuration
+/sys/kernel/debug/ieee80211/ r,
+/sys/kernel/debug/ieee80211/** rw,
+
 # read netfilter module parameters
 /sys/module/nf_*/                r,
 /sys/module/nf_*/parameters/{,*} r,
@@ -68,7 +101,11 @@ network sna,
 /{,usr/}{,s}bin/arpd ixr,
 /{,usr/}{,s}bin/bridge ixr,
 /{,usr/}{,s}bin/dhclient Pxr,             # use ixr instead if want to limit to snap dirs
+/{,usr/}{,s}bin/dhclient-script ixr,
 /{,usr/}{,s}bin/ifconfig ixr,
+/{,usr/}{,s}bin/ifdown ixr,
+/{,usr/}{,s}bin/ifquery ixr,
+/{,usr/}{,s}bin/ifup ixr,
 /{,usr/}{,s}bin/ip ixr,
 /{,usr/}{,s}bin/ipmaddr ixr,
 /{,usr/}{,s}bin/iptunnel ixr,
@@ -86,6 +123,7 @@ network sna,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
 /{,usr/}{,s}bin/rtmon ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 /{,usr/}{,s}bin/wpa_action ixr,
@@ -94,6 +132,9 @@ network sna,
 /{,usr/}{,s}bin/wpa_supplicant ixr,
 
 /dev/rfkill rw,
+/sys/class/rfkill/ r,
+/sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/{,**} r,
+/sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/state w,
 
 # arp
 network netlink dgram,
@@ -123,17 +164,34 @@ capability setuid,
 /bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,
 
+# wpa_suplicant
+/{,var/}run/wpa_supplicant/** rw,
+/etc/wpa_supplicant/{,**} ixr,
+
+#ifup,ifdown, dhclient
+/{,var/}run/dhclient.*.pid rw,
+/var/lib/dhcp/ r,
+/var/lib/dhcp/** rw,
+
+/run/network/ifstate* rw,
+/run/network/.ifstate* rw,
+/run/network/ifup-* rw,
+/run/network/ifdown-* rw,
+
 # route
 /etc/networks r,
 /etc/ethers r,
 
 /etc/rpc r,
 
-# TUN/TAP
+# TUN/TAP - https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+#
+# We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
+# are virtual and don't show up in /dev
 /dev/net/tun rw,
-# These are dynamically created via ioctl() on /dev/net/tun
-/dev/tun[0-9]{,[0-9]*} rw,
-/dev/tap[0-9]{,[0-9]*} rw,
+
+# access to bridge sysfs interfaces for bridge settings
+/sys/devices/virtual/net/*/bridge/* rw,
 
 # Network namespaces via 'ip netns'. In order to create network namespaces
 # that persist outside of the process and be entered (eg, via
@@ -206,14 +264,32 @@ socket AF_NETLINK - NETLINK_DNRTMSG
 socket AF_NETLINK - NETLINK_ISCSI
 socket AF_NETLINK - NETLINK_RDMA
 socket AF_NETLINK - NETLINK_GENERIC
+
+# for receiving kobject_uevent() net messages from the kernel
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
+
+/* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+ *
+ * We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
+ * are virtual and don't show up in /dev
+ */
+var networkControlConnectedPlugUDev = []string{
+	`KERNEL=="rfkill"`,
+	`KERNEL=="tun"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
 		summary:               networkControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
+		connectedPlugUDev:     networkControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})
+
 }

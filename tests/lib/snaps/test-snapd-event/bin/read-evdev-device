@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+cd "$SNAP"
+
+device_type="-event-kbd"
+if [ -n "$1" ]; then
+    device_type="$1"
+fi
+
+# Detect a device by looking in /dev/input/by-path to find the first device
+# matching the specified device_type
+evdev=$(find /dev/input/by-path/ -name "*$device_type" -ls | head -1 | sed 's#.* -> ../##')
+
+if [ -z "$evdev" ]; then
+    echo "No device detected. Aborting"
+    exit 1
+fi
+
+dev="/dev/input/$evdev"
+if [ ! -c "$dev" ]; then
+    echo "Detected device is not a character device. Aborting"
+    exit 1
+fi
+
+# Obtain an fd for the file
+exec 3<> "$dev"
+# Close the file
+exec 3>&-

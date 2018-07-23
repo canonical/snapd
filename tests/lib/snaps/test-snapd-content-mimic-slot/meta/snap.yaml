@@ -1,0 +1,11 @@
+name: test-snapd-content-mimic-slot
+summary: A snap designed to test the writable mimic
+version: 1.0
+apps:
+    sh:
+        command: ../../../bin/sh
+slots:
+    content:
+        interface: content
+        content: mimic
+        write: [$SNAP/source]

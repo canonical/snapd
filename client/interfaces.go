@@ -22,6 +22,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
+	"strings"
 )
 
 // Plug represents the potential of a given snap to connect to a slot.
@@ -58,15 +60,19 @@ type SlotRef struct {
 	Name string `json:"slot"`
 }
 
-// Interfaces contains information about all plugs, slots and their connections
-type Interfaces struct {
+// Connections contains information about all plugs, slots and their connections
+type Connections struct {
 	Plugs []Plug `json:"plugs"`
 	Slots []Slot `json:"slots"`
 }
 
-// InterfaceMetaData contains meta-data about a given interface type.
-type InterfaceMetaData struct {
-	Description string `json:"description,omitempty"`
+// Interface holds information about a given interface and its instances.
+type Interface struct {
+	Name    string `json:"name,omitempty"`
+	Summary string `json:"summary,omitempty"`
+	DocURL  string `json:"doc-url,omitempty"`
+	Plugs   []Plug `json:"plugs,omitempty"`
+	Slots   []Slot `json:"slots,omitempty"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
@@ -76,10 +82,48 @@ type InterfaceAction struct {
 	Slots  []Slot `json:"slots,omitempty"`
 }
 
-// Interfaces returns all plugs, slots and their connections.
-func (client *Client) Interfaces() (interfaces Interfaces, err error) {
-	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, nil, &interfaces)
-	return
+// Connections returns all plugs, slots and their connections.
+func (client *Client) Connections() (Connections, error) {
+	var conns Connections
+	_, err := client.doSync("GET", "/v2/interfaces", nil, nil, nil, &conns)
+	return conns, err
+}
+
+// InterfaceOptions represents opt-in elements include in responses.
+type InterfaceOptions struct {
+	Names     []string
+	Doc       bool
+	Plugs     bool
+	Slots     bool
+	Connected bool
+}
+
+func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
+	query := url.Values{}
+	if opts != nil && len(opts.Names) > 0 {
+		query.Set("names", strings.Join(opts.Names, ",")) // Return just those specific interfaces.
+	}
+	if opts != nil {
+		if opts.Doc {
+			query.Set("doc", "true") // Return documentation of each selected interface.
+		}
+		if opts.Plugs {
+			query.Set("plugs", "true") // Return plugs of each selected interface.
+		}
+		if opts.Slots {
+			query.Set("slots", "true") // Return slots of each selected interface.
+		}
+	}
+	// NOTE: Presence of "select" triggers the use of the new response format.
+	if opts != nil && opts.Connected {
+		query.Set("select", "connected") // Return just the connected interfaces.
+	} else {
+		query.Set("select", "all") // Return all interfaces.
+	}
+	var interfaces []*Interface
+	_, err := client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
+
+	return interfaces, err
 }
 
 // performInterfaceAction performs a single action on the interface system.

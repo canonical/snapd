@@ -36,7 +36,7 @@ type cmdAliases struct {
 	} `positional-args:"true"`
 }
 
-var shortAliasesHelp = i18n.G("Lists aliases in the system")
+var shortAliasesHelp = i18n.G("List aliases in the system")
 var longAliasesHelp = i18n.G(`
 The aliases command lists all aliases available in the system and their status.
 
@@ -45,8 +45,8 @@ $ snap aliases <snap>
 Lists only the aliases defined by the specified snap.
 
 An alias noted as undefined means it was explicitly enabled or disabled but is
-not defined in the current revision of the snap; possibly temporarely (e.g
-because of a revert), if not this can be cleared with snap alias --reset.
+not defined in the current revision of the snap, possibly temporarily (e.g.
+because of a revert). This can cleared with 'snap alias --reset'.
 `)
 
 func init() {
@@ -90,28 +90,34 @@ func (x *cmdAliases) Execute(args []string) error {
 	}
 
 	allStatuses, err := Client().Aliases()
-	if err == nil {
+	if err != nil {
+		return err
+	}
+
+	var infos aliasInfos
+	filterSnap := string(x.Positionals.Snap)
+	if filterSnap != "" {
+		allStatuses = map[string]map[string]client.AliasStatus{
+			filterSnap: allStatuses[filterSnap],
+		}
+	}
+	for snapName, aliasStatuses := range allStatuses {
+		for alias, aliasStatus := range aliasStatuses {
+			infos = append(infos, &aliasInfo{
+				Snap:    snapName,
+				Command: aliasStatus.Command,
+				Alias:   alias,
+				Status:  aliasStatus.Status,
+				Auto:    aliasStatus.Auto,
+			})
+		}
+	}
+
+	if len(infos) > 0 {
 		w := tabWriter()
 		fmt.Fprintln(w, i18n.G("Command\tAlias\tNotes"))
 		defer w.Flush()
-		var infos aliasInfos
-		filterSnap := string(x.Positionals.Snap)
-		if filterSnap != "" {
-			allStatuses = map[string]map[string]client.AliasStatus{
-				filterSnap: allStatuses[filterSnap],
-			}
-		}
-		for snapName, aliasStatuses := range allStatuses {
-			for alias, aliasStatus := range aliasStatuses {
-				infos = append(infos, &aliasInfo{
-					Snap:    snapName,
-					Command: aliasStatus.Command,
-					Alias:   alias,
-					Status:  aliasStatus.Status,
-					Auto:    aliasStatus.Auto,
-				})
-			}
-		}
+
 		sort.Sort(infos)
 
 		for _, info := range infos {
@@ -128,6 +134,13 @@ func (x *cmdAliases) Execute(args []string) error {
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\n", info.Command, info.Alias, notesStr)
 		}
+	} else {
+		if filterSnap != "" {
+			fmt.Fprintf(Stderr, i18n.G("No aliases are currently defined for snap %q.\n"), filterSnap)
+		} else {
+			fmt.Fprintln(Stderr, i18n.G("No aliases are currently defined."))
+		}
+		fmt.Fprintln(Stderr, i18n.G("\nUse 'snap help alias' to learn how to create aliases manually."))
 	}
-	return err
+	return nil
 }

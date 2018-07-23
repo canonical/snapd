@@ -57,7 +57,7 @@ func ShouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	if !attempt.More() {
 		return false
 	}
-	return resp.StatusCode >= http.StatusInternalServerError
+	return resp.StatusCode >= 500
 }
 
 func ShouldRetryError(attempt *retry.Attempt, err error) bool {
@@ -82,6 +82,11 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 				logger.Debugf("Retrying because of: %s", opErr)
 				return true
 			}
+			if opErr.Op == "dial" {
+				logger.Debugf("Retrying because of: %#v (syscall error: %#v)", opErr, syscallErr.Err)
+				return true
+			}
+			logger.Debugf("Encountered syscall error: %#v", syscallErr)
 		}
 		if opNetErr, ok := opErr.Err.(net.Error); ok {
 			// TODO: some DNS errors? just log for now
@@ -92,6 +97,10 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
 		logger.Debugf("Retrying because of: %s", err)
 		return true
+	}
+
+	if osutil.GetenvBool("SNAPD_DEBUG") {
+		logger.Debugf("Not retrying: %#v", err)
 	}
 
 	return false
@@ -122,6 +131,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 				if ShouldRetryError(attempt, err) {
 					continue
 				} else {
+					maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
 					return nil, err
 				}
 			}

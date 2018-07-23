@@ -1,20 +1,21 @@
 summary: Run project static and unit tests
 
-systems: [ubuntu-16.04-64]
+# Start before anything else as it takes a long time.
+priority: 1000
 
 restore: |
     rm -rf /tmp/static-unit-tests
 
 execute: |
     mkdir -p /tmp/static-unit-tests/src/github.com/snapcore
-    cp -ar $PROJECT_PATH /tmp/static-unit-tests/src/github.com/snapcore
+    cp -ar "$PROJECT_PATH" /tmp/static-unit-tests/src/github.com/snapcore
     chown -R test:12345 /tmp/static-unit-tests
 
     # remove leftovers
     rm -r /tmp/static-unit-tests/src/github.com/snapcore/snapd/vendor/*/
     rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
 
-    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && GOPATH=/tmp/static-unit-tests ./run-checks --static" test
+    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && PATH=$PATH GOPATH=/tmp/static-unit-tests ./run-checks --static" test
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
         TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER \
         TRAVIS_BRANCH=$TRAVIS_BRANCH \
@@ -24,6 +25,7 @@ execute: |
         TRAVIS_JOB_ID=$TRAVIS_JOB_ID \
         TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG \
         TRAVIS_TAG=$TRAVIS_TAG \
+        PATH=$PATH \
         COVERMODE=$COVERMODE \
         TRAVIS=true \
         CI=true \

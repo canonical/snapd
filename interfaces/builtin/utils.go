@@ -28,6 +28,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// The maximum number of Usb bInterfaceNumber.
+const UsbMaxInterfaces = 32
+
 // AppLabelExpr returns the specification of the apparmor label describing
 // all the apps bound to a given slot. The result has one of three forms,
 // depending on how apps are bound to the slot:
@@ -37,7 +40,8 @@ import (
 // - "snap.$snap.*" if all apps are bound to the slot
 func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `"snap.%s.`, snap.Name())
+	// TODO parallel-install: use of proper instance/store name
+	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
 	if len(apps) == 1 {
 		for appName := range apps {
 			buf.WriteString(appName)
@@ -62,32 +66,34 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) string {
-	return appLabelExpr(slot.Apps, slot.Snap)
+func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
+	return appLabelExpr(slot.Apps(), slot.Snap())
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) string {
-	return appLabelExpr(plug.Apps, plug.Snap)
+func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
+	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
-// Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) string {
-	const udevHeader string = `IMPORT{builtin}="usb_id"`
-	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
-	const udevSuffix string = `, %s+="%s"`
-
-	var udevSnippet bytes.Buffer
-	udevSnippet.WriteString(udevHeader + "\n")
-	udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct))
-	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
-	return udevSnippet.String()
+// sanitizeSlotReservedForOS checks if slot is of type os.
+func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
+	if slot.Snap.Type != snap.TypeOS {
+		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
+	}
+	return nil
 }
 
-// Function to create an udev TAG, essentially the cgroup name for
-// the snap application.
-// @param snapName is the name of the snap
-// @param appName is the name of the application
-// @return string "snap_<snap name>_<app name>"
-func udevSnapSecurityName(snapName string, appName string) string {
-	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
+// sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
+func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
+	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget {
+		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
+	}
+	return nil
+}
+
+// sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
+func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotInfo) error {
+	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
+		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
+	}
+	return nil
 }

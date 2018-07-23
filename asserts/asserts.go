@@ -68,6 +68,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
 )
@@ -92,6 +93,7 @@ var typeRegistry = map[string]*AssertionType{
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
 	RepairType.Name:          RepairType,
+	StoreType.Name:           StoreType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -101,6 +103,18 @@ var typeRegistry = map[string]*AssertionType{
 // Type returns the AssertionType with name or nil
 func Type(name string) *AssertionType {
 	return typeRegistry[name]
+}
+
+// TypeNames returns a sorted list of known assertion type names.
+func TypeNames() []string {
+	names := make([]string, 0, len(typeRegistry))
+	for k := range typeRegistry {
+		names = append(names, k)
+	}
+
+	sort.Strings(names)
+
+	return names
 }
 
 var maxSupportedFormat = map[string]int{}
@@ -139,6 +153,39 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 	return formatnum, nil
 }
 
+// HeadersFromPrimaryKey constructs a headers mapping from the
+// primaryKey values and the assertion type, it errors if primaryKey
+// has the wrong length.
+func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
+	if len(primaryKey) != len(assertType.PrimaryKey) {
+		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
+	}
+	headers = make(map[string]string, len(assertType.PrimaryKey))
+	for i, name := range assertType.PrimaryKey {
+		keyVal := primaryKey[i]
+		if keyVal == "" {
+			return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+		}
+		headers[name] = keyVal
+	}
+	return headers, nil
+}
+
+// PrimaryKeyFromHeaders extracts the tuple of values from headers
+// corresponding to a primary key under the assertion type, it errors
+// if there are missing primary key headers.
+func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
+	primaryKey = make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			return nil, fmt.Errorf("must provide primary key: %v", k)
+		}
+		primaryKey[i] = keyVal
+	}
+	return primaryKey, nil
+}
+
 // Ref expresses a reference to an assertion.
 type Ref struct {
 	Type       *AssertionType
@@ -170,12 +217,9 @@ func (ref *Ref) Unique() string {
 
 // Resolve resolves the reference using the given find function.
 func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
-	if len(ref.PrimaryKey) != len(ref.Type.PrimaryKey) {
+	headers, err := HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+	if err != nil {
 		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", ref.Type.Name, ref.Type.PrimaryKey, ref.PrimaryKey)
-	}
-	headers := make(map[string]string, len(ref.PrimaryKey))
-	for i, name := range ref.Type.PrimaryKey {
-		headers[name] = ref.PrimaryKey[i]
 	}
 	return find(ref.Type, headers)
 }
@@ -429,8 +473,10 @@ type Decoder struct {
 	b              *bufio.Reader
 	err            error
 	maxHeadersSize int
-	maxBodySize    int
 	maxSigSize     int
+
+	defaultMaxBodySize int
+	typeMaxBodySize    map[*AssertionType]int
 }
 
 // initBuffer finishes a Decoder initialization by setting up the bufio.Reader,
@@ -440,16 +486,28 @@ func (d *Decoder) initBuffer() *Decoder {
 	return d
 }
 
-const defaultDecoderButSize = 4096
+const defaultDecoderBufSize = 4096
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
 	return (&Decoder{
-		rd:             r,
-		initialBufSize: defaultDecoderButSize,
-		maxHeadersSize: MaxHeadersSize,
-		maxBodySize:    MaxBodySize,
-		maxSigSize:     MaxSignatureSize,
+		rd:                 r,
+		initialBufSize:     defaultDecoderBufSize,
+		maxHeadersSize:     MaxHeadersSize,
+		maxSigSize:         MaxSignatureSize,
+		defaultMaxBodySize: MaxBodySize,
+	}).initBuffer()
+}
+
+// NewDecoderWithTypeMaxBodySize returns a Decoder to parse the stream of assertions from the reader enforcing optional per type max body sizes or the default one as fallback.
+func NewDecoderWithTypeMaxBodySize(r io.Reader, typeMaxBodySize map[*AssertionType]int) *Decoder {
+	return (&Decoder{
+		rd:                 r,
+		initialBufSize:     defaultDecoderBufSize,
+		maxHeadersSize:     MaxHeadersSize,
+		maxSigSize:         MaxSignatureSize,
+		defaultMaxBodySize: MaxBodySize,
+		typeMaxBodySize:    typeMaxBodySize,
 	}).initBuffer()
 }
 
@@ -528,11 +586,16 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
+	typeStr, _ := headers["type"].(string)
+	typ := Type(typeStr)
+
 	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
-	if length > d.maxBodySize {
+	if typMaxBodySize := d.typeMaxBodySize[typ]; typMaxBodySize != 0 && length > typMaxBodySize {
+		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size %d for %q assertions", length, typMaxBodySize, typ.Name)
+	} else if length > d.defaultMaxBodySize {
 		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size", length)
 	}
 
@@ -870,8 +933,19 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{wr: w}
 }
 
-// append emits an already encoded assertion into the stream with a proper required separator.
-func (enc *Encoder) append(encoded []byte) error {
+func (enc *Encoder) writeSep(last byte) error {
+	if last != '\n' {
+		_, err := enc.wr.Write(nl)
+		if err != nil {
+			return err
+		}
+	}
+	enc.nextSep = nl
+	return nil
+}
+
+// WriteEncoded writes the encoded assertion into the stream with the required separator.
+func (enc *Encoder) WriteEncoded(encoded []byte) error {
 	sz := len(encoded)
 	if sz == 0 {
 		return fmt.Errorf("internal error: encoded assertion cannot be empty")
@@ -887,22 +961,45 @@ func (enc *Encoder) append(encoded []byte) error {
 		return err
 	}
 
-	if encoded[sz-1] != '\n' {
-		_, err = enc.wr.Write(nl)
-		if err != nil {
-			return err
-		}
-	}
-	enc.nextSep = nl
+	return enc.writeSep(encoded[sz-1])
+}
 
-	return nil
+// WriteContentSignature writes the content and signature of an assertion into the stream with all the required separators.
+func (enc *Encoder) WriteContentSignature(content, signature []byte) error {
+	if len(content) == 0 {
+		return fmt.Errorf("internal error: content cannot be empty")
+	}
+
+	sz := len(signature)
+	if sz == 0 {
+		return fmt.Errorf("internal error: signature cannot be empty")
+	}
+
+	_, err := enc.wr.Write(enc.nextSep)
+	if err != nil {
+		return err
+	}
+
+	_, err = enc.wr.Write(content)
+	if err != nil {
+		return err
+	}
+	_, err = enc.wr.Write(nlnl)
+	if err != nil {
+		return err
+	}
+	_, err = enc.wr.Write(signature)
+	if err != nil {
+		return err
+	}
+
+	return enc.writeSep(signature[sz-1])
 }
 
 // Encode emits the assertion into the stream with the required separator.
 // Errors here are always about writing given that Encode() itself cannot error.
 func (enc *Encoder) Encode(assert Assertion) error {
-	encoded := Encode(assert)
-	return enc.append(encoded)
+	return enc.WriteContentSignature(assert.Signature())
 }
 
 // SignatureCheck checks the signature of the assertion against the given public key. Useful for assertions with no authority.

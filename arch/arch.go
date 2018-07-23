@@ -22,6 +22,9 @@ package arch
 import (
 	"log"
 	"runtime"
+	"syscall"
+
+	"github.com/snapcore/snapd/release"
 )
 
 // ArchitectureType is the type for a supported snappy architecture
@@ -37,6 +40,9 @@ var arch = ArchitectureType(ubuntuArchFromGoArch(runtime.GOARCH))
 func SetArchitecture(newArch ArchitectureType) {
 	arch = newArch
 }
+
+// FIXME: rename all Ubuntu*Architecture() to SnapdArchitecture()
+//        (or DpkgArchitecture)
 
 // UbuntuArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
@@ -62,11 +68,75 @@ func ubuntuArchFromGoArch(goarch string) string {
 		"ppc64le": "ppc64el",
 		"s390x":   "s390x",
 		"ppc":     "powerpc",
+		// available in debian and other distros
+		"ppc64": "ppc64",
+	}
+
+	// If we are running on an ARM platform we need to have a
+	// closer look if we are on armhf or armel. If we're not
+	// on a armv6 platform we can continue to use the Go
+	// arch mapping. The Go arch sadly doesn't map this out
+	// for us so we have to fallback to uname here.
+	if goarch == "arm" {
+		machineName := release.Machine()
+		if machineName == "armv6l" {
+			return "armel"
+		}
 	}
 
 	ubuntuArch := goArchMapping[goarch]
 	if ubuntuArch == "" {
-		log.Panicf("unknown goarch %v", goarch)
+		log.Panicf("unknown goarch %q", goarch)
+	}
+
+	return ubuntuArch
+}
+
+// UbuntuKernelArchitecture return the debian equivalent architecture
+// for the current running kernel. This is usually the same as the
+// UbuntuArchitecture - however there maybe cases that you run e.g.
+// a snapd:i386 on an amd64 kernel.
+func UbuntuKernelArchitecture() string {
+	var utsname syscall.Utsname
+	if err := syscall.Uname(&utsname); err != nil {
+		log.Panicf("cannot get kernel architecture: %v", err)
+	}
+
+	// syscall.Utsname{} is using [65]int8 for all char[] inside it,
+	// this makes converting it so awkward. The alternative would be
+	// to use a unsafe.Pointer() to cast it to a [65]byte slice.
+	// see https://github.com/golang/go/issues/20753
+	kernelArch := make([]byte, 0, len(utsname.Machine))
+	for _, c := range utsname.Machine {
+		if c == 0 {
+			break
+		}
+		kernelArch = append(kernelArch, byte(c))
+	}
+
+	return ubuntuArchFromKernelArch(string(kernelArch))
+}
+
+// ubuntuArchFromkernelArch maps the kernel architecture as reported
+// via uname() to the dpkg architecture
+func ubuntuArchFromKernelArch(utsMachine string) string {
+	kernelArchMapping := map[string]string{
+		// kernel  ubuntu
+		"i686":    "i386",
+		"x86_64":  "amd64",
+		"armv7l":  "armhf",
+		"armv8l":  "arm64",
+		"aarch64": "arm64",
+		"ppc64le": "ppc64el",
+		"s390x":   "s390x",
+		"ppc":     "powerpc",
+		// available in debian and other distros
+		"ppc64": "ppc64",
+	}
+
+	ubuntuArch := kernelArchMapping[utsMachine]
+	if ubuntuArch == "" {
+		log.Panicf("unknown kernel arch %q", utsMachine)
 	}
 
 	return ubuntuArch

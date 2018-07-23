@@ -1,0 +1,26 @@
+summary: Check that `snap wait` works
+
+kill-timeout: 2m
+
+prepare: |
+    . "$TESTSLIB/snaps.sh"
+    install_local basic-hooks
+
+execute: |
+    echo "Ensure snap wait for seeding works"
+    snap wait system seed.loaded
+
+    echo "Ensure snap wait for arbitrary stuff works"
+    # set to a false value
+    snap set basic-hooks foo=0
+    # keep track
+    start=$(date +%s)
+    # ensure we wait 3s before the false value becomes true
+    ((sleep 3; snap set basic-hooks foo=1)&)
+    snap wait basic-hooks foo
+    end=$(date +%s)
+    # ensure we waited 
+    if [ $((end-start)) -lt 2 ]; then
+        echo "snap wait returned too early"
+        exit 1
+    fi

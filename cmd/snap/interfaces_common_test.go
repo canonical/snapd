@@ -65,8 +65,8 @@ func (s *AttributePairSuite) TestUnmarshalFlagAttributePair(c *C) {
 
 func (s *AttributePairSuite) TestAttributePairSliceToMap(c *C) {
 	attrs := []AttributePair{
-		{"key1", "value1"},
-		{"key2", "value2"},
+		{Key: "key1", Value: "value1"},
+		{Key: "key2", Value: "value2"},
 	}
 	m := AttributePairSliceToMap(attrs)
 	c.Check(m, DeepEquals, map[string]string{

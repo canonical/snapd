@@ -1,0 +1,11 @@
+name: test-snapd-complexion
+version: 1.0
+apps:
+  test-snapd-complexion:
+    command: bin/test-snapd-complexion
+    completer: test-snapd-complexion.bash-completer
+    plugs: [home]
+  two:
+    command: bin/test-snapd-complexion
+    completer: test-snapd-complexion.bash-completer
+    plugs: [home]

@@ -38,6 +38,11 @@ import (
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct{}
 
+// Initialize does nothing.
+func (b *Backend) Initialize() error {
+	return nil
+}
+
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySystemd
@@ -49,7 +54,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	// Record all the extra systemd services for this snap.
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the services that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -119,6 +124,11 @@ func (b *Backend) Remove(snapName string) error {
 // NewSpecification returns a new systemd specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns nil
+func (b *Backend) SandboxFeatures() []string {
+	return nil
 }
 
 // deriveContent computes .service files based on requests made to the specification.

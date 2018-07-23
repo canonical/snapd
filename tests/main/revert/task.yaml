@@ -6,8 +6,11 @@ environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -25,12 +28,15 @@ prepare: |
 
         echo "And a new version of that snap put in the controlled store"
         . $TESTSLIB/store.sh
-        init_fake_refreshes test-snapd-tools $BLOB_DIR
+        init_fake_refreshes $BLOB_DIR test-snapd-tools
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -42,8 +48,11 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -66,6 +75,9 @@ execute: |
     echo "Then the new version is installed"
     snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
 
+    echo "And the snap runs"
+    test-snapd-tools.echo hello|MATCH hello
+
     echo "When a revert is made"
     snap revert test-snapd-tools
 
@@ -73,11 +85,14 @@ execute: |
     snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+ "
 
     echo "And the data directories are present"
-    ls $SNAPMOUNTDIR/test-snapd-tools | MATCH current
+    ls $SNAP_MOUNT_DIR/test-snapd-tools | MATCH current
     ls /var/snap/test-snapd-tools | MATCH current
 
     echo "And the snap runs confined"
     snap list|MATCH 'test-snapd-tools.* -$'
+
+    echo "And the still snap runs"
+    test-snapd-tools.echo hello|MATCH hello
 
     echo "And a new revert fails"
     if snap revert test-snapd-tools; then

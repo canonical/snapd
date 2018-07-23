@@ -1,0 +1,40 @@
+summary: Ensure that classic confinement works
+
+environment:
+    CLASSIC_SNAP: test-snapd-classic-confinement
+
+systems: [ubuntu-core-16-*, fedora-*]
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
+
+execute: |
+    #shellcheck source=tests/lib/strings.sh
+    . "$TESTSLIB"/strings.sh
+
+    echo "Check that classic snaps work only with --classic"
+    if snap install --dangerous "${CLASSIC_SNAP}_1.0_all.snap"; then
+        echo "snap install needs --classic to install local snaps with classic confinment"
+        exit 1
+    fi
+
+    if snap install "$CLASSIC_SNAP"; then
+        echo "snap install needs --classic to install remote snaps with classic confinment"
+        exit 1
+    fi
+
+    echo "Check that the classic snap is not installable even with --classic"
+    EXPECTED_TEXT="cannot install snap file: classic confinement is only supported on classic systems"
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        EXPECTED_TEXT="classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
+    fi
+    str_to_one_line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 )" | MATCH "$EXPECTED_TEXT"
+
+    echo "Not from the store either"
+    EXPECTED_TEXT="snap \"$CLASSIC_SNAP\" requires classic confinement which is only available on classic systems"
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        EXPECTED_TEXT="cannot install \"$CLASSIC_SNAP\": classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
+    fi
+    str_to_one_line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 )" | MATCH "$EXPECTED_TEXT"

@@ -73,13 +73,13 @@ check("basic-desktop", res[1],
 check("test-snapd-tools", res[2],
    ("name", equals, "test-snapd-tools"),
    ("publisher", equals, "canonical"),
-   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("contact", equals, "snaps@canonical.com"),
    ("summary", equals, "Tools for testing the snapd application"),
    ("description", equals, "A tool to test snapd\n"),
    ("commands", exists),
    ("tracking", equals, "stable"),
    ("installed", matches, verRevNotesRx("-")),
-   ("refreshed", exists),
+   ("refresh-date", exists),
    ("channels", check,
     ("stable", matches, verRevNotesRx("-")),
     ("candidate", equals, "↑"),
@@ -87,17 +87,18 @@ check("test-snapd-tools", res[2],
     ("edge", matches, verRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
+   ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
 )
 
 check("test-snapd-devmode", res[3],
    ("name", equals, "test-snapd-devmode"),
    ("publisher", equals, "canonical"),
-   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("contact", equals, "snaps@canonical.com"),
    ("summary", equals, "Basic snap with devmode confinement"),
    ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
-   ("refreshed", exists),
+   ("refresh-date", exists),
    ("channels", check,
     ("stable", equals, "–"),
     ("candidate", equals, "–"),
@@ -105,6 +106,7 @@ check("test-snapd-devmode", res[3],
     ("edge", matches, verRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
+   ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
 )
 
 check("core", res[4],
@@ -113,29 +115,30 @@ check("core", res[4],
       ("publisher", exists),
       ("summary", exists),
       ("description", exists),
-      ("tracking", exists),
+      # tracking not there for local snaps
+      ("tracking", maybe),
       ("installed", exists),
-      ("refreshed", exists),
+      ("refresh-date", exists),
       ("channels", exists),
       # contacts is set on classic but not on Ubuntu Core where we
       # sideload "core"
       ("contact", maybe),
       ("snap-id", maybe),
+      ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
 )
 
 check("error", res[5],
-   ("argument", equals, "/etc/passwd"),
-   ("warning", equals, "not a valid snap"),
+   ("warning", equals, 'no snap found for "/etc/passwd"'),
 )
 
 # not installed snaps have "contact" information
 check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
    ("publisher", equals, "canonical"),
-   ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
+   ("contact", equals, "snaps@canonical.com"),
    ("summary", exists),
    ("description", exists),
    ("channels", exists),
    ("snap-id", equals, snap_ids["test-snapd-python-webserver"]),
-
+   ("license", equals, "Other Open Source"),
 )

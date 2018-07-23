@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -56,19 +57,19 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 		if cfg == nil {
 			cfg = store.DefaultConfig()
 		}
-		serverURL, err := url.Parse(server.URL + "/assertions/")
-		c.Assert(err, check.IsNil)
-		cfg.AssertionsURI = serverURL
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
 		return store.New(cfg, auth)
 	})
 	defer restorer()
 
 	n := 0
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/assertions/model/16/canonical/pi99")
+			c.Check(r.URL.Path, check.Equals, "/api/v1/snaps/assertions/model/16/canonical/pi99")
 			fmt.Fprintln(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
@@ -86,5 +87,23 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
-	c.Assert(err, check.ErrorMatches, `missing primary header "model" to query remote assertion`)
+	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
+}
+
+func (s *SnapSuite) TestAssertTypeNameCompletion(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions")
+			fmt.Fprintln(w, `{"type": "sync", "result": { "types": [ "account", "... more stuff ...", "validation" ] } }`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	c.Check(snap.AssertTypeNameCompletion("v"), check.DeepEquals, []flags.Completion{{Item: "validation"}})
 }

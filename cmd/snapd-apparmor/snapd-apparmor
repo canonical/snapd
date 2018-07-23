@@ -1,0 +1,97 @@
+#!/bin/sh
+# This script is provided for integration with systemd on distributions where
+# apparmor profiles generated and managed by snapd are not loaded by the
+# system-wide apparmor systemd integration on early boot-up.
+#
+# Only the start operation is provided as all other activity is managed by
+# snapd as a part of the life-cycle of particular snaps.
+#
+# In addition the script assumes that the system-wide apparmor service has
+# already executed, initializing apparmor file-systems as necessary.
+
+# NOTE: This script doesn't set -e as it contains code copied from apparmor
+# init script that also does not set it. In addition the intent is to simply
+# load application profiles, as many as we can, even if for whatever reason
+# some of those fail.
+
+# The following portion is copied from /lib/apparmor/functions as shipped by Ubuntu
+# <copied-code>
+
+SECURITYFS="/sys/kernel/security"
+export AA_SFS="$SECURITYFS/apparmor"
+
+
+# Checks to see if the current container is capable of having internal AppArmor
+# profiles that should be loaded. Callers of this function should have already
+# verified that they're running inside of a container environment with
+# something like `systemd-detect-virt --container`.
+#
+# The only known container environments capable of supporting internal policy
+# are LXD and LXC environment.
+#
+# Returns 0 if the container environment is capable of having its own internal
+# policy and non-zero otherwise.
+#
+# IMPORTANT: This function will return 0 in the case of a non-LXD/non-LXC
+# system container technology being nested inside of a LXD/LXC container that
+# utilized an AppArmor namespace and profile stacking. The reason 0 will be
+# returned is because .ns_stacked will be "yes" and .ns_name will still match
+# "lx[dc]-*" since the nested system container technology will not have set up
+# a new AppArmor profile namespace. This will result in the nested system
+# container's boot process to experience failed policy loads but the boot
+# process should continue without any loss of functionality. This is an
+# unsupported configuration that cannot be properly handled by this function.
+is_container_with_internal_policy() {
+	ns_stacked_path="${AA_SFS}/.ns_stacked"
+	ns_name_path="${AA_SFS}/.ns_name"
+	ns_stacked
+	ns_name
+
+	if ! [ -f "$ns_stacked_path" ] || ! [ -f "$ns_name_path" ]; then
+		return 1
+	fi
+
+	read -r ns_stacked < "$ns_stacked_path"
+	if [ "$ns_stacked" != "yes" ]; then
+		return 1
+	fi
+
+	# LXD and LXC set up AppArmor namespaces starting with "lxd-" and
+	# "lxc-", respectively. Return non-zero for all other namespace
+	# identifiers.
+	read -r ns_name < "$ns_name_path"
+	if [ "${ns_name#lxd-*}" = "$ns_name" ] && \
+	   [ "${ns_name#lxc-*}" = "$ns_name" ]; then
+		return 1
+	fi
+
+	return 0
+}
+
+# This terminates code copied from /lib/apparmor/functions on Ubuntu
+# </copied-code>
+
+case "$1" in
+	start)
+		# <copied-code>
+		if [ -x /usr/bin/systemd-detect-virt ] && \
+				systemd-detect-virt --quiet --container && \
+				! is_container_with_internal_policy; then
+			exit 0
+		fi
+		# </copied-code>
+
+		for profile in /var/lib/snapd/apparmor/profiles/*; do
+			# Filter out profiles with names ending with ~, those are temporary files created by snapd.
+			test "${profile%\~}" != "${profile}" && continue
+			echo "$profile"
+		done | xargs \
+			-P"$(getconf _NPROCESSORS_ONLN)" \
+			apparmor_parser \
+			--replace \
+			--write-cache \
+			--cache-loc=/var/cache/apparmor \
+			-O no-expr-simplify \
+			--quiet
+		;;
+esac

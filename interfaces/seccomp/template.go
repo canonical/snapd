@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,12 +69,13 @@ fchmodat
 
 # snappy doesn't currently support per-app UID/GIDs. All daemons run as 'root'
 # so allow chown to 'root'. DAC will prevent non-root from chowning to root.
-chown - 0 0
-chown32 - 0 0
-fchown - 0 0
-fchown32 - 0 0
-lchown - 0 0
-lchown32 - 0 0
+chown - u:root g:root
+chown32 - u:root g:root
+fchown - u:root g:root
+fchown32 - u:root g:root
+fchownat - - u:root g:root
+lchown - u:root g:root
+lchown32 - u:root g:root
 
 clock_getres
 clock_gettime
@@ -165,10 +166,7 @@ inotify_rm_watch
 
 # TIOCSTI allows for faking input (man tty_ioctl)
 # TODO: this should be scaled back even more
-#ioctl - !TIOCSTI
-# FIXME: replace this with the filter of TIOCSTI once snap-confine can read this syntax
-# See LP:#1662489 for context.
-ioctl
+ioctl - !TIOCSTI
 
 io_cancel
 io_destroy
@@ -212,17 +210,14 @@ mlockall
 mmap
 mmap2
 
-# FIXME: commented out because of:
-# https://forum.snapcraft.io/t/snapd-2-25-blocked-because-of-possible-revert-race-condition
-#
 # Allow mknod for regular files, pipes and sockets (and not block or char
 # devices)
-#mknod - |S_IFREG -
-#mknodat - - |S_IFREG -
-#mknod - |S_IFIFO -
-#mknodat - - |S_IFIFO -
-#mknod - |S_IFSOCK -
-#mknodat - - |S_IFSOCK -
+mknod - |S_IFREG -
+mknodat - - |S_IFREG -
+mknod - |S_IFIFO -
+mknodat - - |S_IFIFO -
+mknod - |S_IFSOCK -
+mknodat - - |S_IFSOCK -
 
 modify_ldt
 mprotect
@@ -401,6 +396,7 @@ shmat
 shmctl
 shmdt
 shmget
+shutdown
 signal
 sigaction
 signalfd
@@ -417,47 +413,49 @@ sigwaitinfo
 # domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so
 # we can allow 'socket' for all domains except AF_NETLINK and let AppArmor
 # handle the rest.
-socket
-# FIXME: uncomment below (and remove the line above) once we can add
-#        symbols to seccomp again
-#socket AF_UNIX
-#socket AF_LOCAL
-#socket AF_INET
-#socket AF_INET6
-#socket AF_IPX
-#socket AF_X25
-#socket AF_AX25
-#socket AF_ATMPVC
-#socket AF_APPLETALK
-#socket AF_PACKET
-#socket AF_ALG
-#socket AF_CAN
-#socket AF_BRIDGE
-#socket AF_NETROM
-#socket AF_ROSE
-#socket AF_NETBEUI
-#socket AF_SECURITY
-#socket AF_KEY
-#socket AF_ASH
-#socket AF_ECONET
-#socket AF_SNA
-#socket AF_IRDA
-#socket AF_PPPOX
-#socket AF_WANPIPE
-#socket AF_BLUETOOTH
-#socket AF_RDS
-#socket AF_LLC
-#socket AF_TIPC
-#socket AF_IUCV
-#socket AF_RXRPC
-#socket AF_ISDN
-#socket AF_PHONET
-#socket AF_IEEE802154
-#socket AF_CAIF
-#socket AF_NFC
-#socket AF_VSOCK
-#socket AF_MPLS
-#socket AF_IB
+socket AF_UNIX
+socket AF_LOCAL
+socket AF_INET
+socket AF_INET6
+socket AF_IPX
+socket AF_X25
+socket AF_AX25
+socket AF_ATMPVC
+socket AF_APPLETALK
+socket AF_PACKET
+socket AF_ALG
+socket AF_CAN
+socket AF_BRIDGE
+socket AF_NETROM
+socket AF_ROSE
+socket AF_NETBEUI
+socket AF_SECURITY
+socket AF_KEY
+socket AF_ASH
+socket AF_ECONET
+socket AF_SNA
+socket AF_IRDA
+socket AF_PPPOX
+socket AF_WANPIPE
+socket AF_BLUETOOTH
+socket AF_RDS
+socket AF_LLC
+socket AF_TIPC
+socket AF_IUCV
+socket AF_RXRPC
+socket AF_ISDN
+socket AF_PHONET
+socket AF_IEEE802154
+socket AF_CAIF
+socket AF_NFC
+socket AF_VSOCK
+socket AF_MPLS
+socket AF_IB
+
+# For usrsctp, AppArmor doesn't support 'network conn,' since AF_CONN is
+# userspace and encapsulated in other domains that are mediated. As such, do
+# not allow AF_CONN by default here.
+# socket AF_CONN
 
 # For AF_NETLINK, we'll use a combination of AppArmor coarse mediation and
 # seccomp arg filtering of netlink families.

@@ -1,0 +1,63 @@
+summary: Check that `snap run` runs
+
+# strace does not support _newselect on s390x
+# (https://github.com/strace/strace/issues/57)
+systems: [-*-s390x]
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local basic-run
+    install_local test-snapd-tools
+
+restore: |
+    rm -f stdout stderr
+    
+debug:
+    cat stderr
+
+execute: |
+    echo "Test that snap run use environments"
+    basic-run.echo-data | MATCH ^/var/snap
+
+    # the strace on 14.04 is too old
+    if grep -q 'VERSION_ID="14.04"' /etc/os-release; then
+        snap install strace-static
+    fi
+    # the strace on opensuse is too old
+    if grep -q 'ID=opensuse' /etc/os-release; then
+        snap install strace-static
+    fi
+    # install the snap if no system strace is found
+    if ! which strace; then
+        snap install strace-static
+    fi
+
+    echo "Test snap run --strace"
+    snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH hello-world < stdout
+    MATCH 'write\(1, \"hello-world\\n\",' < stderr
+    if grep "snap-confine" stderr; then
+       echo "the snap-confine calls should be filtered out, something is wrong
+       cat stderr"
+       exit 1
+    fi
+
+    echo "Test snap run --strace with options works"
+    snap run --strace="-tt" test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH hello-world < stdout
+    MATCH '[0-9:.]+ write\(1, "hello-world\\n"' < stderr
+    
+    echo "Test snap --strace invalid works"
+    if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
+        echo "snap run with an invalid strace option should fail but it did not"
+        exit 1
+    fi
+    MATCH "Can't stat 'invalid': No such file or directory" < stderr
+
+    if which gdb; then
+       echo "Test snap run --gdb works"
+       echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
+       cat stdout | MATCH 'Continuing.'
+       cat stdout | MATCH hello
+    fi
+

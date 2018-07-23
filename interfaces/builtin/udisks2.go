@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,9 +27,22 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const udisks2Summary = `allows operating as or interacting with the UDisks2 service`
+
+const udisks2BaseDeclarationSlots = `
+  udisks2:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
+    deny-auto-connection: true
+`
 
 const udisks2PermanentSlotAppArmor = `
 # Description: Allow operating as the udisks2. This gives privileged access to
@@ -93,6 +106,7 @@ umount /{,run/}media/**,
 # give raw read access to the system disks and therefore the entire system.
 /dev/sd* r,
 /dev/mmcblk* r,
+/dev/vd* r,
 
 # Needed for probing raw devices
 capability sys_rawio,
@@ -102,11 +116,10 @@ const udisks2ConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service. This gives privileged
 # access to the system.
 
-dbus (send)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive, send)
@@ -120,6 +133,14 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -177,6 +198,10 @@ const udisks2PermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.UDisks2"/>
     <allow send_destination="org.freedesktop.UDisks2"/>
+</policy>
+
+<policy context="default">
+    <allow send_destination="org.freedesktop.UDisks2" send_interface="org.freedesktop.DBus.Introspectable" />
 </policy>
 `
 
@@ -350,62 +375,76 @@ func (iface *udisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *udisks2Interface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: udisks2Summary,
+func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              udisks2Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
 	}
 }
 
-func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(udisks2ConnectedPlugDBus)
+func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if !release.OnClassic {
+		spec.AddSnippet(udisks2ConnectedPlugDBus)
+	}
 	return nil
 }
 
-func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(udisks2PermanentSlotDBus)
+func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(udisks2PermanentSlotDBus)
+	}
 	return nil
 }
 
-func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *udisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	var new string
+	if release.OnClassic {
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
+	}
 	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(udisks2PermanentSlotAppArmor)
+func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(udisks2PermanentSlotAppArmor)
+	}
 	return nil
 }
 
-func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(udisks2PermanentSlotUDev)
+func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(udisks2PermanentSlotUDev)
+		spec.TagDevice(`SUBSYSTEM=="block"`)
+		// # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
+		spec.TagDevice(`SUBSYSTEM=="usb"`)
+	}
 	return nil
 }
 
-func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
-	snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
-	spec.AddSnippet(snippet)
+func (iface *udisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if !release.OnClassic {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plugAppLabelExpr(plug)
+		snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
-func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(udisks2PermanentSlotSecComp)
+func (iface *udisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(udisks2PermanentSlotSecComp)
+	}
 	return nil
 }
 
-func (iface *udisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *udisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
-func (iface *udisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *udisks2Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

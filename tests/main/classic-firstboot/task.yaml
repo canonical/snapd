@@ -1,5 +1,5 @@
 summary: Check that firstboot assertions are imported and snaps installed also on classic
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
@@ -8,13 +8,13 @@ prepare: |
         exit
     fi
 
-    snapbuild $TESTSLIB/snaps/basic .
-    snap download --$CORE_CHANNEL core
+    snap pack "$TESTSLIB/snaps/basic"
+    snap download "--$CORE_CHANNEL" core
 
-    $TESTSLIB/reset.sh --keep-stopped
-    mkdir -p $SEED_DIR/snaps
-    mkdir -p $SEED_DIR/assertions
-    cat > $SEED_DIR/seed.yaml <<EOF
+    "$TESTSLIB/reset.sh" --keep-stopped
+    mkdir -p "$SEED_DIR/snaps"
+    mkdir -p "$SEED_DIR/assertions"
+    cat > "$SEED_DIR/seed.yaml" <<EOF
     snaps:
       - name: core
         channel: $CORE_CHANNEL
@@ -25,23 +25,23 @@ prepare: |
     EOF
 
     echo Copy the needed assertions to /var/lib/snapd/
-    cp core_*.assert $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/developer1.account-key $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/developer1-my-classic.model $SEED_DIR/assertions
-    cp $TESTSLIB/assertions/testrootorg-store.account-key $SEED_DIR/assertions
-    echo Copy the needed snaps to $SEED_DIR/snaps
-    cp ./core_*.snap $SEED_DIR/snaps/core.snap
-    cp ./basic_1.0_all.snap $SEED_DIR/snaps/basic.snap
+    cp core_*.assert "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/developer1.account" "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/developer1.account-key" "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/developer1-my-classic.model" "$SEED_DIR/assertions"
+    cp "$TESTSLIB/assertions/testrootorg-store.account-key" "$SEED_DIR/assertions"
+    echo "Copy the needed snaps to $SEED_DIR/snaps"
+    cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
+    cp ./basic_1.0_all.snap "$SEED_DIR/snaps/basic.snap"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
 
-    rm -r $SEED_DIR
-    rm -f *.snap
-    rm -f *.assert
+    rm -rf "$SEED_DIR"
+    rm -f -- *.snap
+    rm -f -- *.assert
     systemctl start snapd.socket snapd.service
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -52,21 +52,24 @@ execute: |
     echo "Start the daemon with an empty state, this will make it import "
     echo "assertions from the $SEED_DIR/assertions subdirectory and "
     echo "install the seed snaps."
-    systemctl start snapd.socket snapd.service
+    systemctl start snapd.seeded.service
 
     echo "Wait for Seed change to be finished"
-    for i in `seq 120`; do
+    for _ in $(seq 120); do
         if snap list 2>/dev/null |grep -q -E "^basic" ; then
             break
         fi
         sleep 1
     done
 
+    echo "Ensure snapd.seeded.service is active"
+    systemctl status snapd.seeded.service
+
     echo "Verifying the imported assertions"
-    if ! snap known model|MATCH "model: my-classic" ; then
+    if ! snap known model | MATCH "model: my-classic" ; then
         echo "Model assertion was not imported on firstboot"
         exit 1
     fi
 
-    snap list|MATCH "^basic"
-    test -f $SEED_DIR/snaps/basic.snap
+    snap list | MATCH "^basic"
+    test -f "$SEED_DIR/snaps/basic.snap"

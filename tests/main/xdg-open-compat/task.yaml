@@ -1,0 +1,103 @@
+summary: Ensure the xdg-open still works in compatibility mode
+
+description: |
+    The core snap has a xdg-open binary that sends both to the
+    new io.snapcraft.Launcher and the old com.canonical.SafeLauncher
+    dbus session bus. This test ensures the compatibility with
+    the old launcher is still there for distros that do not re-exec
+    and still get a new core but still have the old snapd-xdg-open
+    package.
+
+# we must have snapd-xdg-open available
+systems: [ubuntu-16.04-64]
+
+environment:
+    DISPLAY: :0
+    XDG_OPEN_OUTPUT: /tmp/xdg-open-output
+
+restore: |
+    . "$TESTSLIB/dirs.sh"
+    . "$TESTSLIB/pkgdb.sh"
+    rm -f /usr/bin/xdg-open
+    rm -f $XDG_OPEN_OUTPUT
+    dpkg -r snapd-xdg-open
+    rm -f /usr/share/applications/defaults.list
+    rm -f /usr/share/applications/xdg-open.desktop
+
+execute: |
+    . "$TESTSLIB/pkgdb.sh"
+    . "$TESTSLIB/dirs.sh"
+
+    # download from LP, it is not available in the archive anymore
+    wget https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
+    # snapd breaks older version of snapd-xdg-open so we cannot
+    # install them together. force things to work!
+    dpkg -i --force-all snapd-xdg-open_*.deb
+
+    # setup some env so that g_app_info_launch_default_for_uri() works
+    cat > /usr/share/applications/defaults.list <<EOF
+    [Default Applications]
+    x-scheme-handler/http=xdg-open.desktop
+    x-scheme-handler/https=xdg-open.desktop
+    x-scheme-handler/mailto=xdg-open.desktop
+    EOF
+    cat > /usr/share/applications/xdg-open.desktop <<EOF
+    [Desktop Entry]
+    Version=1.0
+    Type=Application
+    Exec=/usr/bin/xdg-open %u
+    Terminal=false
+    MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/mailto;
+    Name=xdg-open
+    EOF
+    
+    echo "Launch user dbus session"
+    export $(dbus-launch)
+
+    echo "Ensure snapd-xdg-open is available"
+    ping_launcher() {
+        dbus-send --session                                        \
+            --dest=com.canonical.SafeLauncher                      \
+            --type=method_call                                     \
+            --print-reply                                          \
+            /                                                      \
+            org.freedesktop.DBus.Peer.Ping
+    }
+    while ! ping_launcher ; do
+        sleep .5
+    done
+
+    # Create a small helper which will tell us if snap passes
+    # the URL correctly to the right handler
+    cat << 'EOF' > /usr/bin/xdg-open
+    #!/bin/sh
+    echo "$@" > /tmp/xdg-open-output
+    EOF
+    chmod +x /usr/bin/xdg-open
+
+    ensure_xdg_open_output() {
+        rm -f $XDG_OPEN_OUTPUT
+        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+        $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open "$1"
+        # xdg-open is async so we need to give it a little bit of time
+        for i in $(seq 10); do
+            if [ -e $XDG_OPEN_OUTPUT ]; then
+                break
+            fi
+            sleep .5
+        done
+        test -e $XDG_OPEN_OUTPUT
+        test "$(cat $XDG_OPEN_OUTPUT)" = "$1"
+    }
+
+    # Ensure http, https and mailto work
+    ensure_xdg_open_output "https://snapcraft.io"
+    ensure_xdg_open_output "http://snapcraft.io"
+    ensure_xdg_open_output "mailto:talk@snapcraft.io"
+
+    # Ensure other schemes are not passed through
+    rm $XDG_OPEN_OUTPUT
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
+    test ! -e $XDG_OPEN_OUTPUT
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
+    test ! -e $XDG_OPEN_OUTPUT

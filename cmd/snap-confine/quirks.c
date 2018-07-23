@@ -40,7 +40,7 @@
  * (legacy).  The mount point does not depend on build-time configuration and
  * does not differ from distribution to distribution.
  **/
-static const char *sc_get_inner_core_mount_point()
+static const char *sc_get_inner_core_mount_point(void)
 {
 	const char *core_path = "/snap/core/current/";
 	const char *ubuntu_core_path = "/snap/ubuntu-core/current/";
@@ -90,7 +90,7 @@ static void sc_quirk_mkdir_bind(const char *src_dir, const char *dest_dir,
 	if (sc_nonfatal_mkpath(dest_dir, 0755) < 0) {
 		die("cannot create empty directory at %s", dest_dir);
 	}
-	char buf[1000];
+	char buf[1000] = { 0 };
 	const char *flags_str = sc_mount_opt2str(buf, sizeof buf, flags);
 	debug("performing operation: mount %s %s -o %s", src_dir, dest_dir,
 	      flags_str);
@@ -116,16 +116,29 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	debug("creating writable mimic directory %s based on %s", mimic_dir,
 	      ref_dir);
 	sc_quirk_setup_tmpfs(mimic_dir);
+
+	// Now copy the ownership and permissions of the mimicked directory
+	struct stat stat_buf;
+	if (stat(ref_dir, &stat_buf) < 0) {
+		die("cannot stat %s", ref_dir);
+	}
+	if (chown(mimic_dir, stat_buf.st_uid, stat_buf.st_gid) < 0) {
+		die("cannot chown for %s", mimic_dir);
+	}
+	if (chmod(mimic_dir, stat_buf.st_mode) < 0) {
+		die("cannot chmod for %s", mimic_dir);
+	}
+
 	debug("bind-mounting all the files from the reference directory");
-	DIR *dirp __attribute__ ((cleanup(sc_cleanup_closedir))) = NULL;
+	DIR *dirp SC_CLEANUP(sc_cleanup_closedir) = NULL;
 	dirp = opendir(ref_dir);
 	if (dirp == NULL) {
 		die("cannot open reference directory %s", ref_dir);
 	}
 	struct dirent *entryp = NULL;
 	do {
-		char src_name[PATH_MAX * 2];
-		char dest_name[PATH_MAX * 2];
+		char src_name[PATH_MAX * 2] = { 0 };
+		char dest_name[PATH_MAX * 2] = { 0 };
 		// Set errno to zero, if readdir fails it will not only return null but
 		// set errno to a non-zero value. This is how we can differentiate
 		// end-of-directory from an actual error.
@@ -163,7 +176,7 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
  *
  * See: https://bugs.launchpad.net/snap-confine/+bug/1613845
  **/
-static void sc_setup_lxd_quirk()
+static void sc_setup_lxd_quirk(void)
 {
 	const char *hostfs_lxd_dir = SC_HOSTFS_DIR "/var/lib/lxd";
 	if (access(hostfs_lxd_dir, F_OK) == 0) {
@@ -175,7 +188,7 @@ static void sc_setup_lxd_quirk()
 	}
 }
 
-void sc_setup_quirks()
+void sc_setup_quirks(void)
 {
 	// because /var/lib/snapd is essential let's move it to /tmp/snapd for a sec
 	char snapd_tmp[] = "/tmp/snapd.quirks_XXXXXX";
@@ -190,7 +203,7 @@ void sc_setup_quirks()
 		    "/var/lib/snapd", snapd_tmp);
 	}
 	// now let's make /var/lib the vanilla /var/lib from the core snap
-	char buf[PATH_MAX];
+	char buf[PATH_MAX] = { 0 };
 	sc_must_snprintf(buf, sizeof buf, "%s/var/lib",
 			 sc_get_inner_core_mount_point());
 	sc_quirk_create_writable_mimic("/var/lib", buf,

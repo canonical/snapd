@@ -1,0 +1,2237 @@
+# French translation for snapd
+# Copyright (c) 2016 Rosetta Contributors and Canonical Ltd 2016
+# This file is distributed under the same license as the snapd package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2016.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: snapd\n"
+"Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2017-10-14 00:51+0000\n"
+"PO-Revision-Date: 2017-08-17 17:23+0000\n"
+"Last-Translator: Anne017 <anneonyme017@openmailbox.org>\n"
+"Language-Team: French <fr@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Launchpad-Export-Date: 2017-10-18 08:37+0000\n"
+"X-Generator: Launchpad (build 18476)\n"
+
+#, c-format
+msgid ""
+"%q does not contain an unpacked snap.\n"
+"\n"
+"Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
+msgstr ""
+"%q ne contient aucun paquet Snap décompressé.\n"
+"\n"
+"Essayez « snapcraft prime » dans votre répertoire de projet, puis à nouveau "
+"« snap try »."
+
+#, c-format
+msgid "%q switched to the %q channel\n"
+msgstr ""
+
+#. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
+#, c-format
+msgid "%s %s mounted from %s\n"
+msgstr "%s %s monté depuis %s\n"
+
+#, c-format
+msgid "%s (delta)"
+msgstr "%s (delta)"
+
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
+#, c-format
+msgid "%s (see \"snap login --help\")"
+msgstr "%s (voir « snap login --help »)"
+
+#. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
+#, c-format
+msgid "%s (try with sudo)"
+msgstr "%s (essayez avec sudo)"
+
+#, c-format
+msgid "%s already installed\n"
+msgstr "%s est déjà installé\n"
+
+#, c-format
+msgid "%s disabled\n"
+msgstr "%s désactivé\n"
+
+#, c-format
+msgid "%s enabled\n"
+msgstr "%s activé\n"
+
+#, c-format
+msgid "%s not installed\n"
+msgstr "%s n'est pas installé\n"
+
+#, c-format
+msgid "%s removed\n"
+msgstr "%s supprimé\n"
+
+#, c-format
+msgid "%s reverted to %s\n"
+msgstr "%s revenu à %s\n"
+
+#, c-format
+msgid "%s%s %s from '%s' installed\n"
+msgstr "%s%s %s de « %s » installé\n"
+
+#, c-format
+msgid "%s%s %s from '%s' refreshed\n"
+msgstr "%s%s %s de « %s » actualisé\n"
+
+#, c-format
+msgid "%s%s %s installed\n"
+msgstr "%s%s %s installé\n"
+
+#, c-format
+msgid "%s%s %s refreshed\n"
+msgstr "%s%s %s actualisé\n"
+
+msgid "--list does not take mode nor channel flags"
+msgstr ""
+"--list n'accepte ni les indicateurs de mode ni les indicateurs de canal"
+
+msgid "--time does not take mode nor channel flags"
+msgstr "--time n'accepte pas les options mode et/ou canal"
+
+msgid "-r can only be used with --hook"
+msgstr "-r ne peut être utilisé qu'avec --hook"
+
+msgid "<alias-or-snap>"
+msgstr "<alias ou paquet Snap>"
+
+msgid "<alias>"
+msgstr "<alias>"
+
+msgid "<assertion file>"
+msgstr "<fichier d'assertion>"
+
+msgid "<assertion type>"
+msgstr "<type d'assertion>"
+
+msgid "<change-id>"
+msgstr "<identifiant de changement>"
+
+msgid "<conf value>"
+msgstr "<valeur de configuration>"
+
+#. TRANSLATORS: noun
+#. TRANSLATORS: noun
+msgid "<email>"
+msgstr "<courriel>"
+
+msgid "<filename>"
+msgstr "<nom du fichier>"
+
+msgid "<header filter>"
+msgstr "<filtre d'en-tête>"
+
+msgid "<interface>"
+msgstr ""
+
+msgid "<key-name>"
+msgstr "<nom de la clé>"
+
+msgid "<key>"
+msgstr "<clé>"
+
+msgid "<model-assertion>"
+msgstr "<modèle d'assertion>"
+
+msgid "<query>"
+msgstr "<requête>"
+
+msgid "<root-dir>"
+msgstr "<répertoire racine>"
+
+msgid "<snap>:<plug>"
+msgstr "<snap>:<connecteur>"
+
+msgid "<snap>:<slot or plug>"
+msgstr "<snap>:<prise ou connecteur>"
+
+msgid "<snap>:<slot>"
+msgstr "<snap>:<prise>"
+
+msgid "Abort a pending change"
+msgstr "Annuler un changement en attente"
+
+msgid "Added"
+msgstr "Ajouté"
+
+msgid "Adds an assertion to the system"
+msgstr "Ajoute une assertion au système"
+
+msgid "Alias for --dangerous (DEPRECATED)"
+msgstr "Alias pour --dangerous (OBSOLÈTE)"
+
+msgid "All snaps up to date."
+msgstr "Tous les paquets Snaps sont à jour."
+
+msgid "Alternative command to run"
+msgstr "Commande alternative à « run »"
+
+msgid "Always return document, even with single key"
+msgstr "Toujours retourner un document, même avec une clé unique"
+
+#. TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+msgid "An email of a user on login.ubuntu.com"
+msgstr "Un courriel d'un utilisateur sur login.ubuntu.com"
+
+msgid "Assertion file"
+msgstr "Fichier d'assertion"
+
+msgid "Assertion type name"
+msgstr "Nom du type d'assertion"
+
+msgid "Authenticates on snapd and the store"
+msgstr "Authentifie sur Snapd et sur la logithèque"
+
+#, c-format
+msgid "Auto-refresh %d snaps"
+msgstr "Actualiser automatiquement %d paquets Snap"
+
+#, c-format
+msgid "Auto-refresh snap %q"
+msgstr "Actualiser automatiquement le paquet Snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Auto-refresh snaps %s"
+msgstr "Actualiser automatiquement les paquets Snap %s"
+
+msgid "Bad code. Try again: "
+msgstr "Code faux. Réessayez : "
+
+msgid "Buys a snap"
+msgstr "Achète un paquet Snap"
+
+msgid "Change ID"
+msgstr "Changer l'identifiant"
+
+msgid "Changes configuration options"
+msgstr "Modifie les options de configuration"
+
+msgid ""
+"Classic dimension disabled on this system.\n"
+"Use \"sudo snap install --devmode classic && sudo classic.create\" to enable "
+"it."
+msgstr ""
+"Dimension classique désactivée sur ce système.\n"
+"Utilisez « sudo snap install --devmode classic && sudo classic.create » pour "
+"l'activer."
+
+msgid "Command\tAlias\tNotes"
+msgstr "Commande\tAlias\tNotes"
+
+msgid "Configuration value (key=value)"
+msgstr "Valeur de configuration (clé=valeur)"
+
+msgid "Confirm passphrase: "
+msgstr "Confirmez la phrase de passe : "
+
+#, c-format
+msgid "Connect %s:%s to %s:%s"
+msgstr "Connecter %s:%s à %s:%s"
+
+msgid "Connects a plug to a slot"
+msgstr "Connecte un connecteur à une prise"
+
+msgid "Constrain listing to a specific snap or snap:name"
+msgstr "Limite la liste à un paquet Snap spécifique ou snap:nom"
+
+msgid "Constrain listing to specific interfaces"
+msgstr "Limite la liste à des interfaces spécifiques"
+
+msgid "Constrain listing to those matching header=value"
+msgstr "Limite la liste aux éléments correspondant à en-tête=valeur"
+
+#, c-format
+msgid "Copy snap %q data"
+msgstr "Copier les données du paquet Snap %q"
+
+msgid ""
+"Create a cryptographic key pair that can be used for signing assertions."
+msgstr ""
+"Créer une paire de clés chiffrées qui peut être utilisée pour la signature "
+"des assertions."
+
+msgid "Create cryptographic key pair"
+msgstr "Créer une paire de clés chiffrées"
+
+msgid "Create snap build assertion"
+msgstr "Créer une assertion de construction du paquet Snap"
+
+msgid "Create snap-build assertion for the provided snap file."
+msgstr ""
+"Créer une assertion de construction du paquet Snap pour le fichier Snap "
+"fourni."
+
+msgid "Creates a local system user"
+msgstr "Crée un utilisateur local du système"
+
+msgid "Delete cryptographic key pair"
+msgstr "Supprimer une paire de clés chiffrées"
+
+msgid "Delete the local cryptographic key pair with the given name."
+msgstr ""
+"Supprimer la paire de clés locales chiffrées possédant le nom indiqué."
+
+#, c-format
+msgid "Disable %q snap"
+msgstr "Paquet Snap %q désactivé"
+
+#, c-format
+msgid "Disable aliases for snap %q"
+msgstr "Désactiver les alias pour le paquet Snap %q"
+
+#, c-format
+msgid "Disable all aliases for snap %q"
+msgstr "Désactive tous les alias pour le paquet Snap %q"
+
+msgid "Disables a snap in the system"
+msgstr "Désactive un paquet Snap dans le système"
+
+#, c-format
+msgid "Discard interface connections for snap %q (%s)"
+msgstr "Effacer les connexions entre interfaces pour le paquet Snap %q (%s)"
+
+#, c-format
+msgid "Disconnect %s:%s from %s:%s"
+msgstr "Déconnecter %s:%s de %s:%s"
+
+msgid "Disconnects a plug from a slot"
+msgstr "Déconnecte un connecteur d'une prise"
+
+msgid "Do not wait for the operation to finish but just print the change id."
+msgstr ""
+"Ne pas attendre la fin de l'opération, mais afficher simplement "
+"l'identifiant de modification."
+
+#, c-format
+msgid "Download snap %q%s from channel %q"
+msgstr "Télécharger un paquet Snap %q%s à partir du canal %q"
+
+msgid ""
+"Download the given revision of a snap, to which you must have developer "
+"access"
+msgstr ""
+"Télécharger la révision donnée d'un paquet Snap, vers laquelle vous devez "
+"avoir des accès développeur"
+
+msgid "Downloads the given snap"
+msgstr "Télécharge le paquet Snap en question"
+
+msgid "Email address: "
+msgstr "Adresse électronique : "
+
+#, c-format
+msgid "Enable %q snap"
+msgstr "Activer le paquet Snap %q"
+
+msgid "Enables a snap in the system"
+msgstr "Active un paquet Snap dans le système"
+
+msgid "Entering classic dimension"
+msgstr "Entrée dans la dimension classique"
+
+msgid ""
+"Export a public key assertion body that may be imported by other systems."
+msgstr ""
+"Exporter un corps d'assertion de clé publique qui puisse être importé par "
+"d'autres systèmes."
+
+msgid "Export cryptographic public key"
+msgstr "Exporter une clé de chiffrement publique"
+
+#, c-format
+msgid "Fetch and check assertions for snap %q%s"
+msgstr "Récupérer et vérifier les assertions pour le paquet Snap %q%s"
+
+#, c-format
+msgid "Fetching assertions for %q\n"
+msgstr "Récupération des assertions pour %q\n"
+
+#, c-format
+msgid "Fetching snap %q\n"
+msgstr "Récupération du paquet Snap %q\n"
+
+msgid "Filename of the snap you want to assert a build for"
+msgstr ""
+"Le nom du fichier du paquet Snap pour lequel vous voulez définir une version"
+
+msgid "Finds packages to install"
+msgstr "Trouve les paquets à installer"
+
+msgid "Force adding the user, even if the device is already managed"
+msgstr ""
+"Forcer l'ajout de l'utilisateur, même si l'appareil est déjà administré"
+
+msgid "Force import on classic systems"
+msgstr "Forcer l'importation dans les systèmes classiques"
+
+msgid ""
+"Format public key material as a request for an account-key for this account-"
+"id"
+msgstr ""
+"Formater le matériel de clef publique comme une demande de clef de compte "
+"pour cet identifiant de compte"
+
+msgid "Generate device key"
+msgstr "Générer la clé du périphérique"
+
+msgid "Generate the manpage"
+msgstr "Générer les page de manuel"
+
+msgid "Grade states the build quality of the snap (defaults to 'stable')"
+msgstr ""
+"Le grade indique la qualité de version du paquet Snap (« stable » par défaut)"
+
+msgid "Grant sudo access to the created user"
+msgstr "Accorder les accès administrateur à l'utilisateur créé"
+
+msgid "Help"
+msgstr "Aide"
+
+msgid "Hook to run"
+msgstr "Point d'accroche à exécuter"
+
+msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
+msgstr "Identifiant\tÉtat\tDescendance\tPrêt\tRésumé\n"
+
+msgid "Identifier of the signer"
+msgstr "Identifiant du signataire"
+
+msgid "Identifier of the snap package associated with the build"
+msgstr "Identifiant du paquet Snap associé à la version"
+
+msgid "Ignore validation by other snaps blocking the refresh"
+msgstr ""
+"Ignorer la validation par d'autres paquets Snap bloquant l'actualisation"
+
+#, c-format
+msgid ""
+"In order to buy %q, you need to agree to the latest terms and conditions. "
+"Please visit https://my.ubuntu.com/payment/edit to do this.\n"
+"\n"
+"Once completed, return here and run 'snap buy %s' again."
+msgstr ""
+"Pour acheter %q, vous devez accepter la dernière version des conditions "
+"générales. Pour cela, allez sur https://my.ubuntu.com/payment/edit.\n"
+"\n"
+"Revenez ensuite ici et exécutez à nouveau « snap buy %s »."
+
+msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
+msgstr ""
+"Inclure une liste détaillée des notes d'un paquet Snap (résume les notes "
+"dans le cas contraire)"
+
+msgid "Include unused interfaces"
+msgstr ""
+
+msgid "Initialize device"
+msgstr "Initialiser l'appareil"
+
+msgid "Inspects devices for actionable information"
+msgstr "Cherche les informations actionnables sur les appareils"
+
+#, c-format
+msgid "Install %q snap"
+msgstr "Installer le paquet Snap %q"
+
+#, c-format
+msgid "Install %q snap from %q channel"
+msgstr "Installer le paquet Snap %q provenant du canal %q"
+
+#, c-format
+msgid "Install %q snap from file"
+msgstr "Installer le paquet Snap %q à partir du fichier"
+
+#, c-format
+msgid "Install %q snap from file %q"
+msgstr "Installer le paquet Snap %q à partir du fichier %q"
+
+msgid "Install from the beta channel"
+msgstr "Installer à partir du canal bêta"
+
+msgid "Install from the candidate channel"
+msgstr "Installer à partir du canal candidat"
+
+msgid "Install from the edge channel"
+msgstr "Installer à partir du canal avancé"
+
+msgid "Install from the stable channel"
+msgstr "Installer à partir du canal stable"
+
+#, c-format
+msgid "Install snap %q"
+msgstr "Installer le paquet Snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Install snaps %s"
+msgstr "Installer les paquets Snaps %s"
+
+msgid ""
+"Install the given revision of a snap, to which you must have developer access"
+msgstr ""
+"Installer la révision donnée d'un paquet Snap, auquel vous devez avoir les "
+"accès développeur"
+
+msgid ""
+"Install the given snap file even if there are no pre-acknowledged signatures "
+"for it, meaning it was not verified and could be dangerous (--devmode "
+"implies this)"
+msgstr ""
+"Installer le paquet Snap donné même s'il n'y a pas de signatures reconnues "
+"préalablement pour celui-ci, ce qui signifie qu'il n'a pas été vérifié et "
+"pourrait être dangereux (--devmode implique cela)"
+
+msgid "Install the given snap without enabling its automatic aliases"
+msgstr ""
+
+msgid "Installs a snap to the system"
+msgstr "Installe un paquet Snap sur le système"
+
+msgid "Key of interest within the configuration"
+msgstr "Clef d'intérêt dans le cadre de la configuration"
+
+msgid "List a change's tasks"
+msgstr "Lister les tâches d'une modification"
+
+msgid "List cryptographic keys"
+msgstr "Lister les clés de chiffrement"
+
+msgid "List cryptographic keys that can be used for signing assertions."
+msgstr ""
+"Lister les clés de chiffrement qui peuvent être utilisées pour la signature "
+"des assertions."
+
+msgid "List installed snaps"
+msgstr "Lister les paquets Snap installés"
+
+msgid "List system changes"
+msgstr "Lister les changements du système"
+
+msgid "Lists aliases in the system"
+msgstr "Afficher la liste des alias dans le système"
+
+msgid "Lists interfaces in the system"
+msgstr "Liste les interfaces dans le système"
+
+msgid "Lists snap interfaces"
+msgstr ""
+
+msgid "Log out of the store"
+msgstr "Se déconnecter de la logithèque"
+
+msgid "Login successful"
+msgstr "Connexion réussie"
+
+#, c-format
+msgid "Make current revision for snap %q unavailable"
+msgstr "Rendre indisponible la révision actuelle du paquet Snap %q"
+
+#, c-format
+msgid "Make snap %q (%s) available to the system"
+msgstr "Rendre disponible le paquet Snap %q (%s) pour le système"
+
+#, c-format
+msgid "Make snap %q (%s) unavailable to the system"
+msgstr "Rendre indisponible le paquet Snap %q (%s)  pour le système"
+
+#, c-format
+msgid "Make snap %q unavailable to the system"
+msgstr "Rendre indisponible le paquet Snap %q pour le système"
+
+#, c-format
+msgid "Make snap %q%s available to the system"
+msgstr "Rendre disponible le paquet Snap %q%s pour le système"
+
+msgid "Mark system seeded"
+msgstr "Marquer le système comme préparé"
+
+#, c-format
+msgid "Mount snap %q%s"
+msgstr "Monter le paquet Snap %q%s"
+
+msgid "Name of key to create; defaults to 'default'"
+msgstr "Nom de la clé à créer ; « default » par défaut"
+
+msgid "Name of key to delete"
+msgstr "Nom de la clé à supprimer"
+
+msgid "Name of key to export"
+msgstr "Nom de la clé à exporter"
+
+msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
+msgstr "Nom de la clé GnuPG à utiliser (nom de clé « default » par défaut)"
+
+msgid "Name of the key to use, otherwise use the default key"
+msgstr "Nom de la clé à utiliser, utilisation de la clé par défaut autrement"
+
+msgid "Name\tSHA3-384"
+msgstr "Nom\tSHA3-384"
+
+msgid "Name\tSummary"
+msgstr ""
+
+msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
+msgstr "Nom\tVersion\tDéveloppeur\tNotes\tRésumé"
+
+msgid "Name\tVersion\tRev\tDeveloper\tNotes"
+msgstr "Nom\tVersion\tRévision\tDéveloppeur\tNotes"
+
+msgid "No snaps are installed yet. Try \"snap install hello-world\"."
+msgstr ""
+"Aucun paquet Snap n'est encore installé. Essayez « snap install hello-"
+"world »."
+
+msgid "No snaps to auto-refresh found"
+msgstr "Aucun paquet Snap à actualiser n'a été trouvé"
+
+msgid "Output results in JSON format"
+msgstr "Résultats de sortie en format JSON"
+
+msgid "Passphrase: "
+msgstr "Phrase de passe : "
+
+#, c-format
+msgid "Password of %q: "
+msgstr "Mot de passe de %q : amp> "
+
+#. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
+#, c-format
+msgid ""
+"Please re-enter your Ubuntu One password to purchase %q from %q\n"
+"for %s. Press ctrl-c to cancel."
+msgstr ""
+"Veuillez saisir à nouveau votre mot de passe Ubuntu One pour \n"
+"acheter %q de %q pour %s. Appuyez sur Ctrl-C pour annuler."
+
+#, c-format
+msgid "Prefer aliases for snap %q"
+msgstr "Préfère les alias pour le paquet Snap %q"
+
+msgid "Prefer aliases from a snap and disable conflicts"
+msgstr "Préfère les alias d'un paquet Snap et désactive les conflits"
+
+#, c-format
+msgid "Prefer aliases of snap %q"
+msgstr "Préfère les alias du paquet Snap %q"
+
+msgid "Prepare a snappy image"
+msgstr "Préparer une image Snappy"
+
+#, c-format
+msgid "Prepare snap %q (%s)"
+msgstr "Préparer le paquet Snap %q (%s)"
+
+#, c-format
+msgid "Prepare snap %q%s"
+msgstr "Préparer le paquet Snap %q%s"
+
+msgid "Print the version and exit"
+msgstr "Imprimer la version et quitter"
+
+msgid "Prints configuration options"
+msgstr "Affiche les options de configuration"
+
+msgid "Prints the confinement mode the system operates in"
+msgstr ""
+
+msgid "Prints the email the user is logged in with."
+msgstr ""
+"Affiche l'adresse électronique avec laquelle l'utilisateur est authentifié."
+
+msgid "Prints whether system is managed"
+msgstr "Indique si le système est géré"
+
+#, c-format
+msgid "Prune automatic aliases for snap %q"
+msgstr "Enlever les alias automatiques pour le paquet Snap %q"
+
+msgid "Put snap in classic mode and disable security confinement"
+msgstr ""
+"Placer le paquet Snap en mode classique et désactiver le confinement de "
+"sécurité"
+
+msgid "Put snap in development mode and disable security confinement"
+msgstr ""
+"Placer le paquet Snap en mode développement et désactiver le confinement de "
+"sécurité"
+
+msgid "Put snap in enforced confinement mode"
+msgstr "Placer le paquet Snap en mode de confinement forcé"
+
+msgid "Query the status of services"
+msgstr ""
+
+#, c-format
+msgid "Refresh %q snap"
+msgstr "Actualiser le paquet Snap %q"
+
+#, c-format
+msgid "Refresh %q snap from %q channel"
+msgstr "Actualiser le paquet Snap %q du canal %q"
+
+#, c-format
+msgid "Refresh aliases for snap %q"
+msgstr "Actualise les alias pour le paquet Snap %q"
+
+msgid "Refresh all snaps: no updates"
+msgstr "Actualiser tous les paquets Snap :pas de mise à jour"
+
+#, c-format
+msgid "Refresh snap %q"
+msgstr "Actualiser le paquet Snap %q"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Refresh snaps %s"
+msgstr "Actualiser les paquets Snap %s"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Refresh snaps %s: no updates"
+msgstr "Actualiser automatiquement les paquets Snap %s : pas de mise à jour"
+
+msgid "Refresh to the given revision"
+msgstr "Actualiser la révision donnée"
+
+msgid "Refreshes a snap in the system"
+msgstr "Actualise un paquet Snap du système"
+
+#, c-format
+msgid "Remove %q snap"
+msgstr "Supprimer le paquet Snap %q"
+
+#, c-format
+msgid "Remove aliases for snap %q"
+msgstr "Supprimer les alias pour le paquet Snap %q"
+
+#, c-format
+msgid "Remove data for snap %q (%s)"
+msgstr "Supprimer les données du paquet Snap %q (%s)"
+
+#, c-format
+msgid "Remove manual alias %q for snap %q"
+msgstr "Supprime l'alias manuel %q pour le paquet Snap %q"
+
+msgid "Remove only the given revision"
+msgstr "Supprimer uniquement la révision donnée"
+
+#, c-format
+msgid "Remove security profile for snap %q (%s)"
+msgstr "Supprimer le profil de sécurité du paquet Snap %q (%s)"
+
+#, c-format
+msgid "Remove security profiles of snap %q"
+msgstr "Supprimer le profil de sécurité du paquet Snap %q"
+
+#, c-format
+msgid "Remove snap %q"
+msgstr "Supprimer le paquet Snap %q"
+
+#, c-format
+msgid "Remove snap %q (%s) from the system"
+msgstr "Supprimer le paquet Snap %q (%s) du système"
+
+#. TRANSLATORS: the %s is a comma-separated list of quoted snap names
+#, c-format
+msgid "Remove snaps %s"
+msgstr "Supprimer les paquets Snap %s"
+
+msgid "Removed"
+msgstr "Supprimé"
+
+msgid "Removes a snap from the system"
+msgstr "Supprime un paquet Snap du système"
+
+msgid "Request device serial"
+msgstr "Demander le numéro de série de l'appareil"
+
+msgid "Restart services"
+msgstr ""
+
+msgid "Restarted.\n"
+msgstr ""
+
+msgid "Restrict the search to a given section"
+msgstr "Restreindre la recherche à une section donnée"
+
+msgid "Retrieve logs of services"
+msgstr ""
+
+#, c-format
+msgid "Revert %q snap"
+msgstr "Rétablir le paquet Snap %q"
+
+msgid "Reverts the given snap to the previous state"
+msgstr "Rétablit le paquet Snap donné à son précédent état"
+
+msgid "Run a shell instead of the command (useful for debugging)"
+msgstr "Exécuter un shell plutôt que la commande (utile pour le débogage)"
+
+#, c-format
+msgid "Run configure hook of %q snap"
+msgstr "Exécuter la configuration du point d'accroche du paquet Snap %q"
+
+#, c-format
+msgid "Run configure hook of %q snap if present"
+msgstr ""
+"Exécuter la configuration du point d'accroche du paquet Snap %q s'il est "
+"présent"
+
+#, c-format
+msgid "Run hook %s of snap %q"
+msgstr "Exécuter le point d'accroche %s du paquet Snap %q"
+
+#, c-format
+msgid "Run install hook of %q snap if present"
+msgstr ""
+
+#, c-format
+msgid "Run post-refresh hook of %q snap if present"
+msgstr ""
+
+msgid "Run prepare-device hook"
+msgstr "Exécuter le point d'accroche prepare-device"
+
+#, c-format
+msgid "Run remove hook of %q snap if present"
+msgstr ""
+
+msgid "Run the given snap command"
+msgstr "Exécuter la commande Snap donnée"
+
+msgid "Run the given snap command with the right confinement and environment"
+msgstr ""
+"Exécuter la commande Snap donnée avec le confinement et l'environnement "
+"corrects"
+
+msgid "Runs debug commands"
+msgstr "Exécute les commandes de débogage"
+
+msgid "Search private snaps"
+msgstr "Rechercher des paquets Snap privés"
+
+msgid ""
+"Select last change of given type (install, refresh, remove, try, auto-"
+"refresh etc.)"
+msgstr ""
+
+#, c-format
+msgid "Set automatic aliases for snap %q"
+msgstr "Définir les alias automatiques pour le paquet Snap %q"
+
+msgid "Sets up a manual alias"
+msgstr "Définit un alias manuel"
+
+#, c-format
+msgid "Setup alias %q => %q for snap %q"
+msgstr "Définit l'alias %q => %q pour le paquet Snap %q"
+
+#, c-format
+msgid "Setup manual alias %q => %q for snap %q"
+msgstr "Définit l'alias manuel %q => %q pour le paquet Snap %q"
+
+#, c-format
+msgid "Setup snap %q (%s) security profiles"
+msgstr "Configurer les profils de sécurité du paquet Snap %q (%s)"
+
+#, c-format
+msgid "Setup snap %q aliases"
+msgstr "Configurer les alias du paquet Snap %q"
+
+#, c-format
+msgid "Setup snap %q%s security profiles"
+msgstr "Définir les profils de sécurité du paquet Snap %q%s"
+
+#, c-format
+msgid "Setup snap %q%s security profiles (phase 2)"
+msgstr "Configurer les profils de sécurité du paquet Snap %q%s (phase 2)"
+
+msgid "Show all revisions"
+msgstr "Afficher toutes les révisions"
+
+msgid "Show auto refresh information but do not perform a refresh"
+msgstr ""
+"Affiche les informations de rafraîchissement automatique sans actualiser"
+
+msgid "Show available snaps for refresh but do not perform a refresh"
+msgstr ""
+"Affiche les paquets Snap disponibles pour un rafraîchissement sans effectuer "
+"d'actualisation"
+
+msgid "Show details of a specific interface"
+msgstr ""
+
+msgid "Show interface attributes"
+msgstr ""
+
+msgid "Shows known assertions of the provided type"
+msgstr "Affiche les assertions connues du type fourni"
+
+msgid "Shows version details"
+msgstr "Afficher les détails de la version"
+
+msgid "Sign an assertion"
+msgstr "Signer une assertion"
+
+msgid ""
+"Sign an assertion using the specified key, using the input for headers from "
+"a JSON mapping provided through stdin, the body of the assertion can be "
+"specified through a \"body\" pseudo-header.\n"
+msgstr ""
+"Signer une assertion avec la clef spécifiée, en utilisant comme entrée pour "
+"les en-têtes un modèle JSON fourni via stdin. Le corps de l'assertion peut "
+"être spécifié via un pseudo-en-tête « body ».\n"
+
+msgid "Slot\tPlug"
+msgstr "Prise\tConnecteur"
+
+msgid "Snap name"
+msgstr "Nom du paquet Snap"
+
+msgid "Snap\tService\tStartup\tCurrent"
+msgstr ""
+
+msgid ""
+"Sorry, your payment method has been declined by the issuer. Please review "
+"your\n"
+"payment details at https://my.ubuntu.com/payment/edit and try again."
+msgstr ""
+"Désolé, votre mode de paiement est refusé par l'émetteur. Consultez vos\n"
+"détails de paiement sur https://my.ubuntu.com/payment/edit et réessayez."
+
+msgid "Start services"
+msgstr ""
+
+#, c-format
+msgid "Start snap %q (%s) services"
+msgstr "Démarrer les services du paquet Snap %q (%s)"
+
+#, c-format
+msgid "Start snap %q%s services"
+msgstr "Démarrer les services du paquet Snap %q%s"
+
+msgid "Start snap services"
+msgstr "Démarrer les services du paquet Snap"
+
+msgid "Start the userd service"
+msgstr ""
+
+msgid "Started.\n"
+msgstr ""
+
+msgid "Status\tSpawn\tReady\tSummary\n"
+msgstr "État\tDescendance\tPrêt\tRésumé\n"
+
+msgid "Stop services"
+msgstr ""
+
+#, c-format
+msgid "Stop snap %q (%s) services"
+msgstr "Arrêter les services du paquet Snap %q (%s)"
+
+#, c-format
+msgid "Stop snap %q services"
+msgstr "Arrêter les services du paquet Snap %q"
+
+msgid "Stop snap services"
+msgstr "Arrêter les services du paquet Snap"
+
+msgid "Stopped.\n"
+msgstr ""
+
+msgid "Strict typing with nulls and quoted strings"
+msgstr "Frappe exacte avec chaînes vides et entre guillemets"
+
+#, c-format
+msgid "Switch %q snap to %s"
+msgstr ""
+
+#, c-format
+msgid "Switch snap %q from %s to %s"
+msgstr "Passer le paquet Snap %q de %s à %s"
+
+#, c-format
+msgid "Switch snap %q to %s"
+msgstr ""
+
+msgid "Switches snap to a different channel"
+msgstr ""
+
+msgid "Temporarily mount device before inspecting"
+msgstr "Monter le périphérique temporairement avant inspection"
+
+msgid "Tests a snap in the system"
+msgstr "Teste un paquet Snap dans le système"
+
+#. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
+#, c-format
+msgid ""
+"Thanks for purchasing %q. You may now install it on any of your devices\n"
+"with 'snap install %s'."
+msgstr ""
+"Merci d'avoir acheté %q. Vous pouvez à présent l'installer sur vos "
+"appareils\n"
+"via un « snap install %s »."
+
+msgid ""
+"The get command prints configuration and interface connection settings."
+msgstr ""
+"La commande « get » affiche les paramètres de configuration et de "
+"l'interface de connexion."
+
+msgid "The login.ubuntu.com email to login as"
+msgstr "L'adresse électronique login.ubuntu.com avec laquelle se connecter"
+
+msgid "The model assertion name"
+msgstr "Le nom du modèle d'assertion"
+
+msgid "The output directory"
+msgstr "Le répertoire de sortie"
+
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#, c-format
+msgid "The search %q returned 0 snaps\n"
+msgstr "La recherche %q n'a renvoyé à aucun paquet Snap\n"
+
+msgid "The snap to configure (e.g. hello-world)"
+msgstr "Le paquet Snap à configurer (par exemple, hello-world)"
+
+msgid "The snap whose conf is being requested"
+msgstr "Le paquet Snap dont la configuration est demandée"
+
+msgid "The userd command starts the snap user session service."
+msgstr ""
+
+msgid "This command logs the current user out of the store"
+msgstr "Cette commande déconnecte l'utilisateur actuel de la logithèque"
+
+msgid "Tool to interact with snaps"
+msgstr "Outil pour interagir avec les paquets Snap"
+
+#, c-format
+msgid "Transition security profiles from %q to %q"
+msgstr "Transfert des profils de sécurité de %q vers %q"
+
+msgid "Transition ubuntu-core to core"
+msgstr "Transfert d'ubuntu-core vers core"
+
+#, c-format
+msgid "Try %q snap from %s"
+msgstr "Essayer le paquet Snap %q de %s"
+
+msgid "Two-factor code: "
+msgstr "Code à deux facteurs : "
+
+msgid "Unalias a manual alias or an entire snap"
+msgstr "Supprime un alias manuel ou un paquet Snap entier"
+
+msgid "Use a specific snap revision when running hook"
+msgstr ""
+"Utiliser une version spécifique du paquet Snap lors de l'exécution du point "
+"d'accroche"
+
+msgid "Use known assertions for user creation"
+msgstr "Utiliser les assertions connues pour la création d'utilisateur"
+
+msgid "Use this channel instead of stable"
+msgstr "Utiliser ce canal plutôt que le canal stable"
+
+#, c-format
+msgid "WARNING: failed to activate logging: %v\n"
+msgstr "ATTENTION : échec de l'activation de la connexion : %v\n"
+
+msgid "Waiting for server to restart"
+msgstr "En attente du redémarrage du serveur"
+
+msgid "Watch a change in progress"
+msgstr "Surveiller un changement en cours"
+
+msgid "Wrong again. Once more: "
+msgstr "De nouveau incorrect. Encore une fois : "
+
+#, c-format
+msgid "Xauthority file isn't owned by the current user %s"
+msgstr "Le fichier Xauthority n'appartient pas à l'utilisateur actuel %s"
+
+msgid "Yes, yes it does."
+msgstr "Oui, oui c'est le cas."
+
+msgid ""
+"You need to be logged in to purchase software. Please run 'snap login' and "
+"try again."
+msgstr ""
+"Vous devez être connecté pour acheter des logiciels. Veuillez exécuter "
+"« snap login » et réessayer."
+
+#, c-format
+msgid ""
+"You need to have a payment method associated with your account in order to "
+"buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.\n"
+"\n"
+"Once you’ve added your payment details, you just need to run 'snap buy %s' "
+"again."
+msgstr ""
+"Un mode de paiement doit être associé à votre compte pour pouvoir acheter un "
+"paquet Snap. Allez sur https://my.ubuntu.com/payment/edit pour en ajouter "
+"un.\n"
+"\n"
+"Ensuite, il suffit d'exécuter à nouveau « snap buy %s »."
+
+#. TRANSLATORS: the %s is the argument given by the user to "snap changes"
+#, c-format
+msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
+msgstr ""
+"La commande « snap changes » attend un nom de paquet Snap, essayez : « snap "
+"tasks %s »"
+
+msgid ""
+"\n"
+"Install, configure, refresh and remove snap packages. Snaps are\n"
+"'universal' packages that work across many different Linux systems,\n"
+"enabling secure distribution of the latest apps and utilities for\n"
+"cloud, servers, desktops and the internet of things.\n"
+"\n"
+"This is the CLI for snapd, a background service that takes care of\n"
+"snaps on the system. Start with 'snap list' to see installed snaps.\n"
+msgstr ""
+"\n"
+"Installer, configurer, actualiser et supprimer des paquets Snap. Ceux-ci "
+"sont des\n"
+"« paquets universels » qui fonctionnent sur de nombreux systèmes Linux "
+"différents,\n"
+"permettant la distribution sécurisée des dernières applications et des "
+"derniers utilitaires pour\n"
+"le nuage, les serveurs, les ordinateurs de bureau et l'internet des objets.\n"
+"\n"
+"Ceci est l'interface en ligne de commande pour Snapd, un service en arrière-"
+"plan qui prend en charge les\n"
+"paquets Snap sur le système. Commencez avec « snap list » pour voir les "
+"paquets Snap installés.\n"
+
+msgid ""
+"\n"
+"The abort command attempts to abort a change that still has pending tasks.\n"
+msgstr ""
+"\n"
+"La commande « abort » tente d'interrompre un changement qui a encore des "
+"tâches en cours.\n"
+
+msgid ""
+"\n"
+"The ack command tries to add an assertion to the system assertion database.\n"
+"\n"
+"The assertion may also be a newer revision of a preexisting assertion that "
+"it\n"
+"will replace.\n"
+"\n"
+"To succeed the assertion must be valid, its signature verified with a known\n"
+"public key and the assertion consistent with and its prerequisite in the\n"
+"database.\n"
+msgstr ""
+"\n"
+"La commande « ack » essaye d'ajouter une assertion à la base de données "
+"d'assertions du système.\n"
+"\n"
+"L'assertion peut également être une nouvelle révision d'une assertion "
+"préexistante qu'elle remplacera.\n"
+"\n"
+"Pour réussir, l'assertion doit être valide, sa signature vérifiée avec une "
+"clé publique connue et pour \n"
+"laquelle l'assertion est consistante et sa condition préalable dans la base "
+"de données.\n"
+
+msgid ""
+"\n"
+"The alias command aliases the given snap application to the given alias.\n"
+"\n"
+"Once this manual alias is setup the respective application command can be "
+"invoked just using the alias.\n"
+msgstr ""
+"\n"
+"La commande « alias » associe le paquet Snap donné à l'alias donné.\n"
+"\n"
+"Une fois que cet alias manuel est défini, la commande de l'application "
+"correspondante peut être invoquée en utilisant simplement l'alias.\n"
+
+msgid ""
+"\n"
+"The aliases command lists all aliases available in the system and their "
+"status.\n"
+"\n"
+"$ snap aliases <snap>\n"
+"\n"
+"Lists only the aliases defined by the specified snap.\n"
+"\n"
+"An alias noted as undefined means it was explicitly enabled or disabled but "
+"is\n"
+"not defined in the current revision of the snap; possibly temporarely (e.g\n"
+"because of a revert), if not this can be cleared with snap alias --reset.\n"
+msgstr ""
+"\n"
+"La commande « alisases » affiche la liste de tous les alias disponibles dans "
+"le système et leur état.\n"
+"\n"
+"$ snap aliases <snap>\n"
+"\n"
+"Affiche uniquement les alias définis par le paquet Snap spécifié.\n"
+"\n"
+"Un alias est indiqué comme indéfini s'il a été explicitement activé ou "
+"désactivé mais \n"
+"qu'il n'est pas défini dans la version du paquet Snap en cours "
+"d'utilisation ;\n"
+"éventuellement temporairement (par exemple à cause d'un retour en arrière),\n"
+"sinon ceci peut être résolu avec snap alias --reset.\n"
+
+msgid ""
+"\n"
+"The auto-import command searches available mounted devices looking for\n"
+"assertions that are signed by trusted authorities, and potentially\n"
+"performs system changes based on them.\n"
+"\n"
+"If one or more device paths are provided via --mount, these are temporariy\n"
+"mounted to be inspected as well. Even in that case the command will still\n"
+"consider all available mounted devices for inspection.\n"
+"\n"
+"Imported assertions must be made available in the auto-import.assert file\n"
+"in the root of the filesystem.\n"
+msgstr ""
+"\n"
+"La commande « auto-import » recherche les assertions signées par des\n"
+"autorités de confiance sur les appareils montés disponibles et, le cas "
+"échéant, \n"
+"exécute des modifications du système sur cette base.\n"
+"\n"
+"Si un ou plusieurs appareils sont disponibles via --mount, ils sont montés \n"
+"temporairement pour être inspectés eux aussi. Même dans ce cas, la commande\n"
+"prendra toujours en compte tous les appareils montés.\n"
+"\n"
+"Les assertions importées doivent être disponibles dans le fichier auto-"
+"import.assert \n"
+"à la racine du système de fichier.\n"
+
+msgid ""
+"\n"
+"The buy command buys a snap from the store.\n"
+msgstr ""
+"\n"
+"La commande « buy » achète un paquet Snap dans la logithèque.\n"
+
+msgid ""
+"\n"
+"The changes command displays a summary of the recent system changes "
+"performed."
+msgstr ""
+"\n"
+"La commande « changes » affiche un résumé des changements récents effectués "
+"sur le système."
+
+msgid ""
+"\n"
+"The confinement command will print the confinement mode (strict, partial or "
+"none)\n"
+"the system operates in.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The connect command connects a plug to a slot.\n"
+"It may be called in the following ways:\n"
+"\n"
+"$ snap connect <snap>:<plug> <snap>:<slot>\n"
+"\n"
+"Connects the provided plug to the given slot.\n"
+"\n"
+"$ snap connect <snap>:<plug> <snap>\n"
+"\n"
+"Connects the specific plug to the only slot in the provided snap that "
+"matches\n"
+"the connected interface. If more than one potential slot exists, the "
+"command\n"
+"fails.\n"
+"\n"
+"$ snap connect <snap>:<plug>\n"
+"\n"
+"Connects the provided plug to the slot in the core snap with a name "
+"matching\n"
+"the plug name.\n"
+msgstr ""
+"\n"
+"La commande « connect » relie un connecteur à une prise.\n"
+"Elle peut être appelée de deux manières :\n"
+"\n"
+"$ snap connect <snap>:<connecteur> <snap>:<prise>\n"
+"\n"
+"Relie le connecteur indiqué à la prise spécifiée.\n"
+"\n"
+"$ snap connect <snap>:<connecteur> <snap>\n"
+"\n"
+"Relie le connecteur spécifié à la seule prise du paquet Snap qui correspond\n"
+"à l'interface connectée. S'il existe plus d'une prise potentielle, la "
+"commande\n"
+"échoue.\n"
+"\n"
+"$ snap connect <snap>:<connecteur>\n"
+"\n"
+"Connecte le connecteur indiqué dans la prise du paquet Snap principal avec "
+"un nom correspondant\n"
+"au nom du connecteur.\n"
+
+msgid ""
+"\n"
+"The create-user command creates a local system user with the username and "
+"SSH\n"
+"keys registered on the store account identified by the provided email "
+"address.\n"
+"\n"
+"An account can be setup at https://login.ubuntu.com.\n"
+msgstr ""
+"\n"
+"La commande « create-user » crée un utilisateur local du système avec le nom "
+"d'utilisateur\n"
+"et les clés SSH enregistrées sur le compte de la logithèque identifié via "
+"l'adresse électronique fournie.\n"
+"\n"
+"Un compte peut être configuré sur https://login.ubuntu.com.\n"
+
+msgid ""
+"\n"
+"The debug command contains a selection of additional sub-commands.\n"
+"\n"
+"Debug commands can be removed without notice and may not work on\n"
+"non-development systems.\n"
+msgstr ""
+"\n"
+"La commande « debug » comporte plusieurs sous-commandes supplémentaires.\n"
+"\n"
+"La commande debug peut être supprimée sans préavis et il se peut qu'elle\n"
+"ne fonctionne pas dans les systèmes autres que de développement.\n"
+
+msgid ""
+"\n"
+"The disable command disables a snap. The binaries and services of the\n"
+"snap will no longer be available. But all the data is still available\n"
+"and the snap can easily be enabled again.\n"
+msgstr ""
+"\n"
+"La commande « disable » désactive un paquet Snap. Les binaires et les "
+"services du paquet\n"
+"Snap ne seront plus disponibles. Mais toutes les données seront toujours "
+"disponibles et le paquet\n"
+"Snap peut facilement être de nouveau activé.\n"
+
+msgid ""
+"\n"
+"The disconnect command disconnects a plug from a slot.\n"
+"It may be called in the following ways:\n"
+"\n"
+"$ snap disconnect <snap>:<plug> <snap>:<slot>\n"
+"\n"
+"Disconnects the specific plug from the specific slot.\n"
+"\n"
+"$ snap disconnect <snap>:<slot or plug>\n"
+"\n"
+"Disconnects everything from the provided plug or slot.\n"
+"The snap name may be omitted for the core snap.\n"
+msgstr ""
+"\n"
+"La commande « disconnect » déconnecte un connecteur d'une prise.\n"
+"Elle peut être appelée de deux manières :\n"
+"\n"
+"$ snap disconnect <snap>:<connecteur> <snap>:<prise>\n"
+"\n"
+"Déconnecte le connecteur indiqué de la prise spécifiée.\n"
+"\n"
+"$ snap disconnect <snap>:<prise ou connecteur>\n"
+"\n"
+"Déconnecte tout ce qui est relié au connecteur indiqué ou à la prise "
+"spécifiée.\n"
+"Le nom du paquet Snap peut être omis pour le paquet Snap principal.\n"
+
+msgid ""
+"\n"
+"The download command downloads the given snap and its supporting assertions\n"
+"to the current directory under .snap and .assert file extensions, "
+"respectively.\n"
+msgstr ""
+"\n"
+"La commande « download » télécharge le paquet Snap indiqué et les assertions "
+"\n"
+"qui lui sont nécessaires dans le répertoire en cours d'utilisation, dans des "
+"fichiers\n"
+"portant respectivement les extensions .snap et .assert.\n"
+
+msgid ""
+"\n"
+"The enable command enables a snap that was previously disabled.\n"
+msgstr ""
+"\n"
+"La commande « enable » active un paquet Snap ayant été précédemment "
+"désactivé.\n"
+
+msgid ""
+"\n"
+"The find command queries the store for available packages in the stable "
+"channel.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The get command prints configuration options for the current snap.\n"
+"\n"
+"    $ snapctl get username\n"
+"    frank\n"
+"\n"
+"If multiple option names are provided, a document is returned:\n"
+"\n"
+"    $ snapctl get username password\n"
+"    {\n"
+"        \"username\": \"frank\",\n"
+"        \"password\": \"...\"\n"
+"    }\n"
+"\n"
+"Nested values may be retrieved via a dotted path:\n"
+"\n"
+"    $ snapctl get author.name\n"
+"    frank\n"
+"\n"
+"Values of interface connection settings may be printed with:\n"
+"\n"
+"    $ snapctl get :myplug usb-vendor\n"
+"    $ snapctl get :myslot path\n"
+"\n"
+"This will return the named setting from the local interface endpoint, "
+"whether a plug\n"
+"or a slot. Returning the setting from the connected snap's endpoint is also "
+"possible\n"
+"by explicitly requesting that via the --plug and --slot command line "
+"options:\n"
+"\n"
+"    $ snapctl get :myplug --slot usb-vendor\n"
+"\n"
+"This requests the \"usb-vendor\" setting from the slot that is connected to "
+"\"myplug\".\n"
+msgstr ""
+"\n"
+"La commande « get » affiche les options de configuration pour le paquet Snap "
+"en cours d'utilisation.\n"
+"\n"
+"    $ snapctl get username\n"
+"    frank\n"
+"\n"
+"Si plusieurs noms d'options sont fournis, la commande renvoie un document :\n"
+"\n"
+"    $ snapctl get username password\n"
+"    {\n"
+"        \"username\": \"frank\",\n"
+"        \"password\": \"...\"\n"
+"    }\n"
+"\n"
+"Les valeurs imbriquées peuvent être récupérées en utilisant un chemin séparé "
+"par des \n"
+"points :\n"
+"\n"
+"    $ snapctl get author.name\n"
+"    frank\n"
+"\n"
+"Les valeurs des paramètres de connexion à l'interface peuvent être affichés "
+"avec :\n"
+"\n"
+"    $ snapctl get :monconnecteur usb-vendor\n"
+"    $ snapctl get :maprise path\n"
+"\n"
+"Cela renvoie les paramètres donnés à partir de l'extrémité de l'interface "
+"locale, qu'il s'agisse \n"
+"d'une prise ou d'un connecteur. Il est également possible de récupérer le "
+"paramètre de \n"
+"l'extrémité du paquet Snap connecté en le demandant explicitement à l'aide "
+"des options \n"
+"« --plug » et « --slot » :\n"
+"\n"
+"    $ snapctl get :monconnecteur --slot usb-vendor\n"
+"\n"
+"Ceci recherche le paramètre « usb-vendor » de la prise qui est connectée à "
+"« monconnecteur ».\n"
+
+msgid ""
+"\n"
+"The get command prints configuration options for the provided snap.\n"
+"\n"
+"    $ snap get snap-name username\n"
+"    frank\n"
+"\n"
+"If multiple option names are provided, a document is returned:\n"
+"\n"
+"    $ snap get snap-name username password\n"
+"    {\n"
+"        \"username\": \"frank\",\n"
+"        \"password\": \"...\"\n"
+"    }\n"
+"\n"
+"Nested values may be retrieved via a dotted path:\n"
+"\n"
+"    $ snap get snap-name author.name\n"
+"    frank\n"
+msgstr ""
+"\n"
+"La commande « get » affiche les options de configuration du paquet Snap\n"
+"mentionné.\n"
+"\n"
+"    $ snap get nom-du-snap username\n"
+"    frank\n"
+"\n"
+"Si les noms de plusieurs options sont demandés, la commande renvoie\n"
+"un document :\n"
+"\n"
+"    $ snap get nom-du-snap username password\n"
+"    {\n"
+"        \"username\": \"frank\",\n"
+"        \"password\": \"...\"\n"
+"    }\n"
+"\n"
+"Les valeurs imbriquées peuvent être obtenues en indiquant \n"
+"le chemin avec des points :\n"
+"\n"
+"    $ snap get nom-du-snap author.name\n"
+"    frank\n"
+
+msgid ""
+"\n"
+"The help command shows helpful information. Unlike this. ;-)\n"
+msgstr ""
+"\n"
+"La commande « help » affiche des informations utiles - plus utiles que celle-"
+"ci ;)\n"
+
+msgid ""
+"\n"
+"The info command shows detailed information about a snap, be it by name or "
+"by path."
+msgstr ""
+"\n"
+"La commande « info » affiche des informations détaillées à propos d'un "
+"paquet Snap, que ce soit par nom ou par chemin."
+
+msgid ""
+"\n"
+"The install command installs the named snap in the system.\n"
+msgstr ""
+"\n"
+"La commande « install » installe sur le système le paquet Snap cité.\n"
+
+msgid ""
+"\n"
+"The interface command shows details of snap interfaces.\n"
+"\n"
+"If no interface name is provided, a list of interface names with at least\n"
+"one connection is shown, or a list of all interfaces if --all is provided.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The interfaces command lists interfaces available in the system.\n"
+"\n"
+"By default all slots and plugs, used and offered by all snaps, are "
+"displayed.\n"
+" \n"
+"$ snap interfaces <snap>:<slot or plug>\n"
+"\n"
+"Lists only the specified slot or plug.\n"
+"\n"
+"$ snap interfaces <snap>\n"
+"\n"
+"Lists the slots offered and plugs used by the specified snap.\n"
+"\n"
+"$ snap interfaces -i=<interface> [<snap>]\n"
+"\n"
+"Filters the complete output so only plugs and/or slots matching the provided "
+"details are listed.\n"
+msgstr ""
+"\n"
+"La commande « interfaces » liste les interfaces disponibles dans le "
+"système.\n"
+"\n"
+"Par défaut, toutes les prises et tous les connecteurs, utilisés et offerts "
+"par tous les paquets Snap, sont affichés.\n"
+" \n"
+"$ snap interfaces <snap>:<prise ou connecteur>\n"
+"\n"
+"Liste uniquement les prises ou les connecteurs spécifiés.\n"
+"\n"
+"$ snap interfaces <snap>\n"
+"\n"
+"Liste les prises offertes et les connecteurs utilisés par le paquet Snap "
+"spécifié.\n"
+"\n"
+"$ snap interfaces -i=<interface> [<snap>]\n"
+"\n"
+"Filtre toute la sortie de manière à ce que seuls les connecteurs et/ou les "
+"prises correspondants aux détails fournis soient listés.\n"
+
+msgid ""
+"\n"
+"The known command shows known assertions of the provided type.\n"
+"If header=value pairs are provided after the assertion type, the assertions\n"
+"shown must also have the specified headers matching the provided values.\n"
+msgstr ""
+"\n"
+"La commande « known » affiche les assertions connues du type fourni.\n"
+"Si les paires en-tête=valeur sont fournies après le type d'assertion, les "
+"assertions\n"
+"affichées doivent alors avoir leurs en-têtes correspondant aux valeurs "
+"fournies.\n"
+
+msgid ""
+"\n"
+"The list command displays a summary of snaps installed in the current system."
+msgstr ""
+"\n"
+"La commande « list » affiche un résumé des paquets Snap installés sur le "
+"système actuel."
+
+msgid ""
+"\n"
+"The login command authenticates on snapd and the snap store and saves "
+"credentials\n"
+"into the ~/.snap/auth.json file. Further communication with snapd will then "
+"be made\n"
+"using those credentials.\n"
+"\n"
+"Login only works for local users in the sudo, admin or wheel groups.\n"
+"\n"
+"An account can be setup at https://login.ubuntu.com\n"
+msgstr ""
+"\n"
+"La commande « login » authentifie vis-à-vis de Snapd et de la logithèque et "
+"enregistre les\n"
+"identifiants dans le fichier ~/.snap/auth.json. Les communications à venir "
+"seront alors effectuées en\n"
+"utilisant ces identifiants.\n"
+"\n"
+"La connexion marche uniquement pour des utilisateurs locaux des groupes "
+"sudo, admin ou wheel.\n"
+"\n"
+"Un compte peut être configuré sur https://login.ubuntu.com\n"
+
+msgid ""
+"\n"
+"The managed command will print true or false informing whether\n"
+"snapd has registered users.\n"
+msgstr ""
+"\n"
+"La commande « managed » affiche vrai ou faux, selon\n"
+"que Snapd ait des utilisateurs enregistrés ou pas.\n"
+
+msgid ""
+"\n"
+"The prefer command enables all aliases of the given snap in preference\n"
+"to conflicting aliases of other snaps whose aliases will be disabled\n"
+"(removed for manual ones).\n"
+msgstr ""
+
+#, c-format
+msgid ""
+"\n"
+"The publisher of snap %q has indicated that they do not consider this "
+"revision\n"
+"to be of production quality and that it is only meant for development or "
+"testing\n"
+"at this point. As a consequence this snap will not refresh automatically and "
+"may\n"
+"perform arbitrary system changes outside of the security sandbox snaps are\n"
+"generally confined to, which may put your system at risk.\n"
+"\n"
+"If you understand and want to proceed repeat the command including --"
+"devmode;\n"
+"if instead you want to install the snap forcing it into strict confinement\n"
+"repeat the command including --jailmode."
+msgstr ""
+
+msgid ""
+"\n"
+"The refresh command refreshes (updates) the named snap.\n"
+msgstr ""
+"\n"
+"La commande « refresh » actualise (met à jour) le paquet Snap cité.\n"
+
+msgid ""
+"\n"
+"The remove command removes the named snap from the system.\n"
+"\n"
+"By default all the snap revisions are removed, including their data and the "
+"common\n"
+"data directory. When a --revision option is passed only the specified "
+"revision is\n"
+"removed.\n"
+msgstr ""
+"\n"
+"La commande « remove » supprime du système le paquet Snap indiqué.\n"
+"\n"
+"Par défaut, toutes les versions du paquet Snap sont supprimées, y compris "
+"leurs données et \n"
+"le répertoire commun de données. Quand une option « --revision » est fournie "
+"en argument, seule la\n"
+"version spécifiée est supprimée.\n"
+
+msgid ""
+"\n"
+"The revert command reverts the given snap to its state before\n"
+"the latest refresh. This will reactivate the previous snap revision,\n"
+"and will use the original data that was associated with that revision,\n"
+"discarding any data changes that were done by the latest revision. As\n"
+"an exception, data which the snap explicitly chooses to share across\n"
+"revisions is not touched by the revert process.\n"
+msgstr ""
+"\n"
+"La commande « revert » rétablit le paquet Snap donné vers son état avant\n"
+"la dernière actualisation. Cela réactivera la précédente révision du paquet "
+"Snap et\n"
+"utilisera les données d'origine qui étaient associées à cette révision,\n"
+"éliminant tout changement dans les données qui aurait été effectué par la "
+"dernière révision.\n"
+"En tant qu'exception, les données que la paquet Snap choisit explicitement "
+"de partager entre\n"
+"les révisions ne sont pas touchées par le processus de rétablissement.\n"
+
+msgid ""
+"\n"
+"The set command changes the provided configuration options as requested.\n"
+"\n"
+"    $ snap set snap-name username=frank password=$PASSWORD\n"
+"\n"
+"All configuration changes are persisted at once, and only after the\n"
+"snap's configuration hook returns successfully.\n"
+"\n"
+"Nested values may be modified via a dotted path:\n"
+"\n"
+"    $ snap set author.name=frank\n"
+msgstr ""
+"\n"
+"La commande « set » change les options de configurations fournies comme "
+"demandé.\n"
+"\n"
+"    $ snap set snap-name username=frank password=$MOT-DE-PASSE\n"
+"\n"
+"Tous les changements de configuration sont conservés en une seule fois, et \n"
+"seulement après que le point d'accroche de configuration du paquet Snap\n"
+"ait été correctement exécuté.\n"
+"\n"
+"Les valeurs imbriquées peuvent être modifiées via l'indication d'un chemin \n"
+"séparé par des points :\n"
+"\n"
+"    $ snap set author.name=frank\n"
+
+msgid ""
+"\n"
+"The set command changes the provided configuration options as requested.\n"
+"\n"
+"    $ snapctl set username=frank password=$PASSWORD\n"
+"\n"
+"All configuration changes are persisted at once, and only after the hook\n"
+"returns successfully.\n"
+"\n"
+"Nested values may be modified via a dotted path:\n"
+"\n"
+"    $ snapctl set author.name=frank\n"
+"\n"
+"Plug and slot attributes may be set in the respective prepare and connect "
+"hooks by\n"
+"naming the respective plug or slot:\n"
+"\n"
+"    $ snapctl set :myplug path=/dev/ttyS0\n"
+msgstr ""
+"\n"
+"La commande « set » modifie les options de configuration fournies comme "
+"demandé.\n"
+"\n"
+"    $ snapctl set username=frank password=$MOT-DE-PASSE\n"
+"\n"
+"Tous les changements de configuration sont conservés en une seule fois et \n"
+"seulement après que le point d'accroche de configuration du paquet Snap\n"
+"ait été correctement exécuté.\n"
+"\n"
+"Les valeurs imbriquées peuvent être modifiées via l'indication d'un chemin \n"
+"séparé par des points :\n"
+"\n"
+"    $ snapctl set author.name=frank\n"
+"\n"
+"Les attributs des prises et des connecteurs peuvent être définis dans les "
+"points d'accroche\n"
+"« prepare » et « connect » respectifs en indiquant le connecteur ou la prise "
+"voulu(e) :\n"
+"\n"
+"    $ snapctl set :monconnecteur path=/dev/ttyS0\n"
+
+msgid ""
+"\n"
+"The switch command switches the given snap to a different channel without\n"
+"doing a refresh.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The tasks command displays a summary of tasks associated to an individual "
+"change."
+msgstr ""
+
+msgid ""
+"\n"
+"The try command installs an unpacked snap into the system for testing "
+"purposes.\n"
+"The unpacked snap content continues to be used even after installation, so\n"
+"non-metadata changes there go live instantly. Metadata changes such as "
+"those\n"
+"performed in snap.yaml will require reinstallation to go live.\n"
+"\n"
+"If snap-dir argument is omitted, the try command will attempt to infer it "
+"if\n"
+"either snapcraft.yaml file and prime directory or meta/snap.yaml file can "
+"be\n"
+"found relative to current working directory.\n"
+msgstr ""
+"\n"
+"La commande « try » installe un paquet Snap non dépaqueté au sein du système "
+"dans le cadre de tests.\n"
+"Le contenu de celui-ci continue à être utilisé même après l'installation, "
+"les modifications non relatives aux métadonnées\n"
+"faites à ce niveau prennent donc effet instantanément. Les modifications de "
+"métadonnées telles que celles\n"
+"effectuées dans snap.yaml nécessiteront une réinstallation pour prendre "
+"effet.\n"
+"\n"
+"Si l'argument « snap-dir » est omis, la commande « try » essayera de le "
+"déduire\n"
+"si soit le fichier snapcraft.yaml et le répertoire principal, soit le "
+"fichier meta/snap.yaml sont trouvés\n"
+"à proximité du répertoire de travail actuel.\n"
+
+msgid ""
+"\n"
+"The unalias command tears down a manual alias when given one or disables all "
+"aliases of a snap, removing also all manual ones, when given a snap name.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The version command displays the versions of the running client, server,\n"
+"and operating system.\n"
+msgstr ""
+"\n"
+"La commande « version » affiche les versions du client, du serveur et du\n"
+"système d'exploitation en cours d'exécution.\n"
+
+msgid ""
+"\n"
+"The watch command waits for the given change-id to finish and shows "
+"progress\n"
+"(if available).\n"
+msgstr ""
+"\n"
+"La commande « watch » attend que la commande « change-id » indiquée\n"
+"soit terminée et affiche l'état d'avancement (si disponible).\n"
+
+msgid ""
+"\n"
+"The whoami command prints the email the user is logged in with.\n"
+msgstr ""
+
+#, c-format
+msgid ""
+"\n"
+"This revision of snap %q was published using classic confinement and thus "
+"may\n"
+"perform arbitrary system changes outside of the security sandbox that snaps "
+"are\n"
+"usually confined to, which may put your system at risk.\n"
+"\n"
+"If you understand and want to proceed repeat the command including --"
+"classic.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"\n"
+"The home directory is shared between snappy and the classic dimension.\n"
+"Run \"exit\" to leave the classic shell.\n"
+msgstr ""
+"\n"
+"\n"
+"Le dossier personnel est partagé entre Snappy et la dimension classique.\n"
+"Exécutez « exit » pour quitter le shell classique.\n"
+
+msgid "a single snap name is needed to specify mode or channel flags"
+msgstr ""
+"un nom de paquet Snap unique est nécessaire pour spécifier les marqueurs de "
+"mode ou de canal"
+
+msgid "a single snap name is needed to specify the revision"
+msgstr ""
+"un nom de paquet Snap unique est nécessaire pour spécifier la révision"
+
+msgid "a single snap name must be specified when ignoring validation"
+msgstr ""
+"le nom d'un seul paquet Snap doit être spécifié lorsque la validation est "
+"ignorée"
+
+msgid "active"
+msgstr ""
+
+msgid "bought"
+msgstr "acheté"
+
+#. TRANSLATORS: if possible, a single short word
+msgid "broken"
+msgstr "cassé"
+
+#, c-format
+msgid "cannot buy snap: %v"
+msgstr "impossible d'acheter le paquet Snap : %v"
+
+msgid "cannot buy snap: invalid characters in name"
+msgstr ""
+"impossible d'acheter le paquet Snap : caractères invalides dans le nom"
+
+msgid "cannot buy snap: it has already been bought"
+msgstr "impossible d'acheter le paquet Snap : celui-ci a déjà été acheté"
+
+#. TRANSLATORS: %q is the directory whose creation failed, %v the error message
+#, c-format
+msgid "cannot create %q: %v"
+msgstr "impossible de créer %q : %v"
+
+#, c-format
+msgid "cannot create assertions file: %v"
+msgstr "impossible de créer le fichier d'assertions : %v"
+
+#. TRANSLATORS: %q gets the snap name, %v gets the resulting error message
+#, c-format
+msgid "cannot extract the snap-name from local file %q: %v"
+msgstr ""
+"impossible d'extraire le nom du paquet Snap à partir du fichier local %q : %v"
+
+#, c-format
+msgid "cannot find app %q in %q"
+msgstr "impossible de trouver l'application %q dans %q"
+
+#, c-format
+msgid "cannot find hook %q in %q"
+msgstr "impossible de trouver le point d'accroche %q dans %s"
+
+#. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
+#. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
+#, c-format
+msgid "cannot get data for %q: %v"
+msgstr "impossible d'obtenir des données pour %q : %v"
+
+#. TRANSLATORS: %q gets what the user entered, %v gets the resulting error message
+#, c-format
+msgid "cannot get full path for %q: %v"
+msgstr "impossible d'obtenir le chemin complet pour %q : %v"
+
+#, c-format
+msgid "cannot get the current user: %s"
+msgstr "impossible d'obtenir l'utilisateur actuel : %s"
+
+#, c-format
+msgid "cannot get the current user: %v"
+msgstr "impossible d'obtenir le nom de l'utilisateur actuel : %v"
+
+#, c-format
+msgid "cannot mark boot successful: %s"
+msgstr "impossible de marquer le démarrage comme réussi : %s"
+
+#, c-format
+msgid "cannot open the assertions database: %v"
+msgstr "impossible d'ouvrir la base de données d'assertions : %v"
+
+#, c-format
+msgid "cannot read assertion input: %v"
+msgstr "impossible de lire l'assertion d'entrée : %v"
+
+#. TRANSLATORS: %v the error message
+#, c-format
+msgid "cannot read symlink: %v"
+msgstr "impossible de lire le lien symbolique : %v"
+
+#, c-format
+msgid "cannot resolve snap app %q: %v"
+msgstr "impossible de corriger l'application Snap %q : %v"
+
+#, c-format
+msgid "cannot sign assertion: %v"
+msgstr "impossible de signe l'assertion : %v"
+
+#, c-format
+msgid "cannot update the 'current' symlink of %q: %v"
+msgstr "impossible de mettre à jour le lien symbolique actuel de %q : %v"
+
+#. TRANSLATORS: %q is the key name, %v the error message
+#, c-format
+msgid "cannot use %q key: %v"
+msgstr "impossible d'utiliser la clé %q : %v"
+
+msgid "cannot use --hook and --command together"
+msgstr "Impossible d'utiliser --hook et --command ensemble"
+
+msgid "cannot use change ID and type together"
+msgstr "impossible de changer l'identifiant et le type en même temps"
+
+msgid "cannot use devmode and jailmode flags together"
+msgstr "impossible d'utiliser les marqueurs devmode et jailmode ensemble"
+
+#, c-format
+msgid "cannot validate owner of file %s"
+msgstr "impossible de valider le propriétaire du fichier %s"
+
+#, c-format
+msgid "cannot write new Xauthority file at %s: %s"
+msgstr ""
+
+#, c-format
+msgid "change finished in status %q with no error message"
+msgstr "le changement s'est terminé au statut %q sans message d'erreur"
+
+#, c-format
+msgid ""
+"classic confinement requires snaps under /snap or symlink from /snap to %s"
+msgstr ""
+
+#, c-format
+msgid "created user %q\n"
+msgstr "utilisateur %q créé\n"
+
+#. TRANSLATORS: if possible, a single short word
+msgid "disabled"
+msgstr "désactivé"
+
+msgid "email:"
+msgstr "courriel :"
+
+msgid "enabled"
+msgstr ""
+
+#, c-format
+msgid "error: %v\n"
+msgstr "erreur : %v\n"
+
+msgid ""
+"error: the `<snap-dir>` argument was not provided and couldn't be inferred"
+msgstr ""
+"erreur : l'argument <snap-dir> n'a pas été fourni et n'a pas pu être déduit"
+
+msgid "get which option?"
+msgstr "obtenir quelle option ?"
+
+msgid "inactive"
+msgstr ""
+
+msgid ""
+"interface attributes can only be read during the execution of interface hooks"
+msgstr ""
+"les attributs d'interface ne peuvent être lus que pendant l'exécution des "
+"points d'accroche d'interface"
+
+msgid ""
+"interface attributes can only be set during the execution of prepare hooks"
+msgstr ""
+"les attributs d'interface ne peuvent être définis que pendant l'exécution "
+"des points d'accroche d'interface"
+
+#, c-format
+msgid "internal error, please report: running %q failed: %v\n"
+msgstr ""
+"erreur interne, veuillez le signaler : l'exécution de %q a échoué : %v\n"
+
+msgid "internal error: cannot find attrs task"
+msgstr "erreur interne : impossible de trouver la tâche attrs"
+
+msgid "internal error: cannot find plug or slot data in the appropriate task"
+msgstr ""
+"erreur interne : impossible de trouver les données de connecteur ou de prise "
+"dans la tâche appropriée"
+
+#, c-format
+msgid "internal error: cannot get %s from appropriate task"
+msgstr "erreur interne : impossible de trouver %s dans la tâche appropriée"
+
+msgid ""
+"invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
+"“all”."
+msgstr ""
+
+#, c-format
+msgid "invalid attribute: %q (want key=value)"
+msgstr "attribut invalide : %q (clé=valeur attendu)"
+
+#, c-format
+msgid "invalid configuration: %q (want key=value)"
+msgstr "configuration invalide : %q (clé=valeur attendue)"
+
+#, c-format
+msgid "invalid header filter: %q (want key=value)"
+msgstr "filtre d'en-tête invalide: %q (clé=valeur attendu)"
+
+#, c-format
+msgid "invalid parameter: %q (want key=value)"
+msgstr "paramètre invalide: %q (clé=valeur attendu)"
+
+#, c-format
+msgid "invalid value: %q (want snap:name or snap)"
+msgstr "valeur invalide : %q (snap:nom ou snap attendue)"
+
+#, c-format
+msgid ""
+"key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"
+msgstr ""
+"le nom de clé %q n'est pas valide ; seuls les nombres, les lettres ASCII et "
+"les tirets sont autorisés"
+
+msgid "missing snap-confine: try updating your snapd package"
+msgstr "Snap-confine manquant : essayez de mettre à jour votre paquet Snapd"
+
+msgid "need the application to run as argument"
+msgstr "besoin que l'application soit exécutée comme un argument"
+
+msgid "no changes found"
+msgstr "aucun changement trouvé"
+
+#, c-format
+msgid "no changes of type %q found"
+msgstr "aucun changement trouvé pour le type %q"
+
+msgid "no interfaces currently connected"
+msgstr ""
+
+msgid "no interfaces found"
+msgstr "aucune interface trouvée"
+
+msgid "no matching snaps installed"
+msgstr "aucun paquet Snap correspondant installé"
+
+msgid "no such interface"
+msgstr ""
+
+msgid "no valid snaps given"
+msgstr "aucun paquet Snap valide n'a été indiqué"
+
+msgid "not a valid snap"
+msgstr "ceci n'est pas un paquet Snap valide"
+
+msgid "please provide change ID or type with --last=<type>"
+msgstr ""
+
+#. TRANSLATORS: if possible, a single short word
+msgid "private"
+msgstr "privé"
+
+msgid ""
+"reboot scheduled to update the system - temporarily cancel with 'sudo "
+"shutdown -c'"
+msgstr ""
+"redémarrage programmé pour mettre à jour le système - annulation temporaire "
+"possible via « sudo shutdown -c »"
+
+#, c-format
+msgid "set failed: %v"
+msgstr ""
+
+msgid "set which option?"
+msgstr "définir quelle option ?"
+
+msgid "show detailed information about a snap"
+msgstr "afficher les informations détaillées à propos d'un paquet Snap"
+
+#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
+#, c-format
+msgid "snap %%q not found (at least at revision %q)"
+msgstr ""
+
+#. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
+#, c-format
+msgid "snap %%q not found (at least in channel %q)"
+msgstr ""
+
+#, c-format
+msgid "snap %q has no updates available"
+msgstr ""
+
+#, c-format
+msgid "snap %q is already installed, see \"snap refresh --help\""
+msgstr "le paquet Snap %q est déjà installé, voir « snap refresh --help »"
+
+#, c-format
+msgid "snap %q is local"
+msgstr ""
+
+#, c-format
+msgid "snap %q not found"
+msgstr ""
+
+#. TRANSLATORS: free as in gratis
+msgid "snap is free"
+msgstr "le paquet Snap est gratuit"
+
+msgid "too many arguments for command"
+msgstr "trop d'arguments pour la commande"
+
+#. TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
+#, c-format
+msgid "too many arguments for hook %q: %s"
+msgstr "trop d'arguments pour le point d'accroche %q : %s"
+
+#. TRANSLATORS: the %s is the list of extra arguments
+#, c-format
+msgid "too many arguments: %s"
+msgstr "trop d'arguments : %s"
+
+msgid "unavailable"
+msgstr "indisponible"
+
+#, c-format
+msgid "unknown attribute %q"
+msgstr "attribut %q inconnu"
+
+#, c-format
+msgid "unknown command %q, see \"snap --help\""
+msgstr "commande %q inconnue, voir « snap --help »"
+
+#, c-format
+msgid "unknown plug or slot %q"
+msgstr "prise ou connecteur %q inconnu(e)"
+
+#, c-format
+msgid "unsupported shell %v"
+msgstr "shell %v non pris en charge"
+
+#~ msgid ""
+#~ "\n"
+#~ "The change command displays a summary of tasks associated to an individual "
+#~ "change."
+#~ msgstr ""
+#~ "\n"
+#~ "La commande « change » affiche un résumé des tâches associées à un "
+#~ "changement individuel."
+
+#~ msgid ""
+#~ "\n"
+#~ "The find command queries the store for available packages.\n"
+#~ msgstr ""
+#~ "\n"
+#~ "La commande « find » interroge la logithèque au sujet des paquets "
+#~ "disponibles.\n"
+
+#~ msgid ""
+#~ "Show last change of given type (install, refresh, remove, try, auto-refresh "
+#~ "etc.)"
+#~ msgstr ""
+#~ "Affiche les derniers changements pour un type donné (installation, "
+#~ "actualisation, suppression, essai, actualisation automatique, etc.)"

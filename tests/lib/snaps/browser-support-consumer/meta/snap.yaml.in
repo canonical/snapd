@@ -1,0 +1,10 @@
+name: browser-support-consumer
+version: 1.0
+apps:
+    cmd:
+        command: bin/cmd
+        plugs: [browser-support]
+
+plugs:
+    browser-support:
+        allow-sandbox: @ALLOW_SANDBOX@

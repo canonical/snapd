@@ -1,21 +1,58 @@
 summary: Check that `snap connect` runs interface hooks
 
+environment:
+    CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
+    PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
+
 prepare: |
-    echo "Build test hooks package"
-    snapbuild $TESTSLIB/snaps/basic-iface-hooks-consumer .
-    snapbuild $TESTSLIB/snaps/basic-iface-hooks-producer .
-    snap install --dangerous basic-iface-hooks-consumer_1.0_all.snap
-    snap install --dangerous basic-iface-hooks-producer_1.0_all.snap
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    snap install --devmode jq
+
+    echo "Install test hooks snaps"
+    install_local basic-iface-hooks-consumer
+    install_local basic-iface-hooks-producer
 
 restore: |
-    rm basic-iface-hooks-consumer_1.0_all.snap
-    rm basic-iface-hooks-producer_1.0_all.snap
-
-restore: |
-    rm basic-iface-hooks-consumer_1.0_all.snap
-    rm basic-iface-hooks-producer_1.0_all.snap
+    rm -f "$CONSUMER_DATA/prepare-plug-consumer-done"
+    rm -f "$PRODUCER_DATA/prepare-slot-producer-done"
+    rm -f "$CONSUMER_DATA/connect-plug-consumer-done"
+    rm -f "$PRODUCER_DATA/connect-slot-producer-done"
+    snap remove basic-iface-hooks-consumer
+    snap remove basic-iface-hooks-producer
 
 execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    check_attributes(){
+        # static values should have the values defined in snap's yaml
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-1"]' /var/lib/snapd/state.json | MATCH "consumer-value-1"
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-2"]' /var/lib/snapd/state.json | MATCH "consumer-value-2"
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-1"]' /var/lib/snapd/state.json | MATCH "producer-value-1"
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-2"]' /var/lib/snapd/state.json | MATCH "producer-value-2"
+        # dynamic attributes have values created by the hooks, the "-validated" suffix is added by our test interface
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'plug-changed\(consumer-value\)'
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'slot-changed\(producer-value\)'
+    }
+
+    check_hooks_were_run(){
+        # producer/consumer hooks dump marker files, check if they exist to verify hooks were run
+        [ -f "$CONSUMER_DATA/prepare-plug-consumer-done" ]
+        [ -f "$PRODUCER_DATA/prepare-slot-producer-done" ]
+        [ -f "$CONSUMER_DATA/connect-plug-consumer-done" ]
+        [ -f "$PRODUCER_DATA/connect-slot-producer-done" ]
+    }
+
     echo "Test that snap connect with plug and slot hooks succeeds"
 
-    snap connect basic-iface-hooks-consumer:foo basic-iface-hooks-producer:bar
+    snap connect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
+
+    echo "Ensure the hooks were actually executed"
+    check_hooks_were_run
+  
+    # stop snapd before inspecting state.json
+    systemctl stop snapd.service snapd.socket
+
+    echo "Verify static and dynamic attributes have expected values"
+    check_attributes
+    systemctl start snapd.service snapd.socket

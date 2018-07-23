@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -34,23 +33,28 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBoot(t *testing.T) { TestingT(t) }
 
 type kernelOSSuite struct {
+	testutil.BaseTest
 	bootloader *boottest.MockBootloader
 }
 
 var _ = Suite(&kernelOSSuite{})
 
 func (s *kernelOSSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 }
@@ -97,9 +101,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		}
 
 		fullFn := filepath.Join(kernelAssetsDir, def[0])
-		content, err := ioutil.ReadFile(fullFn)
-		c.Assert(err, IsNil)
-		c.Assert(string(content), Equals, def[1])
+		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
 
 	// remove
@@ -152,9 +154,9 @@ func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
 	defer restore()
 
 	// Create a fake OS snap that we try to update
-	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", "SNAP", &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", &snap.SideInfo{Revision: snap.R(42)})
 	err := boot.SetNextBoot(snapInfo)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "cannot set next boot on classic systems")
 
 	c.Assert(s.bootloader.BootVars, HasLen, 0)
 }
@@ -176,7 +178,27 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 		"snap_mode":     "try",
 	})
 
-	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
+}
+
+func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := &snap.Info{}
+	info.Type = snap.TypeBase
+	info.RealName = "core18"
+	info.Revision = snap.R(1818)
+
+	err := boot.SetNextBoot(info)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snap_try_core": "core18_1818.snap",
+		"snap_mode":     "try",
+	})
+
+	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
@@ -198,11 +220,11 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 
 	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
 	s.bootloader.BootVars["snap_try_kernel"] = "krnl_42.snap"
-	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
 
 	// simulate good boot
 	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
-	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
+	c.Check(boot.ChangeRequiresReboot(info), Equals, false)
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
@@ -221,6 +243,29 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snap_kernel": "krnl_40.snap",
+	})
+}
+
+func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := &snap.Info{}
+	info.Type = snap.TypeKernel
+	info.RealName = "krnl"
+	info.Revision = snap.R(40)
+
+	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
+	s.bootloader.BootVars["snap_try_kernel"] = "krnl_99.snap"
+	s.bootloader.BootVars["snap_mode"] = "try"
+
+	err := boot.SetNextBoot(info)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snap_kernel":     "krnl_40.snap",
+		"snap_try_kernel": "",
+		"snap_mode":       "",
 	})
 }
 

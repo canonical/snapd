@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,39 +27,38 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type HardwareRandomControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&HardwareRandomControlInterfaceSuite{
 	iface: builtin.MustInterface("hardware-random-control"),
 })
 
-func (s *HardwareRandomControlInterfaceSuite) SetUpTest(c *C) {
-	// Mock for OS Snap
-	osSnapInfo := snaptest.MockInfo(c, `
-name: core
+const hardwareRandomControlConsumerYaml = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [hardware-random-control]
+`
+
+const hardwareRandomControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   hardware-random-control:
-`, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["hardware-random-control"]}
+`
 
-	// Snap Consumers
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: snap
-apps:
-  app:
-    command: foo
-    plugs: [hardware-random-control]
-`, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["hardware-random-control"]}
+func (s *HardwareRandomControlInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, hardwareRandomControlConsumerYaml, nil, "hardware-random-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, hardwareRandomControlCoreYaml, nil, "hardware-random-control")
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestName(c *C) {
@@ -67,40 +66,46 @@ func (s *HardwareRandomControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "hardware-random-control",
 		Interface: "hardware-random-control",
-	}})
-	c.Assert(err, ErrorMatches, "hardware-random-control slots are reserved for the operating system snap")
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"hardware-random-control slots are reserved for the core snap")
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *HardwareRandomControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "hardware-random-control"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "hardware-random-control"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap.app"})
-	c.Assert(spec.SnippetForTag("snap.snap.app"), testutil.Contains, "hw_random/rng_current w,")
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "hw_random/rng_current w,")
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	expected := []string{`KERNEL=="hwrng", TAG+="snap_snap_app"`}
-	c.Assert(spec.Snippets(), DeepEquals, expected)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# hardware-random-control
+KERNEL=="hwrng", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+}
+
+func (s *HardwareRandomControlInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows control over the hardware random number generator`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "hardware-random-control")
+}
+
+func (s *HardwareRandomControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestInterfaces(c *C) {

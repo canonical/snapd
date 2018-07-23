@@ -4,3 +4,5 @@ confinement: classic
 apps:
     test-snapd-classic-confinement:
         command: bin/classic-confinement
+    recurse:
+        command: bin/recurse

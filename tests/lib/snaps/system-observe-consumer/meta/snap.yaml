@@ -1,9 +1,0 @@
-name: system-observe-consumer
-version: 1.0
-summary: Basic system-observe consumer snap
-description: A basic snap declaring a plug on system-observe
-
-apps:
-    system-observe-consumer:
-        command: bin/consumer
-        plugs: [system-observe]

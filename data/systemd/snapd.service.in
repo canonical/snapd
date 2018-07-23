@@ -3,12 +3,15 @@ Description=Snappy daemon
 Requires=snapd.socket
 
 [Service]
-Nice=-5
+# Disabled because it breaks lxd
+# (https://bugs.launchpad.net/snapd/+bug/1709536)
+#Nice=-5
 OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 WatchdogSec=5m
+Type=notify
 
 [Install]
 WantedBy=multi-user.target

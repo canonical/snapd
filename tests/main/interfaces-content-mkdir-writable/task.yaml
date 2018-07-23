@@ -1,0 +1,103 @@
+summary: check that snap-update-ns can create mkdir in $SNAP_{DATA,COMMON}
+
+details: |
+    When snap-update-ns is invoked by snap-confine to construct a mount
+    namespace it will create missing directories for the mount target.
+    This will succeed in specific writable locations, such as $SNAP_DATA and
+    $SNAP_COMMON. The $SNAP location is read only but thanks to overalyfs it
+    too can be modified for the calling snap. The test is divided into variants
+    for one of each $SNAP, $SNAP_DATA and $SNAP_COMMON. There's a slight
+    variation for the $SNAP variable, see below for details.
+
+environment:
+    PLUG/data: test-snapd-content-advanced-plug:data
+    PLUG/common: test-snapd-content-advanced-plug:common
+    PLUG/snap: test-snapd-content-advanced-plug:snap
+    SLOT/data: test-snapd-content-advanced-slot:data
+    SLOT/common: test-snapd-content-advanced-slot:common
+    SLOT/snap: test-snapd-content-advanced-slot:snap
+    VAR/data: SNAP_DATA
+    VAR/common: SNAP_COMMON
+    VAR/snap: SNAP
+
+prepare: |
+    # Install a pair of snaps that both have two content interfaces as
+    # sub-directories of $SNAP_DATA and $SNAP_COMMON.
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-content-advanced-plug
+    install_local test-snapd-content-advanced-slot
+
+execute: |
+    # Put our internal tools on PATH so that we can call snap-discard-ns easily.
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    PATH=$LIBEXECDIR/snapd:$PATH
+
+    # Test that initially there are no mount points on the plug side (because
+    # nothing is connected). All of the plug side target directories are
+    # created dynamically when the corresponding content interface connects.
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target' "$VAR")"
+
+    # Test that initially there are almost no mount sources on the slot side
+    # (again because nothing is connected yet). All of the slot side source
+    # directories are created upon connection. The only exception is the
+    # $SNAP/source directory that must be present at all times.
+    if [ "$VAR" != "SNAP" ]; then
+        test-snapd-content-advanced-slot.sh -c "$(printf 'test ! -e $%s/source' "$VAR")"
+    else
+        # The reason why this directory exists in $SNAP/source is that the snap
+        # simply always has it. The snap with the content plug cannot poke a
+        # hole that would be visible to the snap that holds the slot because
+        # both snaps see separate mount namespaces and the changes that they
+        # make in their own mount namespace are not propagated to each other.
+        #
+        # In result, the source of a content share, if placed in $SNAP
+        # somewhere, must exist in the snap and cannot be created dynamically. 
+        test-snapd-content-advanced-slot.sh -c "$(printf 'test -d $%s/source' "$VAR")"
+    fi
+
+    # Discard the namespaces, we want to do this because the code path when
+    # snap-update-ns is invoked from snapd is easier than the one when
+    # snap-confine invokes it to do the initial setup. We are testing the
+    # initial setup here.
+    snap-discard-ns test-snapd-content-advanced-plug
+    snap-discard-ns test-snapd-content-advanced-slot
+
+    # Connect the plug to the slot. This should just write the mount profiles
+    # to disk as we just have discarded the namespaces so there is nothing to
+    # modify.
+    snap connect "$PLUG" "$SLOT"
+
+    # Test that mount points are created automatically upon initialization of
+    # the namespace.  This also tests apparmor confinement for snap-update-ns
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test -d $%s/target' "$VAR")"
+    test-snapd-content-advanced-slot.sh -c "$(printf 'test -d $%s/source' "$VAR")"
+
+    # Write some data into from the slot side. The $SNAP/source/canary file is
+    # always present and we cannot write to it anyway.
+    if [ "$VAR" != "SNAP" ]; then
+        test-snapd-content-advanced-slot.sh -c "$(printf 'touch $%s/source/canary' "$VAR")"
+    fi
+
+    # Ensure that the bind mounts worked correctly by observing the data from plug side.
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test -f $%s/target/canary' "$VAR")"
+
+    # Without discarding the namespace disconnect the content interface. This
+    # should undo the bind mounts but keep the directories around. The canary
+    # file is thus no longer accessible but all the directories are in place
+    # because we never remove them explicitly.
+    snap disconnect "$PLUG" "$SLOT"
+
+    if [ "$VAR" != "SNAP" ]; then
+        test-snapd-content-advanced-plug.sh -c "$(printf 'test -d $%s/target' "$VAR")"
+    else
+        test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -d $%s/target' "$VAR")"
+    fi
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target/canary' "$VAR")"
+    test-snapd-content-advanced-slot.sh -c "$(printf 'test -d $%s/source' "$VAR")"
+    test-snapd-content-advanced-slot.sh -c "$(printf 'test -e $%s/source/canary' "$VAR")"
+
+    # Re-connect the content interface. We should now see the data again.
+    snap connect "$PLUG" "$SLOT"
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test -e $%s/target/canary' "$VAR")"

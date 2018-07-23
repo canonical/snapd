@@ -1,0 +1,44 @@
+summary: Check that base snaps work
+systems: [-opensuse-*]
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Ensure a snap that requires a unavailable base snap can not be installed"
+    if install_local test-snapd-requires-base; then
+        echo "ERROR: test-snapd-requires-base should not be installable without test-snapd-base"
+        exit 1
+    fi
+
+    echo "Ensure a base snap can be installed"
+    install_local test-snapd-base
+    snap list | MATCH test-snapd-base
+
+    echo "With test-snapd-base installed we now can install test-snapd-requires-base"
+    install_local test-snapd-requires-base
+    snap list | MATCH test-snapd-requires-base
+
+    echo "Ensure the bare base works"
+
+    if [ "$(uname -m)" != "x86_64" ]; then
+        echo "This test can only run on amd64 right now because snapcraft "
+        echo "cannot current generate binaries without wrapper scripts."
+        echo "Check: https://github.com/snapcore/snapcraft/pull/1420"
+        echo "and: https://code.launchpad.net/~snappy-dev/snappy-hub/test-snapd-busybox-static"
+        exit 0
+    fi
+
+    snap install --edge --devmode test-snapd-busybox-static
+    echo "Ensure we can run a statically linked binary from an empty base"
+    test-snapd-busybox-static.busybox-static echo hello | MATCH hello
+
+    echo "Ensure the test-snapd-base-bare that test-snapd-busybox-static uses got pulled in"
+    snap list | grep test-snapd-base-bare
+    snap info --verbose test-snapd-busybox-static|MATCH "base:[ ]+test-snapd-base-bare"
+
+    if test-snapd-busybox-static.busybox-static ls /bin/dd; then
+        echo "bare should be empty but it is not:"
+        test-snapd-busybox-static.busybox-static ls /bin
+        exit 1
+    fi

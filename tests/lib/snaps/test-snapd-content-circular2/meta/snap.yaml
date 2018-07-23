@@ -1,0 +1,18 @@
+name: test-snapd-content-circular2
+version: 1.0
+apps:
+  content-plug:
+    command: bin/content-plug
+    plugs: [content-plug]
+plugs:
+  content-plug:
+    interface: content
+    target: import
+    content: circular1
+    default-provider: test-snapd-content-circular1
+slots:
+  content-slot:
+    interface: content
+    content: circular2
+    read:
+      - /

@@ -2,51 +2,74 @@ summary: Ensure that the ubuntu-core -> core transition works with two cores
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
 
 warn-timeout: 1m
 kill-timeout: 5m
+debug: |
+    snap changes
+    #shellcheck source=tests/lib/changes.sh
+    . "$TESTSLIB"/changes.sh
+    snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
-    . "$TESTSLIB/apt.sh"
-    echo "Ensure we have two cores"
-    apt install -y jq
-
     echo "install a snap"
     snap install test-snapd-python-webserver
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
+    #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
-    cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="xxx"' > /var/lib/snapd/state.json
+    jq -r '.data.snaps["core"].type="xxx"' < /var/lib/snapd/state.json.old > /var/lib/snapd/state.json
 
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
 
-    snap download --${CORE_CHANNEL} ubuntu-core
+    snap download "--${CORE_CHANNEL}" ubuntu-core
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
-    cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="os"' > /var/lib/snapd/state.json
+    jq -r '.data.snaps["core"].type="os"' < /var/lib/snapd/state.json.old > /var/lib/snapd/state.json
 
     snap list | MATCH "ubuntu-core "
     snap list | MATCH "core "
 
     echo "Ensure transition is triggered"
+    # wait for steady state or ensure-state-soon will be pointless
+    ok=0
+    for _ in $(seq 40); do
+        if ! snap changes|grep -q ".*.Doing.*" ; then
+            ok=1
+            break
+        fi
+        sleep .5
+    done
+    if [ $ok -ne 1 ] ; then
+        echo "Did not reach steady state"
+        exit 1
+    fi
     snap debug ensure-state-soon
 
-    . $TESTSLIB/changes.sh
-    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
-        snap changes
-        snap change $(change_id "Transition ubuntu-core to core")||true
+    # wait for transition
+    ok=0
+    for _ in $(seq 240); do
+        if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
+            ok=1
+            break
+        fi
         sleep 1
     done
+    if [ $ok -ne 1 ] ; then
+        echo "Transition did not start or finish"
+        exit 1
+    fi
 
     if ! snap list|MATCH -v ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
-
-    echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"

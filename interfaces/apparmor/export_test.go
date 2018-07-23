@@ -20,8 +20,45 @@
 package apparmor
 
 import (
+	"os"
+
 	"github.com/snapcore/snapd/testutil"
 )
+
+var (
+	ChopTree                   = chopTree
+	NsProfile                  = nsProfile
+	ProfileGlobs               = profileGlobs
+	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
+)
+
+// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingNFS
+	isHomeUsingNFS = new
+	return func() {
+		isHomeUsingNFS = old
+	}
+}
+
+// MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
+func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+	old := isRootWritableOverlay
+	isRootWritableOverlay = new
+	return func() {
+		isRootWritableOverlay = old
+	}
+}
+
+// MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.
+func MockProcSelfExe(symlink string) (restore func()) {
+	old := procSelfExe
+	procSelfExe = symlink
+	return func() {
+		os.Remove(procSelfExe)
+		procSelfExe = old
+	}
+}
 
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {
@@ -46,4 +83,17 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 	orig := classicTemplate
 	classicTemplate = fakeTemplate
 	return func() { classicTemplate = orig }
+}
+
+// SetSpecScope sets the scope of a given specification
+func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
+	return spec.setScope(securityTags)
+}
+
+func MockKernelFeatures(f func() []string) (resture func()) {
+	old := kernelFeatures
+	kernelFeatures = f
+	return func() {
+		kernelFeatures = old
+	}
 }

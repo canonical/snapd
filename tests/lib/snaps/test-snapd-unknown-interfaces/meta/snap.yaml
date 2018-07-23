@@ -1,0 +1,10 @@
+name: test-snapd-unknown-interfaces
+summary: A snap with unknown plus and slot interfaces.
+version: 1.0
+apps:
+    test-snapd-unknown-interfaces:
+        command: ../../../bin/sh
+plugs:
+    bogus-plug:
+slots:
+    bogus-slot:

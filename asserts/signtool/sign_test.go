@@ -137,6 +137,69 @@ func (s *signSuite) TestSignJSONWithBodyAndRevision(c *C) {
 	c.Check(a.Body(), DeepEquals, []byte("BODY"))
 }
 
+func (s *signSuite) TestSignJSONWithBodyAndComplementRevision(c *C) {
+	statement := exampleJSON(map[string]interface{}{
+		"body": "BODY",
+	})
+	opts := signtool.Options{
+		KeyID: s.testKeyID,
+
+		Statement: statement,
+		Complement: map[string]interface{}{
+			"revision": "11",
+		},
+	}
+
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	c.Check(a.Revision(), Equals, 11)
+
+	expectedHeaders := expectedModelHeaders(a)
+	expectedHeaders["revision"] = "11"
+	expectedHeaders["body-length"] = "4"
+
+	c.Check(a.Headers(), DeepEquals, expectedHeaders)
+
+	c.Check(a.Body(), DeepEquals, []byte("BODY"))
+}
+
+func (s *signSuite) TestSignJSONWithRevisionAndComplementBodyAndRepeatedType(c *C) {
+	statement := exampleJSON(map[string]interface{}{
+		"revision": "11",
+	})
+	opts := signtool.Options{
+		KeyID: s.testKeyID,
+
+		Statement: statement,
+		Complement: map[string]interface{}{
+			"type": "model",
+			"body": "BODY",
+		},
+	}
+
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	c.Check(a.Revision(), Equals, 11)
+
+	expectedHeaders := expectedModelHeaders(a)
+	expectedHeaders["revision"] = "11"
+	expectedHeaders["body-length"] = "4"
+
+	c.Check(a.Headers(), DeepEquals, expectedHeaders)
+
+	c.Check(a.Body(), DeepEquals, []byte("BODY"))
+}
+
 func (s *signSuite) TestSignErrors(c *C) {
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
@@ -147,31 +210,51 @@ func (s *signSuite) TestSignErrors(c *C) {
 	tests := []struct {
 		expError        string
 		brokenStatement []byte
+		complement      map[string]interface{}
 	}{
 		{`cannot parse the assertion input as JSON:.*`,
 			[]byte("\x00"),
+			nil,
 		},
 		{`invalid assertion type: what`,
 			exampleJSON(map[string]interface{}{"type": "what"}),
+			nil,
 		},
 		{`assertion type must be a string, not: \[\]`,
 			exampleJSON(map[string]interface{}{"type": emptyList}),
+			nil,
 		},
 		{`missing assertion type header`,
 			exampleJSON(map[string]interface{}{"type": nil}),
+			nil,
 		},
 		{"revision should be positive: -10",
-			exampleJSON(map[string]interface{}{"revision": "-10"})},
+			exampleJSON(map[string]interface{}{"revision": "-10"}),
+			nil,
+		},
 		{`"authority-id" header is mandatory`,
-			exampleJSON(map[string]interface{}{"authority-id": nil})},
+			exampleJSON(map[string]interface{}{"authority-id": nil}),
+			nil,
+		},
 		{`body if specified must be a string`,
-			exampleJSON(map[string]interface{}{"body": emptyList})},
+			exampleJSON(map[string]interface{}{"body": emptyList}),
+			nil,
+		},
+		{`repeated assertion type does not match`,
+			exampleJSON(nil),
+			map[string]interface{}{"type": "foo"},
+		},
+		{`complementary header "kernel" clashes with assertion input`,
+			exampleJSON(nil),
+			map[string]interface{}{"kernel": "foo"},
+		},
 	}
 
 	for _, t := range tests {
 		fresh := opts
 
 		fresh.Statement = t.brokenStatement
+		fresh.Complement = t.complement
 
 		_, err := signtool.Sign(&fresh, s.keypairMgr)
 		c.Check(err, ErrorMatches, t.expError)

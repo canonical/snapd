@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,7 +21,6 @@ package udev_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -85,7 +84,7 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -99,7 +98,11 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -107,11 +110,11 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -127,7 +130,11 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers.
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -135,7 +142,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -152,7 +159,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -167,14 +174,18 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 	}
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
@@ -189,7 +200,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -197,11 +212,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -218,7 +233,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -226,7 +245,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
@@ -241,7 +260,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -249,11 +272,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -268,7 +291,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -276,16 +303,18 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
-		data, err := ioutil.ReadFile(fname)
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		if opts.DevMode || opts.Classic {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy\n")
+		} else {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\ndummy\n")
+		}
 		stat, err := os.Stat(fname)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -293,18 +322,40 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	}
 }
 
+func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWithNewline(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("dummy1\ndummy2")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		if opts.DevMode || opts.Classic {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy1\n#dummy2\n")
+		} else {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\ndummy1\ndummy2\n")
+		}
+		stat, err := os.Stat(fname)
+		c.Assert(err, IsNil)
+		c.Check(stat.Mode(), Equals, os.FileMode(0644))
+		s.RemoveSnap(c, snapInfo)
+	}
+}
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.PlugNoAppsYaml, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
-		data, err := ioutil.ReadFile(fname)
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		if opts.DevMode || opts.Classic {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy\n")
+		} else {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\ndummy\n")
+		}
 		stat, err := os.Stat(fname)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -314,16 +365,18 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C)
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SlotNoAppsYaml, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
-		data, err := ioutil.ReadFile(fname)
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		if opts.DevMode || opts.Classic {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy\n")
+		} else {
+			c.Check(fname, testutil.FileEquals, "# This file is automatically generated.\ndummy\n")
+		}
 		stat, err := os.Stat(fname)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -344,7 +397,7 @@ func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -359,7 +412,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
-			{"udevadm", "trigger"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			// FIXME: temporary until spec.TriggerSubsystem() can
+			// be called during disconnect
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -367,7 +424,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -387,4 +444,61 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 		c.Check(len(s.udevadmCmd.Calls()), Equals, 0)
 		s.RemoveSnap(c, snapInfo)
 	}
+}
+
+func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputSubsystem(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.TriggerSubsystem("input")
+		spec.AddSnippet("dummy")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		s.udevadmCmd.ForgetCalls()
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was created
+		_, err := os.Stat(fname)
+		c.Check(err, IsNil)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			{"udevadm", "trigger", "--subsystem-match=input"},
+			{"udevadm", "settle", "--timeout=10"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputJoystickSubsystem(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.TriggerSubsystem("input/joystick")
+		spec.AddSnippet("dummy")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		s.udevadmCmd.ForgetCalls()
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was created
+		_, err := os.Stat(fname)
+		c.Check(err, IsNil)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger", "--subsystem-nomatch=input"},
+			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"device-cgroup-v1",
+		"tagging",
+	})
 }

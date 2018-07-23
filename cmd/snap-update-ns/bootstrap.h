@@ -20,15 +20,14 @@
 
 #define _GNU_SOURCE
 
+#include <stdbool.h>
 #include <unistd.h>
 
 extern int bootstrap_errno;
 extern const char* bootstrap_msg;
 
-void bootstrap(void);
-ssize_t read_cmdline(char* buf, size_t buf_size);
-const char* find_argv0(char* buf, size_t num_read);
-const char* find_snap_name(char* buf, size_t num_read);
-int partially_validate_snap_name(const char* snap_name);
+void bootstrap(int argc, char **argv, char **envp);
+void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out, bool* process_user_fstab);
+int validate_snap_name(const char* snap_name);
 
 #endif

@@ -1,12 +1,18 @@
 summary: snap install a large snap from the store (bigger than tmpfs)
 
 prepare: |
-    systemctl stop snapd.{service,socket}
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service snapd.socket
     mount -t tmpfs -o rw,nosuid,nodev,size=4 none /tmp
     systemctl start snapd.{socket,service}
 
 restore: |
-    systemctl stop snapd.{service,socket}
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service snapd.socket
     umount /tmp || true
     systemctl start snapd.{socket,service}
 

@@ -1,0 +1,38 @@
+summary: Verify snapd-xdg-open package is properly replaced with the snapd one
+description: |
+    snapd-xdg-open was formerly provided by the snapd-xdg-open package
+    and is now part of the snapd package. This test case verifies that
+    the snapd-xdg-open package from the archive is properly replaced.
+# Test case only applies to Ubuntu as that is the only distribution where
+# we had a snapd-xdg-open package ever.
+systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*]
+restore: |
+    . "$TESTSLIB/pkgdb.sh"
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
+    distro_purge_package snapd-xdg-open || true
+execute: |
+    . "$TESTSLIB/pkgdb.sh"
+
+    # Original version of snapd-xdg-open in 16.04 which was not
+    # part of the snapd source package.
+    ver=0.0.0~16.04
+    if ! distro_install_package snapd-xdg-open=$ver; then
+        # version of snapd-xdg-open in 17.04,17.10
+        ver=0.0.0
+        if ! distro_install_package snapd-xdg-open=$ver; then
+            echo "SKIP: cannot find snapd-xdg-open, skipping test"
+            exit 0
+        fi
+    fi
+
+    prevsnapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
+
+    # allow-downgrades prevents errors when new versions hit the archive, for instance,
+    # trying to install 2.11ubuntu1 over 2.11+0.16.04
+    distro_install_local_package --allow-downgrades $GOHOME/snapd*.deb
+
+    snapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
+    [ "$snapdxdgver" != "$prevsnapdxdgver" ]

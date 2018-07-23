@@ -42,15 +42,23 @@ func Test(t *testing.T) {
 
 type BoolFileInterfaceSuite struct {
 	testutil.BaseTest
-	iface             interfaces.Interface
-	gpioSlot          *interfaces.Slot
-	ledSlot           *interfaces.Slot
-	badPathSlot       *interfaces.Slot
-	parentDirPathSlot *interfaces.Slot
-	missingPathSlot   *interfaces.Slot
-	badInterfaceSlot  *interfaces.Slot
-	plug              *interfaces.Plug
-	badInterfacePlug  *interfaces.Plug
+	iface                 interfaces.Interface
+	gpioSlotInfo          *snap.SlotInfo
+	gpioSlot              *interfaces.ConnectedSlot
+	ledSlotInfo           *snap.SlotInfo
+	ledSlot               *interfaces.ConnectedSlot
+	badPathSlotInfo       *snap.SlotInfo
+	badPathSlot           *interfaces.ConnectedSlot
+	parentDirPathSlotInfo *snap.SlotInfo
+	parentDirPathSlot     *interfaces.ConnectedSlot
+	missingPathSlotInfo   *snap.SlotInfo
+	missingPathSlot       *interfaces.ConnectedSlot
+	badInterfaceSlot      *interfaces.ConnectedSlot
+	plugInfo              *snap.PlugInfo
+	plug                  *interfaces.ConnectedPlug
+	badInterfaceSlotInfo  *snap.SlotInfo
+	badInterfacePlugInfo  *snap.PlugInfo
+	badInterfacePlug      *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&BoolFileInterfaceSuite{
@@ -60,6 +68,7 @@ var _ = Suite(&BoolFileInterfaceSuite{
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
 	plugSnapinfo := snaptest.MockInfo(c, `
 name: other
+version: 0
 plugs:
  plug: bool-file
 apps:
@@ -68,6 +77,7 @@ apps:
 `, nil)
 	info := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 slots:
     gpio:
         interface: bool-file
@@ -87,14 +97,22 @@ plugs:
     plug: bool-file
     bad-interface-plug: other-interface
 `, &snap.SideInfo{})
-	s.gpioSlot = &interfaces.Slot{SlotInfo: info.Slots["gpio"]}
-	s.ledSlot = &interfaces.Slot{SlotInfo: info.Slots["led"]}
-	s.missingPathSlot = &interfaces.Slot{SlotInfo: info.Slots["missing-path"]}
-	s.badPathSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-path"]}
-	s.parentDirPathSlot = &interfaces.Slot{SlotInfo: info.Slots["parent-dir-path"]}
-	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface-slot"]}
-	s.plug = &interfaces.Plug{PlugInfo: plugSnapinfo.Plugs["plug"]}
-	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface-plug"]}
+	s.gpioSlotInfo = info.Slots["gpio"]
+	s.gpioSlot = interfaces.NewConnectedSlot(s.gpioSlotInfo, nil)
+	s.ledSlotInfo = info.Slots["led"]
+	s.ledSlot = interfaces.NewConnectedSlot(s.ledSlotInfo, nil)
+	s.missingPathSlotInfo = info.Slots["missing-path"]
+	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil)
+	s.badPathSlotInfo = info.Slots["bad-path"]
+	s.badPathSlot = interfaces.NewConnectedSlot(s.badPathSlotInfo, nil)
+	s.parentDirPathSlotInfo = info.Slots["parent-dir-path"]
+	s.parentDirPathSlot = interfaces.NewConnectedSlot(s.parentDirPathSlotInfo, nil)
+	s.badInterfaceSlotInfo = info.Slots["bad-interface-slot"]
+	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil)
+	s.plugInfo = plugSnapinfo.Plugs["plug"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.badInterfacePlugInfo = info.Plugs["bad-interface-plug"]
+	s.badInterfacePlug = interfaces.NewConnectedPlug(s.badInterfacePlugInfo, nil)
 }
 
 // TODO: add test for permanent slot when we have hook support.
@@ -105,33 +123,21 @@ func (s *BoolFileInterfaceSuite) TestName(c *C) {
 
 func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
 	// Both LED and GPIO slots are accepted
-	err := s.iface.SanitizeSlot(s.ledSlot)
-	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(s.gpioSlot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.ledSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gpioSlotInfo), IsNil)
 	// Slots without the "path" attribute are rejected.
-	err = s.iface.SanitizeSlot(s.missingPathSlot)
-	c.Assert(err, ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.missingPathSlotInfo), ErrorMatches,
 		"bool-file must contain the path attribute")
 	// Slots without the "path" attribute are rejected.
-	err = s.iface.SanitizeSlot(s.parentDirPathSlot)
-	c.Assert(err, ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.parentDirPathSlotInfo), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
 	// Slots with incorrect value of the "path" attribute are rejected.
-	err = s.iface.SanitizeSlot(s.badPathSlot)
-	c.Assert(err, ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.badPathSlotInfo), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
-	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches,
-		`slot is not of interface "bool-file"`)
 }
 
 func (s *BoolFileInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
-	c.Assert(func() { s.iface.SanitizePlug(s.badInterfacePlug) }, PanicMatches,
-		`plug is not of interface "bool-file"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
@@ -141,7 +147,7 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	})
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.gpioSlot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
@@ -154,14 +160,14 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.gpioSlot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/gpio/gpio13/value rwk,")
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.ledSlot, nil)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,")
@@ -171,25 +177,25 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlo
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
 		apparmorSpec := &apparmor.Specification{}
-		apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.missingPathSlot, nil)
+		apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.missingPathSlot)
 	}, PanicMatches, "slot is not sanitized")
 }
 
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
+	for _, slot := range []*interfaces.ConnectedSlot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for plug
 		seccompSpec := &seccomp.Specification{}
-		err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+		err := seccompSpec.AddConnectedPlug(s.iface, s.plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(seccompSpec.Snippets(), HasLen, 0)
 		// No extra dbus permissions for plug
 		dbusSpec := &dbus.Specification{}
-		err = dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+		err = dbusSpec.AddConnectedPlug(s.iface, s.plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(dbusSpec.Snippets(), HasLen, 0)
 		// No extra udev permissions for plug
 		udevSpec := &udev.Specification{}
-		c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
+		c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 		c.Assert(udevSpec.Snippets(), HasLen, 0)
 	}
 }
@@ -197,17 +203,17 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c *C) {
 	// No extra seccomp permissions for plug
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentPlug(s.iface, s.plug)
+	err := seccompSpec.AddPermanentPlug(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 	// No extra dbus permissions for plug
 	dbusSpec := &dbus.Specification{}
-	err = dbusSpec.AddPermanentPlug(s.iface, s.plug)
+	err = dbusSpec.AddPermanentPlug(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 	// No extra udev permissions for plug
 	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentPlug(s.iface, s.plug), IsNil)
+	c.Assert(udevSpec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 0)
 }
 

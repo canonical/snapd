@@ -1,21 +1,28 @@
-sudo: required
-dist: trusty
 language: go
-go:
+go:        
   - 1.6
 
 env:
   global:
     # SPREAD_LINODE_KEY
     - secure: "bzALrfNSLwM0bjceal1PU5rFErvqVhi00Sygx8jruo6htpZay3hrC2sHCKCQKPn1kvCfHidrHX1vnomg5N+B9o25GZEYSjKSGxuvdNDfCZYqPNjMbz5y7xXYfKWgyo+xtrKRM85Nqy121SfRz3KLDvrOLwwreb+pZv8DG1WraFTd7D6rK7nLnnYNUyw665XBMFVnM8ue3Zu9496Ih/TfQXhnNpsZY8xFWte4+cH7JvVCVTs8snjoGVZi3972PzinNkfBgJa24cUzxFMfiN/AwSBXJQKdVv+FsbB4uRgXAqTNwuus7PptiPNxpWWojuhm1Qgbk0XhGIdJxyUYkmNA4UrZ3C29nIRWbuAiHJ6ZWd1ur3dqphqOcgFInltSHkpfEdlL3YK4dCa2SmJESzotUGnyowCUUCXkWdDaZmFTwyK0Y6He9oyXDK5f+/U7SFlPvok0caJCvB9HbTQR1kYdh048I/R+Ht5QrFOZPk21DYWDOYhn7SzthBDZLsaL6n5gX7Y547SsL4B35YVbpaeHzccG6Mox8rI4bqlGFvP1U5i8uXD4uQjJChlVxpmozUEMok9T5RVediJs540p5uc8DQl48Nke02tXzC/XpGAvpnXT7eiiRNW67zOj2QcIV+ni3lBj3HvZeB9cgjzLNrZSl/t9vseqnNwQWpl3V6nd/bU="
+    # SPREAD_STORE_USER
+    - secure: "LjqfvJ2xz/7cxt1Cywaw5l8gaj5jOhUsf502UeaH+rOnj+9tCdWTtyP8U4nOjjQwiJ0xuygba+FgdnXEyxV+THeXHOF69SRF/1N8JIc3i9G6JK/CqDfFTRMqiRaCf5u7KuOrYZ0ssYNBXyZ8X4Ahls3uFu2DgEuAim1J6wOVSgIoUkduLVrbsn6uB9G5Uuc+C4NMA3TH21IJ6ct35t3T+/EjvoGUHcKtoOsPXdBZvz96xw5mKGIBaLpZdy5WxmhPUsz3MIlZgvi4DR3YIa/9u+QoGNU05f8upJRhwdwkuu9vJwqekXNXDJi/ZGlpkkAPx0feJbyhtz68551Pn1TtmA3TS5JtuMeMZWxCL9SudA7/C3oBRNGnKI3LwvP20pPjdlEYMOCq/oHlxoJylGVdpynZXTtaFS+s4Qhnr+WuNcG3zFa9bJvXPyy1vxPKcjI2DojneTrCTW/L6zg7tBIVQGzTxmC7QWsbTvOQzu+YICyeeS3g+iJ+QyP6+/oTyER3a3vmZCtXqsBJTznesS0SL5AkK+8moBGct96S6kT55XCDVgThWV0OGH6l4LwVSOjPioNzXNhVLZ8GKkXrMZXKSaWAeYptzWl4Gfz0Y4nFCu3aqIOyie7janPPgeEL0E2ZjndIs+ZigtN1LCol+GJN7fXzUFy8Fichqhhwvb3YLyE="
+    # SPREAD_STORE_PASSWORD
+    - secure: "Le4CMhklfadi4aBQIEaEMbsFIB608GOvSHjVUxkDxkkUAVwl/Ov4Dni5d0Tn4e/xcxPkcm+pPg64dn0Jxzwx6XfWlxhWC10vYh+/GjpZW1znahtb/Gf9CNZOJJEy5LSeI7/uJ3LYcFd0FU0EJSerNeQJc5d8jmJH8UnuqObHOk29YD//XILiLRa1XALEimwXeQyGQePBmDTxPQQv1VLFjgfaJa5Xy55Us7AKTML2V7lhaeKCSEIp3x9liLAtnKlJhyXaXO/e4b3ZJTgXwYh+vENK1E2pxalpjBNPaJNkvtbsjFtYNXJoXca+hBVs5Sq1PCBhkEGxqFUsD8VLQd+MEXp4MYOF5fBhxIa3qOSjtuR+WmZ9G6fEysEBV6Y3F3D6HYWTpNkcHNXJCwdtOM+n92zNEBDIrufwzTPpyJXpoxZCCXrk3HHRdyDktvJYLrHdn1bM19mgYguesMZHTC5xMD6ifwdRoylmApjImXOvVxf2HdQiNvNLDqvaHgmYwNfl0+KbaVz+O2EDPCRnT5wOCpSeSUet47EPITdjr5OnTwLpOVaY+iSvn90EUB/8+ZU01TRYgc+6VNPHokLVjuiQJSrE4yTx/c2MnY9eRaOosVXngYfoS/L3XwDwZiQoeLZs04bScvxzGQIGCJ+CBzNPENtZ4AUh55Yl/vVNReZJeaY="
+    # SPREAD_GOOGLE_KEY
+    - secure: "dIA2HrartowFL2Gl5jXiVMd9hIJyIeummYwxeBL9MzO48E/BIJyIGHudEOo8oCnZ5a0yb8TqYgND2FCgJU1V5I2LyxH6T9kizHjtmIGgeM4qlEGKRlptb2v7DFkaHeW4Mpp4gLk8hYIeWyq9OR+SlK6f0Jj049LLKfQoX6GzTPug5+MMEQOJs55OJ6f6gvCv2o3oj6WFybaohMCO4GbNYQSPLwheyTSkT0efnW9QqTN0w62pDMqscVURO90/CUeZyCcXw2uOBegwPNTBoo/+4+nZsfSNeupV8wX4vVYL0ZFL6IO3mViDoZBD4SGTNF/9x8Lc1WeKm9HlELzy5krdLqsvdV/fQSWhBzwkdykKVA3Aae5dAMIGRt7e5bJaUg+/HdtOgA5jr+qey/c/BN11MyaSOMNPNGjRuv9NAcEjxoN2JkiDXfpA3lE9kjd7TBTexGe4RJGJLJjT9s8XxdKufBfruC/yhVGdVkRoc2tsAJPZ72Ds9qH0FH28zNFAgAitCLDfInjhPMPvZJhb3Bqx5P/0DE5zUbduE9kYK0iiZRJ4AaytQy+R4nJCXE42mWv5cxoE84opVqO9cBu1TPCC8gTRQFWpJt1rP+DvwjaFiswvptG8obxNpHmkhcItPGmRVN9P9Yjd9nHvegS83tsbrd2KOyMmCk3/1KWhLufisHE="
 
 git:
     quiet: true
 
 install:
-  - sudo apt-get update -qq
-  - sudo apt-get install -qq squashfs-tools xdelta3
-  - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
+    - true
 
 script:
     - ./run-checks --spread
+
+addons:
+  apt:
+    packages:
+    - xdelta3

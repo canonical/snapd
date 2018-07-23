@@ -1,0 +1,46 @@
+summary: Check that the core-fixup-sh script works
+
+systems: [ubuntu-core-16-*]
+
+restore: |
+    umount /boot/uboot
+    rm -f test.img
+
+execute: |
+    echo "Ensure we have a clean and writable /boot/uboot to mess around"
+    mount -t tmpfs none /boot/uboot
+    touch /boot/uboot/uboot.env.unrelated
+    touch /boot/uboot/unrelated.uboot.env
+    touch /boot/uboot/uboot.env
+
+    systemctl restart snapd.core-fixup.service
+
+    if [ ! -f /boot/uboot/uboot.env.unrelated ] || [ ! -f /boot/uboot/unrelated.uboot.env ]; then
+        echo "snapd.core-fixup.service destroyed unrelated files"
+        exit 1
+    fi
+    if [ ! -f /boot/uboot/uboot.env ]; then
+        echo "snapd.core-fixup.service destroyed the uboot.env file"
+        exit 1
+    fi
+    umount /boot/uboot
+
+    echo "Now test with the real corrupted image"
+    unxz -c -d test.img.xz >test.img
+    mount -t vfat test.img /boot/uboot
+    n=$(ls /boot/uboot | grep -c ^uboot.env$)
+    if [ "$n" != "2" ]; then
+        echo "Image not broken in the right way, expected two uboot.env files"
+        ls /boot/uboot
+        exit 1
+    fi
+
+    echo "Trigger cleanup"
+    systemctl restart snapd.core-fixup.service
+
+    n=$(ls /boot/uboot | grep -c ^uboot.env$)
+    if [ "$n" != "1" ]; then
+        echo "Image not repaired"
+        ls /boot/uboot
+        exit 1
+    fi

@@ -20,10 +20,7 @@
 package errtracker
 
 import (
-	"os"
 	"time"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 func MockCrashDbURL(url string) (restorer func()) {
@@ -66,26 +63,64 @@ func MockTimeNow(f func() time.Time) (restorer func()) {
 	}
 }
 
-func MockSnapConfineApparmorProfile(path string) (restorer func()) {
-	old := snapConfineProfile
-	snapConfineProfile = path
+func MockReExec(f func() string) (restorer func()) {
+	oldDidSnapdReExec := didSnapdReExec
+	didSnapdReExec = f
 	return func() {
-		snapConfineProfile = old
+		didSnapdReExec = oldDidSnapdReExec
 	}
 }
 
-func MockReExec(didReExec bool) (restorer func()) {
-	old := osutil.GetenvBool("SNAP_DID_REEXEC")
-	if didReExec {
-		os.Setenv("SNAP_DID_REEXEC", "1")
-	} else {
-		os.Unsetenv("SNAP_DID_REEXEC")
-	}
+func MockOsGetenv(f func(string) string) (restorer func()) {
+	old := osGetenv
+	osGetenv = f
 	return func() {
-		if old {
-			os.Setenv("SNAP_DID_REEXEC", "1")
-		} else {
-			os.Unsetenv("SNAP_DID_REEXEC")
-		}
+		osGetenv = old
 	}
+}
+
+func MockProcCpuinfo(filename string) (restorer func()) {
+	old := procCpuinfo
+	procCpuinfo = filename
+	return func() {
+		procCpuinfo = old
+	}
+}
+
+func MockProcSelfExe(filename string) (restorer func()) {
+	old := procSelfExe
+	procSelfExe = filename
+	return func() {
+		procSelfExe = old
+	}
+}
+
+func MockProcSelfCwd(filename string) (restorer func()) {
+	old := procSelfCwd
+	procSelfCwd = filename
+	return func() {
+		procSelfCwd = old
+	}
+}
+
+func MockProcSelfCmdline(filename string) (restorer func()) {
+	old := procSelfCmdline
+	procSelfCmdline = filename
+	return func() {
+		procSelfCmdline = old
+	}
+}
+
+var (
+	ProcExe            = procExe
+	ProcCwd            = procCwd
+	ProcCmdline        = procCmdline
+	JournalError       = journalError
+	ProcCpuinfoMinimal = procCpuinfoMinimal
+	Environ            = environ
+	NewReportsDB       = newReportsDB
+)
+
+func SetReportDBCleanupTime(db *reportsDB, d time.Duration) {
+	db.cleanupTime = d
 }

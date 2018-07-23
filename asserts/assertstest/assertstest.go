@@ -237,7 +237,15 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 }
 
 func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
-	headers["authority-id"] = db.AuthorityID
+	if _, ok := headers["authority-id"]; !ok {
+		// copy before modifying
+		headers2 := make(map[string]interface{}, len(headers)+1)
+		for h, v := range headers {
+			headers2[h] = v
+		}
+		headers = headers2
+		headers["authority-id"] = db.AuthorityID
+	}
 	if keyID == "" {
 		keyID = db.KeyID
 	}
@@ -258,6 +266,13 @@ type StoreStack struct {
 	TrustedKey     *asserts.AccountKey
 	Trusted        []asserts.Assertion
 
+	// Generic authority assertions.
+	GenericAccount      *asserts.Account
+	GenericKey          *asserts.AccountKey
+	GenericModelsKey    *asserts.AccountKey
+	Generic             []asserts.Assertion
+	GenericClassicModel *asserts.Model
+
 	// Signing assertion db that signs with the root private key.
 	RootSigning *SigningDB
 
@@ -265,44 +280,120 @@ type StoreStack struct {
 	*SigningDB
 }
 
+// StoreKeys holds a set of store private keys.
+type StoreKeys struct {
+	Root          asserts.PrivateKey
+	Store         asserts.PrivateKey
+	Generic       asserts.PrivateKey
+	GenericModels asserts.PrivateKey
+}
+
+var (
+	rootPrivKey, _          = GenerateKey(1024)
+	storePrivKey, _         = GenerateKey(752)
+	genericPrivKey, _       = GenerateKey(752)
+	genericModelsPrivKey, _ = GenerateKey(752)
+
+	pregenKeys = StoreKeys{
+		Root:          rootPrivKey,
+		Store:         storePrivKey,
+		Generic:       genericPrivKey,
+		GenericModels: genericModelsPrivKey,
+	}
+)
+
 // NewStoreStack creates a new store assertion stack. It panics on error.
-func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreStack {
-	rootSigning := NewSigningDB(authorityID, rootPrivKey)
+// Optional keys specify private keys to use for the various roles.
+func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
+	if keys == nil {
+		keys = &pregenKeys
+	}
+
+	rootSigning := NewSigningDB(authorityID, keys.Root)
 	ts := time.Now().Format(time.RFC3339)
 	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
 		"account-id": authorityID,
-		"validation": "certified",
+		"validation": "verified",
 		"timestamp":  ts,
 	}, "")
 	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
 		"name":  "root",
 		"since": ts,
-	}, rootPrivKey.PublicKey(), "")
+	}, keys.Root.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
+	genericAcct := NewAccount(rootSigning, "generic", map[string]interface{}{
+		"account-id": "generic",
+		"validation": "verified",
+		"timestamp":  ts,
+	}, "")
+
+	err := rootSigning.ImportKey(keys.GenericModels)
+	if err != nil {
+		panic(err)
+	}
+	genericModelsKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
+		"name":  "models",
+		"since": ts,
+	}, keys.GenericModels.PublicKey(), "")
+	generic := []asserts.Assertion{genericAcct, genericModelsKey}
+
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   trusted,
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         trusted,
+		OtherPredefined: generic,
 	})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(storePrivKey)
+	err = db.ImportKey(keys.Store)
 	if err != nil {
 		panic(err)
 	}
 	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
 		"name": "store",
-	}, storePrivKey.PublicKey(), "")
+	}, keys.Store.PublicKey(), "")
 	err = db.Add(storeKey)
 	if err != nil {
 		panic(err)
 	}
 
+	err = db.ImportKey(keys.Generic)
+	if err != nil {
+		panic(err)
+	}
+	genericKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
+		"name":  "serials",
+		"since": ts,
+	}, keys.Generic.PublicKey(), "")
+	err = db.Add(genericKey)
+	if err != nil {
+		panic(err)
+	}
+
+	a, err := rootSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"authority-id": "generic",
+		"series":       "16",
+		"brand-id":     "generic",
+		"model":        "generic-classic",
+		"classic":      "true",
+		"timestamp":    ts,
+	}, nil, genericModelsKey.PublicKeyID())
+	if err != nil {
+		panic(err)
+	}
+	genericClassicMod := a.(*asserts.Model)
+
 	return &StoreStack{
 		TrustedAccount: trustedAcct,
 		TrustedKey:     trustedKey,
 		Trusted:        trusted,
+
+		GenericAccount:      genericAcct,
+		GenericKey:          genericKey,
+		GenericModelsKey:    genericModelsKey,
+		Generic:             generic,
+		GenericClassicModel: genericClassicMod,
 
 		RootSigning: rootSigning,
 
@@ -324,7 +415,7 @@ func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 		"account-id":          ss.AuthorityID,
 		"public-key-sha3-384": keyID,
 	})
-	if err == asserts.ErrNotFound {
+	if asserts.IsNotFound(err) {
 		return nil
 	}
 	if err != nil {

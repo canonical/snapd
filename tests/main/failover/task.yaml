@@ -2,6 +2,9 @@ summary: check that the core and kernel snaps roll back correctly after a failed
 
 systems: [ubuntu-core-16-*]
 
+# Start early as it takes a long time.
+priority: 100
+
 details: |
     This test ensures that the system can survive to a failed upgrade of a fundamental
     snap, rolling back to the last good known version.
@@ -21,41 +24,50 @@ environment:
     TARGET_SNAP/rclocalcrash: core
     TARGET_SNAP/emptysystemd: core
     #TARGET_SNAP/emptyinitrd: kernel
+    BUILD_DIR: /home/tmp
+
+prepare: |
+    mkdir -p "$BUILD_DIR"
 
 restore: |
     rm -f failing.snap failBoot currentBoot prevBoot
-    rm -rf /tmp/unpack
+    rm -rf "$BUILD_DIR"
 
     # FIXME: remove the unset when we reset properly snap_try_{core,kernel} on rollback
-    . $TESTSLIB/boot.sh
+    #shellcheck source=tests/lib/boot.sh
+    . "$TESTSLIB"/boot.sh
     bootenv_unset snap_try_core
     bootenv_unset snap_try_kernel
 
 debug: |
-    . $TESTSLIB/boot.sh
+    #shellcheck source=tests/lib/boot.sh
+    . "$TESTSLIB"/boot.sh
+    #shellcheck disable=SC2119
     bootenv
     snap list
     snap changes
 
 execute: |
     inject_rclocalcrash_failure(){
-        chmod a+x /tmp/unpack/etc/rc.local
-        cat <<EOF > /tmp/unpack/etc/rc.local
+        chmod a+x "$BUILD_DIR/unpack/etc/rc.local"
+        cat <<EOF > "$BUILD_DIR/unpack/etc/rc.local"
     #!bin/sh
     printf c > /proc/sysrq-trigger
     EOF
     }
 
     inject_emptysystemd_failure(){
-        truncate -s 0 /tmp/unpack/lib/systemd/systemd
+        truncate -s 0 "$BUILD_DIR/unpack/lib/systemd/systemd"
     }
 
     inject_emptyinitrd_failure(){
-        truncate -s 0 /tmp/unpack/initrd.img
+        truncate -s 0 "$BUILD_DIR/unpack/initrd.img"
     }
 
-    . $TESTSLIB/names.sh
-    . $TESTSLIB/boot.sh
+    #shellcheck source=tests/lib/names.sh
+    . "$TESTSLIB"/names.sh
+    #shellcheck source=tests/lib/boot.sh
+    . "$TESTSLIB"/boot.sh
     if [ "$TARGET_SNAP" = kernel ]; then
         TARGET_SNAP_NAME=$kernel_name
     else
@@ -67,23 +79,23 @@ execute: |
         snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap
+        unsquashfs -no-progress -d "$BUILD_DIR/unpack" "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
 
         # set failure condition
-        eval ${INJECT_FAILURE}
+        eval "${INJECT_FAILURE}"
 
         # repack new target snap
-        snapbuild /tmp/unpack . && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
+        snap pack "$BUILD_DIR/unpack" && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
 
         # install new target snap
-        chg_id=$(snap install --dangerous failing.snap --no-wait)
+        snap install --dangerous failing.snap
 
-        while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+        while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
 
         # check boot env vars
-        snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > failBoot
-        test "$(bootenv snap_${TARGET_SNAP})" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
-        test "$(bootenv snap_try_${TARGET_SNAP})" = "${TARGET_SNAP_NAME}_$(cat failBoot).snap"
+        readlink /snap/core/current > failBoot
+        test "$(bootenv snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
+        test "$(bootenv snap_try_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat failBoot).snap"
 
         REBOOT
     fi
@@ -98,12 +110,16 @@ execute: |
         sleep 1
     done
 
+    # ensure the last install change failed as expected
+    snap change --last=install | MATCH "cannot finish core installation, there was a rollback across reboot"
+    snap change --last=install | MATCH "^Error.*Automatically connect"
+
     # and the boot env vars are correctly set
     echo "Waiting for snapd to clean snap_mode"
     while [ "$(bootenv snap_mode)" != "" ]; do
         sleep 1
     done
 
-    test "$(bootenv snap_${TARGET_SNAP})" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
+    test "$(bootenv snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
     # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback
     # test "$(bootenv snap_try_${TARGET_SNAP})" = ""

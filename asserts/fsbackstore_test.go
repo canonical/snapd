@@ -150,13 +150,20 @@ func (fsbss *fsBackstoreSuite) TestGetFormat(c *C) {
 	c.Check(a.Revision(), Equals, 0)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 0)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		// Headers can be omitted by Backstores
+	})
+	c.Check(a, IsNil)
 
 	err = bs.Put(asserts.TestOnlyType, af2)
 	c.Assert(err, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 1)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+	})
+	c.Check(a, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 2)
 	c.Assert(err, IsNil)

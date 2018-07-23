@@ -29,26 +29,22 @@ import (
 )
 
 type LibvirtInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	plugInfo *snap.PlugInfo
 }
 
 var _ = Suite(&LibvirtInterfaceSuite{
 	iface: builtin.MustInterface("libvirt"),
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "libvirt"},
-			Name:      "libvirt",
-			Interface: "libvirt",
-		},
+	slotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "libvirt"},
+		Name:      "libvirt",
+		Interface: "libvirt",
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "libvirt",
-			Interface: "libvirt",
-		},
+	plugInfo: &snap.PlugInfo{
+		Snap:      &snap.Info{SuggestedName: "other"},
+		Name:      "libvirt",
+		Interface: "libvirt",
 	},
 })
 
@@ -57,13 +53,11 @@ func (s *LibvirtInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LibvirtInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, ErrorMatches, ".*libvirt slots are reserved for the operating system snap.*")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), ErrorMatches, ".*libvirt slots are reserved for the core snap.*")
 }
 
 func (s *LibvirtInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *LibvirtInterfaceSuite) TestInterfaces(c *C) {

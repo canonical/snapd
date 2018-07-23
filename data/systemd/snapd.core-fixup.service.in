@@ -1,0 +1,15 @@
+[Unit]
+Description=Automatically repair incorrect owner/permissions on core devices
+Before=snapd.service
+# don't run on classic
+ConditionKernelCommandLine=snap_core
+Documentation=man:snap(1)
+
+[Service]
+Type=oneshot
+ExecStart=@libexecdir@/snapd/snapd.core-fixup.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+

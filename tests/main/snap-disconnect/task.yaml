@@ -7,7 +7,7 @@ environment:
 
 prepare: |
     echo "Install a test snap"
-    snapbuild $TESTSLIB/snaps/home-consumer .
+    snap pack $TESTSLIB/snaps/home-consumer
     snap install --dangerous $SNAP_FILE
 
 restore: |
@@ -40,3 +40,6 @@ execute: |
     snap connect home-consumer:home core:home
     snap disconnect home-consumer:home :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnecting again using abbreviated form is handled"
+    snap disconnect home-consumer:home | MATCH "No connections to disconnect"

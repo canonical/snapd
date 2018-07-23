@@ -35,7 +35,12 @@ void debug(const char *fmt, ...);
  *
  * This can used to avoid costly computation that is only useful for debugging.
  **/
-bool sc_is_debug_enabled();
+bool sc_is_debug_enabled(void);
+
+/**
+ * Return true if re-execution is enabled.
+ **/
+bool sc_is_reexec_enabled(void);
 
 void write_string_to_file(const char *filepath, const char *buf);
 

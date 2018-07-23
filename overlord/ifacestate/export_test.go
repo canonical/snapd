@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,25 +18,37 @@
 package ifacestate
 
 import (
-	"errors"
-
-	"gopkg.in/tomb.v2"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func MockConflictPredicate(pred func(string) bool) (restore func()) {
-	old := noConflictOnConnectTasks
-	noConflictOnConnectTasks = pred
-	return func() { noConflictOnConnectTasks = old }
+var (
+	AddImplicitSlots          = addImplicitSlots
+	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
+	CheckConnectConflicts     = checkConnectConflicts
+	FindSymmetricAutoconnect  = findSymmetricAutoconnect
+	ConnectPriv               = connect
+	GetConns                  = getConns
+	SetConns                  = setConns
+)
+
+func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
+	old := removeStaleConnections
+	removeStaleConnections = f
+	return func() { removeStaleConnections = old }
 }
 
-// AddForeignTaskHandlers registers handlers for tasks handled outside of the
-// InterfaceManager.
-func (m *InterfaceManager) AddForeignTaskHandlers() {
-	// Add handler to test full aborting of changes
-	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return errors.New("error out")
+func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
+	old := contentLinkRetryTimeout
+	contentLinkRetryTimeout = d
+	return func() { contentLinkRetryTimeout = old }
+}
+
+// UpperCaseConnState returns a canned connection state map.
+// This allows us to keep connState private and still write some tests for it.
+func UpperCaseConnState() map[string]connState {
+	return map[string]connState{
+		"APP:network CORE:network": {Auto: true, Interface: "network"},
 	}
-	m.runner.AddHandler("error-trigger", erroringHandler, nil)
 }

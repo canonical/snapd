@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -112,12 +111,7 @@ func writeAuthData(user User) error {
 		return err
 	}
 
-	uid, err := strconv.Atoi(real.Uid)
-	if err != nil {
-		return err
-	}
-
-	gid, err := strconv.Atoi(real.Gid)
+	uid, gid, err := osutil.UidGid(real)
 	if err != nil {
 		return err
 	}

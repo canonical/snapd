@@ -27,7 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortIsManagedHelp = i18n.G("Prints whether system is managed")
+var shortIsManagedHelp = i18n.G("Print whether the system is managed")
 var longIsManagedHelp = i18n.G(`
 The managed command will print true or false informing whether
 snapd has registered users.

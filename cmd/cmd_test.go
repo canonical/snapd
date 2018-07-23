@@ -30,14 +30,15 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
 type cmdSuite struct {
 	restoreExec   func()
+	restoreLogger func()
 	execCalled    int
 	lastExecArgv0 string
 	lastExecArgv  []string
@@ -51,18 +52,21 @@ var _ = Suite(&cmdSuite{})
 
 func (s *cmdSuite) SetUpTest(c *C) {
 	s.restoreExec = cmd.MockSyscallExec(s.syscallExec)
+	_, s.restoreLogger = logger.MockLogger()
 	s.execCalled = 0
 	s.lastExecArgv0 = ""
 	s.lastExecArgv = nil
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
-	s.newCore = filepath.Join(s.fakeroot, "new")
-	s.oldCore = filepath.Join(s.fakeroot, "old")
+	dirs.SetRootDir(s.fakeroot)
+	s.newCore = filepath.Join(dirs.SnapMountDir, "/core/42")
+	s.oldCore = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
 func (s *cmdSuite) TearDownTest(c *C) {
 	s.restoreExec()
+	s.restoreLogger()
 }
 
 func (s *cmdSuite) syscallExec(argv0 string, argv []string, envv []string) (err error) {
@@ -80,7 +84,7 @@ func (s *cmdSuite) fakeCoreVersion(c *C, coreDir, version string) {
 }
 
 func (s *cmdSuite) fakeInternalTool(c *C, coreDir, toolName string) string {
-	s.fakeCoreVersion(c, coreDir, "9999")
+	s.fakeCoreVersion(c, coreDir, "42")
 	p := filepath.Join(coreDir, "/usr/lib/snapd", toolName)
 	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
 
@@ -144,7 +148,7 @@ func (s *cmdSuite) TestNonClassicDistroNoSupportsReExec(c *C) {
 	// no distro supports re-exec when not on classic :-)
 	for _, id := range []string{
 		"fedora", "centos", "rhel", "opensuse", "suse", "poky",
-		"debian", "ubuntu",
+		"debian", "ubuntu", "arch",
 	} {
 		restore = release.MockReleaseInfo(&release.OS{ID: id})
 		defer restore()
@@ -196,67 +200,32 @@ func (s *cmdSuite) TestCoreSupportsReExec(c *C) {
 	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, true)
 }
 
-func (s *cmdSuite) testInternalToolPathInCore(c *C, coreDir string) {
-	defer release.MockOnClassic(true)()
-	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
-	defer cmd.MockVersion("2")()
-
-	p := s.fakeInternalTool(c, coreDir, "potato")
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, p)
-}
-
-func (s *cmdSuite) TestInternalToolPathInNewCore(c *C) {
-	defer cmd.MockCorePaths(s.oldCore, s.newCore)()
-	s.testInternalToolPathInCore(c, s.newCore)
-}
-
-func (s *cmdSuite) TestInternalToolPathInOldCore(c *C) {
-	defer cmd.MockCorePaths(s.oldCore, s.newCore)()
-	s.testInternalToolPathInCore(c, s.oldCore)
-}
-
-func (s *cmdSuite) TestInternalToolPathInBothPrefersNew(c *C) {
-	defer s.mockReExecingEnv()()
-
-	pNew := s.fakeInternalTool(c, s.newCore, "potato")
-	s.fakeInternalTool(c, s.oldCore, "potato")
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, pNew)
-}
-
-func (s *cmdSuite) TestInternalToolPathDisabledByEnv(c *C) {
-	// everything ready to get internal
-	defer s.mockReExecingEnv()()
-	s.fakeInternalTool(c, s.newCore, "potato")
-
-	// but, disabled by env
-	os.Setenv("SNAP_REEXEC", "0")
-	defer os.Unsetenv("SNAP_REEXEC")
+func (s *cmdSuite) TestInternalToolPathNoReexec(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
+	})
+	defer restore()
 
 	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
-func (s *cmdSuite) TestInternalToolPathDisabledByDistro(c *C) {
-	// everything ready to get internal
-	defer s.mockReExecingEnv()()
+func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
 	s.fakeInternalTool(c, s.newCore, "potato")
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(s.newCore, "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
 
-	// but, not on classic
-	defer release.MockOnClassic(false)()
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/potato"))
 }
 
-func (s *cmdSuite) TestInternalToolPathInNewCoreDisabledByNoReExecSupportInCore(c *C) {
-	// everything ready to get internal
-	defer s.mockReExecingEnv()()
-	s.fakeInternalTool(c, s.newCore, "potato")
+func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return "/usr/bin/potato", nil
+	})
+	defer restore()
 
-	// but, older version
-	s.fakeCoreVersion(c, s.newCore, "0")
-
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd, got: /usr/bin/potato")
 }
 
 func (s *cmdSuite) TestExecInCoreSnap(c *C) {
@@ -266,7 +235,6 @@ func (s *cmdSuite) TestExecInCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.newCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
@@ -276,7 +244,6 @@ func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.oldCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInCoreSnapBailsNoCoreSupport(c *C) {
@@ -320,10 +287,10 @@ func (s *cmdSuite) TestExecInCoreSnapBailsNoDistroSupport(c *C) {
 }
 
 func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
-
-	os.Setenv("SNAP_DID_REEXEC", "1")
-	defer os.Unsetenv("SNAP_DID_REEXEC")
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
+	c.Assert(err, IsNil)
+	cmd.MockSelfExe(selfExe)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)

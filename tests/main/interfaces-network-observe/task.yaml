@@ -1,5 +1,7 @@
 summary: Ensure that the network-observe interface works
 
+systems: [-fedora-*, -opensuse-*]
+
 details: |
     The network-observe interface allows a snap to query the network status information.
 
@@ -16,47 +18,39 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
     . "$TESTSLIB/systemd.sh"
 
     echo "Given a snap declaring a plug on the network-observe interface is installed"
-    snapbuild $TESTSLIB/snaps/network-observe-consumer .
-    snap install --dangerous network-observe-consumer_1.0_all.snap
+    install_local network-observe-consumer
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
-
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    # shellcheck source=tests/lib/network.sh
+    . $TESTSLIB/network.sh
+    wait_listen_port "$PORT"
 
 restore: |
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f network-observe-consumer_1.0_all.snap net-query.output $SERVICE_FILE
+    rm -f net-query.output $SERVICE_FILE
 
 execute: |
-    CONNECTED_PATTERN=":network-observe +network-observe-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +network-observe-consumer:network-observe"
-
-    echo "Then the plug disconnected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "===================================="
+    echo "The interface is disconnected by default"
+    snap interfaces -i network-observe | MATCH "\- +network-observe-consumer:network-observe"
 
     echo "When the plug is connected"
     snap connect network-observe-consumer:network-observe
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can query network status information"
-    network-observe-consumer | grep -P "0.0.0.0:$PORT.*?LISTEN"
+    network-observe-consumer | MATCH "LISTEN.*:$PORT"
 
     if [ "$(snap debug confinement)" = strict ] ; then
-        echo "===================================="
-
         echo "When the plug is disconnected"
         snap disconnect network-observe-consumer:network-observe
-        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
         echo "Then the snap command can not query network status information"
         if network-observe-consumer 2>net-query.output; then

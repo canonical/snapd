@@ -6,19 +6,22 @@ systems:
     - ubuntu-core-16-arm-64
     - ubuntu-core-16-arm-32
 
+# Start early as it takes a long time.
+priority: 100
+
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
-    install_local network-bind-consumer
+    install_local test-snapd-service
 
 execute: |
     echo "Ensure snaps are (still) there."
     snap list | MATCH test-snapd-tools
-    snap list | MATCH network-bind-consumer
+    snap list | MATCH test-snapd-service
 
     echo "Ensure the service is (still) running."
     retries=120
-    while ! systemctl is-active snap.network-bind-consumer.network-consumer.service; do
+    while ! systemctl is-active snap.test-snapd-service.test-snapd-service.service; do
         if [ $retries -eq 0 ]; then
             echo "Service did not activate."
             exit 1

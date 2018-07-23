@@ -15,9 +15,7 @@ details: |
     respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
 
 prepare: |
-    echo "Given libvirt and qemu are installed"
-    apt install -y libvirt-bin qemu
-    # add test user to the libvirtd group
+    # Given test user is added to the libvirtd group
     adduser test libvirtd
 
     echo "And libvirt is configured to manage /dev/net/tun"
@@ -37,25 +35,17 @@ prepare: |
     ip link set dev tap100 up
 
 restore: |
-    apt autoremove -y --purge libvirt-bin qemu
-
     ip link delete tap100
 
     # remove test user from the libvirtd group
     deluser test libvirtd
 
 execute: |
-    CONNECTED_PATTERN=":libvirt +test-snapd-libvirt-consumer"
-    DISCONNECTED_PATTERN="\- +test-snapd-libvirt-consumer:libvirt"
-
-    echo "The plug is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "The interface is not connected by default"
+    snap interfaces -i libvirt | MATCH '^- +test-snapd-libvirt-consumer:libvirt'
 
     echo "When the plug is connected"
     snap connect test-snapd-libvirt-consumer:libvirt
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create the unikernel domain"
     su -l -c "test-snapd-libvirt-consumer.machine-up" test
@@ -68,15 +58,12 @@ execute: |
     su -l -c "test-snapd-libvirt-consumer.machine-down" test
     virsh list | MATCH -v ping-unikernel
 
-    echo "==================================="
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-libvirt-consumer:libvirt
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to create a domain"
     if su -l -c "test-snapd-libvirt-consumer.machine-up 2>${PWD}/creation.error" test; then
         echo "Expected permission error accessing libvirtd socket with disconnected plug"
         exit 1
     fi
-    cat creation.error | MATCH "Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied"
+    MATCH "Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied" < creation.error

@@ -33,9 +33,11 @@ import (
 )
 
 type MaliitInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&MaliitInterfaceSuite{
@@ -58,9 +60,11 @@ apps:
   slots: [maliit]
 `
 	slotSnap := snaptest.MockInfo(c, mockCoreSlotSnapInfoYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["maliit"]}
+	s.slotInfo = slotSnap.Slots["maliit"]
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["maliit"]}
+	s.plugInfo = plugSnap.Plugs["maliit"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *MaliitInterfaceSuite) TestName(c *C) {
@@ -71,20 +75,18 @@ func (s *MaliitInterfaceSuite) TestName(c *C) {
 func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "maliit",
+			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
-	}
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	}, nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
@@ -95,20 +97,18 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
-			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "maliit",
+			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
 		},
-	}
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	}, nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.maliit.{app1,app2}"),`)
@@ -116,7 +116,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 
 func (s *MaliitInterfaceSuite) TestConnectedPlugSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
 }
@@ -124,20 +124,18 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSecComp(c *C) {
 // The label uses short form when exactly one app is bound to the maliit slot
 func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app": app},
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "maliit",
+			Apps:          map[string]*snap.AppInfo{"app": app},
 		},
-	}
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app": app},
+	}, nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.maliit.app"),`)
@@ -147,20 +145,18 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
+		Snap: &snap.Info{
+			SuggestedName: "maliit",
+			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
-	}
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	}, nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
@@ -171,21 +167,19 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
-			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
+		Snap: &snap.Info{
+			SuggestedName: "maliit",
+			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
 		},
-	}
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	}, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	c.Assert(s.slot, NotNil)
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, `peer=(label="snap.maliit.{app1,app2}"),`)
@@ -194,20 +188,18 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 // The label uses short form when exactly one app is bound to the maliit plug
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "maliit",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "maliit",
-			Interface: "maliit",
-			Apps:      map[string]*snap.AppInfo{"app": app},
+	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
+		Snap: &snap.Info{
+			SuggestedName: "maliit",
+			Apps:          map[string]*snap.AppInfo{"app": app},
 		},
-	}
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app": app},
+	}, nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, `peer=(label="snap.maliit.app"),`)
@@ -215,7 +207,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(seccompSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "listen\n")
@@ -225,7 +217,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -237,7 +229,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "org.maliit.Server.Address")
@@ -245,7 +237,7 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Check(seccompSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "listen\n")
@@ -253,7 +245,7 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "peer=(label=\"snap.other.app\"")

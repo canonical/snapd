@@ -1,0 +1,6 @@
+name: test-snapd-xdg-autostart
+version: 1.0
+apps:
+  foo:
+    command: bin/foobar
+    autostart: foo.desktop

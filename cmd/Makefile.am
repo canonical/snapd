@@ -7,15 +7,25 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
+	-Wno-missing-field-initializers -Wno-unused-parameter
+
+# Make all warnings errors when building for unit tests
+if WITH_UNIT_TESTS
+CHECK_CFLAGS += -Werror
+endif
+
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim snapd-generator
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-unit-tests
+check: check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
 check-syntax-c:
+	echo "WARNING: check-syntax-c produces different results for different version of indent"
+	echo "Your version of indent: `indent --version`"
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
@@ -43,10 +53,19 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
-	sudo install -D -m 4755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
+	sudo install -D -m 6755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
+	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
+	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
+	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+
+# for the hack target also:
+snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
+	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+snap-seccomp/snap-seccomp: snap-seccomp/*.go
+	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
 
 ##
 ## libsnap-confine-private.a
@@ -55,6 +74,8 @@ hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
 noinst_LIBRARIES += libsnap-confine-private.a
 
 libsnap_confine_private_a_SOURCES = \
+	libsnap-confine-private/cgroup-freezer-support.c \
+	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
 	libsnap-confine-private/cleanup-funcs.c \
@@ -79,6 +100,11 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/string-utils.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
+libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
+
+noinst_LIBRARIES += libsnap-confine-private-debug.a
+libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
+libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -100,7 +126,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
-libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
@@ -150,52 +176,19 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 ## snap-confine
 ##
 
-all_tests = \
-    snap-confine/tests/test_bad_seccomp_filter_args \
-    snap-confine/tests/test_bad_seccomp_filter_args_clone \
-    snap-confine/tests/test_bad_seccomp_filter_args_mknod \
-    snap-confine/tests/test_bad_seccomp_filter_args_null \
-    snap-confine/tests/test_bad_seccomp_filter_args_prctl \
-    snap-confine/tests/test_bad_seccomp_filter_args_prio \
-    snap-confine/tests/test_bad_seccomp_filter_args_quotactl \
-    snap-confine/tests/test_bad_seccomp_filter_args_socket \
-    snap-confine/tests/test_bad_seccomp_filter_args_termios \
-    snap-confine/tests/test_bad_seccomp_filter_length \
-    snap-confine/tests/test_bad_seccomp_filter_missing_trailing_newline \
-    snap-confine/tests/test_complain \
-    snap-confine/tests/test_complain_missed \
-    snap-confine/tests/test_noprofile \
-    snap-confine/tests/test_restrictions \
-    snap-confine/tests/test_restrictions_working \
-    snap-confine/tests/test_restrictions_working_args \
-    snap-confine/tests/test_restrictions_working_args_clone \
-    snap-confine/tests/test_restrictions_working_args_mknod \
-    snap-confine/tests/test_restrictions_working_args_prctl \
-    snap-confine/tests/test_restrictions_working_args_prio \
-    snap-confine/tests/test_restrictions_working_args_quotactl \
-    snap-confine/tests/test_restrictions_working_args_socket \
-    snap-confine/tests/test_restrictions_working_args_termios \
-    snap-confine/tests/test_unrestricted \
-    snap-confine/tests/test_unrestricted_missed \
-    snap-confine/tests/test_whitelist
-
 libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
-dist_man_MANS += snap-confine/snap-confine.5
-CLEANFILES += snap-confine/snap-confine.5
+dist_man_MANS += snap-confine/snap-confine.1
+CLEANFILES += snap-confine/snap-confine.1
 endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
-EXTRA_DIST += $(all_tests) snap-confine/tests/common.sh
-if SECCOMP
-if CONFINEMENT_TESTS
-TESTS += $(all_tests)
-endif
-endif
 
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/cookie-support.c \
+	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
 	snap-confine/mount-support.c \
@@ -212,18 +205,23 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.c \
 	snap-confine/user-support.h
 
-snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
-snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
+snap_confine_snap_confine_LDADD += $(snap_confine_snap_confine_extra_libs)
 # _STATIC is where we collect statically linked in libraries
 snap_confine_snap_confine_STATIC =
+# use a separate variable instead of snap_confine_snap_confine_LDADD to collect
+# all external libraries, this way it can be reused in
+# snap_confine_snap_confine_debug_LDADD withouth applying any text
+# transformations
+snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS)
 
 if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
 else
-snap_confine_snap_confine_LDADD += -lcap
+snap_confine_snap_confine_extra_libs += -lcap
 endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
@@ -246,7 +244,7 @@ snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
 if STATIC_LIBSECCOMP
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
 else
-snap_confine_snap_confine_LDADD += $(SECCOMP_LIBS)
+snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
 endif  # STATIC_LIBSECCOMP
 endif  # SECCOMP
 
@@ -255,7 +253,7 @@ snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
 else
-snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
+snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
 
@@ -265,7 +263,7 @@ noinst_PROGRAMS += snap-confine/snap-confine-debug
 snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
 snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
 snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
-snap_confine_snap_confine_debug_LDADD = $(snap_confine_snap_confine_LDADD)
+snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.a $(snap_confine_snap_confine_extra_libs)
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
@@ -285,6 +283,7 @@ snap_confine_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.h \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
+	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
@@ -304,7 +303,7 @@ snap-confine/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_unit_tests
 endif  # WITH_UNIT_TESTS
 
 if HAVE_RST2MAN
-snap-confine/%.5: snap-confine/%.rst
+snap-confine/%.1: snap-confine/%.rst
 	mkdir -p snap-confine
 	$(HAVE_RST2MAN) $^ > $@
 endif
@@ -322,6 +321,7 @@ if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 endif
+	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
@@ -332,9 +332,19 @@ if CAPS_OVER_SETUID
 # Ensure that snap-confine has CAP_SYS_ADMIN capability
 	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
 else
-# Ensure that snap-confine is +s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+# Ensure that snap-confine is u+s,g+s (setuid and setgid)
+	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
 endif
+
+##
+## snap-mgmt
+##
+
+libexec_PROGRAMS += snap-mgmt/snap-mgmt
+
+snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+
 
 ##
 ## ubuntu-core-launcher
@@ -345,25 +355,19 @@ install-exec-hook::
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 ##
-## snappy-app-dev
+## snap-device-helper
 ##
 
 EXTRA_DIST += \
-	snap-confine/80-snappy-assign.rules \
-	snap-confine/snappy-app-dev
+	snap-confine/snap-device-helper
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
-# Install udev rules
-install-data-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-
 # Install support script for udev rules
 install-exec-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecdir)
 
 ##
 ## snap-discard-ns
@@ -382,7 +386,7 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
 	snap-discard-ns/snap-discard-ns.c
-snap_discard_ns_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_discard_ns_snap_discard_ns_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_snap_discard_ns_STATIC =
@@ -426,7 +430,7 @@ system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
 system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
-system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system_shutdown_system_shutdown_CFLAGS = $(CHECK_CFLAGS) $(filter-out -fPIE -pie,$(CFLAGS)) -static
 system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
@@ -438,4 +442,36 @@ system_shutdown_unit_tests_SOURCES = \
 system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
+endif
+
+##
+## snap-gdb-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdb-shim.c
+
+snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+
+##
+## snapd-generator
+##
+
+libexec_PROGRAMS += snapd-generator/snapd-generator
+
+snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
+snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
+
+##
+## snapd-apparmor
+##
+
+EXTRA_DIST += snapd-apparmor/snapd-apparmor
+
+install-exec-local::
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+if APPARMOR
+	install -m 755 $(srcdir)/snapd-apparmor/snapd-apparmor $(DESTDIR)$(libexecdir)
 endif

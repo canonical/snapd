@@ -25,9 +25,23 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
+
+const browserSupportBaseDeclarationSlots = `
+  browser-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-connection:
+      plug-attributes:
+        allow-sandbox: true
+    deny-auto-connection:
+      plug-attributes:
+        allow-sandbox: true
+`
 
 const browserSupportConnectedPlugAppArmor = `
 # Description: Can access various APIs needed by modern browsers (eg, Google
@@ -45,14 +59,25 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /{dev,run}/shm/{,.}org.chromium.Chromium.* mrw,
+owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+owner /{dev,run}/shm/.io.nwjs.* mrw,
+
+# Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
+# for now, allow non-owner read on the singleton socket (LP: #1731012). See
+# https://forum.snapcraft.io/t/electron-snap-killed-when-using-app-makesingleinstance-api/2667/20
+/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}org.chromium.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}com.google.Chrome.*/SS r,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
 
+# miscellaneous accesses
+@{PROC}/vmstat r,
+
 # Chromium content api in gnome-shell reads this
 /etc/opt/chrome/{,**} r,
+/etc/chromium/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
@@ -60,13 +85,24 @@ deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
 
-# Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
-
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
 deny @{PROC}/@{pid}/attr/current r,
+
+# This is an information leak but disallowing it leads to developer confusion
+# when using the chromium content api file chooser due to a (harmless) glib
+# warning and the noisy AppArmor denial.
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/mountinfo r,
+
+# Since snapd still uses SECCOMP_RET_KILL, we have added a workaround rule to
+# allow mknod on character devices since chromium unconditionally performs
+# a mknod() to create the /dev/nvidiactl device, regardless of if it exists or
+# not or if the process has CAP_MKNOD or not. Since we don't want to actually
+# grant the ability to create character devices, explicitly deny the
+# capability. When snapd uses SECCOMP_RET_ERRNO, we can remove this rule.
+# https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
+deny capability mknod,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -116,7 +152,9 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/c108:[0-9]* r, # /dev/ppp
 /run/udev/data/c189:[0-9]* r, # USB serial converters
 /run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
-/run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
+/run/udev/data/c81:[0-9]* r,  # video4linux (/dev/video*, etc)
+/run/udev/data/c202:[0-9]* r, # /dev/cpu/*/msr
+/run/udev/data/c203:[0-9]* r, # /dev/cuse
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
@@ -124,7 +162,10 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,
 /sys/devices/**/product r,
+/sys/devices/**/revision r,
 /sys/devices/**/serial r,
+/sys/devices/**/vendor r,
+/sys/devices/system/node/node[0-9]*/meminfo r,
 
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the
@@ -136,27 +177,22 @@ deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 /run/udev/data/n[0-9]* r,
 /run/udev/data/+bluetooth:hci[0-9]* r,
 /run/udev/data/+rfkill:rfkill[0-9]* r,
+/run/udev/data/c241:[0-9]* r, # /dev/vhost-vsock
 
 # storage
 /run/udev/data/b1:[0-9]* r,   # /dev/ram*
 /run/udev/data/b7:[0-9]* r,   # /dev/loop*
 /run/udev/data/b8:[0-9]* r,   # /dev/sd*
+/run/udev/data/b11:[0-9]* r,  # /dev/scd* and sr*
 /run/udev/data/c21:[0-9]* r,  # /dev/sg*
 /run/udev/data/+usb:[0-9]* r,
 
 # experimental
+/run/udev/data/b252:[0-9]* r,
 /run/udev/data/b253:[0-9]* r,
 /run/udev/data/b259:[0-9]* r,
-/run/udev/data/c242:[0-9]* r,
-/run/udev/data/c243:[0-9]* r,
-/run/udev/data/c245:[0-9]* r,
-/run/udev/data/c246:[0-9]* r,
-/run/udev/data/c247:[0-9]* r,
-/run/udev/data/c248:[0-9]* r,
-/run/udev/data/c249:[0-9]* r,
-/run/udev/data/c250:[0-9]* r,
-/run/udev/data/c251:[0-9]* r,
-/run/udev/data/c254:[0-9]* r,
+/run/udev/data/c24[2-9]:[0-9]* r,
+/run/udev/data/c25[0-4]:[0-9]* r,
 
 /sys/bus/**/devices/ r,
 
@@ -221,6 +257,17 @@ accept4
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
 setpriority
+
+# Since snapd still uses SECCOMP_RET_KILL, add a workaround rule to allow mknod
+# on character devices since chromium unconditionally performs a mknod() to
+# create the /dev/nvidiactl device, regardless of if it exists or not or if the
+# process has CAP_MKNOD or not. Since we don't want to actually grant the
+# ability to create character devices, we added an explicit deny AppArmor rule
+# for this capability. When snapd uses SECCOMP_RET_ERRNO, we can remove this
+# rule.
+# https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
+mknod - |S_IFCHR -
+mknodat - - |S_IFCHR -
 `
 
 const browserSupportConnectedPlugSecCompWithSandbox = `
@@ -244,21 +291,16 @@ func (iface *browserSupportInterface) Name() string {
 	return "browser-support"
 }
 
-func (iface *browserSupportInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: browserSupportSummary,
+func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              browserSupportSummary,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: browserSupportBaseDeclarationSlots,
 	}
 }
 
-func (iface *browserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
-}
-
-func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-
+func (iface *browserSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
@@ -270,8 +312,9 @@ func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var allowSandbox bool
+	_ = plug.Attr("allow-sandbox", &allowSandbox)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
@@ -281,8 +324,9 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var allowSandbox bool
+	_ = plug.Attr("allow-sandbox", &allowSandbox)
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
 		snippet += browserSupportConnectedPlugSecCompWithSandbox
@@ -291,16 +335,8 @@ func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *browserSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
-}
-
-func (iface *browserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *browserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

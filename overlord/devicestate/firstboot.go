@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -56,7 +56,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 		sideInfo.RealName = sn.Name
 	} else {
 		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
-		if err == asserts.ErrNotFound {
+		if asserts.IsNotFound(err) {
 			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
 		if err != nil {
@@ -68,6 +68,14 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 	}
 
 	return snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
+}
+
+func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
+	// give the internal core config a chance to run (even if core is
+	// not used at all we put system configuration there)
+	configTs := snapstate.ConfigureSnap(st, "core", 0)
+	markSeeded.WaitAll(configTs)
+	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
 func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
@@ -86,7 +94,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// ack all initial assertions
 	model, err := importAssertionsFromSeed(st)
 	if err == errNothingToDo {
-		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+		return trivialSeeding(st, markSeeded), nil
 	}
 	if err != nil {
 		return nil, err
@@ -95,7 +103,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	seedYamlFile := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	if release.OnClassic && !osutil.FileExists(seedYamlFile) {
 		// on classic it is ok to not seed any snaps
-		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+		return trivialSeeding(st, markSeeded), nil
 	}
 
 	seed, err := snap.ReadSeedYaml(seedYamlFile)
@@ -103,10 +111,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	var required map[string]bool
 	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
 	if len(reqSnaps) > 0 {
-		required = make(map[string]bool, len(reqSnaps))
 		for _, snap := range reqSnaps {
 			required[snap] = true
 		}
@@ -121,63 +129,82 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
-	// if there are snaps to seed, core needs to be seeded too
-	if len(seed.Snaps) != 0 {
-		coreSeed := seeding["core"]
-		if coreSeed == nil {
-			return nil, fmt.Errorf("cannot proceed without seeding core")
-		}
-		ts, err := installSeedSnap(st, coreSeed, snapstate.Flags{SkipConfigure: true})
-		if err != nil {
-			return nil, err
-		}
-		tsAll = append(tsAll, ts)
-		alreadySeeded["core"] = true
-		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
+	baseSnap := "core"
+	if model.Base() != "" {
+		baseSnap = model.Base()
 	}
 
-	last := 0
-	if kernelName := model.Kernel(); kernelName != "" {
-		kernelSeed := seeding[kernelName]
-		if kernelSeed == nil {
-			return nil, fmt.Errorf("cannot find seed information for kernel snap %q", kernelName)
+	installSeedEssential := func(snapName string, last int) error {
+		seedSnap := seeding[snapName]
+		if seedSnap == nil {
+			return fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, err := installSeedSnap(st, kernelSeed, snapstate.Flags{SkipConfigure: true})
+		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
 		if err != nil {
+			return err
+		}
+		if last >= 0 {
+			ts.WaitAll(tsAll[last])
+		}
+		tsAll = append(tsAll, ts)
+		alreadySeeded[snapName] = true
+		return nil
+	}
+
+	last := -1
+	// if there are snaps to seed, core/base needs to be seeded too
+	if len(seed.Snaps) != 0 {
+		// ensure "snapd" snap is installed first
+		if model.Base() != "" {
+			if err := installSeedEssential("snapd", last); err != nil {
+				return nil, err
+			}
+			last++
+		}
+		if err := installSeedEssential(baseSnap, last); err != nil {
 			return nil, err
 		}
-		ts.WaitAll(tsAll[last])
-		tsAll = append(tsAll, ts)
-		alreadySeeded[kernelName] = true
+		// we *always* configure "core" here even if bases are used
+		// for booting. "core" if where the system config lives.
+		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
+		last++
+	}
+
+	lastConf := 0
+	if kernelName := model.Kernel(); kernelName != "" {
+		if err := installSeedEssential(kernelName, last); err != nil {
+			return nil, err
+		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[last])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		lastConf++
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		gadgetSeed := seeding[gadgetName]
-		if gadgetSeed == nil {
-			return nil, fmt.Errorf("cannot find seed information for gadget snap %q", gadgetName)
-		}
-		ts, err := installSeedSnap(st, gadgetSeed, snapstate.Flags{SkipConfigure: true})
-		if err != nil {
+		if err := installSeedEssential(gadgetName, last); err != nil {
 			return nil, err
 		}
-		ts.WaitAll(tsAll[last])
-		tsAll = append(tsAll, ts)
-		alreadySeeded[gadgetName] = true
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[last])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		//If we use lastConf again we need to enable this. It is
+		//commented out because go vet complains about an ineffectual
+		// assignment.
+		//lastConf++
 	}
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
-	configTss[0].WaitAll(tsAll[last])
-	tsAll = append(tsAll, configTss...)
-	last += len(configTss)
+	if len(configTss) > 0 {
+		configTss[0].WaitAll(tsAll[last])
+		tsAll = append(tsAll, configTss...)
+		last += len(configTss)
+	}
 
 	for _, sn := range seed.Snaps {
 		if alreadySeeded[sn.Name] {
@@ -204,8 +231,18 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	ts := tsAll[len(tsAll)-1]
+	endTs := state.NewTaskSet()
+	if model.Gadget() != "" {
+		// we have a gadget that could have interface
+		// connection instructions
+		gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
+		gadgetConnect.WaitAll(ts)
+		endTs.AddTask(gadgetConnect)
+		ts = endTs
+	}
 	markSeeded.WaitAll(ts)
-	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
+	endTs.AddTask(markSeeded)
+	tsAll = append(tsAll, endTs)
 
 	return tsAll, nil
 }

@@ -21,6 +21,14 @@ package builtin
 
 const hardwareObserveSummary = `allows reading information about system hardware`
 
+const hardwareObserveBaseDeclarationSlots = `
+  hardware-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
 # from the system. This is reserved because it allows reading potentially
@@ -32,6 +40,7 @@ capability sys_rawio,
 # used by lspci
 capability sys_admin,
 /etc/modprobe.d/{,*} r,
+/lib/modprobe.d/{,*} r,
 
 # files in /sys pertaining to hardware (eg, 'lspci -A linux-sysfs')
 /sys/{block,bus,class,devices,firmware}/{,**} r,
@@ -46,11 +55,23 @@ capability sys_admin,
 # interrupts
 @{PROC}/interrupts r,
 
+# libsensors
+/etc/sensors3.conf r,
+/etc/sensors.d/{,*} r,
+
 # Needed for udevadm
 /run/udev/data/** r,
+network netlink raw,
 
 # util-linux
 /{,usr/}bin/lscpu ixr,
+/{,usr/}bin/lsmem ixr,
+
+# lsmem
+/sys/devices/system/memory/block_size_bytes r,
+/sys/devices/system/memory/memory[0-9]*/removable r,
+/sys/devices/system/memory/memory[0-9]*/state r,
+/sys/devices/system/memory/memory[0-9]*/valid_zones r,
 
 # lsusb
 # Note: lsusb and its database have to be shipped in the snap if not on classic
@@ -79,12 +100,19 @@ iopl
 
 # multicast statistics
 socket AF_NETLINK - NETLINK_GENERIC
+
+# kernel uevents
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 func init() {
 	registerIface(&commonInterface{
 		name:                  "hardware-observe",
 		summary:               hardwareObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  hardwareObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
 		reservedForOS:         true,

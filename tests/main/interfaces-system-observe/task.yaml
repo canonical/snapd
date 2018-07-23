@@ -1,5 +1,8 @@
 summary: Ensures that the system-observe interface works.
 
+# on s390x we do not have a serial port to observe
+systems: [-ubuntu-*-s390x]
+
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
@@ -10,39 +13,53 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a plug on the system-observe interface is installed"
-    snapbuild $TESTSLIB/snaps/system-observe-consumer .
-    snap install --dangerous system-observe-consumer_1.0_all.snap
+    snap install --edge test-snapd-system-observe-consumer
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        echo "And hostnamed is started"
+        systemctl start systemd-hostnamed
+    fi
 
 restore: |
-    rm -f system-observe-consumer_1.0_all.snap
+    rm -f *.error
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        systemctl stop systemd-hostnamed
+    fi
 
 execute: |
-    CONNECTED_PATTERN=":system-observe +system-observe-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +system-observe-consumer:system-observe"
+    echo "The interface is disconnected by default"
+    snap interfaces -i system-observe | MATCH "^\- +test-snapd-system-observe-consumer:system-observe"
 
-    echo "Then the plug is shown as disconnected"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "==========================================="
-
-    echo "When the plug is connected"
-    snap connect system-observe-consumer:system-observe
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    echo "When the interface is connected"
+    snap connect test-snapd-system-observe-consumer:system-observe
 
     echo "Then the snap is able to get system information"
-    expected="(?s)/dev/tty.*?serial"
-    su -l -c "system-observe-consumer" test | grep -Pq "$expected"
+    expected="/dev/tty.*?serial"
+    su -l -c "test-snapd-system-observe-consumer.consumer" test | MATCH "$expected"
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        echo "And the snap is able to introspect hostname1"
+        expected="<property name=\"Hostname\" type=\"s\" access=\"read\">"
+        su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test | MATCH "$expected"
+    fi
 
     if [ "$(snap debug confinement)" = strict ] ; then
-        echo "==========================================="
-
         echo "When the plug is disconnected"
-        snap disconnect system-observe-consumer:system-observe
-        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        snap disconnect test-snapd-system-observe-consumer:system-observe
 
         echo "Then the snap is not able to get system information"
-        if su -l -c "system-observe-consumer" test; then
+        if su -l -c "test-snapd-system-observe-consumer.consumer 2>${PWD}/consumer.error" test; then
             echo "Expected error with plug disconnected"
             exit 1
+        fi
+        cat consumer.error | MATCH "Permission denied"
+
+        if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+            echo "And the snap is not able to introspect hostname1"
+            if su -l -c "test-snapd-system-observe-consumer.dbus-introspect 2>${PWD}/introspect.error" test; then
+                echo "Expected error with plug disconnected"
+                exit 1
+            fi
+            cat introspect.error | MATCH "Permission denied"
         fi
     fi

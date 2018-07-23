@@ -29,7 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortVersionHelp = i18n.G("Shows version details")
+var shortVersionHelp = i18n.G("Show version details")
 var longVersionHelp = i18n.G(`
 The version command displays the versions of the running client, server,
 and operating system.
@@ -67,6 +67,9 @@ func printVersions() error {
 	fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
 	fmt.Fprintf(w, "series\t%s\n", sv.Series)
 	if sv.OnClassic {
+		if sv.OSVersionID == "" {
+			sv.OSVersionID = "-"
+		}
 		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
 	}
 	if sv.KernelVersion != "" {

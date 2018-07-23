@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,116 +24,7 @@ import (
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 )
-
-var implicitSlots = []string{
-	"account-control",
-	"alsa",
-	"autopilot-introspection",
-	"bluetooth-control",
-	"browser-support",
-	"camera",
-	"classic-support",
-	"core-support",
-	"dcdbas-control",
-	"docker-support",
-	"firewall-control",
-	"framebuffer",
-	"hardware-observe",
-	"hardware-random-control",
-	"hardware-random-observe",
-	"home",
-	"io-ports-control",
-	"joystick",
-	"kernel-module-control",
-	"kubernetes-support",
-	"log-observe",
-	"lxd-support",
-	"mount-observe",
-	"netlink-audit",
-	"netlink-connector",
-	"network",
-	"network-bind",
-	"network-control",
-	"network-observe",
-	"network-setup-control",
-	"network-setup-observe",
-	"opengl",
-	"openvswitch-support",
-	"physical-memory-control",
-	"physical-memory-observe",
-	"ppp",
-	"process-control",
-	"raw-usb",
-	"removable-media",
-	"shutdown",
-	"snapd-control",
-	"system-observe",
-	"system-trace",
-	"time-control",
-	"timeserver-control",
-	"timezone-control",
-	"tpm",
-	"uhid",
-}
-
-var implicitClassicSlots = []string{
-	"avahi-observe",
-	"cups-control",
-	"gsettings",
-	"libvirt",
-	"locale-control",
-	"modem-manager",
-	"network-manager",
-	"ofono",
-	"openvswitch",
-	"optical-drive",
-	"pulseaudio",
-	"screen-inhibit-control",
-	"unity7",
-	"upower-observe",
-	"x11",
-}
-
-// AddImplicitSlots adds implicitly defined slots to a given snap.
-//
-// Only the OS snap has implicit slots.
-//
-// It is assumed that slots have names matching the interface name. Existing
-// slots are not changed, only missing slots are added.
-func AddImplicitSlots(snapInfo *Info) {
-	if snapInfo.Type != TypeOS {
-		return
-	}
-	for _, ifaceName := range implicitSlots {
-		if _, ok := snapInfo.Slots[ifaceName]; !ok {
-			snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
-		}
-	}
-	// fuse-support is disabled on trusty due to usage of fuse requiring access to mount.
-	// we do not want to widen the apparmor profile defined in fuse-support to support trusty
-	// right now.
-	if !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04") {
-		snapInfo.Slots["fuse-support"] = makeImplicitSlot(snapInfo, "fuse-support")
-	}
-	if !release.OnClassic {
-		return
-	}
-	for _, ifaceName := range implicitClassicSlots {
-		if _, ok := snapInfo.Slots[ifaceName]; !ok {
-			snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
-		}
-	}
-}
-
-func makeImplicitSlot(snapInfo *Info, ifaceName string) *SlotInfo {
-	return &SlotInfo{
-		Name:      ifaceName,
-		Snap:      snapInfo,
-		Interface: ifaceName,
-	}
-}
 
 // addImplicitHooks adds hooks from the installed snap's hookdir to the snap info.
 //

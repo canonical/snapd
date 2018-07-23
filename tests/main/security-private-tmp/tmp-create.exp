@@ -5,7 +5,7 @@ set timeout 20
 spawn bash
 
 # Test private /tmp, allowed access
-spawn su -l -c "/snap/bin/test-snapd-tools.sh" test
+spawn su -l -c "$env(SNAP_MOUNT_DIR)/bin/test-snapd-tools.sh" test
 expect "bash-4.3\\$" {} timeout { exit 1 }
 send "touch /tmp/foo\n"
 send "stat /tmp/foo\n"

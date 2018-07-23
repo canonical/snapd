@@ -14,9 +14,12 @@ prepare: |
             exit 1
     fi
     echo "Create a ramdisk with the testrootorg-store.account-key assertion"
+    . "$TESTSLIB/ramdisk.sh"
+    setup_ramdisk
     mkfs.vfat /dev/ram0
     mount /dev/ram0 /mnt
     cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
+    sync
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

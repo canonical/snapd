@@ -1,0 +1,19 @@
+summary: Checks for snap whoami
+
+# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+
+restore: |
+    snap logout || true
+
+execute: |
+    echo "whoami before login"
+    snap whoami | MATCH "email: -"
+
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
+        expect -d -f $TESTSLIB/successful_login.exp
+
+        echo "whoami after login"
+        # use -F because the email can contain regexp metachars
+        snap whoami | grep -qF "email: $SPREAD_STORE_USER"
+    fi

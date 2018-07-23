@@ -1,0 +1,158 @@
+summary: Check that the browser-support interface works
+
+environment:
+    ALLOW_SANDBOX/allow: true
+    ALLOW_SANDBOX/disallow: false
+    OWNED_FILES: "/var/tmp/etilqs_test"
+    READABLE_FILES:
+        /run/udev/data/+platform:test
+        /etc/opt/chrome/test
+    READABLE_WITH_SANDBOX_FILES:
+        /run/udev/data/c1:1-test
+        /run/udev/data/c10:1-test
+        /run/udev/data/c13:1-test
+        /run/udev/data/c180:1-test
+        /run/udev/data/c4:1-test
+        /run/udev/data/c5:1-test
+        /run/udev/data/c7:1-test
+        /run/udev/data/+hid:test
+        /run/udev/data/+input:input1-test
+        /run/udev/data/c29:1-test
+        /run/udev/data/+backlight:test
+        /run/udev/data/+leds:test
+        /run/udev/data/c116:1-test
+        /run/udev/data/+sound:card1-test
+        /run/udev/data/c108:1-test
+        /run/udev/data/c189:1-test
+        /run/udev/data/c89:1-test
+        /run/udev/data/c81:1-test
+        /run/udev/data/+acpi:test
+        /run/udev/data/+hwmon:hwmon1-test
+        /run/udev/data/+i2c:test
+
+prepare: |
+    echo "Given a snap declaring a plug on browser-support with allow-sandbox set to $ALLOW_SANDBOX is installed"
+    cp -ar "$TESTSLIB/snaps/browser-support-consumer" .
+    sed "s/@ALLOW_SANDBOX@/$ALLOW_SANDBOX/" browser-support-consumer/meta/snap.yaml.in > browser-support-consumer/meta/snap.yaml
+    snap pack browser-support-consumer browser-support-consumer
+    snap install --dangerous browser-support-consumer/*.snap
+    rm -rf browser-support-consumer
+
+restore: |
+    rm -f ./*.error /var/tmp/test
+    for file in $OWNED_FILES $READABLE_FILES $READABLE_WITH_SANDBOX_FILES; do
+        rm -f "$file"
+    done
+
+    while read -r dir; do
+        rm -rf "$dir"
+    done < created_dirs
+    rm -f created_dirs
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    if [ "$ALLOW_SANDBOX" = "false" ]; then
+       echo "If allow-sandbox is false then the plug is connected by default"
+    else
+       echo "If allow-sandbox is true then the plug is not connected by default"
+       snap interfaces -i browser-support | MATCH '\- +browser-support-consumer:browser-support'
+
+       echo "Do connect it manually"
+       snap connect browser-support-consumer:browser-support
+    fi
+
+    echo "And the snap is able to access tmp"
+    echo "test" > /var/tmp/test
+    su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd ls /var/tmp/" test | MATCH test
+
+    echo "And the snap is able to access owned files"
+    for owned_file in $OWNED_FILES; do
+        echo "test" > "$owned_file"
+        chown test:12345 "$owned_file"
+        su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $owned_file" test | MATCH test
+        su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd touch $owned_file" test
+    done
+
+    echo "And the snap is able to access readable files"
+    for readable_file in $READABLE_FILES; do
+        parent_dir=$(dirname "$readable_file")
+        if [ ! -d "$parent_dir" ]; then
+            if mkdir -p "$parent_dir"; then
+                echo "$parent_dir" >> created_dirs
+            else
+                echo "$parent_dir couldn't be created, write-only partition?"
+                continue
+            fi
+        fi
+        echo "test" > "$readable_file"
+        su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $readable_file" test | MATCH test
+    done
+
+    for readable_file in $READABLE_WITH_SANDBOX_FILES; do
+        parent_dir=$(dirname "$readable_file")
+        if [ ! -d "$parent_dir" ]; then
+            mkdir -p "$parent_dir"
+            echo "$parent_dir" >> created_dirs
+        fi
+        echo "test" > "$readable_file"
+    done
+
+    if [ "$ALLOW_SANDBOX" = "true" ]; then
+        for readable_file in $READABLE_WITH_SANDBOX_FILES; do
+            su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $readable_file" test | MATCH test
+        done
+    fi
+
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And the resources available with sandbox are not reachable without it"
+        if [ "$ALLOW_SANDBOX" = "false" ]; then
+            for readable_file in $READABLE_WITH_SANDBOX_FILES; do
+                if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $readable_file 2>${PWD}/readable-without-sandbox-read.err" test; then
+                    echo "Expected error without sandbox didn't happen"
+                    exit 1
+                fi
+                MATCH "Permission denied" < readable-without-sandbox-read.err
+            done
+        fi
+
+        echo "When the plug is disconnected"
+        snap disconnect browser-support-consumer:browser-support
+
+        echo "Then the snap is not able to access tmp"
+        if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd ls /var/tmp/ 2>${PWD}/tmpdir-access.err" test; then
+            echo "Expected error with disconnected plug didn't happen"
+            exit 1
+        fi
+        MATCH "Permission denied" < tmpdir-access.err
+        if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat /var/tmp/etilqs_test 2>${PWD}/tmpfile-read.err" test; then
+            echo "Expected error with disconnected plug didn't happen"
+            exit 1
+        fi
+        MATCH "Permission denied" < tmpfile-read.err
+
+        for owned_file in $OWNED_FILES; do
+            if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $owned_file 2>${PWD}/owned-read.err" test; then
+                echo "Expected error with disconnected plug didn't happen"
+                exit 1
+            fi
+            MATCH "Permission denied" < owned-read.err
+        done
+        for readable_file in $READABLE_FILES; do
+            if [ -f "$readable_file" ] && su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $readable_file 2>${PWD}/readable-read.err" test; then
+                echo "Expected error with disconnected plug didn't happen"
+                exit 1
+            fi
+            MATCH "Permission denied" < readable-read.err
+        done
+        if [ "$ALLOW_SANDBOX" = "true" ]; then
+            for readable_file in $READABLE_WITH_SANDBOX_FILES; do
+                if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $readable_file 2>${PWD}/readable-with-sandbox-read.err" test; then
+                    echo "Expected error with disconnected plug didn't happen"
+                    exit 1
+                fi
+                MATCH "Permission denied" < readable-with-sandbox-read.err
+            done
+        fi
+    fi

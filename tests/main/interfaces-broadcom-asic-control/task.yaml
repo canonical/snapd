@@ -1,0 +1,86 @@
+summary: Ensure that the broadcom-asic-control interface works.
+
+# We need to run the broadcom-asic-control test very early. The reason is
+# that this test will modprobe linux-*-bde which will try to allocate a
+# huge page. One the system ran for a while no chunk of memory like this
+# will be not be available and the kernel will oops with:
+#   "modprobe: page allocation failure: order:7, mode:0xxxx"
+priority: 200
+
+details: |
+    The broadcom-asic-control interface allow access to broadcom asic kernel module.
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-broadcom-asic-control
+
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
+    ensure_file_exists_backup_real /dev/linux-user-bde
+    ensure_file_exists_backup_real /dev/linux-kernel-bde
+    ensure_file_exists_backup_real /dev/linux-bcm-knet
+
+    ensure_file_exists /run/udev/data/+pci:0test
+
+restore: |
+    rm -f call.error
+
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
+    clean_file /dev/linux-user-bde
+    clean_file /dev/linux-kernel-bde
+    clean_file /dev/linux-bcm-knet
+
+    clean_file "/run/udev/data/+pci:0test"
+
+execute: |
+    echo "When the interface is connected"
+    snap connect test-snapd-broadcom-asic-control:broadcom-asic-control
+
+    echo "Then the snap is able to read the system modules directories"
+    for module in "linux_bcm_knet" "linux_kernel_bde" "linux_user_bde"; do
+        if [ -d /sys/module/$module ]; then
+            test-snapd-broadcom-asic-control.sh -c "ls /sys/module/$module"
+        fi
+    done
+
+    echo "Then the snap is able to read/write the system modules devices"
+    for device in "linux-bcm-knet" "linux-kernel-bde" "linux-user-bde"; do
+        test-snapd-broadcom-asic-control.sh -c "cat /dev/$device"
+        test-snapd-broadcom-asic-control.sh -c "echo test >> /dev/$device"
+    done
+
+    echo "Then the snap is able to read pci devices info"
+    if [ -d "/sys/devices/pci0000:00/" ]; then
+        config="$(find /sys/devices/pci0000:00/ -name config | head -n1)"
+        vendor="$(find /sys/devices/pci0000:00/ -name vendor | head -n1)"
+        device="$(find /sys/devices/pci0000:00/ -name device | head -n1)"
+        subsystem_vendor="$(find /sys/devices/pci0000:00/ -name subsystem_vendor | head -n1)"
+        subsystem_device="$(find /sys/devices/pci0000:00/ -name subsystem_device | head -n1)"
+
+        for file in "$config" "$vendor" "$device" "$subsystem_vendor" "$subsystem_device"; do
+            if ! [ -z "$file" ]; then
+                test-snapd-broadcom-asic-control.sh -c "cat $file"
+            fi
+        done
+    fi
+
+    if [ -d /sys/bus/pci/devices ]; then
+        test-snapd-broadcom-asic-control.sh -c "ls /sys/bus/pci/devices/"
+    fi
+    test-snapd-broadcom-asic-control.sh -c "cat /run/udev/data/+pci:0test"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-broadcom-asic-control:broadcom-asic-control
+
+    echo "Then the snap is not able to read the device"
+    if test-snapd-broadcom-asic-control.sh -c "cat /dev/linux-bcm-knet" 2>"${PWD}"/call.error; then
+        echo "Expected permission error accessing to device"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

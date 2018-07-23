@@ -1,5 +1,12 @@
 summary: Ensure that the kernel-module-control interface works.
 
+# the s390x kernel has no minix module
+systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*]
+
+environment:
+    MODULE: minix
+    MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
+
 details: |
     The kernel-module-control interface allows insertion, removal and querying
     of modules.
@@ -9,121 +16,108 @@ details: |
     usual, must be able to be reconnected.
 
     A snap declaring a plug on this interface must be able to list the modules
-    loaded, insert and remove a module. For the test we use the binfmt_misc module.
+    loaded, insert and remove a module. For the test we use the $MODULE module.
 
 prepare: |
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
     snap install --edge test-snapd-kernel-module-consumer
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_generic_consumer kernel-module-control
 
 restore: |
-    rm -f *.error
-    if lsmod | MATCH binfmt_misc && ! -f module_present; then
-        rmmod binfmt_misc
-    elif [ -f module_present ]; then
-        insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
+    rm -f ./*.error
+    if lsmod | MATCH "$MODULE" && [ ! -f module_present ]; then
+        rmmod "$MODULE"
+    elif [ -f module_present ] && ! lsmod | MATCH "$MODULE" ; then
+        insmod "$MODULE_PATH"
     fi
-    if [ -f package_present ]; then
-        apt install -y binfmt-support
-    fi
-    rm -f module_present package_present
+    rm -f module_present
 
 debug: |
     lsmod
+    ls -R /lib/modules/"$(uname -r)"/kernel/fs
 
 execute: |
-    CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-consumer"
-    DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-consumer:kernel-module-control"
+    if ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]; then
+        echo "$MODULE module not available in the system"
+        exit 0
+    fi
 
     echo "The plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    snap interfaces -i kernel-module-control | MATCH '^- +test-snapd-kernel-module-consumer:kernel-module-control'
 
     echo "When the plug is connected"
     snap connect test-snapd-kernel-module-consumer:kernel-module-control
     snap connect generic-consumer:kernel-module-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
-
 
     echo "Then the snap is able to list the existing modules"
-    [ $(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l) -gt 2 ]
+    [ "$(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l)" -gt 2 ]
 
     echo "And the snap is able to insert a module"
-    if lsmod | MATCH binfmt_misc; then
+    if lsmod | MATCH "$MODULE"; then
         touch module_present
-        if ! rmmod binfmt_misc; then
-            # the module is being used
-            if apt list --installed binfmt-support | MATCH binfmt-support; then
-                touch package_present
-                apt remove -y binfmt-support
-                rmmod binfmt_misc
-            fi
-        fi
+        rmmod "$MODULE"
     fi
-    lsmod | MATCH -v binfmt_misc
-    test-snapd-kernel-module-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
+    lsmod | MATCH -v "$MODULE"
+    test-snapd-kernel-module-consumer.insmod "$MODULE_PATH"
 
     echo "And the snap is able to read /sys/module"
-    generic-consumer.cmd ls /sys/module | MATCH binfmt_misc
+    generic-consumer.cmd ls /sys/module | MATCH "$MODULE"
 
     echo "And the snap is not able to write to /sys/module"
     if su -l -c "generic-consumer.cmd touch /sys/module/test 2>${PWD}/touch.error" test; then
         echo "Expected permission error writing to /sys/module"
         exit 1
     fi
-    cat touch.error | MATCH "Permission denied"
+    MATCH "Permission denied" < touch.error
 
     echo "And the snap is able to remove a module"
-    test-snapd-kernel-module-consumer.rmmod binfmt_misc
-    lsmod | MATCH -v binfmt_misc
+    test-snapd-kernel-module-consumer.rmmod "$MODULE"
+    lsmod | MATCH -v "$MODULE"
 
-    if [ "$(snap debug confinement)" = none ] ; then
+    if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
-
-    echo "==================================="
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-kernel-module-consumer:kernel-module-control
     snap disconnect generic-consumer:kernel-module-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to list modules"
     if su -l -c "test-snapd-kernel-module-consumer.lsmod 2>${PWD}/list.error" test; then
         echo "Expected permission error listing modules with disconnected plug"
         exit 1
     fi
-    cat list.error | MATCH "Permission denied"
+    MATCH "Permission denied" < list.error
 
     echo "And the snap is not able to insert a module"
-    if test-snapd-kernel-module-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko; then
+    if test-snapd-kernel-module-consumer.insmod "$MODULE_PATH"; then
         echo "Expected permission error inserting module with disconnected plug"
         exit 1
     fi
 
     echo "And the snap is not able to remove a module"
     # first we need to insert the module
-    lsmod | MATCH -v binfmt_misc
-    insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
-    lsmod | MATCH binfmt_misc
-    if test-snapd-kernel-module-consumer.rmmod binfmt_misc 2>${PWD}/remove.error; then
+    lsmod | MATCH -v "$MODULE"
+    insmod "$MODULE_PATH"
+    lsmod | MATCH "$MODULE"
+    if test-snapd-kernel-module-consumer.rmmod "$MODULE" 2> remove.error; then
         echo "Expected permission error removing module with disconnected plug"
         exit 1
     fi
-    cat remove.error | MATCH "Permission denied"
+    MATCH "Permission denied" < remove.error
 
     echo "And the snap is not able to read /sys/module"
     if su -l -c "generic-consumer.cmd ls /sys/module 2>${PWD}/read.error" test; then
         echo "Expected permission error reading /sys/module with disconnected plug"
         exit 1
     fi
-    cat read.error | MATCH "Permission denied"
+    MATCH "Permission denied" < read.error
 
     echo "And the snap is not able to write to /sys/module"
     if su -l -c "generic-consumer.cmd touch /sys/module/test 2>${PWD}/touch.error" test; then
         echo "Expected permission error writing to /sys/module"
         exit 1
     fi
-    cat touch.error | MATCH "Permission denied"
+    MATCH "Permission denied" < touch.error

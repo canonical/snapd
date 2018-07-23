@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,42 +28,89 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type UDisks2InterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface           interfaces.Interface
+	slotInfo        *snap.SlotInfo
+	slot            *interfaces.ConnectedSlot
+	classicSlotInfo *snap.SlotInfo
+	classicSlot     *interfaces.ConnectedSlot
+	plugInfo        *snap.PlugInfo
+	plug            *interfaces.ConnectedPlug
 }
-
-const udisks2mockPlugSnapInfoYaml = `name: udisks2
-version: 1.0
-apps:
- app:
-  command: foo
-  plugs: [udisks2]
-`
-
-const udisks2mockSlotSnapInfoYaml = `name: udisks2
-version: 1.0
-apps:
- app1:
-  command: foo
-  slots: [udisks2]
-`
 
 var _ = Suite(&UDisks2InterfaceSuite{
 	iface: builtin.MustInterface("udisks2"),
 })
 
+const udisks2ConsumerYaml = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [udisks2]
+`
+
+const udisks2ConsumerTwoAppsYaml = `name: consumer
+version: 0
+apps:
+ app1:
+  plugs: [udisks2]
+ app2:
+  plugs: [udisks2]
+`
+
+const udisks2ConsumerThreeAppsYaml = `name: consumer
+version: 0
+apps:
+ app1:
+  plugs: [udisks2]
+ app2:
+  plugs: [udisks2]
+ app3:
+`
+
+const udisks2ProducerYaml = `name: producer
+version: 0
+apps:
+ app:
+  slots: [udisks2]
+`
+
+const udisks2ProducerTwoAppsYaml = `name: producer
+version: 0
+apps:
+ app1:
+  slots: [udisks2]
+ app2:
+  slots: [udisks2]
+`
+
+const udisks2ProducerThreeAppsYaml = `name: producer
+version: 0
+apps:
+ app1:
+  slots: [udisks2]
+ app2:
+ app3:
+  slots: [udisks2]
+`
+
+const udisks2ClassicYaml = `name: core
+version: 0
+type: os
+slots:
+ udisks2:
+  interface: udisks2
+`
+
 func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
-	slotSnap := snaptest.MockInfo(c, udisks2mockSlotSnapInfoYaml, nil)
-	plugSnap := snaptest.MockInfo(c, udisks2mockPlugSnapInfoYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["udisks2"]}
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["udisks2"]}
+	s.plug, s.plugInfo = MockConnectedPlug(c, udisks2ConsumerYaml, nil, "udisks2")
+	s.slot, s.slotInfo = MockConnectedSlot(c, udisks2ProducerYaml, nil, "udisks2")
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, udisks2ClassicYaml, nil, "udisks2")
 }
 
 func (s *UDisks2InterfaceSuite) TestName(c *C) {
@@ -71,191 +118,175 @@ func (s *UDisks2InterfaceSuite) TestName(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.classicSlotInfo), IsNil)
 }
 
-// The label glob when all apps are bound to the udisks2 slot
-func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2prod",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-	}
+func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2prod.*"),`)
+	// The label uses short form when exactly one app is bound to the udisks2 slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
+
+	// The label glob when all apps are bound to the udisks2 slot
+	slot, _ := MockConnectedSlot(c, udisks2ProducerTwoAppsYaml, nil, "udisks2")
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.*"),`)
+
+	// The label uses alternation when some, but not all, apps is bound to the udisks2 slot
+	slot, _ = MockConnectedSlot(c, udisks2ProducerThreeAppsYaml, nil, "udisks2")
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.{app1,app3}"),`)
+
+	// The label uses short form when exactly one app is bound to the udisks2 plug
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
+
+	// The label glob when all apps are bound to the udisks2 plug
+	plug, _ := MockConnectedPlug(c, udisks2ConsumerTwoAppsYaml, nil, "udisks2")
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.*"),`)
+
+	// The label uses alternation when some, but not all, apps is bound to the udisks2 plug
+	plug, _ = MockConnectedPlug(c, udisks2ConsumerThreeAppsYaml, nil, "udisks2")
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.{app1,app2}"),`)
+
+	// permanent slot have a non-nil security snippet for apparmor
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
 }
 
-// The label uses alternation when some, but not all, apps is bound to the udisks2 slot
-func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	app3 := &snap.AppInfo{Name: "app3"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2prod",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-	}
+func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2prod.{app1,app2}"),`)
+	// connected plug to core slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label=unconfined),`)
+
+	// connected classic slot to plug
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	// permanent classic slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-// The label uses short form when exactly one app is bound to the udisks2 slot
-func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps:      map[string]*snap.AppInfo{"app": app},
-		},
-	}
+func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
+	spec := &dbus.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `<policy context="default">`)
+
+	spec = &dbus.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<policy user="root">`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `send_interface="org.freedesktop.DBus.Introspectable"`)
 }
 
-// The label glob when all apps are bound to the udisks2 plug
-func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2client",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-	}
+func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2client.*"),`)
+	// connected plug to core slot
+	spec := &dbus.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-// The label uses alternation when some, but not all, apps is bound to the udisks2 plug
-func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	app3 := &snap.AppInfo{Name: "app3"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-	}
+func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2.{app1,app2}"),`)
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 4)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
+SUBSYSTEM=="block", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
+SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_producer_app $devpath $major:$minor"`)
 }
 
-// The label uses short form when exactly one app is bound to the udisks2 plug
-func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps:      map[string]*snap.AppInfo{"app": app},
-		},
-	}
+func (s *UDisks2InterfaceSuite) TestUDevSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
-func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
-	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), HasLen, 2)
+func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
+	// on a core system with udisks2 slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), HasLen, 2)
-
-	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	c.Check(udevSpec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
-
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
-	c.Check(seccompSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, "mount\n")
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "mount\n")
 }
 
-func (s *UDisks2InterfaceSuite) TestDBusConnectedPlug(c *C) {
-	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
-	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `<policy context="default">`)
+func (s *UDisks2InterfaceSuite) TestSecCompSpecOnClassic(c *C) {
+	// on a core system with udisks2 slot coming from a the classic distro.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *UDisks2InterfaceSuite) TestDBusPermanentSlot(c *C) {
-	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddPermanentSlot(s.iface, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
-	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `<policy user="root">`)
+func (s *UDisks2InterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows operating as or interacting with the UDisks2 service`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "udisks2")
+}
+
+func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *UDisks2InterfaceSuite) TestInterfaces(c *C) {
-	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+	c.Assert(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

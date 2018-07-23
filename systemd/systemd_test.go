@@ -20,7 +20,9 @@
 package systemd_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,10 +30,10 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -55,12 +57,17 @@ type SystemdTestSuite struct {
 	errors []error
 	outs   [][]byte
 
-	j     int
-	jsvcs [][]string
-	jouts [][]byte
-	jerrs []error
+	j        int
+	jns      []string
+	jsvcs    [][]string
+	jouts    [][]byte
+	jerrs    []error
+	jfollows []bool
 
 	rep *testreporter
+
+	restoreSystemctl  func()
+	restoreJournalctl func()
 }
 
 var _ = Suite(&SystemdTestSuite{})
@@ -73,24 +80,26 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	SystemctlCmd = s.myRun
+	s.restoreSystemctl = MockSystemctl(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
 
-	JournalctlCmd = s.myJctl
+	s.restoreJournalctl = MockJournalctl(s.myJctl)
 	s.j = 0
+	s.jns = nil
 	s.jsvcs = nil
 	s.jouts = nil
 	s.jerrs = nil
+	s.jfollows = nil
 
 	s.rep = new(testreporter)
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
-	SystemctlCmd = SystemdRun
-	JournalctlCmd = Jctl
+	s.restoreSystemctl()
+	s.restoreJournalctl()
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -105,8 +114,13 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 	return out, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+	var err error
+	var out []byte
+
+	s.jns = append(s.jns, n)
 	s.jsvcs = append(s.jsvcs, svcs)
+	s.jfollows = append(s.jfollows, follow)
 
 	if s.j < len(s.jouts) {
 		out = s.jouts[s.j]
@@ -116,7 +130,11 @@ func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
 	}
 	s.j++
 
-	return out, err
+	if out == nil {
+		return nil, err
+	}
+
+	return ioutil.NopCloser(bytes.NewReader(out)), err
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
@@ -129,6 +147,12 @@ func (s *SystemdTestSuite) TestStart(c *C) {
 	err := New("", s.rep).Start("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestStartMany(c *C) {
+	err := New("", s.rep).Start("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
 }
 
 func (s *SystemdTestSuite) TestStop(c *C) {
@@ -152,28 +176,159 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=bar.service
+ActiveState=reloading
+UnitFileState=static
+
+Type=potato
+Id=baz.service
+ActiveState=inactive
+UnitFileState=disabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo")
+	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service")
 	c.Assert(err, IsNil)
-	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
+	c.Check(out, DeepEquals, []*ServiceStatus{
+		{
+			Daemon:          "simple",
+			ServiceFileName: "foo.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "simple",
+			ServiceFileName: "bar.service",
+			Active:          true,
+			Enabled:         true,
+		}, {
+			Daemon:          "potato",
+			ServiceFileName: "baz.service",
+			Active:          false,
+			Enabled:         false,
+		},
+	})
+	c.Check(s.rep.msgs, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState", "foo.service", "bar.service", "baz.service"}})
 }
 
-func (s *SystemdTestSuite) TestStatusObj(c *C) {
+func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).ServiceStatus("foo")
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, &ServiceStatus{
-		ServiceFileName: "foo",
-		LoadState:       "LoadState",
-		ActiveState:     "ActiveState",
-		SubState:        "SubState",
-		UnitFileState:   "UnitFileState",
-	})
+	out, err := New("", s.rep).Status("foo.service")
+	c.Check(err, ErrorMatches, "cannot get service status: expected 1 results, got 2")
+	c.Check(out, IsNil)
+	c.Check(s.rep.msgs, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadLine(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadId(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=bar.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* queried status of "foo.service" but got status of "bar.service"`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusBadField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+UnitFileState=enabled
+Potatoes=false
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusDupeField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+ActiveState=active
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusEmptyField(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
+	c.Check(out, IsNil)
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
@@ -191,10 +346,28 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestAvailable(c *C) {
+	err := Available()
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
+}
+
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestMask(c *C) {
+	err := New("xyzzy", s.rep).Mask("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "mask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestUnmask(c *C) {
+	err := New("xyzzy", s.rep).Unmask("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
@@ -215,8 +388,8 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
-	c.Assert(New("", s.rep).Kill("foo", "HUP"), IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP"}})
+	c.Assert(New("", s.rep).Kill("foo", "HUP", ""), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {
@@ -227,53 +400,57 @@ func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{&Timeout{}}
 
-	logs, err := New("", s.rep).Logs([]string{"foo"})
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
 	c.Check(err, NotNil)
-	c.Check(logs, IsNil)
+	c.Check(reader, IsNil)
+	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
-	c.Check(s.j, Equals, 1)
-}
-
-func (s *SystemdTestSuite) TestLogErrJSON(c *C) {
-	s.jouts = [][]byte{[]byte("this is not valid json.")}
-
-	logs, err := New("", s.rep).Logs([]string{"foo"})
-	c.Check(err, NotNil)
-	c.Check(logs, IsNil)
-	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.jfollows, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
 func (s *SystemdTestSuite) TestLogs(c *C) {
-	s.jouts = [][]byte{[]byte(`{"a": 1}
+	expected := `{"a": 1}
 {"a": 2}
-`)}
+`
+	s.jouts = [][]byte{[]byte(expected)}
 
-	logs, err := New("", s.rep).Logs([]string{"foo"})
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
 	c.Check(err, IsNil)
-	c.Check(logs, DeepEquals, []Log{{"a": 1.}, {"a": 2.}})
+	logs, err := ioutil.ReadAll(reader)
+	c.Assert(err, IsNil)
+	c.Check(string(logs), Equals, expected)
+	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.jfollows, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
-func (s *SystemdTestSuite) TestLogString(c *C) {
-	c.Check(Log{}.String(), Equals, "-(no timestamp!)- - -")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": 42,
-	}.String(), Equals, "-(timestamp not a string: 42)- - -")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "what",
-	}.String(), Equals, "-(timestamp not a decimal number: \"what\")- - -")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "0",
-		"MESSAGE":              "hi",
-	}.String(), Equals, "1970-01-01T00:00:00.000000Z - hi")
-	c.Check(Log{
-		"__REALTIME_TIMESTAMP": "42",
-		"MESSAGE":              "hi",
-		"SYSLOG_IDENTIFIER":    "me",
-	}.String(), Equals, "1970-01-01T00:00:00.000042Z me hi")
+func (s *SystemdTestSuite) TestLogPID(c *C) {
+	c.Check(Log{}.PID(), Equals, "-")
+	c.Check(Log{"_PID": "99"}.PID(), Equals, "99")
+	c.Check(Log{"SYSLOG_PID": "99"}.PID(), Equals, "99")
+	// things starting with underscore are "trusted", so we trust
+	// them more than the user-settable ones:
+	c.Check(Log{"_PID": "42", "SYSLOG_PID": "99"}.PID(), Equals, "42")
+}
 
+func (s *SystemdTestSuite) TestTime(c *C) {
+	t, err := Log{}.Time()
+	c.Check(t.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, "no timestamp")
+
+	t, err = Log{"__REALTIME_TIMESTAMP": "what"}.Time()
+	c.Check(t.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `timestamp not a decimal number: "what"`)
+
+	t, err = Log{"__REALTIME_TIMESTAMP": "0"}.Time()
+	c.Check(err, IsNil)
+	c.Check(t.String(), Equals, "1970-01-01 00:00:00 +0000 UTC")
+
+	t, err = Log{"__REALTIME_TIMESTAMP": "42"}.Time()
+	c.Check(err, IsNil)
+	c.Check(t.String(), Equals, "1970-01-01 00:00:00.000042 +0000 UTC")
 }
 
 func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
@@ -281,69 +458,59 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", snapDir, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foodir
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foodir, revision x1
+Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/x1
 Type=none
-Options=nodev,ro,bind
+Options=nodev,ro,x-gdu.hide,bind
 
 [Install]
 WantedBy=multi-user.target
-`, snapDir))
-}
-
-func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
-	for cond := range RestartMap {
-		bs := []byte(cond)
-		var rc RestartCondition
-
-		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
-		c.Check(rc, Equals, RestartMap[cond], Commentf(cond))
-	}
-}
-
-func (s *SystemdTestSuite) TestRestartCondString(c *C) {
-	for name, cond := range RestartMap {
-		c.Check(cond.String(), Equals, name, Commentf(name))
-	}
+`[1:], snapDir))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
@@ -368,24 +535,24 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision x1
+Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=fuse.squashfuse
-Options=nodev,ro,allow_other
+Options=nodev,ro,x-gdu.hide,allow_other
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestFuseOutsideContainer(c *C) {
@@ -406,22 +573,39 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision x1
+Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
+}
+
+func (s *SystemdTestSuite) TestJctl(c *C) {
+	var args []string
+	var err error
+	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
+		c.Check(cap(myargs) <= len(myargs)+1, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		args = myargs
+		return nil, nil
+	})
+
+	_, err = Jctl([]string{"foo", "bar"}, "10", false)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "10", "--no-pager", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar", "baz"}, "99", true)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "99", "--no-pager", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
 }

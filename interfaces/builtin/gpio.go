@@ -25,9 +25,19 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/snap"
 )
 
 const gpioSummary = `allows access to specifc GPIO pin`
+
+const gpioBaseDeclarationSlots = `
+  gpio:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - gadget
+    deny-auto-connection: true
+`
 
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
 var gpioSysfsExport = "/sys/class/gpio/export"
@@ -45,22 +55,17 @@ func (iface *gpioInterface) Name() string {
 	return "gpio"
 }
 
-func (iface *gpioInterface) MetaData() interfaces.MetaData {
-	return interfaces.MetaData{
-		Summary: gpioSummary,
+func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              gpioSummary,
+		BaseDeclarationSlots: gpioBaseDeclarationSlots,
 	}
 }
 
-// SanitizeSlot checks the slot definition is valid
-func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Paranoid check this right interface type
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
-	}
-
-	// We will only allow creation of this type of slot by a gadget or OS snap
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("gpio slots only allowed on gadget or core snaps")
+// BeforePrepareSlot checks the slot definition is valid
+func (iface *gpioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
+		return err
 	}
 
 	// Must have a GPIO number
@@ -78,19 +83,12 @@ func (iface *gpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// SanitizePlug checks the plug definition is valid
-func (iface *gpioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// Make sure right interface type
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
+func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var number int64
+	if err := slot.Attr("number", &number); err != nil {
+		return err
 	}
-
-	// Plug is good
-	return nil
-}
-
-func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
+	path := fmt.Sprint(gpioSysfsGpioBase, number)
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
 	// requires symlinks to be dereferenced, evaluate the GPIO
@@ -104,12 +102,13 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 }
 
-func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	gpioNum, ok := slot.Attrs["number"].(int64)
-	if !ok {
-		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
+func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var gpioNum int64
+	if err := slot.Attr("number", &gpioNum); err != nil {
+		return err
 	}
-	serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
+
+	serviceName := interfaces.InterfaceServiceName(slot.Snap().InstanceName(), fmt.Sprintf("gpio-%d", gpioNum))
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,
@@ -119,13 +118,9 @@ func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 	return spec.AddService(serviceName, service)
 }
 
-func (iface *gpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *gpioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
-}
-
-func (iface *gpioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
 }
 
 func init() {

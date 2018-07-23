@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,14 @@ package builtin
 
 const bluetoothControlSummary = `allows managing the kernel bluetooth stack`
 
+const bluetoothControlBaseDeclarationSlots = `
+  bluetooth-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const bluetoothControlConnectedPlugAppArmor = `
 # Description: Allow managing the kernel side Bluetooth stack. Reserved
 # because this gives privileged access to the system.
@@ -34,6 +42,8 @@ const bluetoothControlConnectedPlugAppArmor = `
   # File accesses
   /sys/bus/usb/drivers/btusb/     r,
   /sys/bus/usb/drivers/btusb/**   r,
+  /sys/module/btusb/              r,
+  /sys/module/btusb/**            r,
   /sys/class/bluetooth/           r,
   /sys/devices/**/bluetooth/      rw,
   /sys/devices/**/bluetooth/**    rw,
@@ -48,12 +58,18 @@ const bluetoothControlConnectedPlugSecComp = `
 bind
 `
 
+var bluetoothControlConnectedPlugUDev = []string{`SUBSYSTEM=="bluetooth"`}
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "bluetooth-control",
 		summary:               bluetoothControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  bluetoothControlBaseDeclarationSlots,
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
+		connectedPlugUDev:     bluetoothControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

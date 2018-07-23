@@ -33,7 +33,13 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
 	unsigned long used = 0;
 	sc_string_init(buf, buf_size);
-#define F(FLAG, TEXT) do if (flags & (FLAG)) { sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); } while (0)
+
+#define F(FLAG, TEXT) do {                                         \
+    if (flags & (FLAG)) {                                          \
+      sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); \
+    }                                                              \
+  } while (0)
+
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
 	F(MS_NODEV, nodev);
@@ -109,7 +115,7 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 #undef F
 	// Render any flags that are unaccounted for.
 	if (flags) {
-		char of[128];
+		char of[128] = { 0 };
 		sc_must_snprintf(of, sizeof of, "%#lx", flags);
 		sc_string_append(buf, buf_size, of);
 	}
@@ -197,7 +203,7 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 	}
 	// If regular option syntax exists then use it.
 	if (mountflags & ~used_special_flags) {
-		char opts_buf[1000];
+		char opts_buf[1000] = { 0 };
 		sc_mount_opt2str(opts_buf, sizeof opts_buf, mountflags &
 				 ~used_special_flags);
 		sc_string_append(buf, buf_size, " -o ");
@@ -245,26 +251,24 @@ const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 	return buf;
 }
 
+#ifndef SNAP_CONFINE_DEBUG_BUILD
+static const char *use_debug_build =
+    "(disabled) use debug build to see details";
+#endif
+
 void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
 		 const void *data)
 {
-	char buf[10000];
+	char buf[10000] = { 0 };
 	const char *mount_cmd = NULL;
-
-	void ensure_mount_cmd() {
-		if (mount_cmd != NULL) {
-			return;
-		}
-		mount_cmd = sc_mount_cmd(buf, sizeof buf, source,
-					 target, fs_type, mountflags, data);
-	}
 
 	if (sc_is_debug_enabled()) {
 #ifdef SNAP_CONFINE_DEBUG_BUILD
-		ensure_mount_cmd();
+		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
+					 target, fs_type, mountflags, data);
 #else
-		mount_cmd = "(disabled) use debug build to see details";
+		mount_cmd = use_debug_build;
 #endif
 		debug("performing operation: %s", mount_cmd);
 	}
@@ -278,8 +282,8 @@ void sc_do_mount(const char *source, const char *target,
 		sc_privs_drop();
 
 		// Compute the equivalent mount command.
-		ensure_mount_cmd();
-
+		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
+					 target, fs_type, mountflags, data);
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", mount_cmd);
@@ -288,21 +292,14 @@ void sc_do_mount(const char *source, const char *target,
 
 void sc_do_umount(const char *target, int flags)
 {
-	char buf[10000];
+	char buf[10000] = { 0 };
 	const char *umount_cmd = NULL;
-
-	void ensure_umount_cmd() {
-		if (umount_cmd != NULL) {
-			return;
-		}
-		umount_cmd = sc_umount_cmd(buf, sizeof buf, target, flags);
-	}
 
 	if (sc_is_debug_enabled()) {
 #ifdef SNAP_CONFINE_DEBUG_BUILD
-		ensure_umount_cmd();
+		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
 #else
-		umount_cmd = "(disabled) use debug build to see details";
+		umount_cmd = use_debug_build;
 #endif
 		debug("performing operation: %s", umount_cmd);
 	}
@@ -315,8 +312,7 @@ void sc_do_umount(const char *target, int flags)
 		sc_privs_drop();
 
 		// Compute the equivalent umount command.
-		ensure_umount_cmd();
-
+		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", umount_cmd);

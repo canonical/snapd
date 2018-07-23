@@ -28,33 +28,10 @@ import (
 )
 
 type discardSnapSuite struct {
-	state   *state.State
-	snapmgr *snapstate.SnapManager
-
-	fakeBackend *fakeSnappyBackend
-
-	reset func()
+	baseHandlerSuite
 }
 
 var _ = Suite(&discardSnapSuite{})
-
-func (s *discardSnapSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
-
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
-}
-
-func (s *discardSnapSuite) TearDownTest(c *C) {
-	s.reset()
-}
 
 func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
@@ -77,8 +54,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -111,8 +88,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -143,8 +120,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -176,8 +153,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()

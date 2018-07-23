@@ -20,7 +20,6 @@
 package snaptest_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestSnapTest(t *testing.T) { TestingT(t) }
@@ -44,7 +44,6 @@ plugs:
  network:
   interface: network
 `
-const sampleContents = ""
 
 type snapTestSuite struct{}
 
@@ -59,26 +58,72 @@ func (s *snapTestSuite) TearDownTest(c *C) {
 }
 
 func (s *snapTestSuite) TestMockSnap(c *C) {
-	snapInfo := snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is placed on disk
-	cont, err := ioutil.ReadFile(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"))
-	c.Assert(err, IsNil)
-
-	c.Check(string(cont), Equals, sampleYaml)
+	c.Check(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"),
+		testutil.FileEquals, sampleYaml)
 
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
 }
 
+func (s *snapTestSuite) TestMockSnapInstance(c *C) {
+	snapInfo := snaptest.MockSnapInstance(c, "sample_instance", sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML and parameters is used
+	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo.SnapName(), Equals, "sample")
+	c.Check(snapInfo.InstanceKey, Equals, "instance")
+
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is placed on disk
+	c.Check(filepath.Join(dirs.SnapMountDir, "sample_instance", "42", "meta", "snap.yaml"),
+		testutil.FileEquals, sampleYaml)
+
+	// More
+	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+}
+
+func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
+	snapInfo := snaptest.MockSnapCurrent(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML is used
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is placed on disk
+	c.Check(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"),
+		testutil.FileEquals, sampleYaml)
+	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample", "current"))
+	c.Check(err, IsNil)
+	c.Check(link, Equals, filepath.Join(dirs.SnapMountDir, "sample", "42"))
+}
+
+func (s *snapTestSuite) TestMockSnapInstanceCurrent(c *C) {
+	snapInfo := snaptest.MockSnapInstanceCurrent(c, "sample_instance", sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML and parameters is used
+	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo.SnapName(), Equals, "sample")
+	c.Check(snapInfo.InstanceKey, Equals, "instance")
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is placed on disk
+	c.Check(filepath.Join(dirs.SnapMountDir, "sample_instance", "42", "meta", "snap.yaml"),
+		testutil.FileEquals, sampleYaml)
+	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample_instance", "current"))
+	c.Check(err, IsNil)
+	c.Check(link, Equals, filepath.Join(dirs.SnapMountDir, "sample_instance", "42"))
+}
+
 func (s *snapTestSuite) TestMockInfo(c *C) {
 	snapInfo := snaptest.MockInfo(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is *not* placed on disk
@@ -92,7 +137,7 @@ func (s *snapTestSuite) TestMockInfo(c *C) {
 func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 	snapInfo := snaptest.MockInvalidInfo(c, sampleYaml+"\nslots:\n network:\n", &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is *not* placed on disk
@@ -104,4 +149,52 @@ func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 	c.Check(snapInfo.Slots["network"].Interface, Equals, "network")
 	// They info object is not valid
 	c.Check(snap.Validate(snapInfo), ErrorMatches, `cannot have plug and slot with the same name: "network"`)
+}
+
+func (s *snapTestSuite) TestRenameSlot(c *C) {
+	snapInfo := snaptest.MockInfo(c, `name: core
+version: 0
+slots:
+  old:
+    interface: interface
+  slot:
+    interface: interface
+plugs:
+  plug:
+    interface: interface
+apps:
+  app:
+hooks:
+  configure:
+`, nil)
+
+	// Rename "old" to "plug"
+	err := snaptest.RenameSlot(snapInfo, "old", "plug")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "plug": existing plug with that name`)
+
+	// Rename "old" to "slot"
+	err = snaptest.RenameSlot(snapInfo, "old", "slot")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "slot": existing slot with that name`)
+
+	// Rename "old" to "bad name"
+	err = snaptest.RenameSlot(snapInfo, "old", "bad name")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "bad name": invalid slot name: "bad name"`)
+
+	// Rename "old" to "new"
+	err = snaptest.RenameSlot(snapInfo, "old", "new")
+	c.Assert(err, IsNil)
+
+	// Check that there's no trace of the old slot name.
+	c.Assert(snapInfo.Slots["old"], IsNil)
+	c.Assert(snapInfo.Slots["new"], NotNil)
+	c.Assert(snapInfo.Slots["new"].Name, Equals, "new")
+	c.Assert(snapInfo.Apps["app"].Slots["old"], IsNil)
+	c.Assert(snapInfo.Apps["app"].Slots["new"], DeepEquals, snapInfo.Slots["new"])
+	c.Assert(snapInfo.Hooks["configure"].Slots["old"], IsNil)
+	c.Assert(snapInfo.Hooks["configure"].Slots["new"], DeepEquals, snapInfo.Slots["new"])
+
+	// Rename "old" to "new" (again)
+	err = snaptest.RenameSlot(snapInfo, "old", "new")
+	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "new": no such slot`)
+
 }

@@ -7,7 +7,7 @@ environment:
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
@@ -18,6 +18,9 @@ environment:
     MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
+    SPREAD_STORE_EXPIRED_MACAROON: "$(HOST: echo $SPREAD_STORE_EXPIRED_MACAROON)"
+    SPREAD_STORE_EXPIRED_DISCHARGE: "$(HOST: echo $SPREAD_STORE_EXPIRED_DISCHARGE)"
+    SPREAD_DEBUG_EACH: "$(HOST: echo ${SPREAD_DEBUG_EACH:-1})"
     LANG: "$(echo ${LANG:-C.UTF-8})"
     LANGUAGE: "$(echo ${LANGUAGE:-en})"
     # important to ensure adhoc and linode/qemu behave the same
@@ -28,9 +31,10 @@ environment:
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
     GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
+    SNAPD_CHANNEL: "$(HOST: echo ${SPREAD_SNAPD_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
-    DELTA_REF: 2.17
+    DELTA_REF: 2.32.5
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
     HTTP_PROXY: "$(HOST: echo $SPREAD_HTTP_PROXY)"
@@ -38,31 +42,85 @@ environment:
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
+    PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
+    # always skip removing the rsync snap
+    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SPREAD_SKIP_REMOVE_SNAPS:-}) test-snapd-rsync test-snapd-rsync-core18"
 
 backends:
-    linode:
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+    google:
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
-                kernel: GRUB 2
+                workers: 6
+            - ubuntu-16.04-32:
+                workers: 6
+            - ubuntu-16.04-64:
+                workers: 8
+            - ubuntu-18.04-64:
+                workers: 6
+
+            - ubuntu-core-16-64:
+                image: ubuntu-16.04-64
+                workers: 6
+            - ubuntu-core-18-64:
+                image: ubuntu-16.04-64
+                workers: 6
+
+            - debian-9-64:
+                workers: 6
+            - debian-sid-64:
+                workers: 6
+                manual: true
+
+            - fedora-26-64:
+                workers: 4
+                manual: true
+            - fedora-27-64:
+                image: fedora-27-64-selinux-permissive
+                workers: 4
+                manual: true
+            - fedora-28-64:
+                workers: 4
+
+            - opensuse-42.3-64:
+                workers: 4
+            - arch-linux-64:
+                workers: 4
+
+    google-sru:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-14.04-64:
                 workers: 4
             - ubuntu-16.04-64:
-                kernel: GRUB 2
                 workers: 4
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
+            - ubuntu-17.10-64:
                 workers: 4
-            - ubuntu-core-16-64:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
+            - ubuntu-18.04-64:
                 workers: 4
-            - debian-unstable-64:
-                kernel: GRUB 2
-                workers: 4
-    qemu:
+
+    linode:
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        plan: 4GB
+        location: Fremont
+        halt-timeout: 2h
         environment:
-            APT_PROXY: "$(HOST: echo $APT_PROXY)"
+            # Using proxy can help to accelerate testing in local conditions
+            # but it is unlikely anyone has a proxy that is addressable from
+            # Linode network. As such, don't honor host's SPREAD_HTTP_PROXY
+            # that was set globally above.
+            HTTP_PROXY: null
+            HTTPS_PROXY: null
+        systems:
+            - fedora-25-64:
+                workers: 4
+                manual: true
+
+    qemu:
         systems:
             - ubuntu-14.04-32:
                 username: ubuntu
@@ -80,18 +138,40 @@ backends:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
-            - ubuntu-16.10-64:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-17.04-64:
+            - ubuntu-core-18-64:
+                image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.10-64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-18.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-32:
+                username: ubuntu
+                password: ubuntu
+            - debian-sid-64:
+                username: debian
+                password: debian
             - debian-9-64:
                 username: debian
                 password: debian
+            - debian-sid-64:
+                username: debian
+                password: debian
+            - fedora-26-64:
+                username: fedora
+                password: fedora
+            - fedora-27-64:
+                username: fedora
+                password: fedora
     autopkgtest:
         type: adhoc
         allocate: |
@@ -125,30 +205,7 @@ backends:
             - ubuntu-16.04-armhf:
                 username: ubuntu
                 password: ubuntu
-            # Yakkety
-            - ubuntu-16.10-amd64:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-i386:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-ppc64el:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-armhf:
-                username: ubuntu
-                password: ubuntu
-            # Zesty
-            - ubuntu-17.04-amd64:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-17.04-i386:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-17.04-ppc64el:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-17.04-armhf:
+            - ubuntu-16.04-s390x:
                 username: ubuntu
                 password: ubuntu
             # Artful
@@ -164,22 +221,60 @@ backends:
             - ubuntu-17.10-armhf:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            # Bionic
+            - ubuntu-18.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Cosmic
+            - ubuntu-18.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-arm64:
+                username: ubuntu
+                password: ubuntu
     external:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
             MANAGED_DEVICE: "true"
+            TRUST_TEST_KEYS: "false"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
             - ubuntu-core-16-64:
-                environment:
-                    TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
             - ubuntu-core-16-32:
-                environment:
-                    TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
             - ubuntu-core-16-arm-64:
@@ -200,27 +295,25 @@ exclude:
     - "*.o"
     - "*.a"
 
-prepare-each: |
-    # systemd on 14.04 does not know about --rotate
-    # or --vacuum-time.
-    # TODO: Find a way to clean out systemd logs on
-    # systemd 204.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    fi
-    dmesg -c > /dev/null
 
 debug-each: |
-    echo '# journal messages for snapd'
-    journalctl -u snapd
-    echo '# apparmor denials '
-    dmesg --ctime | grep DENIED || true
-    echo '# seccomp denials (kills) '
-    dmesg --ctime | grep type=1326 || true
-    echo '# snap interfaces'
-    snap interfaces || true
+    if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+        # shellcheck source=tests/lib/journalctl.sh
+        . "$TESTSLIB/journalctl.sh"
+        #shellcheck source=tests/lib/state.sh
+        . "$TESTSLIB/state.sh"
+
+        echo '# journal messages for snapd'
+        get_journalctl_log -u snapd
+        echo '# apparmor denials '
+        dmesg --ctime | grep DENIED || true
+        echo '# seccomp denials (kills) '
+        dmesg --ctime | grep type=1326 || true
+        echo '# snap interfaces'
+        snap interfaces || true
+        echo '# tasks executed on system'
+        cat "$RUNTIME_STATE_PATH/runs" || true
+    fi
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -232,13 +325,13 @@ repack: |
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo $SPREAD_BACKENDS | grep linode; then
+    if ! echo "$SPREAD_BACKENDS" | grep linode; then
         cat <&3 >&4
-    elif ! git show-ref $DELTA_REF > /dev/null; then
+    elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
     else
         trap "rm -f delta-ref.tar current.delta" EXIT
-        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
         xdelta3 -s delta-ref.tar <&3 > current.delta
         tar c current.delta >&4
     fi
@@ -246,92 +339,129 @@ repack: |
 kill-timeout: 20m
 
 prepare: |
-    # check if running inside a container, the testsuite will not
-    # work in such an environment
-    if systemd-detect-virt -c; then
-        echo "Tests cannot run inside a container"
-        exit 1
-    fi
+    # NOTE: This part of the code needs to be in spread.yaml as it runs before
+    # the rest of the source code (including the tests/lib directory) is
+    # around. The purpose of this code is to fix some connectivity issues and
+    # then apply the delta of the git repository.
 
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
-    cat <<EOF > /etc/gai.conf
+    cat <<EOF > gai.conf
     precedence  ::1/128       50
     precedence  ::/0          40
     precedence  2002::/16     30
     precedence ::/96          20
     precedence ::ffff:0:0/96 100
     EOF
+    if ! mv gai.conf /etc/gai.conf; then
+        echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
+        rm -f gai.conf
+    fi
 
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # The Fedora archive mirror seems to be unreliable.
+        # Switch to the main archive by commenting out metalink and uncommenting
+        # baseurl with a tweak to go to dl.fedoraproject.org which doens't redirect
+        # to mirrors again.
+        #
+        # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
+        sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+        dnf --refresh -y makecache
+    fi
+    if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # We seem to be hitting a flaky openSUSE mirror from time to time,
+        # increase the number of download attempts libzypp will try to
+        # workaround that.
+        cat <<-EOF >> /etc/zypp/zypp.conf
+
+    # added by spread tests
+    download.max_silent_tries = 20
+    EOF
+
+    fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
         tf=$(mktemp)
-        # poor-man's "quiet"
-        apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-        apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+        # NOTE: We can't use tests/lib/pkgdb.sh here as it doesn't exist at
+        # this time when none of the test files is yet in place.
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*|debian-*)
+                apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
+                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+                ;;
+            fedora-*)
+                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            opensuse-*)
+                zypper -q --gpg-auto-import-keys refresh
+                zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            arch-*)
+                # NOTE: we ought to do pacman -Syu, but this may update the
+                # kernel which we will not detect at this stage and fail to
+                # reboot; actual distro upgrade is done later in prepare
+                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+        esac
         rm -f "$tf"
-        curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
         xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
-    elif [ -d $DELTA_PREFIX ]; then
-        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
-        rmdir $DELTA_PREFIX
+    elif [ -d "$DELTA_PREFIX" ]; then
+        find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir "$DELTA_PREFIX"
     fi
 
-    . "$TESTSLIB/prepare-project.sh"
+    # Take the MATCH and REBOOT functions from spread and allow our shell scripts to use them.
+    type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
+    type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
 
+    # NOTE: At this stage the source tree is available and no more special
+    # considerations apply.
+    "$TESTSLIB"/prepare-restore.sh --prepare-project
+prepare-each: |
+    "$TESTSLIB"/prepare-restore.sh --prepare-project-each
 restore: |
-    if [ "$SPREAD_BACKEND" = external ]; then
-        # start and enable autorefresh
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            systemctl enable --now snapd.refresh.timer
-            snap set core refresh.disabled=false
-        fi
-    fi
-
-    rm -f $SPREAD_PATH/snapd-state.tar.gz
+    "$TESTSLIB"/prepare-restore.sh --restore-project
+restore-each: |
+    "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    # XXX: something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
         prepare: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                prepare_each_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            $TESTSLIB/reset.sh --store
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
-                distro_purge_package snapd
-                distro_purge_package snap-confine
-            fi
-
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+    tests/core18/:
+        summary: Subset of core18 specific tests
+        systems: [ubuntu-core-18-*]
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
     tests/completion/:
         summary: completion tests
-
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
         systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
-
         prepare: |
-            . $TESTSLIB/prepare.sh
-            prepare_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
-            prepare_each_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            $TESTSLIB/reset.sh --store
-            apt-get purge -y snapd
-
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
         environment:
           _/plain: _
           _/plain_plusdirs: _
@@ -350,40 +480,46 @@ suites:
     tests/regression/:
         summary: Regression tests for snapd
         prepare: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            $TESTSLIB/reset.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-*]
+        # Test cases are not yet ported to openSUSE that is why we keep
+        # it disabled. A later PR will enable most tests and
+        # drop this blacklist.
+        systems: [-ubuntu-core-*, -opensuse-*]
+        # autopkgtest runs against localhost which causes problems with
+        # this test prepare
+        backends: [-autopkgtest]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            apt-get purge -y snapd
         restore-each: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            $TESTSLIB/reset.sh
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package snapd
+            distro_purge_package snapd-xdg-open || true
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
-        systems: [-ubuntu-core-16-*]
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+        # unittests are run as part of the autopkgtest build already
+        backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
@@ -395,47 +531,84 @@ suites:
             TRAVIS_REPO_SLUG: "$(HOST: echo $TRAVIS_REPO_SLUG)"
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
-
         prepare: |
-            . $TESTSLIB/prepare.sh
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_classic
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
+            "$TESTSLIB"/reset.sh --reuse-core
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         restore: |
-            $TESTSLIB/reset.sh --store
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            "$TESTSLIB"/reset.sh --store
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
+        systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            #shellcheck source=tests/lib/systems.sh
+            . "$TESTSLIB"/systems.sh
+            if is_core_system; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh --reuse-core
         restore: |
-            $TESTSLIB/reset.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh
+            #shellcheck source=tests/lib/systems.sh
+            . "$TESTSLIB"/systems.sh
+            if is_classic_system; then
+                #shellcheck source=tests/lib/pkgdb.sh
+                . "$TESTSLIB"/pkgdb.sh
+                distro_purge_package snapd
             fi
 
     tests/nested/:
         summary: Tests for nested images
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
+        systems: [-fedora-*, -opensuse-*]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
         halt-timeout: 2h
         kill-timeout: 2h
         manual: true
         prepare: |
-            apt update && apt install -y snapd qemu genisoimage sshpass
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_update_package_db
+            distro_install_package snapd qemu genisoimage sshpass
+            snap install --classic --beta ubuntu-image
         restore: |
-            apt remove -y qemu genisoimage sshpass
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass
+            snap remove ubuntu-image
 
 # vim:ts=4:sw=4:et

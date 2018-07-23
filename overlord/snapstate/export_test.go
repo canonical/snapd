@@ -20,10 +20,12 @@
 package snapstate
 
 import (
-	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
 
-	"gopkg.in/tomb.v2"
-
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -34,53 +36,25 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
 
-type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *SnapSetup)
+func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+	old := snapReadInfo
+	snapReadInfo = mock
+	return func() { snapReadInfo = old }
 }
 
-// AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
-func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
-	// Add fake handlers for tasks handled by interfaces manager
-	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		kind := task.Kind()
-		status := task.Status()
-		snapsup, err := TaskSnapSetup(task)
-		task.State().Unlock()
-		if err != nil {
-			return err
-		}
+func MockMountPollInterval(intv time.Duration) (restore func()) {
+	old := mountPollInterval
+	mountPollInterval = intv
+	return func() { mountPollInterval = old }
+}
 
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
+func MockRevisionDate(mock func(info *snap.Info) time.Time) (restore func()) {
+	old := revisionDate
+	if mock == nil {
+		mock = revisionDateImpl
 	}
-	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
-	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
-	m.runner.AddHandler("validate-snap", fakeHandler, nil)
-	m.runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
-
-	// Add handler to test full aborting of changes
-	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return errors.New("error out")
-	}
-	m.runner.AddHandler("error-trigger", erroringHandler, nil)
-
-	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}, nil)
-}
-
-// AddAdhocTaskHandlers registers handlers for ad hoc test handler
-func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
-	m.runner.AddHandler(adhoc, do, undo)
-}
-
-func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
-	old := readInfo
-	readInfo = mock
-	return func() { readInfo = old }
+	revisionDate = mock
+	return func() { revisionDate = old }
 }
 
 func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
@@ -95,6 +69,12 @@ func MockErrtrackerReport(mock func(string, string, string, map[string]string) (
 	return func() { errtrackerReport = prev }
 }
 
+func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
+	old := prerequisitesRetryTimeout
+	prerequisitesRetryTimeout = d
+	return func() { prerequisitesRetryTimeout = old }
+}
+
 var (
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
@@ -102,6 +82,11 @@ var (
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
+	DoInstall              = doInstall
+	UserFromUserID         = userFromUserID
+	ValidateFeatureFlags   = validateFeatureFlags
+
+	DefaultContentPlugProviders = defaultContentPlugProviders
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -116,3 +101,96 @@ var (
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
 )
+
+// readme files
+var (
+	WriteSnapReadme = writeSnapReadme
+	SnapReadme      = snapReadme
+)
+
+// refreshes
+var (
+	NewAutoRefresh                = newAutoRefresh
+	NewRefreshHints               = newRefreshHints
+	NewCatalogRefresh             = newCatalogRefresh
+	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
+)
+
+func MockNextRefresh(ar *autoRefresh, when time.Time) {
+	ar.nextRefresh = when
+}
+
+func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
+	ar.lastRefreshSchedule = schedule
+}
+
+func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
+	cr.nextCatalogRefresh = when
+}
+
+func MockRefreshRetryDelay(d time.Duration) func() {
+	origRefreshRetryDelay := refreshRetryDelay
+	refreshRetryDelay = d
+	return func() {
+		refreshRetryDelay = origRefreshRetryDelay
+	}
+}
+
+func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
+	old := IsOnMeteredConnection
+	IsOnMeteredConnection = mock
+	return func() {
+		IsOnMeteredConnection = old
+	}
+}
+
+func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
+	sort.Sort(byKind(snaps))
+	return snaps
+}
+
+func MockModelWithBase(baseName string) (restore func()) {
+	return mockModel(fmt.Sprintf("base: %s", baseName))
+}
+
+func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
+	return mockModel(fmt.Sprintf("kernel-track: %s", kernelTrack))
+}
+
+func MockModel() (restore func()) {
+	return mockModel()
+}
+
+func mockModel(extras ...string) (restore func()) {
+	oldModel := Model
+
+	var extra string
+	if len(extras) > 0 {
+		extra = "\n" + strings.Join(extras, "\n")
+	}
+
+	mod := fmt.Sprintf(`type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel%s
+timestamp: 2018-01-01T08:00:00+00:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`, extra)
+	a, err := asserts.Decode([]byte(mod))
+	if err != nil {
+		panic(err)
+	}
+
+	Model = func(*state.State) (*asserts.Model, error) {
+		return a.(*asserts.Model), nil
+	}
+	return func() {
+		Model = oldModel
+	}
+}

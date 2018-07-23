@@ -32,26 +32,29 @@ import (
 )
 
 type cmdAlias struct {
+	waitMixin
 	Positionals struct {
-		SnapApp string `required:"yes"`
-		Alias   string `required:"yes"`
+		SnapApp appName `required:"yes"`
+		Alias   string  `required:"yes"`
 	} `positional-args:"true"`
 }
 
 // TODO: implement a completer for snapApp
 
-var shortAliasHelp = i18n.G("Sets up a manual alias")
+var shortAliasHelp = i18n.G("Set up a manual alias")
 var longAliasHelp = i18n.G(`
 The alias command aliases the given snap application to the given alias.
 
-Once this manual alias is setup the respective application command can be invoked just using the alias.
+Once this manual alias is setup the respective application command can be
+invoked just using the alias.
 `)
 
 func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
-	}, nil, []argDesc{
+	}, waitDescs, []argDesc{
 		{name: "<snap.app>"},
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<alias>")},
 	})
 }
@@ -61,7 +64,7 @@ func (x *cmdAlias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName, appName := snap.SplitSnapApp(x.Positionals.SnapApp)
+	snapName, appName := snap.SplitSnapApp(string(x.Positionals.SnapApp))
 	alias := x.Positionals.Alias
 
 	cli := Client()
@@ -69,16 +72,15 @@ func (x *cmdAlias) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	chg, err := wait(cli, id)
+	chg, err := x.wait(cli, id)
 	if err != nil {
-		return err
-	}
-	if err := showAliasChanges(chg); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
-	return nil
+	return showAliasChanges(chg)
 }
 
 type changedAlias struct {

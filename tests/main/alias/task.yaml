@@ -1,11 +1,13 @@
 summary: Check snap alias and snap unalias
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local aliases
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
 
     echo "Sanity check"
     aliases.cmd1|MATCH "ok command 1"
@@ -16,8 +18,8 @@ execute: |
     snap alias aliases.cmd2 alias2
 
     echo "Test the aliases"
-    test -h $SNAPMOUNTDIR/bin/alias1
-    test -h $SNAPMOUNTDIR/bin/alias2
+    test -h "$SNAP_MOUNT_DIR/bin/alias1"
+    test -h "$SNAP_MOUNT_DIR/bin/alias2"
     alias1|MATCH "ok command 1"
     alias2|MATCH "ok command 2"
 
@@ -30,7 +32,7 @@ execute: |
 
     echo "One still works, one is not there"
     alias1|MATCH "ok command 1"
-    test ! -e $SNAPMOUNTDIR/bin/alias2
+    test ! -e "$SNAP_MOUNT_DIR/bin/alias2"
     alias2 2>&1|MATCH "alias2: command not found"
 
     echo "Check listing again"
@@ -41,7 +43,7 @@ execute: |
     snap unalias aliases|MATCH ".*- aliases.cmd1 as alias1*"
 
     echo "Alias is gone"
-    test ! -e $SNAPMOUNTDIR/bin/alias1
+    test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
     alias1 2>&1|MATCH "alias1: command not found"
     ! snap aliases|MATCH "aliases.cmd1 +alias1"
 
@@ -51,5 +53,5 @@ execute: |
 
     echo "Removing the snap should remove the aliases"
     snap remove aliases
-    test ! -e $SNAPMOUNTDIR/bin/alias1
-    test ! -e $SNAPMOUNTDIR/bin/alias2
+    test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
+    test ! -e "$SNAP_MOUNT_DIR/bin/alias2"

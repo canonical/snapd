@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (cs *clientSuite) TestClientLogin(c *check.C) {
@@ -53,9 +54,42 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	c.Assert(cs.cli.LoggedInUser(), check.Not(check.IsNil))
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
+	c.Check(outfile, testutil.FileEquals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+}
+
+func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
+	cs.rsp = `{"type": "sync", "result":
+                     {"username": "the-user-name",
+                      "email": "zed@bar.com",
+                      "macaroon": "the-root-macaroon",
+                      "discharges": ["discharge-macaroon"]}}`
+
+	outfile := filepath.Join(c.MkDir(), "json")
+	os.Setenv(client.TestAuthFileEnvKey, outfile)
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
+
+	err := ioutil.WriteFile(outfile, []byte(`{"email":"foo@bar.com","macaroon":"macaroon"}`), 0600)
+	c.Assert(err, check.IsNil)
+	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, &client.User{
+		Email:    "foo@bar.com",
+		Macaroon: "macaroon",
+	})
+
+	user, err := cs.cli.Login("username", "pass", "")
+	expected := &client.User{
+		Email:      "zed@bar.com",
+		Username:   "the-user-name",
+		Macaroon:   "the-root-macaroon",
+		Discharges: []string{"discharge-macaroon"},
+	}
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+	c.Check(user, check.DeepEquals, expected)
+	c.Check(cs.req.Header.Get("Authorization"), check.Matches, `Macaroon root="macaroon"`)
+
+	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, expected)
+
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	c.Check(outfile, testutil.FileEquals, `{"username":"the-user-name","email":"zed@bar.com","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
 func (cs *clientSuite) TestClientLoginError(c *check.C) {
@@ -109,9 +143,7 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
+	c.Check(outfile, testutil.FileEquals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
 }
 
 func (cs *clientSuite) TestReadAuthData(c *check.C) {

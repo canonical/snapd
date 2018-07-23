@@ -20,43 +20,23 @@
 package snapstate_test
 
 import (
+	"path/filepath"
+	"time"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type mountSnapSuite struct {
-	state   *state.State
-	snapmgr *snapstate.SnapManager
-
-	fakeBackend *fakeSnappyBackend
-
-	reset func()
+	baseHandlerSuite
 }
 
 var _ = Suite(&mountSnapSuite{})
-
-func (s *mountSnapSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
-
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
-}
-
-func (s *mountSnapSuite) TearDownTest(c *C) {
-	s.reset()
-}
 
 func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
@@ -77,8 +57,8 @@ func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	c.Assert(osutil.FileExists(testSnap), Equals, true)
 }
@@ -118,8 +98,8 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -128,18 +108,204 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
-			old: "/snap/core/1",
+			old: filepath.Join(dirs.SnapMountDir, "core/1"),
 		},
 		{
 			op:    "setup-snap",
-			name:  testSnap,
+			path:  testSnap,
 			revno: snap.R(2),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/core/2",
+			path:  filepath.Join(dirs.SnapMountDir, "core/2"),
 			stype: "os",
 		},
 	})
 
+}
+
+func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
+	v1 := "name: borken\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "borken",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "borken",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "borken", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot read info for "borken" snap.*`)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "borken/1"),
+		},
+		{
+			op:    "setup-snap",
+			path:  testSnap,
+			revno: snap.R(2),
+		},
+		{
+			op:    "undo-setup-snap",
+			path:  filepath.Join(dirs.SnapMountDir, "borken/2"),
+			stype: "app",
+		},
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
+	r := snapstate.MockMountPollInterval(10 * time.Millisecond)
+	defer r()
+
+	v1 := "name: not-there\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "not-there",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "not-there",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "not-there", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot proceed, expected snap "not-there" revision 2 to be mounted but is not.*`)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "not-there/1"),
+		},
+		{
+			op:    "setup-snap",
+			path:  testSnap,
+			revno: snap.R(2),
+		},
+		{
+			op:    "undo-setup-snap",
+			path:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
+			stype: "app",
+		},
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
+	r := snapstate.MockMountPollInterval(10 * time.Millisecond)
+	defer r()
+	n := 0
+	slowMountedReadInfo := func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		n++
+		if n < 3 {
+			return nil, &snap.NotFoundError{Snap: "not-there", Revision: si.Revision}
+		}
+		return &snap.Info{
+			SideInfo: *si,
+		}, nil
+	}
+
+	r1 := snapstate.MockSnapReadInfo(slowMountedReadInfo)
+	defer r1()
+
+	v1 := "name: not-there\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "not-there",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "not-there",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "not-there", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "not-there/1"),
+		},
+		{
+			op:    "setup-snap",
+			path:  testSnap,
+			revno: snap.R(2),
+		},
+	})
 }

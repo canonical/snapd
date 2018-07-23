@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/xdgopenproxy"
 )
 
 var clientConfig = client.Config{
@@ -38,6 +39,23 @@ var clientConfig = client.Config{
 }
 
 func main() {
+	// check for internal commands
+	if len(os.Args) > 2 && os.Args[1] == "internal" {
+		switch os.Args[2] {
+		case "configure-core":
+			fmt.Fprintf(os.Stderr, "no internal core configuration anymore")
+			os.Exit(1)
+		}
+	}
+	if len(os.Args) == 3 && os.Args[1] == "user-open" {
+		if err := xdgopenproxy.Run(os.Args[2]); err != nil {
+			fmt.Fprintf(os.Stderr, "user-open error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	// no internal command, route via snapd
 	stdout, stderr, err := run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -56,8 +74,13 @@ func main() {
 func run() (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
+	cookie := os.Getenv("SNAP_COOKIE")
+	// for compatibility, if re-exec is not enabled and facing older snapd.
+	if cookie == "" {
+		cookie = os.Getenv("SNAP_CONTEXT")
+	}
 	return cli.RunSnapctl(&client.SnapCtlOptions{
-		ContextID: os.Getenv("SNAP_CONTEXT"),
+		ContextID: cookie,
 		Args:      os.Args[1:],
 	})
 }

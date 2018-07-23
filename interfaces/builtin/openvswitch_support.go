@@ -21,13 +21,29 @@ package builtin
 
 const openvswitchSupportSummary = `allows operating as the openvswitch service`
 
+const openvswitchSupportBaseDeclarationSlots = `
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
+const openvswitchSupportConnectedPlugAppArmor = `
+/run/uuidd/request rw,
+`
+
 var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
 
 func init() {
 	registerIface(&commonInterface{
 		name:                     "openvswitch-support",
-		summary:                  openvswitchSummary,
+		summary:                  openvswitchSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
+		connectedPlugAppArmor:    openvswitchSupportConnectedPlugAppArmor,
 		reservedForOS:            true,
 	})
 }

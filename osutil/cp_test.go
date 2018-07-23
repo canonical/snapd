@@ -63,7 +63,7 @@ func (s *cpSuite) µ(msg string) (err error) {
 		}
 	}
 
-	return
+	return err
 }
 
 func (s *cpSuite) SetUpTest(c *C) {
@@ -88,9 +88,7 @@ func (s *cpSuite) TearDownTest(c *C) {
 
 func (s *cpSuite) TestCp(c *C) {
 	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
-	bs, err := ioutil.ReadFile(s.f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, s.data)
+	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestCpNoOverwrite(c *C) {
@@ -103,17 +101,13 @@ func (s *cpSuite) TestCpOverwrite(c *C) {
 	_, err := os.Create(s.f2)
 	c.Assert(err, IsNil)
 	c.Check(CopyFile(s.f1, s.f2, CopyFlagOverwrite), IsNil)
-	bs, err := ioutil.ReadFile(s.f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, s.data)
+	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestCpOverwriteTruncates(c *C) {
 	c.Assert(ioutil.WriteFile(s.f2, []byte("xxxxxxxxxxxxxxxx"), 0644), IsNil)
 	c.Check(CopyFile(s.f1, s.f2, CopyFlagOverwrite), IsNil)
-	bs, err := ioutil.ReadFile(s.f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, s.data)
+	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestCpSync(c *C) {

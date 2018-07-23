@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 )
 
 // Add the given assertion to the system assertion database.
@@ -105,12 +104,12 @@ func (b *Batch) Commit(st *state.State) error {
 	db := cachedDB(st)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
-		if err == asserts.ErrNotFound {
+		if asserts.IsNotFound(err) {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
+			return nil, findError("cannot find %s", ref, err)
 		}
 		return a, nil
 	}
@@ -129,6 +128,14 @@ func (b *Batch) Commit(st *state.State) error {
 	return f.commit()
 }
 
+func findError(format string, ref *asserts.Ref, err error) error {
+	if asserts.IsNotFound(err) {
+		return fmt.Errorf(format, ref)
+	} else {
+		return fmt.Errorf(format+": %v", ref, err)
+	}
+}
+
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
 func RefreshSnapDeclarations(s *state.State, userID int) error {
 	snapStates, err := snapstate.All(s)
@@ -145,7 +152,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 				continue
 			}
 			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
-				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.Name(), err)
+				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
 			}
 		}
 		return nil
@@ -168,8 +175,13 @@ func (e *refreshControlError) Error() string {
 	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
 }
 
-// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated.
-func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (validated []*snap.Info, err error) {
+// ValidateRefreshes validates the refresh candidate revisions
+// represented by the snapInfos, looking for the needed refresh
+// control validation assertions, it returns a validated subset in
+// validated and a summary error if not all candidates
+// validated. ignoreValidation is a set of snap-ids that should not be
+// gated.
+func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
 	// maps gating snap-ids to their snap names
@@ -194,7 +206,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			"snap-id": gatingID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q (id %q): err", snapName, gatingID)
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", snapName, err)
 		}
 		decl := a.(*asserts.SnapDeclaration)
 		control := decl.RefreshControl()
@@ -203,7 +215,9 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 		}
 		gatingNames[gatingID] = decl.SnapName()
 		for _, gatedID := range control {
-			controlled[gatedID] = append(controlled[gatedID], gatingID)
+			if !ignoreValidation[gatedID] {
+				controlled[gatedID] = append(controlled[gatedID], gatingID)
+			}
 		}
 	}
 
@@ -225,7 +239,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
 				}
 				err := f.Fetch(valref)
-				if notFound, ok := err.(*store.AssertionNotFoundError); ok && notFound.Ref.Type == asserts.ValidationType {
+				if notFound, ok := err.(*asserts.NotFoundError); ok && notFound.Type == asserts.ValidationType {
 					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
 				}
 				if err != nil {
@@ -237,7 +251,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 		}
 		err := doFetch(s, userID, fetching)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.Name(), candInfo.Revision, err))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
 			continue
 		}
 
@@ -245,7 +259,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 		for _, valref := range validationRefs {
 			a, err := valref.Resolve(db.Find)
 			if err != nil {
-				return nil, fmt.Errorf("internal error: cannot find just fetched %v: %v", valref, err)
+				return nil, findError("internal error: cannot find just fetched %v", valref, err)
 			}
 			if val := a.(*asserts.Validation); val.Revoked() {
 				revoked = val
@@ -253,7 +267,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			}
 		}
 		if revoked != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.InstanceName(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
 			continue
 		}
 
@@ -267,20 +281,13 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 	return validated, nil
 }
 
-func init() {
-	// hook validation of refreshes into snapstate logic
-	snapstate.ValidateRefreshes = ValidateRefreshes
-	// hook auto refresh of assertions into snapstate
-	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
-}
-
 // BaseDeclaration returns the base-declaration assertion with policies governing all snaps.
 func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
 	// TODO: switch keeping this in the DB and have it revisioned/updated
 	// via the store
 	baseDecl := asserts.BuiltinBaseDeclaration()
 	if baseDecl == nil {
-		return nil, asserts.ErrNotFound
+		return nil, &asserts.NotFoundError{Type: asserts.BaseDeclarationType}
 	}
 	return baseDecl, nil
 }
@@ -318,6 +325,19 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
+// Store returns the store assertion with the given name/id if it is
+// present in the system assertion database.
+func Store(s *state.State, store string) (*asserts.Store, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.StoreType, map[string]string{
+		"store": store,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.Store), nil
+}
+
 // AutoAliases returns the explicit automatic aliases alias=>app mapping for the given installed snap.
 func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	if info.SnapID == "" {
@@ -326,7 +346,7 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	decl, err := SnapDeclaration(s, info.SnapID)
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
+		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.InstanceName(), err)
 	}
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {
@@ -351,7 +371,11 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	return res, nil
 }
 
-func init() {
+func delayedCrossMgrInit() {
+	// hook validation of refreshes into snapstate logic
+	snapstate.ValidateRefreshes = ValidateRefreshes
+	// hook auto refresh of assertions into snapstate
+	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
 }

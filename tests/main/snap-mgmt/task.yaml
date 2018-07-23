@@ -1,0 +1,84 @@
+summary: Check that snap-mgmt.sh works
+
+# purging everything on core devices will not work
+systems: [-ubuntu-core-*]
+
+prepare: |
+    . $TESTSLIB/dirs.sh
+    . $TESTSLIB/snaps.sh
+
+    snap install test-snapd-tools
+    snap list | MATCH test-snapd-tools
+
+    # a snap with services
+    install_local test-snapd-service
+    snap list | MATCH test-snapd-service
+
+    # a snap with timers
+    install_local test-snapd-timer-service
+    snap list | MATCH test-snapd-timer-service
+
+    # a snap with DBus policy files
+    snap install test-snapd-network-status-provider
+    snap list | MATCH test-snapd-network-status-provider
+
+    before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
+    if [ "$before" -lt 2 ]; then
+        echo "${SNAP_MOUNT_DIR} empty - test setup broken"
+        exit 1
+    fi
+
+    echo "test service is known to systemd and enabled"
+    systemctl list-unit-files --type service --no-legend | MATCH 'snap.test-snapd-service\..*\.service\s+enabled'
+
+    # expecting to find various files that snap installation produced
+    test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -gt 0
+    test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -gt 0
+    test $(find /etc/systemd/system -name 'snap.*.timer' | wc -l) -gt 0
+
+execute: |
+    echo "Stop snapd before purging"
+    systemctl stop snapd.service snapd.socket
+
+    . $TESTSLIB/dirs.sh
+
+    echo "A purge will really purge things"
+    $LIBEXECDIR/snapd/snap-mgmt --purge
+
+    echo "Data directories are empty"
+    emptydirs="${SNAP_MOUNT_DIR} \
+               /var/snap \
+               /var/lib/snapd/desktop/applications/ \
+               /var/lib/snapd/seccomp/bpf/ \
+               /var/lib/snapd/device/ \
+               /var/lib/snapd/assertions/ \
+               /var/lib/snapd/cookie/ \
+               /var/lib/snapd/cache/ \
+               "
+    for d in $emptydirs ; do
+        n=$(find $d  | wc -l)
+        if [ "$n" -gt 1 ]; then
+            echo "$d not empty after snap-mgmt.sh purge"
+            ls -lR $d
+            exit 1
+        fi
+    done
+
+    echo "State file is gone"
+    ! test -f /var/lib/snapd/state.json
+    echo "And so is the system key"
+    ! test -f /var/lib/snapd/system-key
+
+    echo "Preserved namespaces directory is not mounted"
+    ! cat /proc/mounts | MATCH "/run/snapd/ns"
+
+    systemctl daemon-reload
+    echo "Snap *.service files are removed"
+    ! systemctl list-unit-files --type service | MATCH "^snap.test-snapd-service.*\.service"
+
+    echo "No dangling service symlinks are left behind"
+    test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
+
+    test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -eq 0
+    test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -eq 0
+    test $(find /etc/systemd/system -name 'snap.*.timer' | wc -l) -eq 0

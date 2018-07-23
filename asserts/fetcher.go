@@ -60,13 +60,13 @@ func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), sa
 }
 
 func (f *fetcher) chase(ref *Ref, a Assertion) error {
-	// check if ref points to a trusted assertion, in which case
+	// check if ref points to predefined assertion, in which case
 	// there is nothing to do
-	_, err := ref.Resolve(f.db.FindTrusted)
+	_, err := ref.Resolve(f.db.FindPredefined)
 	if err == nil {
 		return nil
 	}
-	if err != ErrNotFound {
+	if !IsNotFound(err) {
 		return err
 	}
 	u := ref.Unique()
@@ -74,7 +74,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	case fetchSaved:
 		return nil // nothing to do
 	case fetchRetrieved:
-		return fmt.Errorf("internal error: circular assertions are not expected: %s", ref)
+		return fmt.Errorf("circular assertions are not expected: %s", ref)
 	}
 	if a == nil {
 		retrieved, err := f.retrieve(ref)

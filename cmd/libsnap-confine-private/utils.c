@@ -66,23 +66,26 @@ static const struct sc_bool_name sc_bool_names[] = {
 };
 
 /**
- * Convert string to a boolean value.
+ * Convert string to a boolean value, with a default.
  *
  * The return value is 0 in case of success or -1 when the string cannot be
  * converted correctly. In such case errno is set to indicate the problem and
  * the value is not written back to the caller-supplied pointer.
+ *
+ * If the text cannot be recognized, the default value is used.
  **/
-static int str2bool(const char *text, bool * value)
+static int parse_bool(const char *text, bool * value, bool default_value)
 {
 	if (value == NULL) {
 		errno = EFAULT;
 		return -1;
 	}
 	if (text == NULL) {
-		*value = false;
+		*value = default_value;
 		return 0;
 	}
-	for (int i = 0; i < sizeof sc_bool_names / sizeof *sc_bool_names; ++i) {
+	for (size_t i = 0; i < sizeof sc_bool_names / sizeof *sc_bool_names;
+	     ++i) {
 		if (strcmp(text, sc_bool_names[i].text) == 0) {
 			*value = sc_bool_names[i].value;
 			return 0;
@@ -95,15 +98,16 @@ static int str2bool(const char *text, bool * value)
 /**
  * Get an environment variable and convert it to a boolean.
  *
- * Supported values are those of str2bool(), namely "yes", "no" as well as "1"
+ * Supported values are those of parse_bool(), namely "yes", "no" as well as "1"
  * and "0". All other values are treated as false and a diagnostic message is
- * printed to stderr.
+ * printed to stderr. If the environment variable is unset, set value to the
+ * default_value as if the environment variable was set to default_value.
  **/
-static bool getenv_bool(const char *name)
+static bool getenv_bool(const char *name, bool default_value)
 {
 	const char *str_value = getenv(name);
-	bool value;
-	if (str2bool(str_value, &value) < 0) {
+	bool value = default_value;
+	if (parse_bool(str_value, &value, default_value) < 0) {
 		if (errno == EINVAL) {
 			fprintf(stderr,
 				"WARNING: unrecognized value of environment variable %s (expected yes/no or 1/0)\n",
@@ -116,9 +120,15 @@ static bool getenv_bool(const char *name)
 	return value;
 }
 
-bool sc_is_debug_enabled()
+bool sc_is_debug_enabled(void)
 {
-	return getenv_bool("SNAP_CONFINE_DEBUG");
+	return getenv_bool("SNAP_CONFINE_DEBUG", false)
+	    || getenv_bool("SNAPD_DEBUG", false);
+}
+
+bool sc_is_reexec_enabled(void)
+{
+	return getenv_bool("SNAP_REEXEC", true);
 }
 
 void debug(const char *msg, ...)
@@ -155,7 +165,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 	}
 	// We're going to use strtok_r, which needs to modify the path, so we'll
 	// make a copy of it.
-	char *path_copy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *path_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 	path_copy = strdup(path);
 	if (path_copy == NULL) {
 		return -1;
@@ -170,7 +180,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 	// of mkdir calls, to avoid following symlinks and placing the user data
 	// directory somewhere we never intended for it to go. The first step is to
 	// get an initial file descriptor.
-	int fd __attribute__ ((cleanup(sc_cleanup_close))) = AT_FDCWD;
+	int fd SC_CLEANUP(sc_cleanup_close) = AT_FDCWD;
 	if (path_copy[0] == '/') {
 		fd = open("/", open_flags);
 		if (fd < 0) {

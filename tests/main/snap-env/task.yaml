@@ -1,6 +1,6 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 prepare: |
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
+    snap pack $TESTSLIB/snaps/test-snapd-tools
     snap install --dangerous test-snapd-tools_1.0_all.snap
 restore: |
     rm -f *.snap
@@ -9,7 +9,7 @@ debug: |
     cat *-vars.txt
 execute: |
     echo "Collect SNAP and XDG environment variables"
-    test-snapd-tools.env | egrep '^SNAP_' | egrep -v '^SNAP_DID_REEXEC'| sort > snap-vars.txt
+    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt
     test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt
     test-snapd-tools.env | egrep '^EXTRA_' | sort > extra-vars.txt 
 
@@ -17,10 +17,10 @@ execute: |
     test-snapd-tools.env | egrep '^(SNAP|PATH|HOME)=' | sort > misc-vars.txt
 
     echo "Ensure that SNAP environment variables are what we expect"
-    MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$'                  < snap-vars.txt
+    MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el|s390x)$'            < snap-vars.txt
     MATCH '^SNAP_COMMON=/var/snap/test-snapd-tools/common$'               < snap-vars.txt
     MATCH '^SNAP_DATA=/var/snap/test-snapd-tools/x1$'                     < snap-vars.txt
-    MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/void$' < snap-vars.txt
+    MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void$' < snap-vars.txt
     MATCH '^SNAP_NAME=test-snapd-tools$'                                  < snap-vars.txt
     # XXX: probably not something we ought to test
     # egrep -q '^SNAP_REEXEC=0$' snap-vars.txt
@@ -28,7 +28,10 @@ execute: |
     MATCH '^SNAP_USER_COMMON=/root/snap/test-snapd-tools/common$'         < snap-vars.txt
     MATCH '^SNAP_USER_DATA=/root/snap/test-snapd-tools/x1$'               < snap-vars.txt
     MATCH '^SNAP_VERSION=1.0$'                                            < snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 10
+    CTX=$(cat /var/lib/snapd/cookie/snap.test-snapd-tools)
+    MATCH "^SNAP_COOKIE=$CTX"                                             < snap-vars.txt
+    MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
+    test $(wc -l < snap-vars.txt) -eq 12
 
     echo "Enure that XDG environment variables are what we expect"
     MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt
@@ -39,10 +42,14 @@ execute: |
     MATCH '^EXTRA_LOCAL=extra-local'                               < extra-vars.txt
     MATCH '^EXTRA_LOCAL_NESTED=extra-global-nested'                < extra-vars.txt
     MATCH "^EXTRA_CACHE_DIR=$HOME/snap/test-snapd-tools/x1/.cache" < extra-vars.txt
-    test $(wc -l < extra-vars.txt) -eq 4
+    MATCH '^EXTRA_LOCAL_PATH=/snap/test-snapd-tools/x1/bin:/snap/test-snapd-tools/x1/usr/bin:/usr/bin' < extra-vars.txt
+    test $(wc -l < extra-vars.txt) -eq 5
+
+    echo "Ensure that TMPDIR is not passed through to a confined snap"
+    TMPDIR=/foobar test-snapd-tools.env | grep -qv ^TMPDIR=
 
     echo "Ensure that SNAP, PATH and HOME are what we expect"
-    MATCH '^SNAP=/snap/test-snapd-tools/x1$'                                                                < misc-vars.txt
+    MATCH "^SNAP=/snap/test-snapd-tools/x1$"                                                                < misc-vars.txt
     MATCH '^PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games$' < misc-vars.txt
     MATCH '^HOME=/root/snap/test-snapd-tools/x1$'                                                           < misc-vars.txt
     test $(wc -l < misc-vars.txt) -eq 3

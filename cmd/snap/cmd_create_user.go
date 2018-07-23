@@ -29,7 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortCreateUserHelp = i18n.G("Creates a local system user")
+var shortCreateUserHelp = i18n.G("Create a local system user")
 var longCreateUserHelp = i18n.G(`
 The create-user command creates a local system user with the username and SSH
 keys registered on the store account identified by the provided email address.
@@ -56,9 +56,9 @@ func init() {
 			"known":         i18n.G("Use known assertions for user creation"),
 			"force-managed": i18n.G("Force adding the user, even if the device is already managed"),
 		}, []argDesc{{
-			// TRANSLATORS: noun
+			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 			name: i18n.G("<email>"),
-			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+			// TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
 			desc: i18n.G("An email of a user on login.ubuntu.com"),
 		}})
 	cmd.hidden = true

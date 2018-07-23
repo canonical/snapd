@@ -7,27 +7,37 @@ internal tool for confining snappy applications
 -----------------------------------------------
 
 :Author: zygmunt.krynicki@canonical.com
-:Date:   2016-10-05
+:Date:   2017-09-18
 :Copyright: Canonical Ltd.
-:Version: 1.0.43
-:Manual section: 5
+:Version: 2.28
+:Manual section: 1
 :Manual group: snappy
 
 SYNOPSIS
 ========
 
-	snap-confine SECURITY_TAG COMMAND [...ARGUMENTS]
+	snap-confine [--classic] [--base BASE] SECURITY_TAG COMMAND [...ARGUMENTS]
 
 DESCRIPTION
 ===========
 
-The `snap-confine` is a program used internally by `snapd` to construct a
-confined execution environment for snap applications.
+The `snap-confine` is a program used internally by `snapd` to construct the
+execution environment for snap applications.
 
 OPTIONS
 =======
 
-The `snap-confine` program does not support any options.
+The `snap-confine` program accepts two options:
+
+    `--classic` requests the so-called _classic_ _confinement_ in which
+    applications are not confined at all (like in classic systems, hence the
+    name). This disables the use of a dedicated, per-snap mount namespace. The
+    `snapd` service generates permissive apparmor and seccomp profiles that
+    allow everything.
+
+    `--base BASE` directs snap-confine to use the given base snap as the root
+    filesystem. If omitted it defaults to the `core` snap. This is derived from
+    snap meta-data by `snapd` when starting the application process.
 
 FEATURES
 ========
@@ -38,20 +48,24 @@ Apparmor profiles
 `snap-confine` switches to the apparmor profile `$SECURITY_TAG`. The profile is
 **mandatory** and `snap-confine` will refuse to run without it.
 
-has to be loaded into the kernel prior to using `snap-confine`. Typically this
-is arranged for by `snapd`. The profile contains rich description of what the
-application process is allowed to do, this includes system calls, file paths,
-access patterns, linux capabilities, etc. The apparmor profile can also do
-extensive dbus mediation. Refer to apparmor documentation for more details.
+The profile has to be loaded into the kernel prior to using `snap-confine`.
+Typically this is arranged for by `snapd`. The profile contains rich
+description of what the application process is allowed to do, this includes
+system calls, file paths, access patterns, linux capabilities, etc. The
+apparmor profile can also do extensive dbus mediation. Refer to apparmor
+documentation for more details.
 
 Seccomp profiles
 ----------------
 
-`snap-confine` looks for the `/var/lib/snapd/seccomp/profiles/$SECURITY_TAG`
-file. This file is **mandatory** and `snap-confine` will refuse to run without
-it.
+`snap-confine` looks for the
+`/var/lib/snapd/seccomp/bpf/$SECURITY_TAG.bin` file. This file is
+**mandatory** and `snap-confine` will refuse to run without it. This
+file contains the seccomp bpf binary program that is loaded into the
+kernel by snap-confine.
 
-The file is read and parsed using a custom syntax that describes the set of
+The file is generated with the `/usr/lib/snapd/snap-seccomp` compiler from the
+`$SECURITY_TAG.src` file that uses a custom syntax that describes the set of
 allowed system calls and optionally their arguments. The profile is then used
 to confine the started application.
 
@@ -62,14 +76,19 @@ lifted to return `EPERM` instead.
 Mount profiles
 --------------
 
-`snap-confine` looks for the `/var/lib/snapd/mount/$SECURITY_TAG.fstab` file.
-If present it is read, parsed and treated like a typical `fstab(5)` file.
-The mount directives listed there are executed in order. All directives must
-succeed as any failure will abort execution.
+`snap-confine` uses a helper process, `snap-update-ns`, to apply the mount
+namespace profile to freshly constructed mount namespace. That tool looks for
+the `/var/lib/snapd/mount/snap.$SNAP_NAME.fstab` file.  If present it is read,
+parsed and treated like a mostly-typical `fstab(5)` file.  The mount directives
+listed there are executed in order. All directives must succeed as any failure
+will abort execution.
 
 By default all mount entries start with the following flags: `bind`, `ro`,
 `nodev`, `nosuid`.  Some of those flags can be reversed by an appropriate
 option (e.g. `rw` can cause the mount point to be writable).
+
+Certain additional features are enabled and conveyed through the use of mount
+options prefixed with `x-snapd-`.
 
 As a security precaution only `bind` mounts are supported at this time.
 
@@ -81,7 +100,7 @@ the older versions of snap-confine that certain snaps (still in devmode but
 useful and important) have grown to rely on. This section documents the list of
 quirks:
 
-- The /var/lib/lxd directory, if it exists on the host, is made available in
+- The `/var/lib/lxd` directory, if it exists on the host, is made available in
   the execution environment. This allows various snaps, while running in
   devmode, to access the LXD socket. LP: #1613845
 
@@ -123,15 +142,19 @@ This is only applicable when testing the program itself.
 FILES
 =====
 
-`snap-confine` uses the following files:
+`snap-confine` and `snap-update-ns` use the following files:
 
-`/var/lib/snapd/mount/*.fstab`:
+`/var/lib/snapd/mount/snap.*.fstab`:
 
 	Description of the mount profile.
 
-`/var/lib/snapd/seccomp/profiles/*`:
+`/var/lib/snapd/seccomp/bpf/*.src`:
 
-	Description of the seccomp profile.
+	Input for the /usr/lib/snapd/snap-seccomp profile compiler.
+
+`/var/lib/snapd/seccomp/bpf/*.bin`:
+
+	Compiled seccomp bpf profile programs.
 
 `/run/snapd/ns/`:
 

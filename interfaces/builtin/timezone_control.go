@@ -21,6 +21,14 @@ package builtin
 
 const timezoneControlSummary = `allows setting system timezone`
 
+const timezoneControlBaseDeclarationSlots = `
+  timezone-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
 # Description: Can manage timezones directly separate from 'config ubuntu-core'.
@@ -72,12 +80,22 @@ dbus (receive)
 # D-Bus method for setting the timezone via timedatectl's set-timezone
 # command.
 /usr/bin/timedatectl{,.real} ixr,
+
+# Silence this noisy denial. systemd utilities look at /proc/1/environ to see
+# if running in a container, but they will fallback gracefully. No other
+# interfaces allow this denial, so no problems with silencing it for now. Note
+# that allowing this triggers a 'ptrace trace peer=unconfined' denial, which we
+# want to avoid.
+deny @{PROC}/1/environ r,
 `
 
 func init() {
 	registerIface(&commonInterface{
 		name:                  "timezone-control",
 		summary:               timezoneControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})

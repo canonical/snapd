@@ -12,10 +12,10 @@ prepare: |
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
-    unsquashfs /var/lib/snapd/snaps/pc_*.snap
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
     mkdir -p squashfs-root/meta/hooks
     cp prepare-device squashfs-root/meta/hooks
-    mksquashfs squashfs-root pc_x1.snap -comp xz
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     mv /var/lib/snapd/seed/assertions/model model.bak
@@ -47,12 +47,12 @@ restore: |
        rm -f /var/lib/snapd/snaps/pc_x1.snap
        systemctl daemon-reload
     fi
-    rm /var/lib/snapd/seed/snaps/pc_x1.snap
+    rm -f /var/lib/snapd/seed/snaps/pc_x1.snap
     cp seed.yaml.bak /var/lib/snapd/seed/seed.yaml
-    rm /var/lib/snapd/seed/assertions/developer1.account
-    rm /var/lib/snapd/seed/assertions/developer1.account-key
-    rm /var/lib/snapd/seed/assertions/developer1-pc.model
-    rm /var/lib/snapd/seed/assertions/testrootorg-store.account-key
+    rm -f /var/lib/snapd/seed/assertions/developer1.account
+    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
+    rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
+    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
     cp model.bak /var/lib/snapd/seed/assertions/model
     rm -f *.bak
     # kick first boot again

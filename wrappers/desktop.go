@@ -104,9 +104,12 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
 func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
+	env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
+
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
+		// TODO parallel-install: adjust valid command checks to account
+		// for instance name
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
 		// check the prefix to allow %flag style args
@@ -117,6 +120,19 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
 			return fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
+	}
+
+	logger.Noticef("cannot use line %q for desktop file %q (snap %s)", line, desktopFile, s.InstanceName())
+	// The Exec= line in the desktop file is invalid. Instead of failing
+	// hard we rewrite the Exec= line. The convention is that the desktop
+	// file has the same name as the application we can use this fact here.
+	df := filepath.Base(desktopFile)
+	desktopFileApp := strings.TrimSuffix(df, filepath.Ext(df))
+	app, ok := s.Apps[desktopFileApp]
+	if ok {
+		newExec := fmt.Sprintf("Exec=%s%s", env, app.WrapperPath())
+		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
+		return newExec, nil
 	}
 
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
@@ -171,7 +187,18 @@ func updateDesktopDatabase(desktopFiles []string) error {
 }
 
 // AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
-func AddSnapDesktopFiles(s *snap.Info) error {
+func AddSnapDesktopFiles(s *snap.Info) (err error) {
+	var created []string
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		for _, fn := range created {
+			os.Remove(fn)
+		}
+	}()
+
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
@@ -189,11 +216,12 @@ func AddSnapDesktopFiles(s *snap.Info) error {
 			return err
 		}
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.InstanceName(), filepath.Base(df)))
 		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
 		}
+		created = append(created, installedDesktopFileName)
 	}
 
 	// updates mime info etc
@@ -206,7 +234,8 @@ func AddSnapDesktopFiles(s *snap.Info) error {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
+	// TODO parallel-install: verify use of instance names here
+	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.InstanceName()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {
 		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)

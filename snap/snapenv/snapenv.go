@@ -23,24 +23,42 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+)
+
+type preserveUnsafeEnvFlag int8
+
+const (
+	discardUnsafeFlag preserveUnsafeEnvFlag = iota
+	preserveUnsafeFlag
 )
 
 // ExecEnv returns the full environment that is required for
 // snap-{confine,exec}(like SNAP_{NAME,REVISION} etc are all set).
 //
 // It merges it with the existing os.Environ() and ensures the SNAP_*
-// overrides the any pre-existing environment variables.
+// overrides the any pre-existing environment variables. For a classic
+// snap, environment variables that are usually stripped out by ld.so
+// when starting a setuid process are renamed by prepending
+// PreservedUnsafePrefix -- which snap-exec will remove, restoring the
+// variables to their original names.
 //
 // With the extra parameter additional environment variables can be
 // supplied which will be set in the execution environment.
 func ExecEnv(info *snap.Info, extra map[string]string) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
-	env := envMap(os.Environ())
+	preserve := discardUnsafeFlag
+	if info.NeedsClassic() {
+		preserve = preserveUnsafeFlag
+	}
+	env := envMap(os.Environ(), preserve)
 	snapEnv := snapEnv(info)
 	for k, v := range snapEnv {
 		env[k] = v
@@ -75,16 +93,22 @@ func snapEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
+	// TODO parallel-install: use of proper instance/store name
 	return map[string]string{
-		"SNAP":          info.MountDir(),
+		// This uses CoreSnapMountDir because the computed environment
+		// variables are conveyed to the started application process which
+		// shall *either* execute with the new mount namespace where snaps are
+		// always mounted on /snap OR it is a classically confined snap where
+		// /snap is a part of the distribution package.
+		"SNAP":          filepath.Join(dirs.CoreSnapMountDir, info.InstanceName(), info.Revision.String()),
 		"SNAP_COMMON":   info.CommonDataDir(),
 		"SNAP_DATA":     info.DataDir(),
-		"SNAP_NAME":     info.Name(),
+		"SNAP_NAME":     info.InstanceName(),
 		"SNAP_VERSION":  info.Version,
 		"SNAP_REVISION": info.Revision.String(),
 		"SNAP_ARCH":     arch.UbuntuArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 	}
 }
@@ -94,10 +118,11 @@ func basicEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func userEnv(info *snap.Info, home string) map[string]string {
+	// TODO parallel-install: use of proper instance/store name
 	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
+		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(sys.Geteuid()),
 	}
 	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {
@@ -106,16 +131,61 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	return result
 }
 
-// envMap creates a map from the given environment string list, e.g. the
-// list returned from os.Environ()
-func envMap(env []string) map[string]string {
+// Environment variables glibc strips out when running a setuid binary.
+// Taken from https://sourceware.org/git/?p=glibc.git;a=blob_plain;f=sysdeps/generic/unsecvars.h;hb=HEAD
+// TODO: use go generate to obtain this list at build time.
+var unsafeEnv = map[string]bool{
+	"GCONV_PATH":       true,
+	"GETCONF_DIR":      true,
+	"GLIBC_TUNABLES":   true,
+	"HOSTALIASES":      true,
+	"LD_AUDIT":         true,
+	"LD_DEBUG":         true,
+	"LD_DEBUG_OUTPUT":  true,
+	"LD_DYNAMIC_WEAK":  true,
+	"LD_HWCAP_MASK":    true,
+	"LD_LIBRARY_PATH":  true,
+	"LD_ORIGIN_PATH":   true,
+	"LD_PRELOAD":       true,
+	"LD_PROFILE":       true,
+	"LD_SHOW_AUXV":     true,
+	"LD_USE_LOAD_BIAS": true,
+	"LOCALDOMAIN":      true,
+	"LOCPATH":          true,
+	"MALLOC_TRACE":     true,
+	"NIS_PATH":         true,
+	"NLSPATH":          true,
+	"RESOLV_HOST_CONF": true,
+	"RES_OPTIONS":      true,
+	"TMPDIR":           true,
+	"TZDIR":            true,
+}
+
+const PreservedUnsafePrefix = "SNAP_SAVED_"
+
+// envMap creates a map from the given environment string list,
+// e.g. the list returned from os.Environ(). If preserveUnsafeVars
+// rename variables that will be stripped out by the dynamic linker
+// executing the setuid snap-confine by prepending their names with
+// PreservedUnsafePrefix.
+func envMap(env []string, preserveUnsafeEnv preserveUnsafeEnvFlag) map[string]string {
 	envMap := map[string]string{}
 	for _, kv := range env {
+		// snap-exec unconditionally renames variables
+		// starting with PreservedUnsafePrefix so skip any
+		// that are already present in the environment to
+		// avoid confusion.
+		if strings.HasPrefix(kv, PreservedUnsafePrefix) {
+			continue
+		}
 		l := strings.SplitN(kv, "=", 2)
 		if len(l) < 2 {
 			continue // strange
 		}
 		k, v := l[0], l[1]
+		if preserveUnsafeEnv == preserveUnsafeFlag && unsafeEnv[k] {
+			k = PreservedUnsafePrefix + k
+		}
 		envMap[k] = v
 	}
 	return envMap

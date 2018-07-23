@@ -1,0 +1,28 @@
+summary: Ensure canonical-livepatch snap works
+
+# livepatch works only on 16.04 amd64 systems
+systems: [ubuntu-16.04-64]
+
+execute: |
+    echo "Ensure canonical-livepatch can be installed"
+    snap install canonical-livepatch
+
+    echo "Wait for it to respond"
+    for _ in $(seq 30); do
+        if canonical-livepatch status > /dev/null 2>&1 ; then
+            break
+        fi
+        sleep .5
+    done
+
+    echo "And ensure we get the expected status"
+    case "$(uname -r)" in
+        *-gcp)
+            # Google compute platform kernels are not supported by Canonical Live Patch system.
+            # The error message goes to stderr, hence the extra redirect magic.
+            ( canonical-livepatch status 2>&1 ) | MATCH -- '-gcp" is not eligible for livepatch updates'
+            ;;
+        *)
+            ( canonical-livepatch status 2>&1 ) | MATCH "Machine is not enabled"
+            ;;
+    esac

@@ -7,23 +7,36 @@ details: |
   consistent behaviour across various distributions.
 systems:
     # This test only applies to classic systems
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
 prepare: |
     echo "Having installed the test snap"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
+    # Arch does not use /etc/alternatives
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        mkdir /etc/alternatives
+    fi
+restore: |
+    # Arch does not use /etc/alternatives
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        rmdir /etc/alternatives
+    fi
+
 environment:
     DIRECTORY/alternatives: /etc/alternatives
     DIRECTORY/ssl: /etc/ssl
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
     echo "We can check the inode number of $DIRECTORY"
-    host_inode="$(stat -c '%i' $DIRECTORY)"
-    if [ -e /snap/core/current ]; then
-        core_inode="$(stat -c '%i' /snap/core/current/$DIRECTORY)"
+    host_inode=$(stat -c '%i' "$DIRECTORY")
+    if [ -e $SNAP_MOUNT_DIR/core/current ]; then
+        core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/core/current/$DIRECTORY")
     else
-        core_inode="$(stat -c '%i' /snap/ubuntu-core/current/$DIRECTORY)"
+        core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/ubuntu-core/current/$DIRECTORY")
     fi
-    effective_inode="$(test-snapd-tools.cmd stat -c '%i' $DIRECTORY)"
+    effective_inode=$(test-snapd-tools.cmd stat -c '%i' "$DIRECTORY")
     echo "The inode number as seen from a confined snap should be that of the $DIRECTORY from the core snap"
     [ "$host_inode" != "$core_inode" ]
     [ "$effective_inode" = "$core_inode" ]

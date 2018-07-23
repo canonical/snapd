@@ -46,6 +46,7 @@ var ops = []struct {
 	{(*client.Client).Revert, "revert"},
 	{(*client.Client).Enable, "enable"},
 	{(*client.Client).Disable, "disable"},
+	{(*client.Client).Switch, "switch"},
 }
 
 var multiOps = []struct {
@@ -71,6 +72,8 @@ func (cs *clientSuite) TestClientMultiOpSnapServerError(c *check.C) {
 		_, err := s.op(cs.cli, nil, nil)
 		c.Check(err, check.ErrorMatches, `.*fail`, check.Commentf(s.action))
 	}
+	_, _, err := cs.cli.SnapshotMany(nil, nil)
+	c.Check(err, check.ErrorMatches, `.*fail`)
 }
 
 func (cs *clientSuite) TestClientOpSnapResponseError(c *check.C) {
@@ -87,6 +90,8 @@ func (cs *clientSuite) TestClientMultiOpSnapResponseError(c *check.C) {
 		_, err := s.op(cs.cli, nil, nil)
 		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
 	}
+	_, _, err := cs.cli.SnapshotMany(nil, nil)
+	c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`)
 }
 
 func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
@@ -152,6 +157,7 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 		"type": "async"
 	}`
 	for _, s := range multiOps {
+		// Note body is essentially the same as TestClientMultiSnapshot; keep in sync
 		id, err := s.op(cs.cli, []string{pkgName}, nil)
 		c.Assert(err, check.IsNil)
 
@@ -171,6 +177,31 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 	}
 }
 
+func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
+	// Note body is essentially the same as TestClientMultiOpSnap; keep in sync
+	cs.rsp = `{
+                "result": {"set-id": 42},
+		"change": "d728",
+		"status-code": 202,
+		"type": "async"
+	}`
+	setID, changeID, err := cs.cli.SnapshotMany([]string{pkgName}, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	jsonBody := make(map[string]interface{})
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil)
+	c.Check(jsonBody["action"], check.Equals, "snapshot")
+	c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName})
+	c.Check(jsonBody, check.HasLen, 2)
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
+	c.Check(setID, check.Equals, uint64(42))
+	c.Check(changeID, check.Equals, "d728")
+}
+
 func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	cs.rsp = `{
 		"change": "66b3",
@@ -183,7 +214,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	id, err := cs.cli.InstallPath(snap, nil)
+	id, err := cs.cli.InstallPath(snap, "", nil)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -191,6 +222,34 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 
 	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
+	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
+	c.Check(id, check.Equals, "66b3")
+}
+
+func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	id, err := cs.cli.InstallPath(snap, "foo_bar", nil)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"name\"\r\n\r\nfoo_bar\r\n.*")
 
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
@@ -215,7 +274,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	}
 
 	// InstallPath takes Dangerous
-	_, err = cs.cli.InstallPath(snap, &opts)
+	_, err = cs.cli.InstallPath(snap, "", &opts)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)

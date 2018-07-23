@@ -43,23 +43,50 @@ type configureHandlerSuite struct {
 	state   *state.State
 	context *hookstate.Context
 	handler hookstate.Handler
+	restore func()
 }
 
 var _ = Suite(&configureHandlerSuite{})
 
 func (s *configureHandlerSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
 	s.state = state.New(nil)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	coreSnapYaml := `name: core
+version: 1.0
+type: os
+`
+	snaptest.MockSnap(c, coreSnapYaml, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.context, err = hookstate.NewContext(task, setup, hooktest.NewMockHandler())
+	s.context, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
 	c.Assert(err, IsNil)
 
 	s.handler = configstate.NewConfigureHandler(s.context)
+}
+
+func (s *configureHandlerSuite) TearDownTest(c *C) {
+	s.restore()
+	dirs.SetRootDir("/")
 }
 
 func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
@@ -84,8 +111,6 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 func (s *configureHandlerSuite) TestBeforeInitializesTransactionUseDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
 
 	const mockGadgetSnapYaml = `
 name: canonical-pc
@@ -93,7 +118,7 @@ type: gadget
 `
 	var mockGadgetYaml = []byte(`
 defaults:
-  test-snap-id:
+  test-snap-ididididididididididid:
       bar: baz
       num: 1.305
 
@@ -102,7 +127,7 @@ volumes:
         bootloader: grub
 `)
 
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(1)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -122,11 +147,11 @@ hooks:
     configure:
 `
 
-	snaptest.MockSnap(c, mockTestSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(11)})
+	snaptest.MockSnap(c, mockTestSnapYaml, &snap.SideInfo{Revision: snap.R(11)})
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-id"},
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-ididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -155,8 +180,6 @@ hooks:
 func (s *configureHandlerSuite) TestBeforeUseDefaultsMissingHook(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
 
 	const mockGadgetSnapYaml = `
 name: canonical-pc
@@ -164,7 +187,7 @@ type: gadget
 `
 	var mockGadgetYaml = []byte(`
 defaults:
-  test-snap-id:
+  test-snap-ididididididididididid:
       bar: baz
       num: 1.305
 
@@ -173,7 +196,7 @@ volumes:
         bootloader: grub
 `)
 
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(1)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -190,7 +213,7 @@ volumes:
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-id"},
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-ididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",

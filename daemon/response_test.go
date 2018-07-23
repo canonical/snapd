@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -38,7 +39,7 @@ func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	rsp := &resp{
-		Status: http.StatusAccepted,
+		Status: 202,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
 		},
@@ -53,7 +54,7 @@ func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	rsp := &resp{
-		Status: http.StatusCreated,
+		Status: 201,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
 		},
@@ -68,7 +69,7 @@ func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	rsp := &resp{
-		Status: http.StatusTeapot,
+		Status: 418, // I'm a teapot
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
 		},
@@ -96,4 +97,13 @@ func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
 	hdr := rec.Header()
 	c.Check(hdr.Get("Content-Disposition"), check.Equals,
 		fmt.Sprintf("attachment; filename=%s", filename))
+}
+
+// Due to how the protocol was defined the result must be sent, even if it is
+// null. Older clients rely on this.
+func (s *responseSuite) TestRespJSONWithNullResult(c *check.C) {
+	rj := &respJSON{Result: nil}
+	data, err := json.Marshal(rj)
+	c.Assert(err, check.IsNil)
+	c.Check(string(data), check.Equals, `{"type":"","status-code":0,"status":"","result":null}`)
 }

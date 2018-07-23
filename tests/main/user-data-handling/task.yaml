@@ -1,0 +1,34 @@
+summary: Check that the refresh data copy works.
+
+execute: |
+    echo "For an installed snap"
+    snap install test-snapd-tools
+    rev=$(snap list test-snapd-tools|tail -n1|tr -s ' '|cut -f3 -d' ')
+
+    homes=(/root/ /home/*/)
+    echo "That has some user data"
+    for h in "${homes[@]}"; do
+        d="${h}snap/test-snapd-tools/$rev"
+        mkdir -p "$d"
+        touch "$d/mock-data"
+        chown --recursive --reference="$h" "${h}snap/"
+    done
+
+    echo "When the snap is refreshed"
+    snap refresh --channel=edge test-snapd-tools
+    new_rev=$(snap list test-snapd-tools|tail -n1|tr -s ' '|cut -f3 -d' ')
+
+    echo "Then the user data gets copied"
+    for h in "${homes[@]}"; do
+        test -e "${h}snap/test-snapd-tools/$new_rev/mock-data"
+        test -e "${h}snap/test-snapd-tools/$rev/mock-data"
+    done
+
+    echo "When the snap is removed"
+    snap remove test-snapd-tools
+
+    echo "Then all user data and root data is gone"
+    for h in "${homes[@]}"; do
+        test ! -e "${h}snap/test-snapd-tools/$new_rev/mock-data"
+        test ! -e "${h}snap/test-snapd-tools/$rev/mock-data"
+    done

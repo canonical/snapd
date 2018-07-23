@@ -1,0 +1,25 @@
+summary: Work-in-progress on reproducing lp:1704860
+systems: [ubuntu-16.04-64]
+details: |
+    In this bug, an app belonging go a snap using classic confinement confuses
+    the re-execution system in a way that causes distribution version of
+    snap-confine to be used, instead of the one from the core snap. If the
+    version outside and inside are different and incompatible the classily
+    confined snap will malfunction.
+
+    This specifically happens when the distribution uses snapd 2.25 and the
+    core snap has snapd 2.26.9
+
+    Testing is somewhat complex but we can approximate by observing the value
+    of SNAP_DID_REEXEC as set inside the environment set up by snap run
+    --shell.  Since neither snap-confine nor snap-exec re-execute themselves
+    (instead they rely on snap run to run the right tool in the first place)
+    this is safe to do.
+execute: |
+    . $TESTSLIB/snaps.sh
+    install_local_classic test-snapd-classic-confinement
+    # We don't want to see SNAP_DID_REEXEC being set.
+    if snap run --shell test-snapd-classic-confinement ./snap-env-query.sh | grep 'SNAP_DID_REEXEC='; then
+        echo "SNAP_DID_REEXEC environment is set - it should *not* be set ever"
+        exit 1
+    fi

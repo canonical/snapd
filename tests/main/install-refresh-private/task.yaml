@@ -1,0 +1,52 @@
+summary: Check that install and refresh work with private snaps.
+
+# we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
+systems: [-ubuntu-core-*]
+
+details: |
+    These tests rely on the existence of a snap in the remote store set to private.
+
+    In order to do the full checks, it also needs the credentials of the owner of that
+    snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD, if
+    they are not present then only the negative check is performed.
+
+restore: |
+    snap logout || true
+
+execute: |
+    echo "Cannot install a private snap without login"
+    ! snap install test-snapd-private
+
+    echo "Given account store credentials are available"
+    # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
+        echo "And the user has logged in"
+        expect -f "$TESTSLIB"/successful_login.exp
+
+        echo "Check that after login it can be installed"
+        snap install test-snapd-private
+        snap list|MATCH 'test-snapd-private +1\.0.*private'
+
+        echo "Check that refreshing also works"
+        snap refresh --edge test-snapd-private
+        snap list|MATCH 'test-snapd-private +2\.0.*private'
+
+        echo "After removing it"
+        snap remove test-snapd-private
+
+        echo "Install it together with a public snap"
+        snap install test-snapd-private test-snapd-public
+
+        echo "Switch both to edge"
+        snap switch --edge test-snapd-private
+        snap switch --edge test-snapd-public
+        snap list|MATCH 'test-snapd-private +1\.0.*private'
+        snap list|MATCH 'test-snapd-public +1\.0'
+
+        echo "Proceed to refresh all, in particular both of them"
+        snap refresh
+
+        echo "Check they were both refreshed"
+        snap list|MATCH 'test-snapd-private +2\.0.*private'
+        snap list|MATCH 'test-snapd-public +2\.0'
+    fi
