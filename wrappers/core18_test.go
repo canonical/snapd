@@ -66,19 +66,19 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	// check that usr-lib-snapd.mount is created
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"))
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, `[Unit]
+	c.Check(string(content), Equals, fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
 
 [Mount]
-What=$PREFIX/usr/lib/snapd
+What=%s/snap/snapd/1/usr/lib/snapd
 Where=/usr/lib/snapd
 Type=none
 Options=bind
 
 [Install]
 RequiredBy=snapd.service
-`)
+`, dirs.GlobalRootDir))
 
 	// check that systemd got started
 	c.Check(s.sysdLog, DeepEquals, [][]string{

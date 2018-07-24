@@ -34,20 +34,20 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func writeSnapdToolingMountUnit(sysd systemd.Systemd) error {
-	content := []byte(`[Unit]
+func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
+	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
 
 [Mount]
-What=$PREFIX/usr/lib/snapd
+What=%s/usr/lib/snapd
 Where=/usr/lib/snapd
 Type=none
 Options=bind
 
 [Install]
 RequiredBy=snapd.service
-`)
+`, prefix))
 	unit := "usr-lib-snapd.mount"
 	_, _, err := osutil.EnsureDirState(dirs.SnapServicesDir,
 		unit,
@@ -77,7 +77,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	}
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
-	if err := writeSnapdToolingMountUnit(sysd); err != nil {
+	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
 		return err
 	}
 
@@ -89,7 +89,12 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	if err != nil {
 		return err
 	}
+	timerUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.timer"))
+	if err != nil {
+		return err
+	}
 	units := append(serviceUnits, socketUnits...)
+	units = append(units, timerUnits...)
 
 	snapdUnits := make(map[string]*osutil.FileState, len(units)+1)
 	for _, unit := range units {
