@@ -5548,6 +5548,35 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 	// effective-channel
 	c.Assert(results[0].Channel, Equals, "candidate")
 }
+func (s *storeTestSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
+	// action here is one of install or download
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("should not be reached")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	_, err := sto.SnapAction(context.TODO(), nil,
+		[]*SnapAction{
+			{
+				Action:       "download",
+				InstanceName: "hello-world_foo",
+				Channel:      "beta",
+			},
+		}, nil, nil)
+	c.Assert(err, ErrorMatches, `internal error: unsupported download with instance name "hello-world_foo"`)
+}
 
 func (s *storeTestSuite) TestSnapActionInstallWithRevision(c *C) {
 	s.testSnapActionGetWithRevision("install", c)

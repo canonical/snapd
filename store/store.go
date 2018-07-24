@@ -2159,6 +2159,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			downloadNum++
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)
 			downloads[instanceKey] = a
+			if _, key := snap.SplitInstanceName(a.InstanceName); key != "" {
+				return nil, fmt.Errorf("internal error: unsupported download with instance name %q", a.InstanceName)
+			}
 		} else {
 			refreshes[instanceKey] = a
 		}
