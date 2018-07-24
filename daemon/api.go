@@ -622,6 +622,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	q := query.Get("q")
 	section := query.Get("section")
 	name := query.Get("name")
+	scope := query.Get("scope")
 	private := false
 	prefix := false
 
@@ -659,6 +660,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Section: section,
 		Private: private,
 		Prefix:  prefix,
+		Scope:   scope,
 	}, user)
 	switch err {
 	case nil:
@@ -1240,6 +1242,8 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
 			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
 			snapName = err.Snap
@@ -1645,7 +1649,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := snap.DropNick(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1696,7 +1700,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := snap.DropNick(vars["name"])
+	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1735,17 +1739,17 @@ func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.Us
 }
 
 func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+	// Collect query options from request arguments.
 	q := r.URL.Query()
 	pselect := q.Get("select")
 	if pselect != "all" && pselect != "connected" {
 		return BadRequest("unsupported select qualifier")
 	}
-	var names []string
+	var names []string // Interface names
 	namesStr := q.Get("names")
 	if namesStr != "" {
 		names = strings.Split(namesStr, ",")
 	}
-
 	opts := &interfaces.InfoOptions{
 		Names:     names,
 		Doc:       q.Get("doc") == "true",
@@ -1753,24 +1757,56 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		Slots:     q.Get("slots") == "true",
 		Connected: pselect == "connected",
 	}
-	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Info(opts), nil)
+	// Query the interface repository (this returns []*interface.Info).
+	infos := c.d.overlord.InterfaceManager().Repository().Info(opts)
+	infoJSONs := make([]*interfaceJSON, 0, len(infos))
+
+	for _, info := range infos {
+		// Convert interfaces.Info into interfaceJSON
+		plugs := make([]*plugJSON, 0, len(info.Plugs))
+		for _, plug := range info.Plugs {
+			plugs = append(plugs, &plugJSON{
+				Snap:  ifacestate.RemapSnapToResponse(plug.Snap.InstanceName()),
+				Name:  plug.Name,
+				Attrs: plug.Attrs,
+				Label: plug.Label,
+			})
+		}
+		slots := make([]*slotJSON, 0, len(info.Slots))
+		for _, slot := range info.Slots {
+			slots = append(slots, &slotJSON{
+				Snap:  ifacestate.RemapSnapToResponse(slot.Snap.InstanceName()),
+				Name:  slot.Name,
+				Attrs: slot.Attrs,
+				Label: slot.Label,
+			})
+		}
+		infoJSONs = append(infoJSONs, &interfaceJSON{
+			Name:    info.Name,
+			Summary: info.Summary,
+			DocURL:  info.DocURL,
+			Plugs:   plugs,
+			Slots:   slots,
+		})
+	}
+	return SyncResponse(infoJSONs, nil)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 
-	var ifjson interfacesJSON
-
+	var ifjson interfaceJSON
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
 
-	for _, conn := range ifaces.Connections {
-		plugRef := conn.PlugRef.String()
-		slotRef := conn.SlotRef.String()
-		plugConns[plugRef] = append(plugConns[plugRef], conn.SlotRef)
-		slotConns[slotRef] = append(slotConns[slotRef], conn.PlugRef)
+	for _, cref := range ifaces.Connections {
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(cref.PlugRef.Snap), Name: cref.PlugRef.Name}
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(cref.SlotRef.Snap), Name: cref.SlotRef.Name}
+		plugID := plugRef.String()
+		slotID := slotRef.String()
+		plugConns[plugID] = append(plugConns[plugID], slotRef)
+		slotConns[slotID] = append(slotConns[slotID], plugRef)
 	}
 
 	for _, plug := range ifaces.Plugs {
@@ -1778,14 +1814,15 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
-		pj := plugJSON{
-			Snap:        plug.Snap.InstanceName(),
-			Name:        plug.Name,
+		plugRef := interfaces.PlugRef{Snap: ifacestate.RemapSnapToResponse(plug.Snap.InstanceName()), Name: plug.Name}
+		pj := &plugJSON{
+			Snap:        plugRef.Snap,
+			Name:        plugRef.Name,
 			Interface:   plug.Interface,
 			Attrs:       plug.Attrs,
 			Apps:        apps,
 			Label:       plug.Label,
-			Connections: plugConns[plug.String()],
+			Connections: plugConns[plugRef.String()],
 		}
 		ifjson.Plugs = append(ifjson.Plugs, pj)
 	}
@@ -1794,55 +1831,20 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		for _, app := range slot.Apps {
 			apps = append(apps, app.Name)
 		}
-
-		sj := slotJSON{
-			Snap:        slot.Snap.InstanceName(),
-			Name:        slot.Name,
+		slotRef := interfaces.SlotRef{Snap: ifacestate.RemapSnapToResponse(slot.Snap.InstanceName()), Name: slot.Name}
+		sj := &slotJSON{
+			Snap:        slotRef.Snap,
+			Name:        slotRef.Name,
 			Interface:   slot.Interface,
 			Attrs:       slot.Attrs,
 			Apps:        apps,
 			Label:       slot.Label,
-			Connections: slotConns[slot.String()],
+			Connections: slotConns[slotRef.String()],
 		}
 		ifjson.Slots = append(ifjson.Slots, sj)
 	}
 
 	return SyncResponse(ifjson, nil)
-}
-
-// plugJSON aids in marshaling Plug into JSON.
-type plugJSON struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []interfaces.SlotRef   `json:"connections,omitempty"`
-}
-
-// slotJSON aids in marshaling Slot into JSON.
-type slotJSON struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"slot"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
-}
-
-// interfacesJSON aids in marshaling plugs, slots and their connections into JSON.
-type interfacesJSON struct {
-	Plugs []plugJSON `json:"plugs,omitempty"`
-	Slots []slotJSON `json:"slots,omitempty"`
-}
-
-// interfaceAction is an action performed on the interface system.
-type interfaceAction struct {
-	Action string     `json:"action"`
-	Plugs  []plugJSON `json:"plugs,omitempty"`
-	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
@@ -1896,10 +1898,10 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	defer st.Unlock()
 
 	for i := range a.Plugs {
-		a.Plugs[i].Snap = snap.DropNick(a.Plugs[i].Snap)
+		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
 	}
 	for i := range a.Slots {
-		a.Slots[i].Snap = snap.DropNick(a.Slots[i].Snap)
+		a.Slots[i].Snap = ifacestate.RemapSnapFromRequest(a.Slots[i].Snap)
 	}
 
 	switch a.Action {
@@ -1909,10 +1911,15 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
 			var ts *state.TaskSet
+			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			if _, ok := err.(*ifacestate.ErrAlreadyConnected); ok {
+				change := newChange(st, a.Action+"-snap", summary, nil, affected)
+				change.SetStatus(state.DoneStatus)
+				return AsyncResponse(nil, &Meta{Change: change.ID()})
+			}
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
 		var conns []*interfaces.ConnRef

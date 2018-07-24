@@ -66,7 +66,7 @@ backends:
                 workers: 6
             - ubuntu-core-18-64:
                 image: ubuntu-16.04-64
-                workers: 1
+                workers: 6
 
             - debian-9-64:
                 workers: 6
@@ -82,11 +82,9 @@ backends:
                 workers: 4
                 manual: true
             - fedora-28-64:
-                image: fedora-28-64-selinux-permissive
                 workers: 4
 
             - opensuse-42.3-64:
-                image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
             - arch-linux-64:
                 workers: 4
@@ -433,8 +431,6 @@ restore-each: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        # TODO: cleanup tests and enable ubuntu-core-18 everywhere
-        systems: [-ubuntu-core-18-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -483,8 +479,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        # TODO: cleanup tests and enable ubuntu-core-18 everywhere
-        systems: [-ubuntu-core-18-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
