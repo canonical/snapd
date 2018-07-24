@@ -2,6 +2,6 @@
 echo "Greetings from inside ${SNAP:?}."
 if [ "$#" -gt "0" ]; then
     echo "Arguments given:"
-    printf "> %q\n" "$@"
+    printf '> %q\n' "$@"
 fi
 echo "That is all. Have a nice day."

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,9 +29,12 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -141,7 +144,11 @@ const (
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
-	errorKindSnapRevisionNotAvailable = errorKind("snap-revision-not-available")
+	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
+	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
+	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
+
+	errorKindSnapChangeConflict = errorKind("snap-change-conflict")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
@@ -365,15 +372,73 @@ func SnapNotFound(snapName string, err error) Response {
 // operation is requested for which no revivision can be found
 // in the given context (e.g. request an install from a stable
 // channel when this channel is empty).
-func SnapRevisionNotAvailable(snapName string, err error) Response {
+func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) Response {
+	var value interface{} = snapName
+	kind := errorKindSnapRevisionNotAvailable
+	msg := rnaErr.Error()
+	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
+		thisArch := arch.UbuntuArchitecture()
+		values := map[string]interface{}{
+			"snap-name":    snapName,
+			"action":       rnaErr.Action,
+			"channel":      rnaErr.Channel,
+			"architecture": thisArch,
+		}
+		archOK := false
+		releases := make([]map[string]interface{}, 0, len(rnaErr.Releases))
+		for _, c := range rnaErr.Releases {
+			if c.Architecture == thisArch {
+				archOK = true
+			}
+			releases = append(releases, map[string]interface{}{
+				"architecture": c.Architecture,
+				"channel":      c.Name,
+			})
+		}
+		// we return all available releases (arch x channel)
+		// as reported in the store error, but we hint with
+		// the error kind whether there was anything at all
+		// available for this architecture
+		if archOK {
+			kind = errorKindSnapChannelNotAvailable
+			msg = "no snap revision on specified channel"
+		} else {
+			kind = errorKindSnapArchitectureNotAvailable
+			msg = "no snap revision on specified architecture"
+		}
+		values["releases"] = releases
+		value = values
+	}
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
-			Message: err.Error(),
-			Kind:    errorKindSnapRevisionNotAvailable,
-			Value:   snapName,
+			Message: msg,
+			Kind:    kind,
+			Value:   value,
 		},
 		Status: 404,
+	}
+}
+
+// SnapChangeConflict is an error responder used when an operation is
+// conflicts with another change.
+func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
+	value := map[string]interface{}{}
+	if cce.Snap != "" {
+		value["snap-name"] = cce.Snap
+	}
+	if cce.ChangeKind != "" {
+		value["change-kind"] = cce.ChangeKind
+	}
+
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: cce.Error(),
+			Kind:    errorKindSnapChangeConflict,
+			Value:   value,
+		},
+		Status: 409,
 	}
 }
 

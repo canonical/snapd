@@ -23,13 +23,16 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
-type prepareSnapSuite struct {
+type baseHandlerSuite struct {
 	state   *state.State
+	runner  *state.TaskRunner
+	se      *overlord.StateEngine
 	snapmgr *snapstate.SnapManager
 
 	fakeBackend *fakeSnappyBackend
@@ -37,18 +40,22 @@ type prepareSnapSuite struct {
 	reset func()
 }
 
-var _ = Suite(&prepareSnapSuite{})
-
-func (s *prepareSnapSuite) SetUpTest(c *C) {
+func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
+	s.state = state.New(b)
+	s.runner = state.NewTaskRunner(s.state)
 
 	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
+	s.snapmgr, err = snapstate.Manager(s.state, s.runner)
 	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
+
+	s.se = overlord.NewStateEngine(s.state)
+	s.se.AddManager(s.snapmgr)
+	s.se.AddManager(s.runner)
+
+	AddForeignTaskHandlers(s.runner, s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
@@ -59,9 +66,19 @@ func (s *prepareSnapSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *prepareSnapSuite) TearDownTest(c *C) {
+func (s *baseHandlerSuite) SetUpTest(c *C) {
+	s.setup(c, nil)
+}
+
+func (s *baseHandlerSuite) TearDownTest(c *C) {
 	s.reset()
 }
+
+type prepareSnapSuite struct {
+	baseHandlerSuite
+}
+
+var _ = Suite(&prepareSnapSuite{})
 
 func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	s.state.Lock()
@@ -75,8 +92,8 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()

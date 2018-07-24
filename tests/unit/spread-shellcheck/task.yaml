@@ -4,9 +4,6 @@ summary: Verify spread task scripts with shellcheck
 systems: [ubuntu-18.04-64]
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package python3-yaml
     # need to install shellcheck in devmode, the tests are run by 'root', the
     # source code is under /home/gopath, all file accesses to the source code
     # will end up getting DENIED even though shellcheck uses home interface
@@ -16,9 +13,3 @@ execute: |
     testdir=$PWD
     cd "$SPREAD_PATH" || exit 1
     CAN_FAIL="$testdir/can-fail" ./spread-shellcheck spread.yaml tests
-
-restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package python3-yaml
-    snap remove shellcheck
