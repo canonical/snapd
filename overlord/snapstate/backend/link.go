@@ -82,6 +82,8 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 		}
 	}
 
+	// XXX: generate snapd snap wrappers on core18 *after* the symlink
+	//      update and let it always point to "current" ?
 	return updateCurrentSymlinks(info)
 }
 
