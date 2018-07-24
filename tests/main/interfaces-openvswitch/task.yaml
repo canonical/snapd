@@ -1,7 +1,9 @@
 summary: Ensure that the openvswitch interface works.
 
+# amazon: no openvswitch package
 systems:
     - -ubuntu-core-*
+    - -amazon-*
 
 details: |
     The openvswitch interface allows to task to the openvswitch socket (rw mode).
