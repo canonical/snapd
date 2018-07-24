@@ -74,6 +74,17 @@ k0: v0
 	c.Check(om.Keys(), DeepEquals, []string{"k", "k2", "k0"})
 }
 
+func (s *orderedMapSuite) TestYamlDupe(c *C) {
+	yamlStr := []byte(`
+k: v
+k0: v0
+k: v
+`)
+	var om strutil.OrderedMap
+	err := yaml.Unmarshal(yamlStr, &om)
+	c.Assert(err, ErrorMatches, `found duplicate key "k"`)
+}
+
 func (s *orderedMapSuite) TestYamlErr(c *C) {
 	yamlStr := []byte(`
 k: 
