@@ -20,6 +20,7 @@
 package wrappers
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -63,6 +64,9 @@ RequiredBy=snapd.service
 	if err := sysd.Enable(unit); err != nil {
 		return err
 	}
+	if err := sysd.Start(unit); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -87,7 +91,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	}
 	units := append(serviceUnits, socketUnits...)
 
-	snapdUnits := make(map[string]*osutil.FileState, len(units))
+	snapdUnits := make(map[string]*osutil.FileState, len(units)+1)
 	for _, unit := range units {
 		st, err := os.Stat(unit)
 		if err != nil {
@@ -115,18 +119,25 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		return nil
 	}
 	for _, unit := range removed {
-		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+		if err := sysd.Disable(unit); err != nil {
 			return err
 		}
 	}
 	for _, unit := range changed {
-		if err := sysd.Enable(filepath.Base(unit)); err != nil {
+		if err := sysd.Enable(unit); err != nil {
 			return err
 		}
 	}
-	// TODO: think about start/restart - snapd itself is never stopped
-	//       it will only stop voluntarily
-
+	for _, unit := range changed {
+		// some units (like the snapd.system-shutdown.service) cannot
+		// be started
+		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
+			continue
+		}
+		if err := sysd.Start(unit); err != nil {
+			return err
+		}
+	}
 	if err := sysd.DaemonReload(); err != nil {
 		return err
 	}
