@@ -82,6 +82,21 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	c.Check(v, Equals, 1)
 }
 
+func (ts *taskSuite) TestHas(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	c.Check(t.Has("a"), Equals, false)
+
+	t.Set("a", 1)
+	c.Check(t.Has("a"), Equals, true)
+
+	t.Set("a", nil)
+	c.Check(t.Has("a"), Equals, false)
+}
+
 func (ts *taskSuite) TestClear(c *C) {
 	st := state.New(nil)
 	st.Lock()

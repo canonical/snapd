@@ -207,6 +207,7 @@ type StoreAccount struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display-name"`
+	Validation  string `json:"validation,omitempty"`
 }
 
 // Layout describes a single element of the layout section.
@@ -688,6 +689,8 @@ type HookInfo struct {
 	Name  string
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment strutil.OrderedMap
 }
 
 // File returns the path to the *.socket file
@@ -795,7 +798,12 @@ func (hook *HookInfo) SecurityTag() string {
 
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
-	return envFromMap(hook.Snap.Environment.Copy())
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hook.Environment.Keys() {
+		hookEnv.Set(k, hook.Environment.Get(k))
+	}
+
+	return envFromMap(hookEnv)
 }
 
 func envFromMap(envMap *strutil.OrderedMap) []string {
@@ -989,24 +997,6 @@ func JoinSnapApp(snap, app string) string {
 		return InstanceName(app, instanceKey)
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
-}
-
-// UseNick returns the nickname for given snap name. If there is none, returns
-// the original name.
-func UseNick(snapName string) string {
-	if snapName == "core" {
-		return "system"
-	}
-	return snapName
-}
-
-// DropNick returns the snap name for given nickname. If there is none, returns
-// the original name.
-func DropNick(nick string) string {
-	if nick == "system" {
-		return "core"
-	}
-	return nick
 }
 
 // InstanceSnap splits the instance name and returns the name of the snap.

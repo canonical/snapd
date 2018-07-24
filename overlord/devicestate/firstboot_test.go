@@ -144,7 +144,8 @@ func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	st := s.overlord.State()
 	st.Lock()
@@ -159,7 +160,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -189,8 +191,36 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	c.Check(ds.Model, Equals, "my-model-classic")
 }
 
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// create an empty seed.yaml
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
+}
+
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	st := s.overlord.State()
 
@@ -289,6 +319,12 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	c.Assert(err, IsNil)
 
 	snapID := (snapName + "-snap-" + strings.Repeat("id", 20))[:32]
+	// FIXME: snapd is special in the interface policy code and it
+	//        identified by its snap-id. so we fake the real snap-id
+	//        here. Instead we should add a "type: snapd" for snaps.
+	if snapName == "snapd" {
+		snapID = "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+	}
 
 	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -565,26 +601,27 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	// situation
 	o := overlord.Mock()
 	st := o.State()
-	snapmgr, err := snapstate.Manager(st)
+	snapmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
 
-	ifacemgr, err := ifacestate.Manager(st, nil, nil, nil)
+	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
 
+	o.AddManager(o.TaskRunner())
+
 	chg := s.makeBecomeOperationalChange(c, st)
 
+	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
 	// under the subset of managers
 	for i := 0; i < 25 && !chg.IsReady(); i++ {
-		snapmgr.Ensure()
-		ifacemgr.Ensure()
-		snapmgr.Wait()
-		ifacemgr.Wait()
+		se.Ensure()
+		se.Wait()
 	}
 
 	st.Lock()
@@ -723,7 +760,6 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		"model":        modelStr,
 		"architecture": "amd64",
 		"store":        "canonical",
-		"gadget":       "pc",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	for k, v := range extraHeaders {
@@ -733,6 +769,7 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		headers["classic"] = "true"
 	} else {
 		headers["kernel"] = "pc-kernel"
+		headers["gadget"] = "pc"
 	}
 	if len(reqSnaps) != 0 {
 		reqs := make([]interface{}, len(reqSnaps))
@@ -1065,7 +1102,8 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c *C) {
-	release.OnClassic = true
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
