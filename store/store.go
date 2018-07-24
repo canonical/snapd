@@ -2224,7 +2224,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if res.Result == "error" {
 			if a := installs[res.InstanceKey]; a != nil {
 				if res.Name != "" {
-					installErrors[res.Name] = translateSnapActionError("install", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
+					installErrors[a.InstanceName] = translateSnapActionError("install", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			} else if a := downloads[res.InstanceKey]; a != nil {

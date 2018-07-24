@@ -6496,6 +6496,149 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
+func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     fmt.Sprintf("%s-%d", helloWorldSnapID, 0),
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     fmt.Sprintf("%s-%d", helloWorldSnapID, 1),
+			"revision":         float64(2),
+			"tracking-channel": "edge",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 3)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": fmt.Sprintf("%s-%d", helloWorldSnapID, 0),
+			"snap-id":      helloWorldSnapID,
+		})
+		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": fmt.Sprintf("%s-%d", helloWorldSnapID, 1),
+			"snap-id":      helloWorldSnapID,
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "other",
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-0",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg1"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-1",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg2"
+     }
+  },  {
+     "result": "error",
+     "instance-key": "install-1",
+     "snap-id": "foo-id",
+     "name": "other",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg3"
+     }
+  }
+  ]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+		{
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "edge",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*SnapAction{
+		{
+			Action:       "refresh",
+			InstanceName: "hello-world",
+			SnapID:       helloWorldSnapID,
+		}, {
+			Action:       "refresh",
+			InstanceName: "hello-world_foo",
+			SnapID:       helloWorldSnapID,
+		}, {
+			Action:       "install",
+			InstanceName: "other_foo",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &SnapActionError{
+		Refresh: map[string]error{
+			"hello-world": &RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "stable",
+			},
+			"hello-world_foo": &RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "edge",
+			},
+		},
+		Install: map[string]error{
+			"other_foo": &RevisionNotAvailableError{
+				Action:  "install",
+				Channel: "stable",
+			},
+		},
+	})
+}
+
 func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
