@@ -108,6 +108,7 @@ static const char *nvidia_globs[] = {
 	"libnvidia-fbc.so*",
 	"libnvidia-glcore.so*",
 	"libnvidia-glsi.so*",
+	"libnvidia-glvkspirv.so*",
 	"libnvidia-ifr.so*",
 	"libnvidia-ml.so*",
 	"libnvidia-ptxjitcompiler.so*",
