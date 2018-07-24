@@ -26,6 +26,7 @@
 %global with_check 0
 %global with_unit_test 0
 %global with_test_keys 0
+%global with_selinux 1
 
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
@@ -80,6 +81,12 @@
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 %endif
 
+# SELinux policy does not build on Amazon Linux 2 at the moment, fails with
+# checkmodule complaining about missing 'map' permission for 'file' class
+%if 0%{?amzn2} == 1
+%global with_selinux 0
+%endif
+
 Name:           snapd
 Version:        2.34.2
 Release:        0%{?dist}
@@ -112,17 +119,22 @@ Requires:       squashfs-tools
 # snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
 Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
 %else
+%if ! 0%{?amzn2}
 # Rich dependencies not available, always pull in squashfuse
 # snapd will use squashfs.ko instead of squashfuse if it's on the system
+# NOTE: Amazon Linux 2 does not have squashfuse, squashfs.ko is part of the kernel package
 Requires:       squashfuse
 Requires:       fuse
+%endif
 %endif
 
 # bash-completion owns /usr/share/bash-completion/completions
 Requires:       bash-completion
 
+%if 0%{?with_selinux}
 # Force the SELinux module to be installed
 Requires:       %{name}-selinux = %{version}-%{release}
+%endif
 
 # snapd-login-service is no more
 # Note: Remove when F27 is EOL
@@ -195,6 +207,7 @@ Obsoletes:      snap-confine < 2.19
 This package is used internally by snapd to apply confinement to
 the started snap applications.
 
+%if 0%{?with_selinux}
 %package selinux
 Summary:        SELinux module for snapd
 Group:          System Environment/Base
@@ -210,7 +223,7 @@ Requires(post): libselinux-utils
 %description selinux
 This package provides the SELinux policy module to ensure snapd
 runs properly under an environment with SELinux enabled.
-
+%endif
 
 %if 0%{?with_devel}
 %package devel
@@ -438,10 +451,12 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %endif
 %gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
+%if 0%{?with_selinux}
 # Build SELinux module
 pushd ./data/selinux
 make SHARE="%{_datadir}" TARGETS="snappy"
 popd
+%endif
 
 # Build snap-confine
 pushd ./cmd
@@ -495,8 +510,10 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
 install -d -p %{buildroot}%{_datadir}/polkit-1/actions
+%if 0%{?with_selinux}
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
+%endif
 
 # Install snap and snapd
 install -p -m 0755 bin/snap %{buildroot}%{_bindir}
@@ -506,9 +523,11 @@ install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
 
+%if 0%{?with_selinux}
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -p -m 0644 data/selinux/snappy.pp.bz2 %{buildroot}%{_datadir}/selinux/packages
+%endif
 
 # Install snap(1) man page
 bin/snap help --man > %{buildroot}%{_mandir}/man1/snap.1
@@ -688,11 +707,13 @@ popd
 %{_mandir}/man5/snap-discard-ns.5*
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
+%if 0%{?with_selinux}
 %files selinux
 %license data/selinux/COPYING
 %doc data/selinux/README.md
 %{_datadir}/selinux/packages/snappy.pp.bz2
 %{_datadir}/selinux/devel/include/contrib/snappy.if
+%endif
 
 %if 0%{?with_devel}
 %files devel -f devel.file-list
@@ -731,6 +752,7 @@ fi
 %postun
 %systemd_postun_with_restart %{snappy_svcs}
 
+%if 0%{?with_selinux}
 %pre selinux
 %selinux_relabel_pre
 
@@ -746,7 +768,7 @@ fi
 if [ $1 -eq 0 ]; then
     %selinux_relabel_post
 fi
-
+%endif
 
 %changelog
 * Thu Jul 19 2018 Michael Vogt <mvo@ubuntu.com>
