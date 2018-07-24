@@ -13,10 +13,14 @@ debug: |
 execute: |
     echo "Ensure no stray sleep processes are around"
     killall sleep || true
-    
+
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-service
+    # Because we cannot use daemon: notify easily yet just wait for a "ready"
+    # file to show up.  The file is removed when the service is stopped. This
+    # pattern repeats around the test without additional comments.
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     refresh_modes="sigterm sigterm-all"
     for s in $refresh_modes; do
@@ -29,6 +33,7 @@ execute: |
 
     echo "When it is re-installed one process uses sigterm, the other sigterm-all"
     install_local test-snapd-service
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     echo "After reinstall the sigterm-all service and all children got killed"
     echo "but the sigterm service only got a kill for the main process "

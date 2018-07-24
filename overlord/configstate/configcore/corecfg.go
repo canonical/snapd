@@ -106,6 +106,9 @@ func Run(tr Conf) error {
 	if err := validateWatchdogOptions(tr); err != nil {
 		return err
 	}
+	if err := validateNetworkSettings(tr); err != nil {
+		return err
+	}
 	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information
@@ -140,6 +143,10 @@ func Run(tr Conf) error {
 	}
 	// watchdog.{runtime-timeout,shutdown-timeout}
 	if err := handleWatchdogConfiguration(tr); err != nil {
+		return err
+	}
+	// network.disable-ipv6
+	if err := handleNetworkConfiguration(tr); err != nil {
 		return err
 	}
 

@@ -45,10 +45,6 @@ type fakeManager struct {
 	ensureError, stopError error
 }
 
-func (m *fakeManager) KnownTaskKinds() []string {
-	return []string{}
-}
-
 func (fm *fakeManager) Ensure() error {
 	*fm.calls = append(*fm.calls, "ensure:"+fm.name)
 	return fm.ensureError

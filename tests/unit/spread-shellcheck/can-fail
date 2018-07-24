@@ -27,7 +27,6 @@ tests/main/interfaces-ssh-keys/task.yaml
 tests/main/interfaces-ssh-public-keys/task.yaml
 tests/main/interfaces-system-observe/task.yaml
 tests/main/interfaces-time-control/task.yaml
-tests/main/interfaces-timeserver-control/task.yaml
 tests/main/interfaces-timezone-control/task.yaml
 tests/main/interfaces-udev/task.yaml
 tests/main/interfaces-uhid/task.yaml

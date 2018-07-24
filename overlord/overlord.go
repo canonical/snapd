@@ -72,14 +72,14 @@ type Overlord struct {
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
-	inited     bool
-	snapMgr    *snapstate.SnapManager
-	assertMgr  *assertstate.AssertManager
-	ifaceMgr   *ifacestate.InterfaceManager
-	hookMgr    *hookstate.HookManager
-	deviceMgr  *devicestate.DeviceManager
-	cmdMgr     *cmdstate.CommandManager
-	unknownMgr *UnknownTaskManager
+	inited    bool
+	runner    *state.TaskRunner
+	snapMgr   *snapstate.SnapManager
+	assertMgr *assertstate.AssertManager
+	ifaceMgr  *ifacestate.InterfaceManager
+	hookMgr   *hookstate.HookManager
+	deviceMgr *devicestate.DeviceManager
+	cmdMgr    *cmdstate.CommandManager
 }
 
 var storeNew = store.New
@@ -102,42 +102,50 @@ func New() (*Overlord, error) {
 	}
 
 	o.stateEng = NewStateEngine(s)
-	o.unknownMgr = NewUnknownTaskManager(s)
-	o.stateEng.AddManager(o.unknownMgr)
+	o.runner = state.NewTaskRunner(s)
 
-	hookMgr, err := hookstate.Manager(s)
+	// any unknown task should be ignored and succeed
+	matchAnyUnknownTask := func(_ *state.Task) bool {
+		return true
+	}
+	o.runner.AddOptionalHandler(matchAnyUnknownTask, handleUnknownTask, nil)
+
+	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(hookMgr)
 
-	snapMgr, err := snapstate.Manager(s)
+	snapMgr, err := snapstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(snapMgr)
 
-	assertMgr, err := assertstate.Manager(s)
+	assertMgr, err := assertstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.runner, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(ifaceMgr)
 
-	deviceMgr, err := devicestate.Manager(s, hookMgr)
+	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(deviceMgr)
 
-	o.addManager(cmdstate.Manager(s))
+	o.addManager(cmdstate.Manager(s, o.runner))
 
 	configstateInit(hookMgr)
+
+	// the shared task runner should be added last!
+	o.stateEng.AddManager(o.runner)
 
 	s.Lock()
 	defer s.Unlock()
@@ -171,7 +179,6 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.cmdMgr = x
 	}
 	o.stateEng.AddManager(mgr)
-	o.unknownMgr.Ignore(mgr.KnownTaskKinds())
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
@@ -374,6 +381,17 @@ func (o *Overlord) State() *state.State {
 	return o.stateEng.State()
 }
 
+// StateEngine returns the stage engine used by overlord.
+func (o *Overlord) StateEngine() *StateEngine {
+	return o.stateEng
+}
+
+// TaskRunner returns the shared task runner responsible for running
+// tasks for all managers under the overlord.
+func (o *Overlord) TaskRunner() *state.TaskRunner {
+	return o.runner
+}
+
 // SnapManager returns the snap manager responsible for snaps under
 // the overlord.
 func (o *Overlord) SnapManager() *snapstate.SnapManager {
@@ -410,12 +428,6 @@ func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
 }
 
-// UnknownTaskManager returns the manager responsible for handling of
-// unknown tasks.
-func (o *Overlord) UnknownTaskManager() *UnknownTaskManager {
-	return o.unknownMgr
-}
-
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
@@ -423,9 +435,9 @@ func Mock() *Overlord {
 		loopTomb: new(tomb.Tomb),
 		inited:   false,
 	}
-	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
-	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
-	o.stateEng.AddManager(o.unknownMgr)
+	s := state.New(mockBackend{o: o})
+	o.stateEng = NewStateEngine(s)
+	o.runner = state.NewTaskRunner(s)
 
 	return o
 }

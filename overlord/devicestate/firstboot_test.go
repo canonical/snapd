@@ -319,6 +319,12 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	c.Assert(err, IsNil)
 
 	snapID := (snapName + "-snap-" + strings.Repeat("id", 20))[:32]
+	// FIXME: snapd is special in the interface policy code and it
+	//        identified by its snap-id. so we fake the real snap-id
+	//        here. Instead we should add a "type: snapd" for snaps.
+	if snapName == "snapd" {
+		snapID = "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+	}
 
 	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -595,26 +601,27 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	// situation
 	o := overlord.Mock()
 	st := o.State()
-	snapmgr, err := snapstate.Manager(st)
+	snapmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
 
-	ifacemgr, err := ifacestate.Manager(st, nil, nil, nil)
+	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
 
+	o.AddManager(o.TaskRunner())
+
 	chg := s.makeBecomeOperationalChange(c, st)
 
+	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
 	// under the subset of managers
 	for i := 0; i < 25 && !chg.IsReady(); i++ {
-		snapmgr.Ensure()
-		ifacemgr.Ensure()
-		snapmgr.Wait()
-		ifacemgr.Wait()
+		se.Ensure()
+		se.Wait()
 	}
 
 	st.Lock()

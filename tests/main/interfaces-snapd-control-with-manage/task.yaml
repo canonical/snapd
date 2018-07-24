@@ -1,5 +1,12 @@
 summary: Ensure that the snapd-control "refresh-schedule" attribute works.
 
+# FIXME: core18 right now does not have a canonical model. This means that it
+# will not get a serial. We have code in devicestate.go that will only try to
+# auto-refresh after the system has tried at least 3 times to get a serial.
+# But this means this test will timeout because the first retry for the serial
+# happens after 5min, then 10min, then 20min.
+systems: [-ubuntu-core-18-*]
+
 environment:
   BLOB_DIR: $(pwd)/fake-store-blobdir
 
