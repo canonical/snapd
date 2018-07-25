@@ -60,7 +60,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	// check that snapd.service is created
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snapd.service"))
 	c.Assert(err, IsNil)
-	// and paths get re-writen
+	// and paths get re-written
 	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd", dirs.SnapMountDir))
 
 	// check that usr-lib-snapd.mount is created
