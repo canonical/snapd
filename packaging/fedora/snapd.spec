@@ -583,7 +583,7 @@ touch %{buildroot}%{_sharedstatedir}/snapd/snap/README
 
 # When enabled, create a symlink for /snap to point to /var/lib/snapd/snap
 %if %{with snap_symlink}
-ln -sr %{buildroot}%{_sharestatedir}/snapd/snap %{buildroot}/snap
+ln -sr %{buildroot}%{_sharedstatedir}/snapd/snap %{buildroot}/snap
 %endif
 
 # source codes for building projects
