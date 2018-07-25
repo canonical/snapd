@@ -52,7 +52,7 @@ RequiredBy=snapd.service
 	_, _, err := osutil.EnsureDirState(dirs.SnapServicesDir,
 		unit,
 		map[string]*osutil.FileState{
-			unit: &osutil.FileState{
+			unit: {
 				Content: content,
 				Mode:    0644,
 			},
