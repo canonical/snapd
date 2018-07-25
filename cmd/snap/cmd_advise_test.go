@@ -127,14 +127,15 @@ func (s *SnapSuite) TestAdviseFromAptIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	os.Setenv("APT_HOOK_SOCKET", strconv.Itoa(int(fds[1])))
-	defer syscall.Close(fds[1])
+	// note we don't close fds[1] ourselves; adviseViaAptHook might, or we might leak it
 
 	done := make(chan bool, 1)
 	go func() {
-		conn, err := net.FileConn(os.NewFile(uintptr(fds[0]), "advise-sock"))
+		f := os.NewFile(uintptr(fds[0]), "advise-sock")
+		conn, err := net.FileConn(f)
 		c.Assert(err, IsNil)
 		defer conn.Close()
-		defer syscall.Close(fds[0])
+		defer f.Close()
 
 		// handshake
 		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.hello","id":0,"params":{"versions":["0.1"]}}` + "\n\n"))
