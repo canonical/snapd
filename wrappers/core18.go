@@ -61,6 +61,9 @@ RequiredBy=snapd.service
 	if err != nil {
 		return err
 	}
+	if err := sysd.DaemonReload(); err != nil {
+		return err
+	}
 	if err := sysd.Enable(unit); err != nil {
 		return err
 	}
@@ -93,7 +96,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	if err != nil {
 		return err
 	}
-	units := append(serviceUnits, socketUnits...)
+	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
 
 	snapdUnits := make(map[string]*osutil.FileState, len(units)+1)
@@ -114,7 +117,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 			Mode:    st.Mode(),
 		}
 	}
-	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, []string{"snapd.service", "snapd.socket", "snapd.*.service"}, snapdUnits)
+	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer"}, snapdUnits)
 	if err != nil {
 		// TODO: uhhhh, what do we do in this case?
 		return err
@@ -123,6 +126,10 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		// nothing to do
 		return nil
 	}
+	if err := sysd.DaemonReload(); err != nil {
+		return err
+	}
+
 	for _, unit := range removed {
 		if err := sysd.Disable(unit); err != nil {
 			return err
@@ -133,17 +140,19 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 			return err
 		}
 	}
+
+	startServices := []string{}
 	for _, unit := range changed {
 		// some units (like the snapd.system-shutdown.service) cannot
 		// be started
 		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
-		if err := sysd.Start(unit); err != nil {
-			return err
-		}
+		startServices = append(startServices, unit)
 	}
-	if err := sysd.DaemonReload(); err != nil {
+	// we cannot start blocking because "snapd.seeded.service" is also
+	// run here and it will block until seeding is done
+	if err := sysd.StartNoBlock(startServices...); err != nil {
 		return err
 	}
 

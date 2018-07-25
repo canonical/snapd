@@ -107,6 +107,7 @@ type Systemd interface {
 	Enable(service string) error
 	Disable(service string) error
 	Start(service ...string) error
+	StartNoBlock(service ...string) error
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
@@ -181,6 +182,12 @@ func (s *systemd) Mask(serviceName string) error {
 // Start the given service or services
 func (*systemd) Start(serviceNames ...string) error {
 	_, err := systemctlCmd(append([]string{"start"}, serviceNames...)...)
+	return err
+}
+
+// StartNoBlock starts the given service or services non-blocking
+func (*systemd) StartNoBlock(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"start", "--no-block"}, serviceNames...)...)
 	return err
 }
 

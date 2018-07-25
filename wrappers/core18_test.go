@@ -82,11 +82,12 @@ RequiredBy=snapd.service
 
 	// check that systemd got started
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
-		{"start", "snapd.service"},
 		{"daemon-reload"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"start", "--no-block", "snapd.service"},
 	})
 }
 
