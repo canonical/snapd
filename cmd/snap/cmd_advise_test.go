@@ -128,6 +128,7 @@ func (s *SnapSuite) TestAdviseFromAptIntegration(c *C) {
 
 	os.Setenv("APT_HOOK_SOCKET", strconv.Itoa(int(fds[1])))
 	// note we don't close fds[1] ourselves; adviseViaAptHook might, or we might leak it
+	// (we don't close it here to avoid accidentally closing an arbitrary file descriptor that reused the number)
 
 	done := make(chan bool, 1)
 	go func() {
