@@ -1,0 +1,8 @@
+summary: Refresh snapd
+
+execute: |
+    for _ in $(seq 10); do
+        SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_$(readlink /snap/snapd/current).snap)
+        snap install --dangerous $SNAPD_SNAP
+        snap list
+    done
