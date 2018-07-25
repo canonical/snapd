@@ -26,7 +26,7 @@ include /etc/os-release
 # problem on "apt purge snapd". To ensure this won't happen add the
 # right dependency on 18.04.
 ifeq (${VERSION_ID},"18.04")
-	SUBSTVARS = -Vsnapd:Depends="apt (>= 1.6.3)"
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
 endif
 
 # this is overridden in the ubuntu/14.04 release branch
