@@ -78,12 +78,18 @@ func (mod *Model) Gadget() string {
 
 // Kernel returns the kernel snap the model uses.
 func (mod *Model) Kernel() string {
-	return mod.HeaderString("kernel")
+	kernel := mod.HeaderString("kernel")
+	return strings.SplitN(kernel, "=", 2)[0]
 }
 
 // KernelTrack returns the kernel track the model uses.
 func (mod *Model) KernelTrack() string {
-	return mod.HeaderString("kernel-track")
+	kernel := mod.HeaderString("kernel")
+	l := strings.SplitN(kernel, "=", 2)
+	if len(l) < 2 {
+		return ""
+	}
+	return l[1]
 }
 
 // Base returns the base snap the model uses.
@@ -189,9 +195,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	if classic {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
-		}
-		if _, ok := assert.headers["kernel-track"]; ok {
-			return nil, fmt.Errorf("cannot specify kernel-track with a classic model")
 		}
 		if _, ok := assert.headers["base"]; ok {
 			return nil, fmt.Errorf("cannot specify a base with a classic model")
