@@ -164,6 +164,7 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
+	// note given the Open succeeded, caller needs to close it when done
 
 	return snapshot, oldCfg, reader, nil
 }
@@ -173,6 +174,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	defer reader.Close()
 
 	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Users, task.Logf)
 	if err != nil {
@@ -261,12 +263,13 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
-	sh, err := backendOpen(snapshot.Filename)
+	reader, err := backendOpen(snapshot.Filename)
 	if err != nil {
 		return fmt.Errorf("cannot open snapshot: %v", err)
 	}
+	defer reader.Close()
 
-	return backendCheck(sh, tomb.Context(nil), snapshot.Users)
+	return backendCheck(reader, tomb.Context(nil), snapshot.Users)
 }
 
 func doForget(task *state.Task, _ *tomb.Tomb) error {
