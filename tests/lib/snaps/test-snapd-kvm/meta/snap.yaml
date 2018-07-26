@@ -5,5 +5,5 @@ description: A basic snap which access to kvm device
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [kvm]
