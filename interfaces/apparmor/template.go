@@ -565,6 +565,8 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
   /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  # for running snap-udpate-ns from the snapd snap
+  ${@INSTALL_DIR@}/snapd/**/usr/lib/snapd/snap-update-ns mr,
 
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,
