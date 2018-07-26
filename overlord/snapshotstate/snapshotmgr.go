@@ -75,7 +75,7 @@ func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
 	}
 	var snapshot snapshotSetup
 	if err := t.Get("snapshot-setup", &snapshot); err != nil {
-		return nil, fmt.Errorf("internal error: cannot obtain snapshot data from task: %s", t.Summary())
+		return nil, taskGetErrMsg(t, err, "snapshot")
 	}
 
 	return []string{snapshot.Snap}, nil
@@ -106,7 +106,7 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	defer st.Unlock()
 
 	if err := task.Get("snapshot-setup", &snapshot); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, taskGetErrMsg(task, err, "snapshot")
 	}
 	cur, err = snapstateCurrentInfo(st, snapshot.Snap)
 	if err != nil {
@@ -146,23 +146,23 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 	defer st.Unlock()
 
 	if err := task.Get("snapshot-setup", &snapshot); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, taskGetErrMsg(task, err, "snapshot")
 	}
 
 	rawCfg, err := configGetSnapConfig(st, snapshot.Snap)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("internal error: cannot obtain current snap config for snapshot restore: %v", err)
 	}
 
 	if rawCfg != nil {
 		if err := json.Unmarshal(*rawCfg, &oldCfg); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
 		}
 	}
 
 	reader, err = backendOpen(snapshot.Filename)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
 
 	return snapshot, oldCfg, reader, nil
@@ -182,7 +182,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	buf, err := json.Marshal(reader.Conf)
 	if err != nil {
 		backendRevert(restoreState)
-		return err
+		return fmt.Errorf("cannot marshal saved config: %v", err)
 	}
 
 	st := task.State()
@@ -191,7 +191,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 
 	if err := configSetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf)); err != nil {
 		backendRevert(restoreState)
-		return err
+		return fmt.Errorf("cannot set snap config: %v", err)
 	}
 
 	restoreState.Config = oldCfg
@@ -209,20 +209,19 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	if err := task.Get("restore-state", &restoreState); err != nil {
-		return err
+		return taskGetErrMsg(task, err, "snapshot restore")
 	}
 	if err := task.Get("snapshot-setup", &snapshot); err != nil {
-		return err
+		return taskGetErrMsg(task, err, "snapshot")
 	}
 
 	buf, err := json.Marshal(restoreState.Config)
 	if err != nil {
-		// augh
-		return err
+		return fmt.Errorf("cannot marshal saved config: %v", err)
 	}
 
 	if err := configSetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf)); err != nil {
-		return err
+		return fmt.Errorf("cannot restore saved config: %v", err)
 	}
 
 	backendRevert(&restoreState)
@@ -237,8 +236,8 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	status := task.Status()
 	if err := task.Get("restore-state", &restoreState); err != nil {
-		// this is bad :-(
-		return err
+		// this is bad: we somehow lost the information to restore things
+		return taskGetErrMsg(task, err, "snapshot restore")
 	}
 	st.Unlock()
 
@@ -259,12 +258,12 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 	err := task.Get("snapshot-setup", &snapshot)
 	st.Unlock()
 	if err != nil {
-		return err
+		return taskGetErrMsg(task, err, "snapshot")
 	}
 
 	sh, err := backendOpen(snapshot.Filename)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot open snapshot: %v", err)
 	}
 
 	return backendCheck(sh, tomb.Context(nil), snapshot.Users)
@@ -279,7 +278,7 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	err := task.Get("snapshot-setup", &snapshot)
 	st.Unlock()
 	if err != nil {
-		return err
+		return taskGetErrMsg(task, err, "snapshot")
 	}
 
 	return osRemove(snapshot.Filename)

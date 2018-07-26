@@ -147,7 +147,8 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	// NOTE no task.Set("snapshot-setup", ...)
 	st.Unlock()
 	err := snapshotstate.DoSave(task, &tomb.Tomb{})
-	c.Assert(err, check.Equals, state.ErrNoState)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "internal error: task 1 (save-snapshot) is missing snapshot information")
 }
 
 func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
@@ -342,7 +343,8 @@ func (rs *readerSuite) TestDoRestoreFailsNoTaskSnapshot(c *check.C) {
 	rs.task.State().Unlock()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
-	c.Assert(err, check.Equals, state.ErrNoState)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "internal error: task 1 (restore-snapshot) is missing snapshot information")
 	c.Check(rs.calls, check.HasLen, 0)
 }
 
@@ -353,7 +355,7 @@ func (rs *readerSuite) TestDoRestoreFailsOnGetConfigError(c *check.C) {
 	})()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, "bzzt")
+	c.Assert(err, check.ErrorMatches, "internal error: cannot obtain current snap config for snapshot restore: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config"})
 }
 
@@ -376,7 +378,7 @@ func (rs *readerSuite) TestDoRestoreFailsOpenError(c *check.C) {
 	})()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, "bzzt")
+	c.Assert(err, check.ErrorMatches, "cannot open snapshot: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open"})
 }
 
@@ -389,7 +391,7 @@ func (rs *readerSuite) TestDoRestoreFailsUnserialisableSnapshotConfigError(c *ch
 	})()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, "json.*")
+	c.Assert(err, check.ErrorMatches, "cannot marshal saved config: json.*")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "revert"})
 }
 
@@ -411,7 +413,7 @@ func (rs *readerSuite) TestDoRestoreFailsAndRevertsOnSetConfigError(c *check.C) 
 	})()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, "bzzt")
+	c.Assert(err, check.ErrorMatches, "cannot set snap config: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "set config", "revert"})
 }
 
