@@ -1,7 +1,8 @@
 summary: Check that snap info works
 
 # core18 has no python3-yaml
-systems: [-ubuntu-core-18-*]
+# amazon: no PyYAML is not pacakged for python3
+systems: [-ubuntu-core-18-*, -amazon-*]
 
 prepare: |
     snap pack $TESTSLIB/snaps/basic
