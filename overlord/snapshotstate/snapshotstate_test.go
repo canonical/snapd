@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type snapshotSuite struct{}
@@ -68,9 +67,9 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
 		return map[string]*snapstate.SnapState{
-			"a-snap": {Current: snap.R(-1)},
+			"a-snap": {Active: true},
 			"b-snap": {},
-			"c-snap": {Current: snap.R(1)},
+			"c-snap": {Active: true},
 		}, nil
 	}
 
@@ -324,9 +323,9 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
 		return map[string]*snapstate.SnapState{
-			"a-snap": {Current: snap.R(-1)},
+			"a-snap": {Active: true},
 			"b-snap": {},
-			"c-snap": {Current: snap.R(1)},
+			"c-snap": {Active: true},
 		}, nil
 	}
 
@@ -350,10 +349,8 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 
 func (snapshotSuite) TestSaveOneSnap(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
-			"a-snap": {Current: snap.R(-1)},
-			"c-snap": {Current: snap.R(1)},
-		}, nil
+		// snapstate.All isn't called when a snap name is passed in
+		return nil, errors.New("bzzt")
 	}
 
 	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
