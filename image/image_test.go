@@ -1107,8 +1107,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18",
+		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -1167,8 +1166,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18",
+		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -1230,8 +1228,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithRisk(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18/beta",
+		"kernel":       "pc-kernel=18/beta",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -1268,8 +1265,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackIsRiskOnly(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "beta",
+		"kernel":       "pc-kernel=beta",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -1306,8 +1302,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18",
+		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
