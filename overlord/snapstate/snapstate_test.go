@@ -1906,9 +1906,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "some-snap_instance",
-				Channel: "some-channel",
+				Action:       "install",
+				InstanceName: "some-snap_instance",
+				Channel:      "some-channel",
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -2462,7 +2462,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{{
-				Name:            "services-snap_instance",
+				InstanceName:    "services-snap_instance",
 				SnapID:          "services-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
@@ -2473,11 +2473,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "refresh",
-				SnapID:  "services-snap-id",
-				Name:    "services-snap_instance",
-				Channel: "some-channel",
-				Flags:   store.SnapActionEnforceValidation,
+				Action:       "refresh",
+				SnapID:       "services-snap-id",
+				InstanceName: "services-snap_instance",
+				Channel:      "some-channel",
+				Flags:        store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,

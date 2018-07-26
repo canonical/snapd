@@ -446,7 +446,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if !a.Revision.Unset() {
 			info.Channel = ""
 		}
-		_, info.InstanceKey = snap.SplitInstanceName(a.Name)
+		_, info.InstanceKey = snap.SplitInstanceName(a.InstanceName)
 		res = append(res, info)
 	}
 
