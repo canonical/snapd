@@ -65,7 +65,7 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	}
 	names := make([]string, 0, len(all))
 	for name, snapst := range all {
-		if snapst.IsInstalled() {
+		if snapst.Active {
 			names = append(names, name)
 		}
 	}
