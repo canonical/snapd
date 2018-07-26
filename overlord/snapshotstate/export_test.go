@@ -45,7 +45,7 @@ var (
 	DoForget                  = doForget
 )
 
-func MockOsRemove(f func(string) error) func() {
+func MockOsRemove(f func(string) error) (restore func()) {
 	old := osRemove
 	osRemove = f
 	return func() {
@@ -53,7 +53,7 @@ func MockOsRemove(f func(string) error) func() {
 	}
 }
 
-func MockSnapstateAll(f func(*state.State) (map[string]*snapstate.SnapState, error)) func() {
+func MockSnapstateAll(f func(*state.State) (map[string]*snapstate.SnapState, error)) (restore func()) {
 	old := snapstateAll
 	snapstateAll = f
 	return func() {
@@ -61,7 +61,7 @@ func MockSnapstateAll(f func(*state.State) (map[string]*snapstate.SnapState, err
 	}
 }
 
-func MockSnapstateCurrentInfo(f func(*state.State, string) (*snap.Info, error)) func() {
+func MockSnapstateCurrentInfo(f func(*state.State, string) (*snap.Info, error)) (restore func()) {
 	old := snapstateCurrentInfo
 	snapstateCurrentInfo = f
 	return func() {
@@ -69,7 +69,7 @@ func MockSnapstateCurrentInfo(f func(*state.State, string) (*snap.Info, error)) 
 	}
 }
 
-func MockSnapstateCheckChangeConflictMany(f func(*state.State, []string, string) error) func() {
+func MockSnapstateCheckChangeConflictMany(f func(*state.State, []string, string) error) (restore func()) {
 	old := snapstateCheckChangeConflictMany
 	snapstateCheckChangeConflictMany = f
 	return func() {
@@ -77,7 +77,7 @@ func MockSnapstateCheckChangeConflictMany(f func(*state.State, []string, string)
 	}
 }
 
-func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error) func() {
+func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error) (restore func()) {
 	old := backendIter
 	backendIter = f
 	return func() {
@@ -85,7 +85,7 @@ func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error)
 	}
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) func() {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {
@@ -93,7 +93,7 @@ func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]inte
 	}
 }
 
-func MockBackendOpen(f func(string) (*backend.Reader, error)) func() {
+func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
 	old := backendOpen
 	backendOpen = f
 	return func() {
@@ -101,7 +101,7 @@ func MockBackendOpen(f func(string) (*backend.Reader, error)) func() {
 	}
 }
 
-func MockBackendRestore(f func(*backend.Reader, context.Context, []string, backend.Logf) (*backend.RestoreState, error)) func() {
+func MockBackendRestore(f func(*backend.Reader, context.Context, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
 	old := backendRestore
 	backendRestore = f
 	return func() {
@@ -109,7 +109,7 @@ func MockBackendRestore(f func(*backend.Reader, context.Context, []string, backe
 	}
 }
 
-func MockBackendCheck(f func(*backend.Reader, context.Context, []string) error) func() {
+func MockBackendCheck(f func(*backend.Reader, context.Context, []string) error) (restore func()) {
 	old := backendCheck
 	backendCheck = f
 	return func() {
@@ -117,7 +117,7 @@ func MockBackendCheck(f func(*backend.Reader, context.Context, []string) error) 
 	}
 }
 
-func MockBackendRevert(f func(*backend.RestoreState)) func() {
+func MockBackendRevert(f func(*backend.RestoreState)) (restore func()) {
 	old := backendRevert
 	backendRevert = f
 	return func() {
@@ -125,7 +125,7 @@ func MockBackendRevert(f func(*backend.RestoreState)) func() {
 	}
 }
 
-func MockBackendCleanup(f func(*backend.RestoreState)) func() {
+func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	old := backendCleanup
 	backendCleanup = f
 	return func() {
@@ -133,7 +133,7 @@ func MockBackendCleanup(f func(*backend.RestoreState)) func() {
 	}
 }
 
-func MockConfigGetSnapConfig(f func(*state.State, string) (*json.RawMessage, error)) func() {
+func MockConfigGetSnapConfig(f func(*state.State, string) (*json.RawMessage, error)) (restore func()) {
 	old := configGetSnapConfig
 	configGetSnapConfig = f
 	return func() {
@@ -141,7 +141,7 @@ func MockConfigGetSnapConfig(f func(*state.State, string) (*json.RawMessage, err
 	}
 }
 
-func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) error) func() {
+func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) error) (restore func()) {
 	old := configSetSnapConfig
 	configSetSnapConfig = f
 	return func() {
