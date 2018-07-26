@@ -5,5 +5,5 @@ description: A basic snap which access to removable storage filesystems
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [removable-media]
