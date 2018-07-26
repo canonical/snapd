@@ -101,6 +101,13 @@ func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound []stri
 	return snapsFound, filenames, nil
 }
 
+func taskGetErrMsg(task *state.Task, err error, what string) error {
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: task %s (%s) is missing %s information", task.ID(), task.Kind(), what)
+	}
+	return fmt.Errorf("internal error: retrieving %s information from task %s (%s): %v", what, task.ID(), task.Kind(), err)
+}
+
 // checkSnapshotTaskConflict checks whether there's an in-progress task for snapshots with the given set id.
 func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds ...string) error {
 	for _, task := range st.Tasks() {
@@ -113,10 +120,7 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 
 		var snapshot snapshotSetup
 		if err := task.Get("snapshot-setup", &snapshot); err != nil {
-			if err == state.ErrNoState {
-				return fmt.Errorf("internal error: task %s (%s) is missing snapshot information", task.ID(), task.Kind())
-			}
-			return err
+			return taskGetErrMsg(task, err, "snapshot")
 		}
 
 		if snapshot.SetID == setID {
