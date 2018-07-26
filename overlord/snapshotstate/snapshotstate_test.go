@@ -261,7 +261,7 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 
 	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
-	c.Assert(err, check.ErrorMatches, "snapshot set #42 has a .some-task. task in progress")
+	c.Assert(err, check.ErrorMatches, "cannot operate on snapshot set #42 while change \"1\" is in progress")
 
 	// no change with that label
 	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-other-task"), check.IsNil)
@@ -343,9 +343,9 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
-	c.Check(tasks[0].Summary(), check.Equals, `Save the data of snap "a-snap" in snapshot set #1`)
+	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "a-snap" in snapshot set #1`)
 	c.Check(tasks[1].Kind(), check.Equals, "save-snapshot")
-	c.Check(tasks[1].Summary(), check.Equals, `Save the data of snap "c-snap" in snapshot set #1`)
+	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
 }
 
 func (snapshotSuite) TestSaveOneSnap(c *check.C) {
@@ -369,7 +369,7 @@ func (snapshotSuite) TestSaveOneSnap(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
-	c.Check(tasks[0].Summary(), check.Equals, `Save the data of snap "a-snap" in snapshot set #1`)
+	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "a-snap" in snapshot set #1`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
@@ -417,7 +417,7 @@ func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
-	c.Assert(err, check.ErrorMatches, `snapshot set #42 has a "forget-snapshot" task in progress`)
+	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestRestoreChecksSnapstateConflicts(c *check.C) {
@@ -472,7 +472,7 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
-	c.Check(tasks[0].Summary(), check.Equals, `Restore the data of snap "a-snap" from snapshot set #42`)
+	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
@@ -521,7 +521,7 @@ func (snapshotSuite) TestCheckChecksForgetConflicts(c *check.C) {
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Check(st, 42, nil, nil)
-	c.Assert(err, check.ErrorMatches, `snapshot set #42 has a "forget-snapshot" task in progress`)
+	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestCheck(c *check.C) {
@@ -549,7 +549,7 @@ func (snapshotSuite) TestCheck(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "check-snapshot")
-	c.Check(tasks[0].Summary(), check.Equals, `Check the data of snap "a-snap" in snapshot set #42`)
+	c.Check(tasks[0].Summary(), check.Equals, `Check data of snap "a-snap" in snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
@@ -598,7 +598,7 @@ func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Forget(st, 42, nil)
-	c.Assert(err, check.ErrorMatches, `snapshot set #42 has a "check-snapshot" task in progress`)
+	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestForgetChecksRestoreConflicts(c *check.C) {
@@ -626,7 +626,7 @@ func (snapshotSuite) TestForgetChecksRestoreConflicts(c *check.C) {
 	chg.AddTask(tsk)
 
 	_, _, err = snapshotstate.Forget(st, 42, nil)
-	c.Assert(err, check.ErrorMatches, `snapshot set #42 has a "restore-snapshot" task in progress`)
+	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestForget(c *check.C) {
@@ -654,7 +654,7 @@ func (snapshotSuite) TestForget(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	c.Check(tasks[0].Kind(), check.Equals, "forget-snapshot")
-	c.Check(tasks[0].Summary(), check.Equals, `Remove the data of snap "a-snap" from snapshot set #42`)
+	c.Check(tasks[0].Summary(), check.Equals, `Drop data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
