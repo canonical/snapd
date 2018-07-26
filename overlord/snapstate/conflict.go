@@ -69,7 +69,7 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", t.Summary())
 		}
-		return []string{snapsup.Name()}, nil
+		return []string{snapsup.InstanceName()}, nil
 	}
 
 	if f := affectedSnapsByKind[t.Kind()]; f != nil {

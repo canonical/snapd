@@ -58,7 +58,7 @@ func findSymmetricAutoconnect(st *state.State, plugSnap, slotSnap string, autoCo
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", autoConnectTask.Summary())
 	}
-	installedSnap := snapsup.Name()
+	installedSnap := snapsup.InstanceName()
 
 	// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
 	// it should be ignored (we shouldn't create connect tasks for it)
@@ -68,7 +68,7 @@ func findSymmetricAutoconnect(st *state.State, plugSnap, slotSnap string, autoCo
 			if err != nil {
 				return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
 			}
-			otherSnap := snapsup.Name()
+			otherSnap := snapsup.InstanceName()
 
 			if (otherSnap == plugSnap && installedSnap == slotSnap) || (otherSnap == slotSnap && installedSnap == plugSnap) {
 				return true, nil
@@ -122,7 +122,7 @@ func checkConnectConflicts(st *state.State, plugSnap, slotSnap string, auto bool
 			continue
 		}
 
-		snapName := snapsup.Name()
+		snapName := snapsup.InstanceName()
 
 		// different snaps - no conflict
 		if snapName != plugSnap && snapName != slotSnap {
