@@ -888,7 +888,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 				if pre.Kind() == "link-snap" {
 					snapsup, err := snapstate.TaskSnapSetup(pre)
 					c.Assert(err, IsNil)
-					prereqs[snapsup.Name()] = true
+					prereqs[snapsup.InstanceName()] = true
 				}
 			}
 		}
@@ -3961,7 +3961,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				c.Assert(err, IsNil)
 				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
 				c.Assert(err, IsNil)
-				taskAliases[snapsup.Name()] = expectedSet(aliases)
+				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
 			for _, snapName := range scenario.prune {
@@ -4108,7 +4108,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				c.Assert(err, IsNil)
 				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
 				c.Assert(err, IsNil)
-				taskAliases[snapsup.Name()] = expectedSet(aliases)
+				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
 			for _, snapName := range scenario.prune {
@@ -6882,6 +6882,7 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	// Write a snap.yaml with fake name
 	sideInfo11 := &snap.SideInfo{RealName: "name1", Revision: snap.R(11), EditedSummary: "s11"}
 	sideInfo12 := &snap.SideInfo{RealName: "name1", Revision: snap.R(12), EditedSummary: "s12"}
+	instanceSideInfo13 := &snap.SideInfo{RealName: "name1", Revision: snap.R(13), EditedSummary: "s13 instance"}
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.1
@@ -6892,11 +6893,23 @@ name: name0
 version: 1.2
 description: |
     Lots of text`, sideInfo12)
+	snaptest.MockSnapInstance(c, "name1_instance", `
+name: name0
+version: 1.3
+description: |
+    Lots of text`, instanceSideInfo13)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
 		SnapType: "app",
+	})
+	snapstate.Set(st, "name1_instance", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{instanceSideInfo13},
+		Current:     instanceSideInfo13.Revision,
+		SnapType:    "app",
+		InstanceKey: "instance",
 	})
 
 	// have also a snap being installed
@@ -6946,6 +6959,25 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoParallelInstall(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "name1_instance", &snapst)
+	c.Assert(err, IsNil)
+
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, "name1_instance")
+	c.Check(info.Revision, Equals, snap.R(13))
+	c.Check(info.Summary(), Equals, "s13 instance")
+	c.Check(info.Version, Equals, "1.3")
+	c.Check(info.Description(), Equals, "Lots of text")
+}
+
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoErrNoCurrent(c *C) {
 	snapst := new(snapstate.SnapState)
 	_, err := snapst.CurrentInfo()
@@ -6982,13 +7014,28 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	infos, err := snapstate.ActiveInfos(st)
 	c.Assert(err, IsNil)
 
-	c.Check(infos, HasLen, 1)
+	c.Check(infos, HasLen, 2)
+
+	instanceName := "name1_instance"
+	if infos[0].InstanceName() != instanceName && infos[1].InstanceName() != instanceName {
+		c.Fail()
+	}
+	// need stable ordering
+	if infos[0].InstanceName() == instanceName {
+		infos[1], infos[0] = infos[0], infos[1]
+	}
 
 	c.Check(infos[0].InstanceName(), Equals, "name1")
 	c.Check(infos[0].Revision, Equals, snap.R(12))
 	c.Check(infos[0].Summary(), Equals, "s12")
 	c.Check(infos[0].Version, Equals, "1.2")
 	c.Check(infos[0].Description(), Equals, "Lots of text")
+
+	c.Check(infos[1].InstanceName(), Equals, "name1_instance")
+	c.Check(infos[1].Revision, Equals, snap.R(13))
+	c.Check(infos[1].Summary(), Equals, "s13 instance")
+	c.Check(infos[1].Version, Equals, "1.3")
+	c.Check(infos[1].Description(), Equals, "Lots of text")
 }
 
 func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
@@ -7131,11 +7178,11 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 
 	snapStates, err := snapstate.All(st)
 	c.Assert(err, IsNil)
-	c.Assert(snapStates, HasLen, 1)
+	c.Assert(snapStates, HasLen, 2)
 
 	n, err := snapstate.NumSnaps(st)
 	c.Assert(err, IsNil)
-	c.Check(n, Equals, 1)
+	c.Check(n, Equals, 2)
 
 	snapst := snapStates["name1"]
 	c.Assert(snapst, NotNil)
@@ -7158,6 +7205,26 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Check(info11.InstanceName(), Equals, "name1")
 	c.Check(info11.Revision, Equals, snap.R(11))
 	c.Check(info11.Version, Equals, "1.1")
+
+	instance := snapStates["name1_instance"]
+	c.Assert(instance, NotNil)
+
+	c.Check(instance.Active, Equals, true)
+	c.Check(instance.CurrentSideInfo(), NotNil)
+
+	info13, err := snap.ReadInfo("name1_instance", instance.CurrentSideInfo())
+	c.Assert(err, IsNil)
+
+	c.Check(info13.InstanceName(), Equals, "name1_instance")
+	c.Check(info13.SnapName(), Equals, "name1")
+	c.Check(info13.Revision, Equals, snap.R(13))
+	c.Check(info13.Summary(), Equals, "s13 instance")
+	c.Check(info13.Version, Equals, "1.3")
+	c.Check(info13.Description(), Equals, "Lots of text")
+
+	info13other, err := snap.ReadInfo("name1_instance", instance.Sequence[0])
+	c.Assert(err, IsNil)
+	c.Check(info13, DeepEquals, info13other)
 }
 
 func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
