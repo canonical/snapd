@@ -19,11 +19,6 @@
 
 package utils
 
-import (
-	"fmt"
-	"regexp"
-)
-
 // NormalizeInterfaceAttributes normalises types of an attribute values.
 // The following transformations are applied: int -> int64, float32 -> float64.
 // The normalisation proceeds recursively through maps and slices.
@@ -46,14 +41,27 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 	return value
 }
 
-// Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+// CopyAttributes makes a deep copy of the attributes map.
+func CopyAttributes(value map[string]interface{}) map[string]interface{} {
+	return copyRecursive(value).(map[string]interface{})
+}
 
-// ValidateName checks if a string can be used as a plug or slot name.
-func ValidateName(name string) error {
-	valid := validName.MatchString(name)
-	if !valid {
-		return fmt.Errorf("invalid interface name: %q", name)
+func copyRecursive(value interface{}) interface{} {
+	// note: ensure all the mutable types (or types that need a conversion)
+	// are handled here.
+	switch v := value.(type) {
+	case []interface{}:
+		arr := make([]interface{}, len(v))
+		for i, el := range v {
+			arr[i] = copyRecursive(el)
+		}
+		return arr
+	case map[string]interface{}:
+		mp := make(map[string]interface{}, len(v))
+		for key, item := range v {
+			mp[key] = copyRecursive(item)
+		}
+		return mp
 	}
-	return nil
+	return value
 }

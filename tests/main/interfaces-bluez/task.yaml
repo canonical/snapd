@@ -12,7 +12,7 @@ environment:
 
 execute: |
     echo "Installing bluez snap from the store ..."
-    expected="(?s)$SNAP_NAME .* from 'canonical' installed\\n"
+    expected="(?s)$SNAP_NAME .* from Canonical✓ installed\\n"
     snap install "$SNAP_NAME" | grep -Pzq "$expected"
 
     echo "Connecting bluez snap plugs/slots ..."

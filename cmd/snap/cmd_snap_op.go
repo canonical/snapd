@@ -245,7 +245,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 }
 
 // show what has been done
-func showDone(names []string, op string) error {
+func showDone(names []string, op string, esc *escapes) error {
 	cli := Client()
 	snaps, err := cli.List(names, nil)
 	if err != nil {
@@ -260,16 +260,16 @@ func showDone(names []string, op string) error {
 		switch op {
 		case "install":
 			if snap.Publisher != nil {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Publisher.Username)
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
 		case "refresh":
 			if snap.Publisher != nil {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Publisher.Username)
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s refreshed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
@@ -325,6 +325,7 @@ func (mx modeMixin) setModes(opts *client.SnapOptions) {
 }
 
 type cmdInstall struct {
+	colorMixin
 	waitMixin
 
 	channelMixin
@@ -338,25 +339,32 @@ type cmdInstall struct {
 
 	Unaliased bool `long:"unaliased"`
 
+	Name string `long:"name" hidden:"yes"`
+
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
+func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.SnapOptions) error {
 	var err error
-	var installFromFile bool
 	var changeID string
+	var snapName string
+	var path string
 
 	cli := Client()
-	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-		installFromFile = true
-		changeID, err = cli.InstallPath(name, opts)
+	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".snap") || strings.Contains(nameOrPath, ".snap.") {
+		path = nameOrPath
+		changeID, err = cli.InstallPath(path, x.Name, opts)
 	} else {
-		changeID, err = cli.Install(name, opts)
+		snapName = nameOrPath
+		if desiredName != "" {
+			return errors.New(i18n.G("cannot use explicit name when installing from store"))
+		}
+		changeID, err = cli.Install(snapName, opts)
 	}
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(nameOrPath, err, opts)
 		if err != nil {
 			return err
 		}
@@ -373,16 +381,13 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	}
 
 	// extract the snapName from the change, important for sideloaded
-	var snapName string
-
-	if installFromFile {
+	if path != "" {
 		if err := chg.Get("snap-name", &snapName); err != nil {
-			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", nameOrPath, err)
 		}
-		name = snapName
 	}
 
-	return showDone([]string{name}, "install")
+	return showDone([]string{snapName}, "install", x.getEscapes())
 }
 
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
@@ -422,7 +427,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		if err := showDone(installed, "install"); err != nil {
+		if err := showDone(installed, "install", x.getEscapes()); err != nil {
 			return err
 		}
 	}
@@ -462,17 +467,21 @@ func (x *cmdInstall) Execute([]string) error {
 
 	names := remoteSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
-		return x.installOne(names[0], opts)
+		return x.installOne(names[0], x.Name, opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
+	if x.Name != "" {
+		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))
+	}
 	return x.installMany(names, nil)
 }
 
 type cmdRefresh struct {
+	colorMixin
 	timeMixin
 	waitMixin
 	channelMixin
@@ -509,7 +518,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 	}
 
 	if len(refreshed) > 0 {
-		return showDone(refreshed, "refresh")
+		return showDone(refreshed, "refresh", x.getEscapes())
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -536,7 +545,7 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	return showDone([]string{name}, "refresh")
+	return showDone([]string{name}, "refresh", x.getEscapes())
 }
 
 func (x *cmdRefresh) showRefreshTimes() error {
@@ -585,12 +594,14 @@ func (x *cmdRefresh) listRefresh() error {
 
 	sort.Sort(snapsByName(snaps))
 
+	esc := x.getEscapes()
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tPublisher\tNotes"))
+	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tPublisher%s\tNotes\n"), fillerPublisher(esc))
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Publisher.Username, NotesFromRemote(snap, nil))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, shortPublisher(esc, snap.Publisher), NotesFromRemote(snap, nil))
 	}
 
 	return nil
@@ -840,7 +851,7 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	return showDone([]string{name}, "revert")
+	return showDone([]string{name}, "revert", nil)
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
@@ -892,14 +903,15 @@ func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} },
 		waitDescs.also(map[string]string{"revision": i18n.G("Remove only the given revision")}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
-		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
+		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
 			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
 			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
 			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
 			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
+			"name":            i18n.G("Install the snap file under given snap name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
-		waitDescs.also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
+		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
 			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision, to which you must have developer access"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),

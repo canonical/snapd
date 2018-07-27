@@ -42,6 +42,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type SquashfsTestSuite struct {
+	oldStdout, oldStderr, outf *os.File
 }
 
 var _ = Suite(&SquashfsTestSuite{})
@@ -91,6 +92,22 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(d)
 	err := os.Chdir(d)
 	c.Assert(err, IsNil)
+
+	s.outf, err = ioutil.TempFile(c.MkDir(), "")
+	c.Assert(err, IsNil)
+	s.oldStdout, s.oldStderr = os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = s.outf, s.outf
+}
+
+func (s *SquashfsTestSuite) TearDownTest(c *C) {
+	os.Stdout, os.Stderr = s.oldStdout, s.oldStderr
+
+	// this ensures things were quiet
+	_, err := s.outf.Seek(0, 0)
+	c.Assert(err, IsNil)
+	outbuf, err := ioutil.ReadAll(s.outf)
+	c.Assert(err, IsNil)
+	c.Check(string(outbuf), Equals, "")
 }
 
 func (s *SquashfsTestSuite) TestInstallSimpleNoCp(c *C) {
