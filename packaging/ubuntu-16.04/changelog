@@ -1,3 +1,13 @@
+snapd (2.34.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1779403
+    - interfaces/apparmor: use the cache in mtime-resilient way
+    - cmd/snap-confine: (nvidia) pick up libnvidia-glvkspirv.so
+    - snapstate: allow setting "refresh.timer=managed"
+    - spread: switch Fedora and openSUSE images
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 27 Jul 2018 19:08:44 +0200
+
 snapd (2.34.2) xenial; urgency=medium
 
   * New upstream release, LP: #1779403
