@@ -71,8 +71,8 @@ reset_classic() {
         # Restore snapd state and start systemd service units
         restore_snapd_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
+        mounts="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.mount" | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         for unit in $mounts $services; do
             systemctl start "$unit"
@@ -90,7 +90,7 @@ reset_classic() {
         if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
             EXTRA_NC_ARGS=""
         fi
-        while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
+        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
     fi
 }
 
@@ -101,7 +101,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | core | README)
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | README)
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
@@ -132,6 +132,6 @@ fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
     # shellcheck source=tests/lib/store.sh
-    . $TESTSLIB/store.sh
+    . "$TESTSLIB"/store.sh
     teardown_staging_store
 fi

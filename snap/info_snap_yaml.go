@@ -91,8 +91,9 @@ type appYaml struct {
 }
 
 type hookYaml struct {
-	PlugNames []string `yaml:"plugs,omitempty"`
-	SlotNames []string `yaml:"slots,omitempty"`
+	PlugNames   []string           `yaml:"plugs,omitempty"`
+	SlotNames   []string           `yaml:"slots,omitempty"`
+	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 }
 
 type layoutYaml struct {
@@ -387,8 +388,9 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap: snap,
-			Name: hookName,
+			Snap:        snap,
+			Name:        hookName,
+			Environment: yHook.Environment,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)

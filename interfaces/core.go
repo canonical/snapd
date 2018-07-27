@@ -31,7 +31,7 @@ import (
 func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
-			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
+			PlugRef{Snap: plugInfo.Snap.InstanceName(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
@@ -55,7 +55,7 @@ func (ref PlugRef) String() string {
 func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
-			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
+			SlotRef{Snap: slotInfo.Snap.InstanceName(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
@@ -100,8 +100,8 @@ type ConnRef struct {
 // NewConnRef creates a connection reference for given plug and slot
 func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 	return &ConnRef{
-		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
-		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+		PlugRef: PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name},
 	}
 }
 
@@ -215,18 +215,6 @@ const (
 	// SecuritySystemd identifies the systemd services security system
 	SecuritySystemd SecuritySystem = "systemd"
 )
-
-// Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
-
-// ValidateName checks if a string can be used as a plug or slot name.
-func ValidateName(name string) error {
-	valid := validName.MatchString(name)
-	if !valid {
-		return fmt.Errorf("invalid interface name: %q", name)
-	}
-	return nil
-}
 
 // ValidateDBusBusName checks if a string conforms to
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names

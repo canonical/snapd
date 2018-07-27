@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,6 +48,7 @@ type snapOpTestServer struct {
 	total     int
 	channel   string
 	rebooting bool
+	snap      string
 }
 
 var _ = check.Suite(&SnapOpSuite{})
@@ -74,11 +75,11 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "foo"}}}`)
+		fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "%s"}}}\n`, t.snap)
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"%s"}]}\n`, t.channel)
+		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s"}]}\n`, t.snap, t.channel)
 	default:
 		t.c.Fatalf("expected to get %d requests, now on %d", t.total, t.n+1)
 	}
@@ -106,6 +107,7 @@ func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.srv = snapOpTestServer{
 		c:     c,
 		total: 4,
+		snap:  "foo",
 	}
 }
 
@@ -196,7 +198,7 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "candidate", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -217,7 +219,7 @@ func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "3.4", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/stable\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/stable\) 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -237,7 +239,7 @@ func (s *SnapOpSuite) TestInstallFromBranch(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "3.4/hotfix-1", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/hotfix-1\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/hotfix-1\) 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -258,7 +260,7 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "beta", "--devmode", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -277,7 +279,7 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -296,10 +298,318 @@ func (s *SnapOpSuite) TestInstallUnaliased(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--unaliased", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallSnapNotFound(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("error: %v\n", err), check.Equals, `error: snap "foo" not found
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailable(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision available as specified", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" not available as specified (see 'snap info foo')
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableOnChannel(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision available as specified", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=mytrack", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" not available on channel "mytrack/stable" (see 'snap info
+       foo')
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableAtRevision(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision available as specified", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--revision=2", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" revision 2 not available (see 'snap info foo')
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOK(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable",
+  "releases": [{"architecture": "amd64", "channel": "beta"},
+               {"architecture": "amd64", "channel": "edge"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on stable but is available to install on the
+       following channels:
+
+       beta       snap install --beta foo
+       edge       snap install --edge foo
+
+       Please be mindful pre-release channels may include features not
+       completely tested or implemented. Get more information with 'snap info
+       foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOKPrerelOK(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "candidate",
+  "releases": [{"architecture": "amd64", "channel": "beta"},
+               {"architecture": "amd64", "channel": "edge"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--candidate", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on candidate but is available to install on
+       the following channels:
+
+       beta       snap install --beta foo
+       edge       snap install --edge foo
+
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOther(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable",
+  "releases": [{"architecture": "amd64", "channel": "1.0/stable"},
+               {"architecture": "amd64", "channel": "2.0/stable"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on latest/stable but is available to install
+       on the following tracks:
+
+       1.0/stable  snap install --channel=1.0 foo
+       2.0/stable  snap install --channel=2.0 foo
+
+       Please be mindful that different tracks may include different features.
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackLatestStable(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "2.0/stable",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on 2.0/stable but is available to install on
+       the following tracks:
+
+       latest/stable  snap install --stable foo
+
+       Please be mindful that different tracks may include different features.
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackAndRiskOther(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "2.0/stable",
+  "releases": [{"architecture": "amd64", "channel": "1.0/edge"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on 2.0/stable but other tracks exist.
+
+       Please be mindful that different tracks may include different features.
+       Get more information with 'snap info foo'.
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAndRiskOK(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified architecture", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "arm64",
+  "channel": "stable",
+  "releases": [{"architecture": "amd64", "channel": "stable"},
+               {"architecture": "s390x", "channel": "stable"}]
+}, "kind": "snap-architecture-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on stable for this architecture (arm64) but
+       exists on other architectures (amd64, s390x).
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAndRiskOther(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified architecture", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "arm64",
+  "channel": "1.0/stable",
+  "releases": [{"architecture": "amd64", "channel": "stable"},
+               {"architecture": "s390x", "channel": "stable"}]
+}, "kind": "snap-architecture-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=1.0/stable", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: snap "foo" is not available on this architecture (arm64) but exists on
+       other architectures (amd64, s390x).
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "a/b/c/d",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: requested channel "a/b/c/d" is not valid (see 'snap info foo' for valid
+       ones)
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBranchOnMainChannel(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable/baz",
+  "releases": [{"architecture": "amd64", "channel": "stable"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: requested a non-existing branch on latest/stable for snap "foo": baz
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBranch(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
+  "snap-name": "foo",
+  "action": "install",
+  "architecture": "amd64",
+  "channel": "stable/baz",
+  "releases": [{"architecture": "amd64", "channel": "edge"}]
+}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
+	c.Assert(err, check.NotNil)
+	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
+error: requested a non-existing branch for snap "foo": latest/stable/baz
+`)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
 }
 
 func testForm(r *http.Request, c *check.C) *multipart.Form {
@@ -359,7 +669,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -390,7 +700,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -421,7 +731,7 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -452,10 +762,55 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--dangerous", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["name"], check.DeepEquals, []string{"foo_bar"})
+		c.Check(form.Value["devmode"], check.IsNil)
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	// instance is named foo_bar
+	s.srv.snap = "foo_bar"
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapSuite) TestInstallWithInstanceNoPath(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"install", "--name", "foo_bar", "some-snap"})
+	c.Assert(err, check.ErrorMatches, "cannot use explicit name when installing from store")
+}
+
+func (s *SnapSuite) TestInstallManyWithInstance(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"install", "--name", "foo_bar", "some-snap-1", "some-snap-2"})
+	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing multiple snaps")
 }
 
 func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
@@ -558,7 +913,7 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			c.Check(r.URL.Query().Get("select"), check.Equals, "refresh")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "revision":17,"summary":"some summary"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":17,"summary":"some summary"}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -568,7 +923,7 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Publisher +Notes
 foo +4.2update1 +17 +bar +-.*
 `)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -682,7 +1037,7 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 	}
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "foo"})
 	c.Assert(err, check.IsNil)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
 
 }
 
@@ -699,7 +1054,7 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 	}
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "foo"})
 	c.Assert(err, check.IsNil)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from 'bar' refreshed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from Bar refreshed`)
 }
 
 func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
@@ -946,7 +1301,7 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--edge", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -1093,7 +1448,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"edge"}]}\n`)
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "publisher": {"id": "baz-id", "username": "baz", "display-name": "Baz", "validation": "unproven"}, "revision":42, "channel":"edge"}]}\n`)
 
 		default:
 			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
@@ -1106,8 +1461,8 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	// note that (stable) is omitted
-	c.Check(s.Stdout(), check.Matches, `(?sm).*one 1.0 from 'bar' installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(edge\) 2.0 from 'baz' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one 1.0 from Bar installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(edge\) 2.0 from Baz installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)

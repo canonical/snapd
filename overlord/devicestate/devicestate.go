@@ -160,14 +160,14 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	if snapInfo.SnapID != "" {
 		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+			return fmt.Errorf("internal error: cannot find snap declaration for %q: %v", snapInfo.InstanceName(), err)
 		}
 		publisher := snapDecl.PublisherID()
 		if publisher != "canonical" && publisher != model.BrandID() {
-			return fmt.Errorf("cannot install %s %q published by %q for model by %q", kind, snapInfo.Name(), publisher, model.BrandID())
+			return fmt.Errorf("cannot install %s %q published by %q for model by %q", kind, snapInfo.InstanceName(), publisher, model.BrandID())
 		}
 	} else {
-		logger.Noticef("installing unasserted %s %q", kind, snapInfo.Name())
+		logger.Noticef("installing unasserted %s %q", kind, snapInfo.InstanceName())
 	}
 
 	currentSnap, err := currentInfo(st)
@@ -185,8 +185,9 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
-	if snapInfo.Name() != expectedName {
-		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.Name(), expectedName)
+	// TODO parallel-install: use instance name, instance name must match the store name
+	if snapInfo.InstanceName() != expectedName {
+		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}
 
 	return nil
@@ -238,17 +239,26 @@ func interfaceConnected(st *state.State, snapName, ifName string) bool {
 
 // CanManageRefreshes returns true if the device can be
 // switched to the "core.refresh.schedule=managed" mode.
+//
+// TODO:
+// - Move the CanManageRefreshes code into the ifstate
+// - Look at the connections and find the connection for snapd-control
+//   with the managed attribute
+// - Take the snap from this connection and look at the snapstate to see
+//   if that snap has a snap declaration (to ensure it comes from the store)
 func CanManageRefreshes(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return false
 	}
 	for _, snapst := range snapStates {
-		if !snapst.Active {
-			continue
-		}
+		// Always get the current info even if the snap is currently
+		// being operated on or if its disabled.
 		info, err := snapst.CurrentInfo()
 		if err != nil {
+			continue
+		}
+		if info.Broken != "" {
 			continue
 		}
 		// The snap must have a snap declaration (implies that
@@ -259,7 +269,7 @@ func CanManageRefreshes(st *state.State) bool {
 
 		for _, plugInfo := range info.Plugs {
 			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
-				snapName := info.Name()
+				snapName := info.InstanceName()
 				plugName := plugInfo.Name
 				if interfaceConnected(st, snapName, plugName) {
 					return true

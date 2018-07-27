@@ -21,7 +21,9 @@ package logger_test
 
 import (
 	"bytes"
+	"log"
 	"os"
+	"runtime"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -49,14 +51,35 @@ func (s *LogSuite) TearDownTest(c *C) {
 }
 
 func (s *LogSuite) TestDefault(c *C) {
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	oldTerm, hadTerm := os.LookupEnv("TERM")
+	defer func() {
+		if hadTerm {
+			os.Setenv("TERM", oldTerm)
+		} else {
+			os.Unsetenv("TERM")
+		}
+	}()
+
 	if logger.GetLogger() != nil {
 		logger.SetLogger(nil)
 	}
 	c.Check(logger.GetLogger(), IsNil)
 
+	os.Setenv("TERM", "dumb")
 	err := logger.SimpleSetup()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
+
+	os.Unsetenv("TERM")
+	err = logger.SimpleSetup()
+	c.Assert(err, IsNil)
+	c.Check(logger.GetLogger(), NotNil)
+	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
 }
 
 func (s *LogSuite) TestNew(c *C) {

@@ -5,5 +5,5 @@ description: A basic snap which access to ssh keys
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [ssh-keys]

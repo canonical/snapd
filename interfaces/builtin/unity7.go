@@ -639,7 +639,8 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
 	// with the snap name, perform this conversion on the snap name.
-	new := strings.Replace(plug.Snap().Name(), "-", "_", -1)
+	// TODO parallel-install: use of proper instance/store name
+	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)

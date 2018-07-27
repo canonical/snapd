@@ -1078,6 +1078,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 type Search struct {
 	Query   string
 	Section string
+	Scope   string
 	Private bool
 	Prefix  bool
 }
@@ -1122,6 +1123,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 	if search.Section != "" {
 		q.Set("section", search.Section)
+	}
+	if search.Scope != "" {
+		q.Set("scope", search.Scope)
 	}
 
 	if release.OnClassic {
@@ -1343,7 +1347,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	partialPath := targetPath + ".partial"
-	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -1453,6 +1457,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := downloadOptions(storeURL, cdnHeader)
@@ -1511,7 +1516,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		if pbar == nil {
 			pbar = progress.Null
 		}
-		pbar.Start(name, float64(resp.ContentLength))
+		dlSize = float64(resp.ContentLength)
+		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
@@ -1537,6 +1543,20 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			finalErr = HashError{name, actualSha3, sha3_384}
 		}
 		break
+	}
+	if finalErr == nil {
+		// not using quantity.FormatFoo as this is just for debug
+		dt := time.Since(startTime)
+		r := dlSize / dt.Seconds()
+		var p rune
+		for _, p = range " kMGTPEZY" {
+			if r < 1000 {
+				break
+			}
+			r /= 1000
+		}
+
+		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
 }
@@ -1631,7 +1651,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
-	w, err := os.Create(deltaPath)
+	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -1976,6 +1996,11 @@ type snapActionJSON struct {
 	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
 }
 
+type snapRelease struct {
+	Architecture string `json:"architecture"`
+	Channel      string `json:"channel"`
+}
+
 type snapActionResult struct {
 	Result           string    `json:"result"`
 	InstanceKey      string    `json:"instance-key"`
@@ -1986,6 +2011,9 @@ type snapActionResult struct {
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+		Extra   struct {
+			Releases []snapRelease `json:"releases"`
+		} `json:"extra"`
 	} `json:"error"`
 }
 
@@ -2087,8 +2115,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	installNum := 0
 	downloadNum := 0
-	installKeys := make(map[string]bool, len(actions))
-	downloadKeys := make(map[string]bool, len(actions))
+	installs := make(map[string]*SnapAction, len(actions))
+	downloads := make(map[string]*SnapAction, len(actions))
+	refreshes := make(map[string]*SnapAction, len(actions))
 	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
 		if !isValidAction(a.Action) {
@@ -2105,21 +2134,22 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		instanceKey := a.SnapID
-		if a.Action == "install" || a.Action == "download" {
-			if !a.Revision.Unset() {
-				a.Channel = ""
-			}
-			if a.Action == "install" {
-				installNum++
-				instanceKey = fmt.Sprintf("install-%d", installNum)
-				installKeys[instanceKey] = true
-			} else {
-				downloadNum++
-				instanceKey = fmt.Sprintf("download-%d", downloadNum)
-				downloadKeys[instanceKey] = true
-			}
+		if !a.Revision.Unset() {
+			a.Channel = ""
+		}
+		if a.Action == "install" {
+			installNum++
+			instanceKey = fmt.Sprintf("install-%d", installNum)
+			installs[instanceKey] = a
+		} else if a.Action == "download" {
+			downloadNum++
+			instanceKey = fmt.Sprintf("download-%d", downloadNum)
+			downloads[instanceKey] = a
+		} else {
+			refreshes[instanceKey] = a
 		}
 
+		// TODO parallel-install: use of proper instance/store name
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
 			InstanceKey:      instanceKey,
@@ -2180,23 +2210,28 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	var snaps []*snap.Info
 	for _, res := range results.Results {
 		if res.Result == "error" {
-			if installKeys[res.InstanceKey] {
+			if a := installs[res.InstanceKey]; a != nil {
 				if res.Name != "" {
-					installErrors[res.Name] = translateSnapActionError("install", res.Error.Code, res.Error.Message)
+					installErrors[res.Name] = translateSnapActionError("install", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
-			} else if downloadKeys[res.InstanceKey] {
+			} else if a := downloads[res.InstanceKey]; a != nil {
 				if res.Name != "" {
-					downloadErrors[res.Name] = translateSnapActionError("download", res.Error.Code, res.Error.Message)
+					downloadErrors[res.Name] = translateSnapActionError("download", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			} else {
 				if cur := curSnaps[res.InstanceKey]; cur != nil {
-					refreshErrors[cur.Name] = translateSnapActionError("refresh", res.Error.Code, res.Error.Message)
+					a := refreshes[res.InstanceKey]
+					channel := a.Channel
+					if channel == "" && a.Revision.Unset() {
+						channel = cur.TrackingChannel
+					}
+					refreshErrors[cur.Name] = translateSnapActionError("refresh", channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			}
-			otherErrors = append(otherErrors, translateSnapActionError("-", res.Error.Code, res.Error.Message))
+			otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, res.Error.Message, nil))
 			continue
 		}
 		snapInfo, err := infoFromStoreSnap(&res.Snap)
@@ -2219,7 +2254,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	for _, errObj := range results.ErrorList {
-		otherErrors = append(otherErrors, translateSnapActionError("-", errObj.Code, errObj.Message))
+		otherErrors = append(otherErrors, translateSnapActionError("", "", errObj.Code, errObj.Message, nil))
 	}
 
 	if len(refreshErrors)+len(installErrors)+len(downloadErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {

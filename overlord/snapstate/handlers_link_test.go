@@ -37,14 +37,9 @@ import (
 )
 
 type linkSnapSuite struct {
-	state   *state.State
-	snapmgr *snapstate.SnapManager
-
-	fakeBackend *fakeSnappyBackend
+	baseHandlerSuite
 
 	stateBackend *witnessRestartReqStateBackend
-
-	reset func()
 }
 
 var _ = Suite(&linkSnapSuite{})
@@ -64,30 +59,11 @@ func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 
 func (s *linkSnapSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-
 	s.stateBackend = &witnessRestartReqStateBackend{}
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(s.stateBackend)
 
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	resetReadInfo := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
-	s.reset = func() {
-		resetReadInfo()
-		dirs.SetRootDir("/")
-	}
+	s.setup(c, s.stateBackend)
 
 	snapstate.MockModel()
-}
-
-func (s *linkSnapSuite) TearDownTest(c *C) {
-	s.reset()
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
@@ -119,8 +95,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -156,8 +132,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessNoUserID(c *C) {
 	s.state.NewChange("dummy", "...").AddTask(t)
 
 	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -200,8 +176,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 	s.state.NewChange("dummy", "...").AddTask(t)
 
 	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -234,8 +210,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 	s.state.NewChange("dummy", "...").AddTask(t)
 
 	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -269,8 +245,8 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 6; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -297,8 +273,8 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 
@@ -315,11 +291,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
+			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 		{
 			op:   "unlink-snap",
-			name: filepath.Join(dirs.SnapMountDir, "foo/35"),
+			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 	})
 }
@@ -341,8 +317,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -381,8 +357,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -418,8 +394,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartWithoutBase(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -454,8 +430,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartOnClassic(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -503,8 +479,8 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 6; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -547,8 +523,8 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 6; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -595,8 +571,8 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -639,8 +615,8 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -690,8 +666,8 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 10; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()
@@ -711,10 +687,10 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	t = chg.Tasks()[4]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "snap1")
+	c.Assert(autoconnectSup.InstanceName(), Equals, "snap1")
 
 	t = chg.Tasks()[5]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "snap2")
+	c.Assert(autoconnectSup.InstanceName(), Equals, "snap2")
 }

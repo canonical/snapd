@@ -8,6 +8,7 @@ debug: |
     . "$TESTSLIB/journalctl.sh"
 
     # get the full journal to see any out-of-memory errors
+    # shellcheck disable=SC2119
     get_journalctl_log
 
 details: |
@@ -32,7 +33,8 @@ systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, 
 backends: [-autopkgtest]
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
     # quick test to see if on a core system or not
@@ -41,7 +43,8 @@ execute: |
     fi
 
     echo "Given a snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local "$PROVIDER_SNAP"
 
     CONSUMER_SNAP="test-snapd-policy-app-consumer"
@@ -52,7 +55,8 @@ execute: |
         slotcmd_bn=$(basename "$slotcmd")
         slot_iface=$(echo "$slotcmd_bn" | tr '.' ':')
 
-        plugcmd=$(echo $slotcmd | sed "s/$PROVIDER_SNAP/$CONSUMER_SNAP/")
+        #shellcheck disable=SC2001
+        plugcmd=$(echo "$slotcmd" | sed "s/$PROVIDER_SNAP/$CONSUMER_SNAP/")
         plugcmd_bn=$(basename "$plugcmd")
         plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
 
@@ -60,11 +64,7 @@ execute: |
         DISCONNECTED_PATTERN="$slot_iface +-"
 
         echo "When slot $slot_iface is connected"
-        if snap interfaces | MATCH "$DISCONNECTED_PATTERN" ; then
-            snap connect "$plug_iface" "$slot_iface"
-        else
-            echo "$plug_iface already connected"
-        fi
+        snap connect "$plug_iface" "$slot_iface"
         snap interfaces | MATCH "$CONNECTED_PATTERN"
 
         echo "Then $slotcmd_bn should succeed"
@@ -78,6 +78,7 @@ execute: |
     for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
         plugcmd_bn=$(basename "$plugcmd")
         plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
+        #shellcheck disable=SC2001
         slot_iface=$(echo "$plug_iface" | sed "s/$CONSUMER_SNAP//")
 
         # we test browser-support two different ways, so account for that
@@ -85,24 +86,17 @@ execute: |
             slot_iface=":browser-support"
         fi
 
-        CONNECTED_PATTERN="$slot_iface +$CONSUMER_SNAP"
+        CONNECTED_PATTERN="$slot_iface +.*$CONSUMER_SNAP"
         DISCONNECTED_PATTERN="$slot_iface +-"
 
-        # The core-support plug is connected by the core snap, so account for
-        # that
-        if [ "$plug_iface" = "$CONSUMER_SNAP:core-support" ]; then
-            CONNECTED_PATTERN="$slot_iface +core:core-support-plug,$CONSUMER_SNAP"
-            DISCONNECTED_PATTERN="$slot_iface +core:core-support-plug$"
-        fi
-
         # Skip any interfaces that core doesn't ship
-        if ! snap interfaces | MATCH "$slot_iface +" ; then
+        if ! snap interfaces | grep -E -q "$slot_iface +"; then
             echo "$slot_iface not present, skipping"
             continue
         fi
 
         echo "When slot $slot_iface is connected"
-        if snap interfaces | MATCH "$DISCONNECTED_PATTERN" ; then
+        if snap interfaces | grep -E -q "$DISCONNECTED_PATTERN"; then
             if [ "$slot_iface" = ":broadcom-asic-control" ] || [ "$slot_iface" = ":firewall-control" ] || [ "$slot_iface" = ":kubernetes-support" ] || [ "$slot_iface" = ":openvswitch-support" ] || [ "$slot_iface" = ":ppp" ]; then
                 # TODO: when the kmod backend no longer fails on missing
                 # modules, we can remove this

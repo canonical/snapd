@@ -54,6 +54,9 @@ const validSnapIDLength = 32
 //   validators.
 var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
 
+// validInstanceKey is a regular expression describing valid snap instance key
+var validInstanceKey = regexp.MustCompile("^[a-z0-9]{1,10}$")
+
 // isValidName checks snap and socket socket identifiers.
 func isValidName(name string) bool {
 	if !almostValidName.MatchString(name) {
@@ -65,12 +68,70 @@ func isValidName(name string) bool {
 	return true
 }
 
+// ValidateName checks if a string can be used as a snap instance name.
+func ValidateInstanceName(instanceName string) error {
+	// NOTE: This function should be synchronized with the two other
+	// implementations: sc_instance_name_validate and validate_instance_name .
+	pos := strings.IndexByte(instanceName, '_')
+	if pos == -1 {
+		// just store name
+		return ValidateName(instanceName)
+	}
+
+	storeName := instanceName[:pos]
+	instanceKey := instanceName[pos+1:]
+	if err := ValidateName(storeName); err != nil {
+		return err
+	}
+	if !validInstanceKey.MatchString(instanceKey) {
+		// TODO parallel-install: extend the error message once snap
+		// install help has been updated
+		return fmt.Errorf("invalid instance key: %q", instanceKey)
+	}
+	return nil
+}
+
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_snap_name_validate and validate_snap_name .
 	if len(name) > 40 || !isValidName(name) {
 		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
+// Regular expression describing correct plug, slot and interface names.
+var validPlugSlotIfaceName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+
+// ValidatePlugName checks if a string can be used as a slot name.
+//
+// Slot names and plug names within one snap must have unique names.
+// This is not enforced by this function but is enforced by snap-level
+// validation.
+func ValidatePlugName(name string) error {
+	if !validPlugSlotIfaceName.MatchString(name) {
+		return fmt.Errorf("invalid plug name: %q", name)
+	}
+	return nil
+}
+
+// ValidateSlotName checks if a string can be used as a slot name.
+//
+// Slot names and plug names within one snap must have unique names.
+// This is not enforced by this function but is enforced by snap-level
+// validation.
+func ValidateSlotName(name string) error {
+	if !validPlugSlotIfaceName.MatchString(name) {
+		return fmt.Errorf("invalid slot name: %q", name)
+	}
+	return nil
+}
+
+// ValidateInterfaceName checks if a string can be used as an interface name.
+func ValidateInterfaceName(name string) error {
+	if !validPlugSlotIfaceName.MatchString(name) {
+		return fmt.Errorf("invalid interface name: %q", name)
 	}
 	return nil
 }
@@ -213,7 +274,8 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
-	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
+	// TODO parallel-install: use of proper instance/store name, discuss socket activation in parallel install world
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.InstanceName())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
 	}
@@ -258,11 +320,12 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
-	name := info.Name()
+	name := info.InstanceName()
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 
+	// TODO parallel-install: use of proper instance/store name, validate instance key
 	if err := ValidateName(name); err != nil {
 		return err
 	}
@@ -315,7 +378,7 @@ func Validate(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type == TypeOS || info.Type == TypeBase {
 		if info.Base != "" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
 		}
 	}
 

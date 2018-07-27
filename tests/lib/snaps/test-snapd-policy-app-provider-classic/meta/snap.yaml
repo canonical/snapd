@@ -18,6 +18,7 @@ slots:
     interface: dbus
     bus: system
     name: test.system
+  fwupd: null
   location-control: null
   location-observe: null
   lxd: null
@@ -48,6 +49,9 @@ apps:
   docker:
     command: bin/run
     slots: [ docker ]
+  fwupd:
+    command: bin/run
+    slots: [ fwupd ]
   location-control:
     command: bin/run
     slots: [ location-control ]

@@ -254,6 +254,7 @@ var defaultTemplate = `
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
+  /usr/lib/snapd/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
