@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Model holds a model assertion, which is a statement by a brand
@@ -87,11 +87,11 @@ func (mod *Model) Kernel() string {
 // KernelTrack returns the kernel track the model uses.
 func (mod *Model) KernelTrack() string {
 	kernel := mod.HeaderString("kernel")
-	inwc, err := snap.ParseInstanceNameWithChannel(kernel)
-	if err != nil {
-		panic(fmt.Sprintf("internal error: kernel header not validated: %q", kernel))
+	l := strings.SplitN(kernel, "=", 2)
+	if len(l) > 1 {
+		return l[1]
 	}
-	return inwc.Channel.Track
+	return ""
 }
 
 // Base returns the base snap the model uses.
@@ -131,25 +131,37 @@ var _ consistencyChecker = (*Model)(nil)
 // limit model to only lowercase for now
 var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
+func checkKernelHeader(headers map[string]interface{}) error {
+	_, ok := headers["kernel"]
+	if !ok {
+		return nil
+	}
+	kernel, ok := headers["kernel"].(string)
+	if !ok {
+		return fmt.Errorf(`"kernel" header must be a string`)
+	}
+	l := strings.SplitN(kernel, "=", 2)
+	if len(l) == 1 {
+		return nil
+	}
+	kernelTrack := l[1]
+	if strings.Count(kernelTrack, "/") != 0 {
+		return fmt.Errorf(`"kernel" channel selector must be a track name only`)
+	}
+	channelRisks := []string{"stable", "candidate", "beta", "edge"}
+	if strutil.ListContains(channelRisks, kernelTrack) {
+		return fmt.Errorf(`"kernel" channel selector must be a track name`)
+	}
+	return nil
+}
+
 func checkModel(headers map[string]interface{}) (string, error) {
 	s, err := checkStringMatches(headers, "model", validModel)
 	if err != nil {
 		return "", err
 	}
-	if kernel, ok := headers["kernel"].(string); ok && kernel != "" {
-		l := strings.SplitN(kernel, "=", 2)
-		if len(l) != 1 {
-			if strings.Count(l[1], "/") != 0 {
-				return "", fmt.Errorf(`"kernel" channel selector must be a track name only`)
-			}
-			inwc, err := snap.ParseInstanceNameWithChannel(kernel)
-			if err != nil {
-				return "", fmt.Errorf(`"kernel" header has invalid track: %s`, err)
-			}
-			if inwc.Channel.Track == "" {
-				return "", fmt.Errorf(`"kernel" channel selector must be a track name`)
-			}
-		}
+	if err := checkKernelHeader(headers); err != nil {
+		return "", err
 	}
 
 	// TODO: support the concept of case insensitive/preserving string headers
