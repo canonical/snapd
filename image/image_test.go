@@ -187,12 +187,15 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
 	}
 
-	if info, ok := s.storeSnapInfo[actions[0].Name]; ok {
+	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
+		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
+	}
+
+	if info, ok := s.storeSnapInfo[actions[0].InstanceName]; ok {
 		info.Channel = actions[0].Channel
 		return []*snap.Info{info}, nil
 	}
-
-	return nil, fmt.Errorf("no %q in the fake store", actions[0].Name)
+	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
