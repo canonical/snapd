@@ -274,19 +274,6 @@ prepare_classic() {
     fi
 }
 
-MATCH ()
-{
-    [ ${#@} -gt 0 ] || {
-        echo "error: missing regexp argument";
-        return 1
-    };
-    local stdin="$(cat)";
-    echo "$stdin" | grep -q -E "$@" || {
-        echo "error: pattern not found, got: $stdin" 1>&2;
-        return 1
-    }
-}
-
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
