@@ -5,5 +5,5 @@ description: A basic snap which allows reading and writing to joystick devices
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [joystick]

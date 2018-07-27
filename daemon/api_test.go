@@ -2322,6 +2322,82 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags) string {
+	d := s.daemonWithFakeSnapManager(c)
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	// setup done
+	installQueue := []string{}
+	unsafeReadSnapInfo = func(path string) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: "local"}, nil
+	}
+
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		// NOTE: ubuntu-core is not installed in developer mode
+		c.Check(flags, check.Equals, snapstate.Flags{})
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags, check.DeepEquals, expectedFlags)
+
+		c.Check(path, testutil.FileEquals, "xyzzy")
+
+		installQueue = append(installQueue, si.RealName+"::"+path)
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+	n := 1
+	c.Assert(installQueue, check.HasLen, n)
+	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(soon, check.Equals, 1)
+
+	c.Assert(chg.Tasks(), check.HasLen, n)
+
+	st.Unlock()
+	s.waitTrivialChange(c, chg)
+	st.Lock()
+
+	c.Check(chg.Kind(), check.Equals, "install-snap")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"local"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "local",
+	})
+
+	return chg.Summary()
+}
+
 func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
@@ -2491,6 +2567,36 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
+func (s *apiSuite) TestSideloadSnapChangeConflict(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	s.daemonWithOverlordMock(c)
+
+	unsafeReadSnapInfo = func(path string) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: "foo"}, nil
+	}
+
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
+		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindSnapChangeConflict)
+}
+
 func (s *apiSuite) TestTrySnap(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 
@@ -2626,80 +2732,26 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags) string {
-	d := s.daemonWithFakeSnapManager(c)
+func (s *apiSuite) TestTryChangeConflict(c *check.C) {
+	s.daemonWithOverlordMock(c)
 
-	soon := 0
-	ensureStateSoon = func(st *state.State) {
-		soon++
-		ensureStateSoonImpl(st)
-	}
+	// mock a try dir
+	tryDir := c.MkDir()
 
-	// setup done
-	installQueue := []string{}
 	unsafeReadSnapInfo = func(path string) (*snap.Info, error) {
-		return &snap.Info{SuggestedName: "local"}, nil
+		return &snap.Info{SuggestedName: "foo"}, nil
 	}
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		// NOTE: ubuntu-core is not installed in developer mode
-		c.Check(flags, check.Equals, snapstate.Flags{})
-		installQueue = append(installQueue, name)
-
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+	snapstateTryPath = func(s *state.State, name, path string, flags snapstate.Flags) (*state.TaskSet, error) {
+		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	}
 
-	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
-		c.Check(flags, check.DeepEquals, expectedFlags)
-
-		c.Check(path, testutil.FileEquals, "xyzzy")
-
-		installQueue = append(installQueue, si.RealName+"::"+path)
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
-	}
-
-	buf := bytes.NewBufferString(content)
-	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
-	for k, v := range head {
-		req.Header.Set(k, v)
-	}
 
-	rsp := postSnaps(snapsCmd, req, nil).(*resp)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
-	n := 1
-	c.Assert(installQueue, check.HasLen, n)
-	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	chg := st.Change(rsp.Change)
-	c.Assert(chg, check.NotNil)
-
-	c.Check(soon, check.Equals, 1)
-
-	c.Assert(chg.Tasks(), check.HasLen, n)
-
-	st.Unlock()
-	s.waitTrivialChange(c, chg)
-	st.Lock()
-
-	c.Check(chg.Kind(), check.Equals, "install-snap")
-	var names []string
-	err = chg.Get("snap-names", &names)
-	c.Assert(err, check.IsNil)
-	c.Check(names, check.DeepEquals, []string{"local"})
-	var apiData map[string]interface{}
-	err = chg.Get("api-data", &apiData)
-	c.Assert(err, check.IsNil)
-	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": "local",
-	})
-
-	return chg.Summary()
+	rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.Flags{}).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindSnapChangeConflict)
 }
 
 func (s *apiSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {
@@ -2777,6 +2829,7 @@ func (s *apiSuite) TestGetRootDocument(c *check.C) {
 }
 
 func (s *apiSuite) TestGetConfBadKey(c *check.C) {
+	s.daemon(c)
 	// TODO: this one in particular should really be a 400 also
 	result := s.runGetConf(c, "test-snap", []string{"."}, 500)
 	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `invalid option name: ""`})
@@ -2954,6 +3007,55 @@ func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
 			"message": `snap "config-snap" is not installed`,
 			"kind":    "snap-not-found",
 			"value":   "config-snap",
+		},
+		"type": "error"})
+}
+
+func simulateConflict(o *overlord.Overlord, name string) {
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	t := st.NewTask("link-snap", "...")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{
+		RealName: name,
+	}}
+	t.Set("snap-setup", snapsup)
+	chg := st.NewChange("manip", "...")
+	chg.AddTask(t)
+}
+
+func (s *apiSuite) TestSetConfChangeConflict(c *check.C) {
+	d := s.daemon(c)
+	s.mockSnap(c, configYaml)
+
+	simulateConflict(d.overlord, "config-snap")
+
+	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "config-snap"}
+
+	rec := httptest.NewRecorder()
+	snapConfCmd.PUT(snapConfCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 409)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 409.,
+		"status":      "Conflict",
+		"result": map[string]interface{}{
+			"message": `snap "config-snap" has "manip" change in progress`,
+			"kind":    "snap-change-conflict",
+			"value": map[string]interface{}{
+				"change-kind": "manip",
+				"snap-name":   "config-snap",
+			},
 		},
 		"type": "error"})
 }
@@ -4008,6 +4110,47 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	repo := d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestConnectPlugChangeConflict(c *check.C) {
+	d := s.daemon(c)
+
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	// there is no producer, no slot defined
+
+	simulateConflict(d.overlord, "consumer")
+
+	action := &interfaceAction{
+		Action: "connect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 409)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 409.,
+		"status":      "Conflict",
+		"result": map[string]interface{}{
+			"message": `snap "consumer" has "manip" change in progress`,
+			"kind":    "snap-change-conflict",
+			"value": map[string]interface{}{
+				"change-kind": "manip",
+				"snap-name":   "consumer",
+			},
+		},
+		"type": "error"})
 }
 
 func (s *apiSuite) TestConnectCoreSystemAlias(c *check.C) {
@@ -5674,6 +5817,53 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, true)
 }
 
+func (s *apiSuite) TestAliasChangeConflict(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	simulateConflict(d.overlord, "alias-snap")
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	action := &aliasAction{
+		Action: "alias",
+		Snap:   "alias-snap",
+		App:    "app",
+		Alias:  "alias1",
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 409)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 409.,
+		"status":      "Conflict",
+		"result": map[string]interface{}{
+			"message": `snap "alias-snap" has "manip" change in progress`,
+			"kind":    "snap-change-conflict",
+			"value": map[string]interface{}{
+				"change-kind": "manip",
+				"snap-name":   "alias-snap",
+			},
+		},
+		"type": "error"})
+}
+
 func (s *apiSuite) TestAliasErrors(c *check.C) {
 	s.daemon(c)
 
@@ -6855,7 +7045,7 @@ func (e fakeNetError) Error() string   { return e.message }
 func (e fakeNetError) Timeout() bool   { return e.timeout }
 func (e fakeNetError) Temporary() bool { return e.temporary }
 
-func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
+func (s *apiSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	si := &snapInstruction{Action: "frobble"}
 	errors := []error{
 		store.ErrSnapNotFound,
@@ -7000,4 +7190,51 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		},
 	})
 
+}
+
+func (s *appSuite) TestErrToResponse(c *check.C) {
+	aie := &snap.AlreadyInstalledError{Snap: "foo"}
+	nie := &snap.NotInstalledError{Snap: "foo"}
+	cce := &snapstate.ChangeConflictError{Snap: "foo"}
+	ndme := &snapstate.SnapNeedsDevModeError{Snap: "foo"}
+	nce := &snapstate.SnapNeedsClassicError{Snap: "foo"}
+	ncse := &snapstate.SnapNeedsClassicSystemError{Snap: "foo"}
+	netoe := fakeNetError{message: "other"}
+	nettoute := fakeNetError{message: "timeout", timeout: true}
+	nettmpe := fakeNetError{message: "temp", temporary: true}
+
+	e := errors.New("other error")
+
+	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: kind, Value: value},
+			Status: 400,
+		}, nil)
+	}
+
+	tests := []struct {
+		err         error
+		expectedRsp Response
+	}{
+		{store.ErrSnapNotFound, SnapNotFound("foo", store.ErrSnapNotFound)},
+		{store.ErrNoUpdateAvailable, makeErrorRsp(errorKindSnapNoUpdateAvailable, store.ErrNoUpdateAvailable, "")},
+		{store.ErrLocalSnap, makeErrorRsp(errorKindSnapLocal, store.ErrLocalSnap, "")},
+		{aie, makeErrorRsp(errorKindSnapAlreadyInstalled, aie, "foo")},
+		{nie, makeErrorRsp(errorKindSnapNotInstalled, nie, "foo")},
+		{ndme, makeErrorRsp(errorKindSnapNeedsDevMode, ndme, "foo")},
+		{nce, makeErrorRsp(errorKindSnapNeedsClassic, nce, "foo")},
+		{ncse, makeErrorRsp(errorKindSnapNeedsClassicSystem, ncse, "foo")},
+		{cce, SnapChangeConflict(cce)},
+		{nettoute, makeErrorRsp(errorKindNetworkTimeout, nettoute, "")},
+		{netoe, BadRequest("ERR: %v", netoe)},
+		{nettmpe, BadRequest("ERR: %v", nettmpe)},
+		{e, BadRequest("ERR: %v", e)},
+	}
+
+	for _, t := range tests {
+		com := check.Commentf("%v", t.err)
+		rsp := errToResponse(t.err, []string{"foo"}, BadRequest, "%s: %v", "ERR")
+		c.Check(rsp, check.DeepEquals, t.expectedRsp, com)
+	}
 }
