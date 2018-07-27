@@ -4,9 +4,6 @@ set -x
 # statements we execute stops the build. The code is not (yet) written to
 # handle errors in general.
 set -e
-# Set pipefail option so that "foo | bar" behaves with fewer surprises by
-# failing if foo fails, not just if bar fails.
-set -o pipefail
 
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
