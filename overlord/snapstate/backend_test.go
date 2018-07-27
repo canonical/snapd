@@ -183,23 +183,20 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		return nil, store.ErrSnapNotFound
 	}
 
-	snapName, instanceKey := snap.SplitInstanceName(spec.Name)
-
 	info := &snap.Info{
 		Architectures: []string{"all"},
 		SideInfo: snap.SideInfo{
-			RealName: snapName,
+			RealName: spec.Name,
 			Channel:  spec.Channel,
-			SnapID:   snapName + "-id",
+			SnapID:   spec.Name + "-id",
 			Revision: spec.Revision,
 		},
-		Version: snapName,
+		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		Confinement: confinement,
 		Type:        typ,
-		InstanceKey: instanceKey,
 	}
 	switch spec.Channel {
 	case "channel-for-devmode":
@@ -378,9 +375,11 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			return nil, fmt.Errorf("internal error: action without instance name")
 		}
 
+		snapName, instanceKey := snap.SplitInstanceName(a.InstanceName)
+
 		if a.Action == "install" {
 			spec := snapSpec{
-				Name:     snap.InstanceSnap(a.InstanceName),
+				Name:     snapName,
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
@@ -398,6 +397,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			if !a.Revision.Unset() {
 				info.Channel = ""
 			}
+			info.InstanceKey = instanceKey
 			res = append(res, info)
 			continue
 		}
@@ -446,7 +446,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if !a.Revision.Unset() {
 			info.Channel = ""
 		}
-		_, info.InstanceKey = snap.SplitInstanceName(a.InstanceName)
+		info.InstanceKey = instanceKey
 		res = append(res, info)
 	}
 
