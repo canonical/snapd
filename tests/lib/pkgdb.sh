@@ -6,9 +6,6 @@
 debian_name_package() {
     for i in "$@"; do
         case "$i" in
-            xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
-                echo "$i"
-                ;;
             man)
                 echo "man-db"
                 ;;
@@ -35,9 +32,6 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     for i in "$@"; do
         case "$i" in
-            xdelta3|jq|curl|python3-yaml)
-                echo "$i"
-                ;;
             openvswitch-switch)
                 echo "openvswitch"
                 ;;
