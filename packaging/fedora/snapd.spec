@@ -73,7 +73,7 @@
 %endif
 
 Name:           snapd
-Version:        2.34.2
+Version:        2.34.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -733,6 +733,12 @@ fi
 
 
 %changelog
+* Fri Jul 27 2018 Michael Vogt <mvo@ubuntu.com>
+ - interfaces/apparmor: use the cache in mtime-resilient way
+ - cmd/snap-confine: (nvidia) pick up libnvidia-glvkspirv.so
+ - snapstate: allow setting "refresh.timer=managed"
+ - spread: switch Fedora and openSUSE images
+
 * Thu Jul 19 2018 Michael Vogt <mvo@ubuntu.com>
   - packaging: fix bogus date in fedora snapd.spec
   - tests: fix tests expecting old email address
