@@ -516,13 +516,16 @@ WantedBy=multi-user.target
 EOF
         ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
         
+        declare -f MATCH
         # create /var/lib/extrausers/$f
         # append ubuntu, test user for the testing
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
         # check test was copied
-        MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
-        MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
+        for _ in $(seq 100); do
+            MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
+            MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
+        done
     done
 
     # ensure spread -reuse works in the core image as well
