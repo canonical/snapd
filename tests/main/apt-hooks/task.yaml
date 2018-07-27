@@ -6,7 +6,15 @@ systems: [ubuntu-18.04-*, ubuntu-18.10-*]
 restore: |
     rm -f expected out
 
+debug: |
+    ls -lh /var/cache/snapd
+    
 execute: |
+    echo "Ensure we have a snap catalog in our cache"
+    while ! test -s /var/cache/snapd/commands.db; do
+        sleep 1
+    done
+
     echo "Creating expected file"
     cat > expected <<EOF
 
