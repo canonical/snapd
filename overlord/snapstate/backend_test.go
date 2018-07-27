@@ -102,7 +102,7 @@ type byName []store.CurrentSnap
 func (bna byName) Len() int      { return len(bna) }
 func (bna byName) Swap(i, j int) { bna[i], bna[j] = bna[j], bna[i] }
 func (bna byName) Less(i, j int) bool {
-	return bna[i].Name < bna[j].Name
+	return bna[i].InstanceName < bna[j].InstanceName
 }
 
 type byAction []*store.SnapAction
@@ -114,7 +114,7 @@ func (ba byAction) Less(i, j int) bool {
 		if ba[i].Action == "refresh" {
 			return ba[i].SnapID < ba[j].SnapID
 		} else {
-			return ba[i].Name < ba[j].Name
+			return ba[i].InstanceName < ba[j].InstanceName
 		}
 	}
 	return ba[i].Action < ba[j].Action
@@ -343,7 +343,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	curByID := make(map[string]*store.CurrentSnap, len(currentSnaps))
 	curSnaps := make(byName, len(currentSnaps))
 	for i, cur := range currentSnaps {
-		if cur.Name == "" || cur.SnapID == "" || cur.Revision.Unset() {
+		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
 		curByID[cur.SnapID] = cur
@@ -371,16 +371,19 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if a.Action != "install" && a.Action != "refresh" {
 			panic("not supported")
 		}
+		if a.InstanceName == "" {
+			return nil, fmt.Errorf("internal error: action without instance name")
+		}
 
 		if a.Action == "install" {
-			sspec := snapSpec{
-				Name:     a.Name,
+			spec := snapSpec{
+				Name:     snap.InstanceSnap(a.InstanceName),
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.snap(sspec, user)
+			info, err := f.snap(spec, user)
 			if err != nil {
-				installErrors[a.Name] = err
+				installErrors[a.InstanceName] = err
 				continue
 			}
 			f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
@@ -431,7 +434,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			userID: userID,
 		})
 		if err == store.ErrNoUpdateAvailable {
-			refreshErrors[cur.Name] = err
+			refreshErrors[cur.InstanceName] = err
 			continue
 		}
 		if err != nil {
@@ -785,7 +788,7 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  snapsup.Name(),
+		name:  snapsup.InstanceName(),
 		revno: snapsup.Revision(),
 	})
 }
