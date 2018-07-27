@@ -55,6 +55,10 @@ func main() {
 }
 
 func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
+	// not running under systemd
+	if os.Getenv("WATCHDOG_USEC") == "" {
+		return nil, nil
+	}
 	usec := osutil.GetenvInt64("WATCHDOG_USEC")
 	if usec == 0 {
 		return nil, fmt.Errorf("cannot parse WATCHDOG_USEC: %q", os.Getenv("WATCHDOG_USEC"))
@@ -106,7 +110,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("cannot run software watchdog: %v", err)
 	}
-	defer watchdog.Stop()
+	if watchdog != nil {
+		defer watchdog.Stop()
+	}
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
