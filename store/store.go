@@ -2142,10 +2142,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			ignoreValidation = &f
 		}
 
-		instanceKey := instanceNameToKey[a.InstanceName]
+		var instanceKey string
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
-			InstanceKey:      instanceKey,
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
@@ -2167,6 +2166,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				return nil, fmt.Errorf("internal error: unsupported download with instance name %q", a.InstanceName)
 			}
 		} else {
+			instanceKey = instanceNameToKey[a.InstanceName]
 			refreshes[instanceKey] = a
 		}
 
