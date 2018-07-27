@@ -5,5 +5,5 @@ description: A basic snap which allow access to broadcom asic kernel module
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [broadcom-asic-control]

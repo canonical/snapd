@@ -3,5 +3,5 @@ version: 2.0
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [home]
