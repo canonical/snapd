@@ -209,6 +209,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"kernel: baz-linux=18\n", "kernel: baz-linux=x/x/x\n", `"kernel" channel selector must be a track name only`},
 		{"kernel: baz-linux=18\n", "kernel: baz-linux=stable\n", `"kernel" channel selector must be a track name`},
 		{"kernel: baz-linux=18\n", "kernel: baz-linux=18/beta\n", `"kernel" channel selector must be a track name only`},
+		{"kernel: baz-linux=18\n", "kernel:\n  - xyz \n", `"kernel" header must be a string`},
 		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
@@ -276,6 +277,7 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "")
+	c.Check(model.KernelTrack(), Equals, "")
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
 }
