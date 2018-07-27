@@ -24,6 +24,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 // Model holds a model assertion, which is a statement by a brand
@@ -85,11 +87,11 @@ func (mod *Model) Kernel() string {
 // KernelTrack returns the kernel track the model uses.
 func (mod *Model) KernelTrack() string {
 	kernel := mod.HeaderString("kernel")
-	l := strings.SplitN(kernel, "=", 2)
-	if len(l) < 2 {
-		return ""
+	inwc, err := snap.ParseInstanceNameWithChannel(kernel)
+	if err != nil {
+		panic(fmt.Sprintf("internal error: kernel header not validated: %q", kernel))
 	}
-	return l[1]
+	return inwc.Channel.Track
 }
 
 // Base returns the base snap the model uses.
@@ -134,6 +136,22 @@ func checkModel(headers map[string]interface{}) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if kernel, ok := headers["kernel"].(string); ok && kernel != "" {
+		l := strings.SplitN(kernel, "=", 2)
+		if len(l) != 1 {
+			if strings.Count(l[1], "/") != 0 {
+				return "", fmt.Errorf(`"kernel" channel selector must be a track name only`)
+			}
+			inwc, err := snap.ParseInstanceNameWithChannel(kernel)
+			if err != nil {
+				return "", fmt.Errorf(`"kernel" header has invalid track: %s`, err)
+			}
+			if inwc.Channel.Track == "" {
+				return "", fmt.Errorf(`"kernel" channel selector must be a track name`)
+			}
+		}
+	}
+
 	// TODO: support the concept of case insensitive/preserving string headers
 	if strings.ToLower(s) != s {
 		return "", fmt.Errorf(`"model" header cannot contain uppercase letters`)
