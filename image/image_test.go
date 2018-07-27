@@ -187,6 +187,10 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
 	}
 
+	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
+		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
+	}
+
 	if info, ok := s.storeSnapInfo[actions[0].InstanceName]; ok {
 		info.Channel = actions[0].Channel
 		return []*snap.Info{info}, nil
