@@ -25,7 +25,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -34,6 +34,8 @@ type Repository struct {
 	// Protects the internals from concurrent access.
 	m      sync.Mutex
 	ifaces map[string]Interface
+	// subset of ifaces that implement HotplugDeviceAdded method
+	hotplugIfaces map[string]Interface
 	// Indexed by [snapName][plugName]
 	plugs map[string]map[string]*snap.PlugInfo
 	slots map[string]map[string]*snap.SlotInfo
@@ -47,12 +49,13 @@ type Repository struct {
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	repo := &Repository{
-		ifaces:    make(map[string]Interface),
-		plugs:     make(map[string]map[string]*snap.PlugInfo),
-		slots:     make(map[string]map[string]*snap.SlotInfo),
-		slotPlugs: make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
-		plugSlots: make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
-		backends:  make(map[SecuritySystem]SecurityBackend),
+		ifaces:        make(map[string]Interface),
+		hotplugIfaces: make(map[string]Interface),
+		plugs:         make(map[string]map[string]*snap.PlugInfo),
+		slots:         make(map[string]map[string]*snap.SlotInfo),
+		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
+		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
+		backends:      make(map[SecuritySystem]SecurityBackend),
 	}
 
 	return repo
@@ -72,13 +75,18 @@ func (r *Repository) AddInterface(i Interface) error {
 	defer r.m.Unlock()
 
 	interfaceName := i.Name()
-	if err := utils.ValidateName(interfaceName); err != nil {
+	if err := snap.ValidateInterfaceName(interfaceName); err != nil {
 		return err
 	}
 	if _, ok := r.ifaces[interfaceName]; ok {
 		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
 	r.ifaces[interfaceName] = i
+
+	if _, ok := i.(hotplug.Definer); ok {
+		r.hotplugIfaces[interfaceName] = i
+	}
+
 	return nil
 }
 
@@ -89,6 +97,19 @@ func (r *Repository) AllInterfaces() []Interface {
 
 	ifaces := make([]Interface, 0, len(r.ifaces))
 	for _, iface := range r.ifaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
+}
+
+// AllHotplugInterfaces returns all interfaces that handle hotplug events.
+func (r *Repository) AllHotplugInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.hotplugIfaces))
+	for _, iface := range r.hotplugIfaces {
 		ifaces = append(ifaces, iface)
 	}
 	sort.Sort(byInterfaceName(ifaces))
@@ -269,8 +290,8 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := utils.ValidateName(plug.Name); err != nil {
+	// Reject plugs with invalid names
+	if err := snap.ValidatePlugName(plug.Name); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -364,8 +385,8 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := utils.ValidateName(slot.Name); err != nil {
+	// Reject slots with invalid names
+	if err := snap.ValidateSlotName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct
@@ -430,6 +451,8 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	if slotSnapName == "" {
 		// Use the core snap if the slot-side snap name is empty
 		switch {
+		case r.slots["snapd"] != nil:
+			slotSnapName = "snapd"
 		case r.slots["core"] != nil:
 			slotSnapName = "core"
 		case r.slots["ubuntu-core"] != nil:
@@ -492,7 +515,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	coreSnapName, _ := r.guessCoreSnapName()
+	coreSnapName, _ := r.guessSystemSnapName()
 	if coreSnapName == "" {
 		// This is not strictly speaking true BUT when there's no core snap the
 		// produced error messages are consistent to when the is a core snap
@@ -685,7 +708,7 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 
 func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, error) {
 	if snapName == "" {
-		snapName, _ = r.guessCoreSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
@@ -722,7 +745,7 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	defer r.m.Unlock()
 
 	if snapName == "" {
-		snapName, _ = r.guessCoreSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
@@ -746,8 +769,10 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 }
 
 // coreSnapName returns the name of the core snap if one exists
-func (r *Repository) guessCoreSnapName() (string, error) {
+func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
+	case r.slots["snapd"] != nil:
+		return "snapd", nil
 	case r.slots["core"] != nil:
 		return "core", nil
 	case r.slots["ubuntu-core"] != nil:

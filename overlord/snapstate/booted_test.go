@@ -73,11 +73,13 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.o = overlord.Mock()
 	bs.state = bs.o.State()
-	bs.snapmgr, err = snapstate.Manager(bs.state)
+	bs.snapmgr, err = snapstate.Manager(bs.state, bs.o.TaskRunner())
 	c.Assert(err, IsNil)
-	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
+
+	AddForeignTaskHandlers(bs.o.TaskRunner(), bs.fakeBackend)
 
 	bs.o.AddManager(bs.snapmgr)
+	bs.o.AddManager(bs.o.TaskRunner())
 
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {

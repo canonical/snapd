@@ -13,7 +13,7 @@ environment:
 
 execute: |
     echo "Install from different channels"
-    expected="(?s)$SNAP_NAME .* from 'canonical' installed\\n"
+    expected="(?s)$SNAP_NAME .* from Canonical✓ installed\\n"
     for channel in edge beta candidate stable
     do
         snap install "$SNAP_NAME" --channel=$channel | grep -Pzq "$expected"
@@ -21,7 +21,7 @@ execute: |
     done
 
     echo "Install non-devmode snap with devmode option"
-    expected="(?s)$SNAP_NAME .* from 'canonical' installed\\n"
+    expected="(?s)$SNAP_NAME .* from Canonical✓ installed\\n"
     snap install "$SNAP_NAME" --devmode | grep -Pzq "$expected"
 
     echo "Install devmode snap without devmode option"
@@ -42,3 +42,6 @@ execute: |
 
     echo "Install a snap that contains bash-completion scripts"
     snap install --edge test-snapd-complexion
+
+    echo "All snap blobs are 0600"
+    test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
