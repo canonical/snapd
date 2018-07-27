@@ -2098,7 +2098,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		// due to privacy concerns, avoid sending the local names to the
 		// backend and instead just number current snaps, this requires
 		// extra hoops to translate instance key -> instance name
-		instanceKey := fmt.Sprintf("%s-%d", curSnap.SnapID, i)
+		instanceKey := fmt.Sprintf("%d-%s", i, curSnap.SnapID)
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
