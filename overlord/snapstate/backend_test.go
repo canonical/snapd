@@ -377,7 +377,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 		if a.Action == "install" {
 			spec := snapSpec{
-				Name:     a.InstanceName,
+				Name:     snap.InstanceSnap(a.InstanceName),
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
