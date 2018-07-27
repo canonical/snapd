@@ -162,7 +162,7 @@ func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
-	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
+	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
 	err := s.Backend.Setup(newSnapInfo, opts, s.Repo)
@@ -172,7 +172,7 @@ func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.
 
 // RemoveSnap "removes" an "installed" snap.
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
-	err := s.Backend.Remove(snapInfo.Name())
+	err := s.Backend.Remove(snapInfo.InstanceName())
 	c.Assert(err, IsNil)
 	s.removePlugsSlots(c, snapInfo)
 }
@@ -189,12 +189,12 @@ func (s *BackendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 }
 
 func (s *BackendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.Repo.Plugs(snapInfo.Name()) {
-		err := s.Repo.RemovePlug(plug.Snap.Name(), plug.Name)
+	for _, plug := range s.Repo.Plugs(snapInfo.InstanceName()) {
+		err := s.Repo.RemovePlug(plug.Snap.InstanceName(), plug.Name)
 		c.Assert(err, IsNil)
 	}
-	for _, slot := range s.Repo.Slots(snapInfo.Name()) {
-		err := s.Repo.RemoveSlot(slot.Snap.Name(), slot.Name)
+	for _, slot := range s.Repo.Slots(snapInfo.InstanceName()) {
+		err := s.Repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name)
 		c.Assert(err, IsNil)
 	}
 }

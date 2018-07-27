@@ -33,7 +33,7 @@ execute: |
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Sideload desktop snap"
     snap install --dangerous ./basic-desktop_1.0_all.snap
@@ -69,6 +69,9 @@ execute: |
     echo "Sideload a second time succeeds"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
+
+    echo "All snap blobs are 0600"
+    test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
 
     # TODO: check we copy the data directory over
 

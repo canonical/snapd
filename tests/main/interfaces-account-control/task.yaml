@@ -9,7 +9,7 @@ systems: [ubuntu-core-16-64]
 prepare: |
     echo "Given a snap declaring a plug on account-control is installed"
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local account-control-consumer
 
     echo "And the account-control plug is connected"
@@ -23,7 +23,7 @@ restore: |
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     "$SNAP_MOUNT_DIR"/bin/account-control-consumer.useradd --extrausers alice
     echo alice:password | "$SNAP_MOUNT_DIR"/bin/account-control-consumer.chpasswd

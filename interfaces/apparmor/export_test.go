@@ -26,9 +26,10 @@ import (
 )
 
 var (
-	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
-	ProfileGlobs               = profileGlobs
+	ChopTree                   = chopTree
 	NsProfile                  = nsProfile
+	ProfileGlobs               = profileGlobs
+	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
 )
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS

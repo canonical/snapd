@@ -81,6 +81,11 @@ func (mod *Model) Kernel() string {
 	return mod.HeaderString("kernel")
 }
 
+// KernelTrack returns the kernel track the model uses.
+func (mod *Model) KernelTrack() string {
+	return mod.HeaderString("kernel-track")
+}
+
 // Base returns the base snap the model uses.
 func (mod *Model) Base() string {
 	return mod.HeaderString("base")
@@ -185,6 +190,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
 		}
+		if _, ok := assert.headers["kernel-track"]; ok {
+			return nil, fmt.Errorf("cannot specify kernel-track with a classic model")
+		}
 		if _, ok := assert.headers["base"]; ok {
 			return nil, fmt.Errorf("cannot specify a base with a classic model")
 		}
@@ -203,6 +211,12 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
+	// kernel-track is optional but must be a string.
+	_, err = checkOptionalString(assert.headers, "kernel-track")
+	if err != nil {
+		return nil, err
+	}
+
 	// store is optional but must be a string, defaults to the ubuntu store
 	_, err = checkOptionalString(assert.headers, "store")
 	if err != nil {
@@ -215,6 +229,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	// TODO parallel-install: verify if snap names are valid store names
 	reqSnaps, err := checkStringList(assert.headers, "required-snaps")
 	if err != nil {
 		return nil, err

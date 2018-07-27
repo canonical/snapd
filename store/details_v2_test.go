@@ -65,7 +65,8 @@ const (
   "publisher": {
      "id": "canonical",
      "username": "canonical",
-     "display-name": "Canonical"
+     "display-name": "Canonical",
+     "validation": "verified"
   },
   "revision": 3887,
   "snap-id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
@@ -112,7 +113,8 @@ const (
   "publisher": {
      "id": "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
      "username": "thingyinc",
-     "display-name": "Thingy Inc."
+     "display-name": "Thingy Inc.",
+     "validation": "unproven"
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
@@ -164,8 +166,12 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 		Type:        snap.TypeOS,
 		Version:     "16-2.30",
 		Confinement: snap.StrictConfinement,
-		PublisherID: "canonical",
-		Publisher:   "canonical",
+		Publisher: snap.StoreAccount{
+			ID:          "canonical",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "verified",
+		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/99T7MUlRhtI3U0QFgl5mXXESAiSwt776_3887.snap",
 			Sha3_384:    "b691f6dde3d8022e4db563840f0ef82320cb824b6292ffd027dbc838535214dac31c3512c619beaf73f1aeaf35ac62d5",
@@ -212,8 +218,12 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		Version:     "9.50",
 		Confinement: snap.StrictConfinement,
 		License:     "Proprietary",
-		PublisherID: "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
-		Publisher:   "thingyinc",
+		Publisher: snap.StoreAccount{
+			ID:          "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
+			Username:    "thingyinc",
+			DisplayName: "Thingy Inc.",
+			Validation:  "unproven",
+		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap",
 			Sha3_384:    "a29f8d894c92ad19bb943764eb845c6bd7300f555ee9b9dbb460599fecf712775c0f3e2117b5c56b08fcb9d78fc8ae4d",
@@ -268,6 +278,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	// check that up to few exceptions info is filled
 	expectedZeroFields := []string{
 		"SuggestedName",
+		"InstanceKey",
 		"Assumes",
 		"OriginalTitle",
 		"OriginalSummary",
@@ -346,11 +357,12 @@ func fillStruct(a interface{}, c *C) {
 			x = map[string]string{"foo": "bar"}
 		case bool:
 			x = true
-		case storeAccount:
-			x = storeAccount{
+		case snap.StoreAccount:
+			x = snap.StoreAccount{
 				ID:          "foo-id",
 				Username:    "foo",
 				DisplayName: "Foo Bar",
+				Validation:  "VALIDATION",
 			}
 		case int:
 			x = 42
