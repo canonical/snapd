@@ -38,9 +38,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		return snapType, oErr
 	}
 
+	// update instance key to what was requested
 	_, s.InstanceKey = snap.SplitInstanceName(instanceName)
-
-	// TODO parallel-install: enforce snap.Info.SnapName() == snap name from instanceName
 
 	instdir := s.MountDir()
 

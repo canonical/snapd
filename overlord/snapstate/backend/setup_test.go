@@ -141,7 +141,6 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
-
 }
 
 func (s *setupSuite) TestSetupDoUndoKernelUboot(c *C) {
@@ -168,7 +167,7 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	snapType, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	snapType, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
@@ -213,11 +212,11 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	_, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	_, err = s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	_, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
