@@ -6920,6 +6920,61 @@ func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 	c.Assert(info.Channel, Equals, "edge")
 }
 
+func (s *snapmgrTestSuite) TestParallelInstallSwitchRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		Channel:  "edge",
+		SnapID:   "foo",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Channel:  "edge",
+	})
+
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		Channel:     "edge",
+		InstanceKey: "instance",
+	})
+
+	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
+	ts, err := snapstate.Switch(s.state, "some-snap_instance", "some-channel")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// switch is not really really doing anything backend related
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+
+	// ensure the desired channel has changed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Channel, Equals, "some-channel")
+
+	// ensure the current info has not changed
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Channel, Equals, "edge")
+
+	// Ensure that the non-intance snap is unchanged
+	var nonInstanceSnapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &nonInstanceSnapst)
+	c.Assert(err, IsNil)
+	c.Assert(nonInstanceSnapst.Channel, Equals, "edge")
+}
+
 func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
