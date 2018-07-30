@@ -29,3 +29,12 @@ execute: |
     done
     snap changes | MATCH 'Install "snapd"'
     snap changes | MATCH 'Revert "snapd" snap'
+
+    # ensure snapd is working after a reboot
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT
+    fi
+
+    snap list | MATCH "snapd.*$current "
+    snap install test-snapd-tools-core18
+    test-snapd-tools-core18.echo hello | MATCH hello
