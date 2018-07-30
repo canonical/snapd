@@ -5,12 +5,13 @@ details: |
     to systemd through the notify socket
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-daemon-notify
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i daemon-notify | MATCH "\- +test-snapd-daemon-notify:daemon-notify"
+    snap interfaces -i daemon-notify | MATCH -- "- +test-snapd-daemon-notify:daemon-notify"
 
     echo "When the interface is connected"
     snap connect test-snapd-daemon-notify:daemon-notify
