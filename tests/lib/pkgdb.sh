@@ -45,6 +45,19 @@ fedora_name_package() {
     done
 }
 
+amazon_name_package() {
+    for i in "$@"; do
+        case "$i" in
+            xdelta3)
+                echo "xdelta"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
+}
+
 opensuse_name_package() {
     for i in "$@"; do
         case "$i" in
@@ -99,6 +112,9 @@ distro_name_package() {
         fedora-*)
             fedora_name_package "$@"
             ;;
+        amazon-*)
+            amazon_name_package "$@"
+            ;;
         opensuse-*)
             opensuse_name_package "$@"
             ;;
@@ -142,6 +158,9 @@ distro_install_local_package() {
         fedora-*)
             quiet dnf -y install "$@"
             ;;
+        amazon-*)
+            quiet yum -y localinstall "$@"
+            ;;
         opensuse-*)
             quiet rpm -i "$@"
             ;;
@@ -161,6 +180,7 @@ distro_install_package() {
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
+    YUM_FLAGS=
     ZYPPER_FLAGS=
     while [ -n "$1" ]; do
         case "$1" in
@@ -168,6 +188,7 @@ distro_install_package() {
                 APT_FLAGS="$APT_FLAGS --no-install-recommends"
                 DNF_FLAGS="$DNF_FLAGS --setopt=install_weak_deps=False"
                 ZYPPER_FLAGS="$ZYPPER_FLAGS --no-recommends"
+                # TODO no way to set this for yum?
                 shift
                 ;;
             *)
@@ -218,6 +239,10 @@ distro_install_package() {
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             ;;
+        amazon-*)
+            # shellcheck disable=SC2086
+            quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
+            ;;
         opensuse-*)
             # shellcheck disable=SC2086
             quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
@@ -255,6 +280,9 @@ distro_purge_package() {
             quiet dnf -y remove "$@"
             quiet dnf clean all
             ;;
+        amazon-*)
+            quiet yum -y remove "$@"
+            ;;
         opensuse-*)
             quiet zypper remove -y "$@"
             ;;
@@ -277,6 +305,10 @@ distro_update_package_db() {
             quiet dnf clean all
             quiet dnf makecache
             ;;
+        amazon-*)
+            quiet yum clean all
+            quiet yum makecache
+            ;;
         opensuse-*)
             quiet zypper --gpg-auto-import-keys refresh
             ;;
@@ -297,6 +329,9 @@ distro_clean_package_cache() {
             ;;
         fedora-*)
             dnf clean all
+            ;;
+        amazon-*)
+            yum clean all
             ;;
         opensuse-*)
             zypper -q clean --all
@@ -319,6 +354,9 @@ distro_auto_remove_packages() {
         fedora-*)
             quiet dnf -y autoremove
             ;;
+        amazon-*)
+            quiet yum -y autoremove
+            ;;
         opensuse-*)
             ;;
         arch-*)
@@ -337,6 +375,9 @@ distro_query_package_info() {
             ;;
         fedora-*)
             dnf info "$1"
+            ;;
+        amazon-*)
+            yum info "$1"
             ;;
         opensuse-*)
             zypper info "$1"
@@ -372,7 +413,7 @@ distro_install_build_snapd(){
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
-            fedora-*)
+            fedora-*|amazon-*)
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
@@ -414,7 +455,7 @@ distro_get_package_extension() {
         ubuntu-*|debian-*)
             echo "deb"
             ;;
-        fedora-*|opensuse-*)
+        fedora-*|opensuse-*|amazon-*)
             echo "rpm"
             ;;
         arch-*)
@@ -549,6 +590,26 @@ pkg_dependencies_fedora(){
         "
 }
 
+pkg_dependencies_amazon(){
+    echo "
+        curl
+        dbus-x11
+        expect
+        git
+        golang
+        jq
+        iptables-services
+        man
+        mock
+        net-tools
+        system-lsb-core
+        rpm-build
+        xdg-user-dirs
+        grub2-tools
+        nc
+        "
+}
+
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
@@ -610,6 +671,9 @@ pkg_dependencies(){
             ;;
         fedora-*)
             pkg_dependencies_fedora
+            ;;
+        amazon-*)
+            pkg_dependencies_amazon
             ;;
         opensuse-*)
             pkg_dependencies_opensuse
