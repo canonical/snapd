@@ -77,16 +77,21 @@ Type=none
 Options=bind
 
 [Install]
-RequiredBy=snapd.service
+WantedBy=snapd.service
 `, dirs.GlobalRootDir))
 
 	// check that systemd got started
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "usr-lib-snapd.mount"},
+		{"stop", "usr-lib-snapd.mount"},
+		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"stop", "snapd.service"},
+		{"show", "--property=ActiveState", "snapd.service"},
+		{"start", "snapd.service"},
 		{"start", "snapd.service"},
 	})
 }

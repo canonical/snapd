@@ -9,7 +9,7 @@ ExecStart=@bindir@/snap wait system seed.loaded
 RemainAfterExit=true
 
 [Install]
-WantedBy=snapd.service
+RequiredBy=snapd.service
 # This will be started when snapd.service is started so no need
 # for the snapd snap to do anything about it.
 # X-Snapd-Snap: do-not-start
