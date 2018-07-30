@@ -88,11 +88,23 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 }
 
 func reloadProfiles(profiles []string, profileDir, cacheDir string) error {
-	files := make([]string, len(profiles))
-	for i, profile := range profiles {
-		files[i] = filepath.Join(profileDir, profile)
+	files := []string{}
+	for _, profile := range profiles {
+		files = append(files, filepath.Join(profileDir, profile))
 	}
-	err := loadProfiles(files, cacheDir)
+	err := loadProfiles(files, cacheDir, 0)
+	if err != nil {
+		return fmt.Errorf("cannot load apparmor profiles %q: %s", files, err)
+	}
+	return nil
+}
+
+func reloadChangedProfiles(profiles []string, profileDir, cacheDir string) error {
+	files := []string{}
+	for _, profile := range profiles {
+		files = append(files, filepath.Join(profileDir, profile))
+	}
+	err := loadProfiles(files, cacheDir, skipReadCache)
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profiles %q: %s", files, err)
 	}
