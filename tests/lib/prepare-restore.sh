@@ -54,7 +54,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*|arch-*)
+            debian-*|fedora-*|opensuse-*|arch-*|amazon-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -88,6 +88,10 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        distro=amzn
+        release=2
+    fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
@@ -98,7 +102,7 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
 
     case "$SPREAD_SYSTEM" in
-        fedora-*)
+        fedora-*|amazon-*)
             extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
@@ -118,6 +122,10 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        # need to build the vendor tree
+        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+    fi
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -341,7 +349,7 @@ prepare_project() {
             ubuntu-*|debian-*)
                 build_deb
                 ;;
-            fedora-*|opensuse-*)
+            fedora-*|opensuse-*|amazon-*)
                 build_rpm
                 ;;
             arch-*)

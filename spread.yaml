@@ -51,6 +51,7 @@ backends:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         halt-timeout: 2h
+        storage: preserve-size
         systems:
             - ubuntu-14.04-64:
                 workers: 6
@@ -86,6 +87,9 @@ backends:
             - opensuse-42.3-64:
                 workers: 4
             - arch-linux-64:
+                workers: 4
+
+            - amazon-linux-2-64:
                 workers: 4
 
     google-sru:
@@ -391,6 +395,9 @@ prepare: |
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
+            amazon-*)
+                yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
             opensuse-*)
                 zypper -q --gpg-auto-import-keys refresh
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
@@ -516,7 +523,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -558,10 +565,10 @@ suites:
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
-        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -591,7 +598,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-fedora-*, -opensuse-*, -amazon-*]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
