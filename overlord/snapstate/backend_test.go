@@ -95,6 +95,7 @@ func (ops fakeOps) First(op string) *fakeOp {
 type fakeDownload struct {
 	name     string
 	macaroon string
+	target   string
 }
 
 type byName []store.CurrentSnap
@@ -490,6 +491,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
 		name:     name,
+		target:   targetFn,
 	})
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 
