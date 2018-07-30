@@ -551,7 +551,7 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
-	manualAlias := st.NewTask("alias", fmt.Sprintf(i18n.G("Setup manual alias %q => %q for snap %q"), alias, app, snapsup.Name()))
+	manualAlias := st.NewTask("alias", fmt.Sprintf(i18n.G("Setup manual alias %q => %q for snap %q"), alias, app, snapsup.InstanceName()))
 	manualAlias.Set("alias", alias)
 	manualAlias.Set("target", app)
 	manualAlias.Set("snap-setup", &snapsup)
