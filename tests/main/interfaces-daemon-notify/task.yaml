@@ -17,7 +17,7 @@ execute: |
     snap connect test-snapd-daemon-notify:daemon-notify
 
     echo "Then after we restart the servive there is not denials"
-    denials_before="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+    denials_before="$(snap logs -n=100 test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
     snap stop test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
         if snap start test-snapd-daemon-notify.notify; then
@@ -25,7 +25,7 @@ execute: |
         fi
         sleep 1
     done
-    denials_after="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+    denials_after="$(snap logs -n=100 test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
 
     [ "$denials_before" -eq "$denials_after" ]
 
@@ -37,7 +37,7 @@ execute: |
     snap disconnect test-snapd-daemon-notify:daemon-notify
 
     echo "Then the snap is not able to sending notification messages"
-    denials_before="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+    denials_before="$(snap logs -n=100 test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
     snap stop test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
         if snap start test-snapd-daemon-notify.notify; then
@@ -45,6 +45,6 @@ execute: |
         fi
         sleep 1
     done
-    denials_after="$(snap logs -n=all test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
+    denials_after="$(snap logs -n=100 test-snapd-daemon-notify.notify | grep -c 'Permission denied' || true)"
 
     [ "$denials_before" -ne "$denials_after" ]
