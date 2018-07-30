@@ -532,7 +532,7 @@ func (d *Daemon) Stop() error {
 			hookMgr.GracefullyWaitRunningHooks()
 			logger.Noticef("done waiting for running hooks")
 		}
-		hookMgr.Stop()
+		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
 

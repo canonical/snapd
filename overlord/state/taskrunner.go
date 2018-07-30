@@ -481,3 +481,35 @@ func (r *TaskRunner) Wait() {
 
 	r.wait()
 }
+
+// StopKinds kills all concurrent tasks of the given kinds and returns
+// after that's done.
+func (r *TaskRunner) StopKinds(kind ...string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	kinds := make(map[string]bool, len(kind))
+	for _, k := range kind {
+		kinds[k] = true
+	}
+
+	var tombs []*tomb.Tomb
+	// Locks must be acquired in the same order everywhere:
+	// r.mu, r.state
+	r.state.Lock()
+	for tid, tb := range r.tombs {
+		task := r.state.Task(tid)
+		if task == nil || !kinds[task.Kind()] {
+			continue
+		}
+		tombs = append(tombs, tb)
+		tb.Kill(nil)
+	}
+	r.state.Unlock()
+
+	for _, tb := range tombs {
+		r.mu.Unlock()
+		tb.Wait()
+		r.mu.Lock()
+	}
+}
