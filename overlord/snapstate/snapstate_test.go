@@ -1733,6 +1733,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -1897,6 +1898,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		macaroon: s.user.StoreMacaroon,
 		// TODO parallel-install: fix once store changes are in place
 		name:   "some-snap",
+		target: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -2059,6 +2061,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -2355,6 +2358,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "services-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 	}})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2569,6 +2573,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "services-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
 	}})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2664,8 +2669,8 @@ func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "some-base"},
-		{macaroon: s.user.StoreMacaroon, name: "some-snap"},
+		{macaroon: s.user.StoreMacaroon, name: "some-base", target: filepath.Join(dirs.SnapBlobDir, "some-base_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "some-snap", target: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap")},
 	})
 }
 
@@ -2710,7 +2715,7 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "some-snap"},
+		{macaroon: s.user.StoreMacaroon, name: "some-snap", target: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap")},
 	})
 }
 
@@ -2747,8 +2752,8 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug"},
-		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot"},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot", target: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap")},
 	})
 }
 
@@ -2796,7 +2801,7 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug"},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
 	})
 }
 
@@ -2836,6 +2841,7 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
 				macaroon: "macaroon",
 				name:     "some-snap",
+				target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			}, Commentf(snapName))
 		}
 	}
@@ -2877,6 +2883,7 @@ func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
 			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
 				macaroon: "macaroon",
 				name:     "some-snap",
+				target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			}, Commentf(snapName))
 		}
 	}
@@ -2953,7 +2960,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			seen[snapID] = op.userID
 		case "storesvc-download":
 			snapName := op.name
-			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+			fakeDl := s.fakeStore.downloads[di]
+			// check target path separately and clear it
+			c.Check(fakeDl.target, Matches, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_[0-9]+.snap", snapName)))
+			fakeDl.target = ""
+			c.Check(fakeDl, DeepEquals, fakeDownload{
 				macaroon: macaroonMap[snapName],
 				name:     snapName,
 			}, Commentf(snapName))
@@ -3043,7 +3054,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
 		case "storesvc-download":
 			snapName := op.name
-			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+			fakeDl := s.fakeStore.downloads[di]
+			// check target path separately and clear it
+			c.Check(fakeDl.target, Matches, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_[0-9]+.snap", snapName)))
+			fakeDl.target = ""
+			c.Check(fakeDl, DeepEquals, fakeDownload{
 				macaroon: macaroonMap[snapName],
 				name:     snapName,
 			}, Commentf(snapName))
@@ -3144,7 +3159,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 			seen[snapID] = op.userID
 		case "storesvc-download":
 			snapName := op.name
-			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+			fakeDl := s.fakeStore.downloads[di]
+			// check target path separately and clear it
+			c.Check(fakeDl.target, Matches, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_[0-9]+.snap", snapName)))
+			fakeDl.target = ""
+			c.Check(fakeDl, DeepEquals, fakeDownload{
 				macaroon: macaroonMap[snapName],
 				name:     snapName,
 			}, Commentf(snapName))
@@ -3304,6 +3323,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -3492,6 +3512,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
 	// friendlier failure first
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -9300,6 +9321,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		name: "core",
 		// the transition has no user associcated with it
 		macaroon: "",
+		target:   filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -9930,10 +9952,12 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			macaroon: s.user.StoreMacaroon,
 			name:     "core",
+			target:   filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 		},
 		{
 			macaroon: s.user.StoreMacaroon,
 			name:     "some-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 		}})
 	expected := fakeOps{
 		// we check the snap
