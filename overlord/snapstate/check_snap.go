@@ -208,6 +208,13 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 		return err
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	if instanceKey != "" && snapName != s.SnapName() {
+		return fmt.Errorf("cannot install snap %q using instance name %q", s.SnapName(), instanceName)
+	}
+	// update instance key to what was requested
+	s.InstanceKey = instanceKey
+
 	st.Lock()
 	defer st.Unlock()
 
