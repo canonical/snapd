@@ -26,15 +26,21 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
 
+var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(.*)$`)
+
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
+	// Not using WriteMountUnitFile() because we need
+	// "RequiredBy=snapd.service"
 	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
@@ -49,15 +55,17 @@ Options=bind
 RequiredBy=snapd.service
 `, prefix))
 	unit := "usr-lib-snapd.mount"
-	_, _, err := osutil.EnsureDirState(dirs.SnapServicesDir,
-		unit,
-		map[string]*osutil.FileState{
-			unit: {
-				Content: content,
-				Mode:    0644,
-			},
+	fullPath := filepath.Join(dirs.SnapServicesDir, unit)
+
+	err := osutil.EnsureFileState(fullPath,
+		&osutil.FileState{
+			Content: content,
+			Mode:    0644,
 		},
 	)
+	if err == osutil.ErrSameState {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -67,6 +75,7 @@ RequiredBy=snapd.service
 	if err := sysd.Enable(unit); err != nil {
 		return err
 	}
+	// FIXME: restart here instead of starting
 	if err := sysd.Start(unit); err != nil {
 		return err
 	}
@@ -109,8 +118,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		if err != nil {
 			return err
 		}
-		re := regexp.MustCompile(`(?m)^ExecStart=(.*)$`)
-		content = re.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
+		content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
 
 		snapdUnits[filepath.Base(unit)] = &osutil.FileState{
 			Content: content,
@@ -126,15 +134,24 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		// nothing to do
 		return nil
 	}
-	if err := sysd.DaemonReload(); err != nil {
-		return err
+	// stop all removed units first
+	for _, unit := range removed {
+		if err := sysd.Stop(unit, 5*time.Second); err != nil {
+			logger.Noticef("failed to stop %q: %v", unit, err)
+		}
+		if err := sysd.Disable(unit); err != nil {
+			logger.Noticef("failed to disable %q: %v", unit, err)
+		}
 	}
 
-	for _, unit := range removed {
-		if err := sysd.Disable(unit); err != nil {
+	// daemon-reload so that we get the new services
+	if len(changed) > 0 {
+		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
+
+	// enable/start all the new services
 	for _, unit := range changed {
 		if err := sysd.Enable(unit); err != nil {
 			return err
@@ -143,16 +160,17 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 
 	startServices := []string{}
 	for _, unit := range changed {
-		// some units (like the snapd.system-shutdown.service) cannot
-		// be started
+		// Some units (like the snapd.system-shutdown.service) cannot
+		// be started. Others like "snapd.seeded.service" are started
+		// as dependencies of snapd.service.
 		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
 		startServices = append(startServices, unit)
 	}
-	// we cannot start blocking because "snapd.seeded.service" is also
-	// run here and it will block until seeding is done
-	if err := sysd.StartNoBlock(startServices...); err != nil {
+	// FIXME: restart here is already running
+	// FIXME2: do *not* restart snapd.service here
+	if err := sysd.Start(startServices...); err != nil {
 		return err
 	}
 

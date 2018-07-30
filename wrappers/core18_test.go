@@ -87,7 +87,7 @@ RequiredBy=snapd.service
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
-		{"start", "--no-block", "snapd.service"},
+		{"start", "snapd.service"},
 	})
 }
 
