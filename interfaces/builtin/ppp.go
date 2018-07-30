@@ -57,7 +57,7 @@ var pppConnectedPlugKmod = []string{
 
 var pppConnectedPlugUDev = []string{
 	`KERNEL=="ppp"`,
-	`KERNEL=="tty[^0-9]*"`,
+	`KERNEL=="tty[a-zA-Z].*"`,
 }
 
 func init() {
