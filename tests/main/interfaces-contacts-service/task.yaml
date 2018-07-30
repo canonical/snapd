@@ -13,6 +13,8 @@ environment:
     XDG_CACHE_HOME: $XDG/cache
 
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     if [ -e dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
         rm -f dbus-launch.pid
@@ -25,6 +27,8 @@ restore: |
         kill -9 "$pid" || true
     fi
     rm -rf "$XDG"
+    distro_purge_package evolution-data-server
+    distro_auto_remove_packages
 
 execute: |
     if ! snap install --edge test-snapd-eds ; then
