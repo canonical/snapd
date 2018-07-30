@@ -5,14 +5,14 @@ kill-timeout: 5m
 restore: |
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
-    killall sleep || true
+    pkill sleep || true
 
 debug: |
     ps afx
 
 execute: |
     echo "Ensure no stray sleep processes are around"
-    killall sleep || true
+    pkill sleep || true
 
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh

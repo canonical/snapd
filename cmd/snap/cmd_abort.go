@@ -53,6 +53,9 @@ func (x *cmdAbort) Execute(args []string) error {
 	cli := Client()
 	id, err := x.GetChangeID(cli)
 	if err != nil {
+		if err == noChangeFoundOK {
+			return nil
+		}
 		return err
 	}
 	_, err = cli.Abort(id)
