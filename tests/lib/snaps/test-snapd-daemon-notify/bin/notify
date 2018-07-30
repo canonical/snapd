@@ -1,6 +1,6 @@
 #!/bin/bash
 
 FIFO="$SNAP_DATA/test"
-rm -f $FIFO
-mkfifo $FIFO
+rm -f "$FIFO"
+mkfifo "$FIFO"
 systemd-notify --ready --status="Test service ready"
