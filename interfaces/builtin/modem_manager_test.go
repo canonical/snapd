@@ -206,7 +206,7 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.Snippets(), HasLen, 3)
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# modem-manager
-KERNEL=="tty[a-zA-Z].*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
+KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_modem-manager_mm", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`)
 }
 
