@@ -37,6 +37,10 @@ execute: |
         echo "No run lxd test when there are not .deb files built"
         exit
     fi
+    # the test only runs on ubuntu right now so using dpkg here is ok
+    if dpkg -l lxd; then
+        apt autoremove --purge lxd
+    fi
 
     wait_for_lxd(){
         while ! printf "GET / HTTP/1.0\n\n" | nc -U /var/snap/lxd/common/lxd/unix.socket | MATCH "200 OK"; do sleep 1; done
