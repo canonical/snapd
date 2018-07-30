@@ -112,9 +112,9 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "prereq1",
-				Channel: "stable",
+				Action:       "install",
+				InstanceName: "prereq1",
+				Channel:      "stable",
 			},
 			revno: snap.R(11),
 		},
@@ -124,9 +124,9 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "prereq2",
-				Channel: "stable",
+				Action:       "install",
+				InstanceName: "prereq2",
+				Channel:      "stable",
 			},
 			revno: snap.R(11),
 		},
@@ -136,9 +136,9 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "some-base",
-				Channel: "stable",
+				Action:       "install",
+				InstanceName: "some-base",
+				Channel:      "stable",
 			},
 			revno: snap.R(11),
 		},
@@ -276,9 +276,9 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "prereq1",
-				Channel: "candidate",
+				Action:       "install",
+				InstanceName: "prereq1",
+				Channel:      "candidate",
 			},
 			revno: snap.R(11),
 		},
@@ -288,9 +288,9 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "prereq2",
-				Channel: "candidate",
+				Action:       "install",
+				InstanceName: "prereq2",
+				Channel:      "candidate",
 			},
 			revno: snap.R(11),
 		},
@@ -300,9 +300,9 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "some-base",
-				Channel: "edge",
+				Action:       "install",
+				InstanceName: "some-base",
+				Channel:      "edge",
 			},
 			revno: snap.R(11),
 		},
