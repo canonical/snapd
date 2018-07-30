@@ -39,8 +39,9 @@ var syscallExec = syscall.Exec
 
 // commandline args
 var opts struct {
-	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
-	Hook    string `long:"hook" description:"hook to run" hidden:"yes"`
+	Command          string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+	SkipCommandChain bool   `long:"skip-command-chain" description:"don't run command chain"`
+	Hook             string `long:"hook" description:"hook to run" hidden:"yes"`
 }
 
 func init() {
@@ -92,16 +93,18 @@ func run() error {
 		return execHook(snapApp, revision, opts.Hook)
 	}
 
-	return execApp(snapApp, revision, opts.Command, extraArgs)
+	return execApp(snapApp, revision, opts.Command, extraArgs, opts.SkipCommandChain)
 }
 
 const defaultShell = "/bin/bash"
 
-func findCommand(app *snap.AppInfo, command string) (string, error) {
+func findCommand(app *snap.AppInfo, command string, skipCommandChain bool) (string, error) {
 	var chain []string
 
-	for _, element := range app.CommandChain {
-		chain = append(chain, filepath.Join(app.Snap.MountDir(), element))
+	if !skipCommandChain {
+		for _, element := range app.CommandChain {
+			chain = append(chain, filepath.Join(app.Snap.MountDir(), element))
+		}
 	}
 
 	switch command {
@@ -150,7 +153,7 @@ func expandEnvCmdArgs(args []string, env map[string]string) []string {
 	return cmdArgs
 }
 
-func execApp(snapApp, revision, command string, args []string) error {
+func execApp(snapApp, revision, command string, args []string, skipCommandChain bool) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
@@ -169,7 +172,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	cmdAndArgs, err := findCommand(app, command)
+	cmdAndArgs, err := findCommand(app, command, skipCommandChain)
 	if err != nil {
 		return err
 	}
