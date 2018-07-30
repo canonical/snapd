@@ -20,7 +20,12 @@
 package main_test
 
 import (
+	"bufio"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -112,4 +117,61 @@ See 'snap info <snap name>' for additional versions.
 		s.stdout.Reset()
 		s.stderr.Reset()
 	}
+}
+
+func (s *SnapSuite) TestAdviseFromAptIntegration(c *C) {
+	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
+	defer restore()
+
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	c.Assert(err, IsNil)
+
+	os.Setenv("APT_HOOK_SOCKET", strconv.Itoa(int(fds[1])))
+	// note we don't close fds[1] ourselves; adviseViaAptHook might, or we might leak it
+	// (we don't close it here to avoid accidentally closing an arbitrary file descriptor that reused the number)
+
+	done := make(chan bool, 1)
+	go func() {
+		f := os.NewFile(uintptr(fds[0]), "advise-sock")
+		conn, err := net.FileConn(f)
+		c.Assert(err, IsNil)
+		defer conn.Close()
+		defer f.Close()
+
+		// handshake
+		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.hello","id":0,"params":{"versions":["0.1"]}}` + "\n\n"))
+		c.Assert(err, IsNil)
+
+		// reply from snap
+		r := bufio.NewReader(conn)
+		buf, _, err := r.ReadLine()
+		c.Assert(err, IsNil)
+		c.Assert(string(buf), Equals, `{"jsonrpc":"2.0","id":0,"result":{"version":"0.1"}}`)
+		// plus empty line
+		buf, _, err = r.ReadLine()
+		c.Assert(err, IsNil)
+		c.Assert(string(buf), Equals, ``)
+
+		// payload
+		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.install.fail","params":{"command":"install","search-terms":["aws-cli"],"unknown-packages":["hello"],"packages":[]}}` + "\n\n"))
+		c.Assert(err, IsNil)
+
+		// bye
+		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.bye","params":{}}` + "\n\n"))
+		c.Assert(err, IsNil)
+
+		done <- true
+	}()
+
+	cmd := snap.CmdAdviseSnap()
+	cmd.FromApt = true
+	err = cmd.Execute(nil)
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, `
+No apt package "hello", but there is a snap with that name.
+Try "snap install hello"
+
+`)
+	c.Assert(s.Stderr(), Equals, "")
+	c.Assert(<-done, Equals, true)
 }

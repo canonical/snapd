@@ -2,13 +2,15 @@ summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1693042
 details: |
   When attempting to refresh to a bogus channel, detect it and fail.
 execute: |
+  # shellcheck source=tests/lib/names.sh
+  . "$TESTSLIB/names.sh"
   # sanity check
-  snap list core
+  snap list "$core_name"
 
-  out=$(! snap refresh core --channel bogus 2>&1 1>- )
-  revno=$( snap info core | awk '/^installed:/{print $3}' )
+  out=$(! snap refresh "$core_name" --channel bogus 2>&1 1>- )
+  revno=$( snap info "$core_name" | awk '/^installed:/{print $3}' )
   if [[ "$revno" =~ x[0-9]+ ]]; then
-      MATCH 'error: local snap "core" is unknown to the store' <<< "$out"
+      MATCH "error: local snap \"$core_name\" is unknown to the store" <<< "$out"
   else
       MATCH not.available <<< "$out"
   fi

@@ -144,7 +144,6 @@ func (s *Snap) Unpack(src, dstDir string) error {
 
 	cmd := exec.Command("unsquashfs", "-n", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = usw
-	cmd.Stdout = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return err
 	}

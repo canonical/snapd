@@ -170,10 +170,6 @@ type witnessManager struct {
 	ensureCallback func(s *state.State) error
 }
 
-func (m *witnessManager) KnownTaskKinds() []string {
-	return []string{"foo"}
-}
-
 func (wm *witnessManager) Ensure() error {
 	if wm.expectedEnsure--; wm.expectedEnsure == 0 {
 		close(wm.ensureCalled)
@@ -183,12 +179,6 @@ func (wm *witnessManager) Ensure() error {
 		return wm.ensureCallback(wm.state)
 	}
 	return nil
-}
-
-func (wm *witnessManager) Stop() {
-}
-
-func (wm *witnessManager) Wait() {
 }
 
 // markSeeded flags the state under the overlord as seeded to avoid running the seeding code in these tests
@@ -216,6 +206,30 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 
 	err = o.Stop()
 	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestUnknownTasks(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
+	// unknown tasks are ignored and succeed
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	t := st.NewTask("unknown", "...")
+	chg := st.NewChange("change-w-unknown", "...")
+	chg.AddTask(t)
+
+	st.Unlock()
+	err = o.Settle(1 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
 func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
@@ -429,7 +443,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
-	o.UnknownTaskManager().Ignore([]string{"foo"})
 
 	// create two changes, one that can be pruned now, one in progress
 	st := o.State()
@@ -487,52 +500,49 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	c.Check(dirs.SnapStateFile, testutil.FileContains, `"mark":1`)
 }
 
-type runnerManager struct {
-	runner         *state.TaskRunner
+type sampleManager struct {
 	ensureCallback func()
 }
 
-func newRunnerManager(s *state.State) *runnerManager {
-	rm := &runnerManager{
-		runner: state.NewTaskRunner(s),
-	}
+func newSampleManager(s *state.State, runner *state.TaskRunner) *sampleManager {
+	sm := &sampleManager{}
 
-	rm.runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr1Mark", 1)
 		return nil
 	}, nil)
-	rm.runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr2Mark", 1)
 		return nil
 	}, nil)
-	rm.runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return nil
 	}, nil)
-	rm.runner.AddHandler("runMgrForever", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgrForever", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return &state.Retry{}
 	}, nil)
-	rm.runner.AddHandler("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgrWCleanupMark", 1)
 		return nil
 	}, nil)
-	rm.runner.AddCleanup("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddCleanup("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
@@ -540,27 +550,14 @@ func newRunnerManager(s *state.State) *runnerManager {
 		return nil
 	})
 
-	return rm
+	return sm
 }
 
-func (rm *runnerManager) KnownTaskKinds() []string {
-	return rm.runner.KnownTaskKinds()
-}
-
-func (rm *runnerManager) Ensure() error {
-	if rm.ensureCallback != nil {
-		rm.ensureCallback()
+func (sm *sampleManager) Ensure() error {
+	if sm.ensureCallback != nil {
+		sm.ensureCallback()
 	}
-	rm.runner.Ensure()
 	return nil
-}
-
-func (rm *runnerManager) Stop() {
-	rm.runner.Stop()
-}
-
-func (rm *runnerManager) Wait() {
-	rm.runner.Wait()
 }
 
 func (ovs *overlordSuite) TestTrivialSettle(c *C) {
@@ -569,8 +566,9 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -597,8 +595,9 @@ func (ovs *overlordSuite) TestSettleNotConverging(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -623,8 +622,9 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -656,8 +656,9 @@ func (ovs *overlordSuite) TestSettleChainWCleanup(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -692,8 +693,8 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	rm1.ensureCallback = func() {
+	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1.ensureCallback = func() {
 		s.Lock()
 		defer s.Unlock()
 		v := 0
@@ -701,7 +702,8 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 		s.Set("ensureCount", v+1)
 	}
 
-	o.AddManager(rm1)
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
