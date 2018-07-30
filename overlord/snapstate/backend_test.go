@@ -141,8 +141,12 @@ func (f *fakeStore) pokeStateLock() {
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
+	_, instanceKey := snap.SplitInstanceName(spec.Name)
+	if instanceKey != "" {
+		return nil, fmt.Errorf("internal error: unexpected instance name: %q", spec.Name)
+	}
 	sspec := snapSpec{
-		Name: snap.InstanceSnap(spec.Name),
+		Name: spec.Name,
 	}
 	info, err := f.snap(sspec, user)
 
