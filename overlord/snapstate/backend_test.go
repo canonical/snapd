@@ -480,6 +480,9 @@ func (f *fakeStore) SuggestedCurrency() string {
 func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
+	if _, key := snap.SplitInstanceName(name); key != "" {
+		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
+	}
 	var macaroon string
 	if user != nil {
 		macaroon = user.StoreMacaroon

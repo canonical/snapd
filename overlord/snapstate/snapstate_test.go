@@ -1896,7 +1896,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		// TODO parallel-install: fix once store changes are in place
-		name: "some-snap_instance",
+		name:   "some-snap",
 	}})
 	expected := fakeOps{
 		{
@@ -1915,7 +1915,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		},
 		{
 			op:   "storesvc-download",
-			name: "some-snap_instance",
+			name: "some-snap",
 		},
 		{
 			op:    "validate-snap:Doing",
@@ -2484,7 +2484,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "storesvc-download",
-			name: "services-snap_instance",
+			name: "services-snap",
 		},
 		{
 			op:    "validate-snap:Doing",
@@ -2568,7 +2568,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
-		name:     "services-snap_instance",
+		name:     "services-snap",
 	}})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
