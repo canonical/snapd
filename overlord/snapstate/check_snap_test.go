@@ -695,3 +695,68 @@ func emptyContainer(c *C) *snapdir.SnapDir {
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
 	return snapdir.New(d)
 }
+
+func (s *checkSnapSuite) TestCheckSnapInstanceName(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "foo", Revision: snap.R(1), SnapID: "some-base-id"}
+	info := snaptest.MockSnap(c, `
+name: foo
+version: 1
+`, si)
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err := snapstate.CheckSnap(st, "snap-path", "foo_instance", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "bar_instance", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, `cannot install snap "foo" using instance name "bar_instance"`)
+}
+
+func (s *checkSnapSuite) TestCheckSnapCheckCallInstanceKeySet(c *C) {
+	const yaml = `name: foo
+version: 1.0`
+
+	si := &snap.SideInfo{
+		SnapID: "snap-id",
+	}
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, yaml, si)
+		return info, emptyContainer(c), nil
+	}
+	r1 := snapstate.MockOpenSnapFile(openSnapFile)
+	defer r1()
+
+	checkCbCalled := false
+	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags) error {
+		c.Assert(s.InstanceName(), Equals, "foo_instance")
+		c.Assert(s.SnapName(), Equals, "foo")
+		c.Assert(s.SnapID, Equals, "snap-id")
+		checkCbCalled = true
+		return nil
+	}
+	r2 := snapstate.MockCheckSnapCallbacks([]snapstate.CheckSnapCallback{checkCb})
+	defer r2()
+
+	err := snapstate.CheckSnap(s.st, "snap-path", "foo_instance", si, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	c.Check(checkCbCalled, Equals, true)
+}
