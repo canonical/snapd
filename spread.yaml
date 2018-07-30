@@ -78,7 +78,6 @@ backends:
                 workers: 4
                 manual: true
             - fedora-27-64:
-                image: fedora-27-64-selinux-permissive
                 workers: 4
                 manual: true
             - fedora-28-64:
