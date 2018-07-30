@@ -108,12 +108,12 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 		cmd      string
 		expected string
 	}{
-		{app: "app", cmd: "", expected: "/snap/snapname/unset/run-app cmd-arg1 $SNAP_DATA"},
-		{app: "app2", cmd: "", expected: "/snap/snapname/unset/chain1 /snap/snapname/unset/chain2 /snap/snapname/unset/run-app2"},
-		{app: "app", cmd: "stop", expected: "/snap/snapname/unset/stop-app"},
-		{app: "app2", cmd: "stop", expected: "/snap/snapname/unset/chain1 /snap/snapname/unset/chain2 /snap/snapname/unset/stop-app2"},
-		{app: "app", cmd: "post-stop", expected: "/snap/snapname/unset/post-stop-app"},
-		{app: "app2", cmd: "post-stop", expected: "/snap/snapname/unset/chain1 /snap/snapname/unset/chain2 /snap/snapname/unset/post-stop-app2"},
+		{app: "app", cmd: "", expected: fmt.Sprintf("%s/snapname/unset/run-app cmd-arg1 $SNAP_DATA", dirs.SnapMountDir)},
+		{app: "app2", cmd: "", expected: fmt.Sprintf("%[1]s/snapname/unset/chain1 %[1]s/snapname/unset/chain2 %[1]s/snapname/unset/run-app2", dirs.SnapMountDir)},
+		{app: "app", cmd: "stop", expected: fmt.Sprintf("%s/snapname/unset/stop-app", dirs.SnapMountDir)},
+		{app: "app2", cmd: "stop", expected: fmt.Sprintf("%[1]s/snapname/unset/chain1 %[1]s/snapname/unset/chain2 %[1]s/snapname/unset/stop-app2", dirs.SnapMountDir)},
+		{app: "app", cmd: "post-stop", expected: fmt.Sprintf("%s/snapname/unset/post-stop-app", dirs.SnapMountDir)},
+		{app: "app2", cmd: "post-stop", expected: fmt.Sprintf("%[1]s/snapname/unset/chain1 %[1]s/snapname/unset/chain2 %[1]s/snapname/unset/post-stop-app2", dirs.SnapMountDir)},
 	} {
 		cmd, err := snapExec.FindCommand(info.Apps[t.app], t.cmd)
 		c.Check(err, IsNil)
