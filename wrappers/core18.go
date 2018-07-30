@@ -52,7 +52,7 @@ Type=none
 Options=bind
 
 [Install]
-RequiredBy=snapd.service
+WantedBy=snapd.service
 `, prefix))
 	unit := "usr-lib-snapd.mount"
 	fullPath := filepath.Join(dirs.SnapServicesDir, unit)
@@ -75,10 +75,11 @@ RequiredBy=snapd.service
 	if err := sysd.Enable(unit); err != nil {
 		return err
 	}
-	// FIXME: restart here instead of starting
-	if err := sysd.Start(unit); err != nil {
+
+	if err := sysd.Restart(unit, 5*time.Second); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -158,7 +159,6 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		}
 	}
 
-	startServices := []string{}
 	for _, unit := range changed {
 		// Some units (like the snapd.system-shutdown.service) cannot
 		// be started. Others like "snapd.seeded.service" are started
@@ -166,11 +166,16 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
-		startServices = append(startServices, unit)
+		if err := sysd.Restart(unit, 5*time.Second); err != nil {
+			return err
+		}
 	}
-	// FIXME: restart here is already running
-	// FIXME2: do *not* restart snapd.service here
-	if err := sysd.Start(startServices...); err != nil {
+	// and finally start snapd.service (it will stop by itself and gets
+	// started by systemd then)
+	if err := sysd.Start("snapd.service"); err != nil {
+		return err
+	}
+	if err := sysd.StartNoBlock("snapd.seeded.service"); err != nil {
 		return err
 	}
 

@@ -1,6 +1,8 @@
 [Unit]
 Description=Snappy daemon
 Requires=snapd.socket
+# This is handled by snapd
+# X-Snapd-Snap: do-not-start
 
 [Service]
 # Disabled because it breaks lxd
