@@ -365,6 +365,8 @@
     # support for the mount namespace sharing
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
+    ptrace read peer=unconfined,
+    # https://forum.snapcraft.io/t/custom-kernel-error-on-readlinkat-in-mount-namespace/6097/21
     ptrace trace peer=unconfined,
 
     mount options=(rw rbind) /run/snapd/ns/ -> /run/snapd/ns/,

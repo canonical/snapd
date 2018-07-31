@@ -394,6 +394,10 @@ version: %s
 
 	// Mock the snap on disk
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	if active {
+		dir, rev := filepath.Split(snapInfo.MountDir())
+		c.Assert(os.Symlink(rev, dir+"current"), check.IsNil)
+	}
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -6459,7 +6463,7 @@ func (s *appSuite) SetUpTest(c *check.C) {
 	s.cmd = testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
 	s.daemon(c)
 	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
-	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {svc3: {daemon: simple}, cmd1: {}}")
+	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")
 	s.infoC = s.mkInstalledInState(c, s.d, "snap-c", "dev", "v1", snap.R(1), true, "")
 	s.infoD = s.mkInstalledInState(c, s.d, "snap-d", "dev", "v1", snap.R(1), true, "apps: {cmd2: {}, cmd3: {}}")
 	s.d.overlord.Loop()
@@ -6513,13 +6517,17 @@ UnitFileState=enabled
 
 	for _, name := range svcNames {
 		snap, app := splitAppName(name)
-		c.Check(apps, testutil.DeepContains, client.AppInfo{
-			Snap:    snap,
-			Name:    app,
-			Daemon:  "simple",
-			Active:  true,
-			Enabled: true,
-		})
+		needle := client.AppInfo{
+			Snap:   snap,
+			Name:   app,
+			Daemon: "simple",
+		}
+		if snap != "snap-b" {
+			// snap-b is not active (all the others are)
+			needle.Active = true
+			needle.Enabled = true
+		}
+		c.Check(apps, testutil.DeepContains, needle)
 	}
 
 	for _, name := range []string{"snap-b.cmd1", "snap-d.cmd2", "snap-d.cmd3"} {
@@ -6587,13 +6595,17 @@ UnitFileState=enabled
 
 	for _, name := range svcNames {
 		snap, app := splitAppName(name)
-		c.Check(svcs, testutil.DeepContains, client.AppInfo{
-			Snap:    snap,
-			Name:    app,
-			Daemon:  "simple",
-			Active:  true,
-			Enabled: true,
-		})
+		needle := client.AppInfo{
+			Snap:   snap,
+			Name:   app,
+			Daemon: "simple",
+		}
+		if snap != "snap-b" {
+			// snap-b is not active (all the others are)
+			needle.Active = true
+			needle.Enabled = true
+		}
+		c.Check(svcs, testutil.DeepContains, needle)
 	}
 
 	appNames := make([]string, len(svcs))

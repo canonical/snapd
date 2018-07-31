@@ -415,6 +415,14 @@ func (s *Info) InstallDate() time.Time {
 	return time.Time{}
 }
 
+// IsActive returns whether this snap revision is active.
+func (s *Info) IsActive() bool {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	return err == nil && tag == rev
+}
+
 // BadInterfacesSummary returns a summary of the problems of bad plugs
 // and slots in the snap.
 func BadInterfacesSummary(snapInfo *Info) string {

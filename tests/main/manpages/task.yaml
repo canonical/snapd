@@ -11,20 +11,21 @@ execute: |
     # to the machine or force a cache consistency calling the man page with '-u'
     # This issue happens with any package, not just with snap related ones
     # The command "man snap" works well in this case (man 2.6.6)
-    if [[ "$SPREAD_SYSTEM" == opensuse-* || "$SPREAD_SYSTEM" == arch-* ]]; then
-        for manpage in snap snap-confine snap-discard-ns; do
-            if ! LC_ALL=C man -u --where $manpage; then
-                echo "Expected to see manual page path for $manpage"
-                exit 1
-            fi
-        done
-        exit 0
-    fi
-
-    for manpage in snap snap-confine snap-discard-ns; do
-        if ! LC_ALL=C man --what $manpage; then
-            echo "Expected to see manual page for $manpage"
-            exit 1
-        fi
-    done
+    case "$SPREAD_SYSTEM" in
+        opensuse-*|arch-*|amazon-*)
+            for manpage in snap snap-confine snap-discard-ns; do
+                if ! LC_ALL=C man -u --where $manpage; then
+                    echo "Expected to see manual page path for $manpage"
+                    exit 1
+                fi
+              done
+              ;;
+        *)
+            for manpage in snap snap-confine snap-discard-ns; do
+                if ! LC_ALL=C man --what $manpage; then
+                    echo "Expected to see manual page for $manpage"
+                    exit 1
+                fi
+            done
+    esac
 # TODO: add manual pages for snapctl, snap-exec and snapd
