@@ -22,7 +22,7 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     #shellcheck source=tests/lib/systemd.sh
-    . "$TESTLIB"/systemd.sh
+    . "$TESTSLIB"/systemd.sh
     echo "Given a snap declaring the network plug is installed"
     install_local "$SNAP_NAME"
 
@@ -33,7 +33,7 @@ prepare: |
 
 restore: |
     #shellcheck source=tests/lib/systemd.sh
-    . "$TESTLIB"/systemd.sh
+    . "$TESTSLIB"/systemd.sh
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
     rm -f "$SERVICE_FILE"

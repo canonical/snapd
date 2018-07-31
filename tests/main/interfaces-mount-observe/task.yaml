@@ -20,7 +20,7 @@ prepare: |
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
-    . "$TESTLIB"/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "The interface is not connected by default"
     snap interfaces -i mount-observe | MATCH -- '- +mount-observe-consumer:mount-observe'

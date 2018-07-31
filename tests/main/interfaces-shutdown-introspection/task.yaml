@@ -13,7 +13,7 @@ details: |
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . "$TESTLIB"/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Given a snap declaring a plug on the shutdown interface is installed"
     install_local shutdown-introspection-consumer

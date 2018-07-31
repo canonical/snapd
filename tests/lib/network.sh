@@ -25,7 +25,7 @@ make_network_service() {
     PORT="$3"
 
     #shellcheck source=tests/lib/systemd.sh
-    . "$TESTLIB"/systemd.sh
+    . "$TESTSLIB"/systemd.sh
 
     printf '#!/bin/sh -e\nwhile true; do printf '\''HTTP/1.1 200 OK\\n\\nok\\n'\'' |  nc -l -p %s -w 1; done' "$PORT" > "$SERVICE_FILE"
     chmod a+x "$SERVICE_FILE"

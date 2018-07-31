@@ -5,13 +5,13 @@ systems: [ ubuntu-1* ]
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTLIB"/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     echo "Ensure we have a working gnome-keyring"
     snap install --edge test-snapd-password-manager-consumer
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTLIB"/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     if [ -f dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
     fi

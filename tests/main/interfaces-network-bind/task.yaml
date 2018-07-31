@@ -23,7 +23,7 @@ prepare: |
 
     echo "Given the snap's service is listening"
     # shellcheck source=tests/lib/network.sh
-    . "$TESTLIB"/network.sh
+    . "$TESTSLIB"/network.sh
     wait_listen_port "$PORT"
 
     echo "Given we store a basic HTTP request"

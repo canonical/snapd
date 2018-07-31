@@ -5,7 +5,7 @@ details: |
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . "$TESTLIB"/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-removable-media
 
     if ! [ -d /media ]; then
