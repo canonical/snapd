@@ -30,6 +30,12 @@ static void test_verify_security_tag(void)
 	g_assert_true(verify_security_tag("snap.f00.bar-baz1", "f00"));
 	g_assert_true(verify_security_tag("snap.foo.hook.bar", "foo"));
 	g_assert_true(verify_security_tag("snap.foo.hook.bar-baz", "foo"));
+	g_assert_true(verify_security_tag
+		      ("snap.foo_instance.bar-baz", "foo_instance"));
+	g_assert_true(verify_security_tag
+		      ("snap.foo_instance.hook.bar-baz", "foo_instance"));
+	g_assert_true(verify_security_tag
+		      ("snap.foo_bar.hook.bar-baz", "foo_bar"));
 
 	// Now, test the names we know are bad
 	g_assert_false(verify_security_tag
@@ -62,19 +68,45 @@ static void test_verify_security_tag(void)
 	g_assert_false(verify_security_tag("snap..name.app", ".name"));
 	g_assert_false(verify_security_tag("snap.name..app", "name."));
 	g_assert_false(verify_security_tag("snap.name.app..", "name"));
+	// These contain invalid instance key
+	g_assert_false(verify_security_tag("snap.foo_.bar-baz", "foo"));
+	g_assert_false(verify_security_tag
+		       ("snap.foo_toolonginstance.bar-baz", "foo"));
+	g_assert_false(verify_security_tag
+		       ("snap.foo_inst@nace.bar-baz", "foo"));
+	g_assert_false(verify_security_tag
+		       ("snap.foo_in-stan-ce.bar-baz", "foo"));
+	g_assert_false(verify_security_tag("snap.foo_in stan.bar-baz", "foo"));
 
 	// Test names that are both good, but snap name doesn't match security tag
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
+	g_assert_false(verify_security_tag("snap.foo_instance.bar", "foo_bar"));
 
 	// Regression test 12to8
 	g_assert_true(verify_security_tag("snap.12to8.128to8", "12to8"));
 	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
 	g_assert_true(verify_security_tag
 		      ("snap.123test.hook.configure", "123test"));
+}
 
+static void test_sc_is_hook_security_tag(void)
+{
+	// First, test the names we know are good
+	g_assert_true(sc_is_hook_security_tag("snap.foo.hook.bar"));
+	g_assert_true(sc_is_hook_security_tag("snap.foo.hook.bar-baz"));
+	g_assert_true(sc_is_hook_security_tag
+		      ("snap.foo_instance.hook.bar-baz"));
+	g_assert_true(sc_is_hook_security_tag("snap.foo_bar.hook.bar-baz"));
+
+	// Now, test the names we know are not valid hook security tags
+	g_assert_false(sc_is_hook_security_tag("snap.foo_instance.bar-baz"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app!hook.foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook!foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook.-foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook.f00"));
 }
 
 static void test_sc_snap_or_instance_name_validate(gconstpointer data)
@@ -485,6 +517,8 @@ static void test_sc_snap_split_instance_name_basic(void)
 static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
+	g_test_add_func("/snap/sc_is_hook_security_tag",
+			test_sc_is_hook_security_tag);
 
 	g_test_add_data_func("/snap/sc_snap_name_validate",
 			     sc_snap_name_validate,
