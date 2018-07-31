@@ -97,6 +97,112 @@ static int skip_one_char(const char **p, char c)
 	return 0;
 }
 
+void sc_instance_name_validate(const char *instance_name,
+			       struct sc_error **errorp)
+{
+	// NOTE: This function should be synchronized with the two other
+	// implementations: validate_instance_name and snap.ValidateInstanceName.
+	struct sc_error *err = NULL;
+
+	// Ensure that name is not NULL
+	if (instance_name == NULL) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME,
+				  "snap instance name cannot be NULL");
+		goto out;
+	}
+
+	const char *instance_sep = strchr(instance_name, '_');
+
+	if (instance_sep != NULL) {
+		size_t snap_name_len = instance_sep - instance_name;
+		const char *instance_key = instance_sep + 1;
+
+		if (snap_name_len == 0) {
+			err =
+			    sc_error_init(SC_SNAP_DOMAIN,
+					  SC_SNAP_INVALID_INSTANCE_NAME,
+					  "snap name must contain at least one letter");
+			goto out;
+		}
+
+		sc_instance_key_validate(instance_key, &err);
+		if (err != NULL) {
+			goto out;
+		}
+
+		if (snap_name_len > 40) {
+			err =
+			    sc_error_init(SC_SNAP_DOMAIN,
+					  SC_SNAP_INVALID_INSTANCE_NAME,
+					  "snap name must be shorter than 40 characters");
+			goto out;
+		}
+
+		char *snap_name SC_CLEANUP(sc_cleanup_string) =
+		    strndup(instance_name, snap_name_len);
+		sc_snap_name_validate(snap_name, &err);
+		if (err != NULL) {
+			goto out;
+		}
+
+	} else {
+		// just snap name
+		sc_snap_name_validate(instance_name, &err);
+	}
+
+ out:
+	sc_error_forward(errorp, err);
+}
+
+void sc_instance_key_validate(const char *instance_key,
+			      struct sc_error **errorp)
+{
+	// NOTE: see snap.ValidateInstanceName for reference of a valid instance key
+	// format
+	struct sc_error *err = NULL;
+
+	// Ensure that name is not NULL
+	if (instance_key == NULL) {
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "instance key cannot be NULL");
+		goto out;
+	}
+
+	const char *p = instance_key;
+	int n = 0;
+	while (*p != '\0') {
+		int m = 0;
+		m = skip_lowercase_letters(&p);
+		if (m > 0) {
+			n += m;
+			continue;
+		}
+		m = skip_digits(&p);
+		if (m > 0) {
+			n += m;
+			continue;
+		}
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
+				  "instance key must use lower case letters or digits");
+		goto out;
+	}
+
+	if (n == 0) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
+				  "instance key must contain at least one letter or digit");
+	} else if (n > 10) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
+				  "instance key must be shorter than 10 characters");
+	}
+
+ out:
+	sc_error_forward(errorp, err);
+}
+
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 {
 	// NOTE: This function should be synchronized with the two other
