@@ -53,34 +53,34 @@ func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclarati
 	return snapDecl, nil
 }
 
-// CrossCheck tries to cross check the name, hash digest and size of a snap plus its metadata in a SideInfo with the relevant snap assertions in a database that should have been populated with them.
-func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, db Finder) error {
+// CrossCheck tries to cross check the instance name, hash digest and size of a snap plus its metadata in a SideInfo with the relevant snap assertions in a database that should have been populated with them.
+func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, db Finder) error {
 	// get relevant assertions and do cross checks
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": snapSHA3_384,
 	})
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find pre-populated snap-revision assertion for %q: %s", name, snapSHA3_384)
+		return fmt.Errorf("internal error: cannot find pre-populated snap-revision assertion for %q: %s", instanceName, snapSHA3_384)
 	}
 	snapRev := a.(*asserts.SnapRevision)
 
 	if snapRev.SnapSize() != snapSize {
-		return fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", name, snapSize, snapRev.SnapSize())
+		return fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", instanceName, snapSize, snapRev.SnapSize())
 	}
 
 	snapID := si.SnapID
 
 	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
-		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", name, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
+		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", instanceName, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
 	}
 
-	snapDecl, err := findSnapDeclaration(snapID, name, db)
+	snapDecl, err := findSnapDeclaration(snapID, instanceName, db)
 	if err != nil {
 		return err
 	}
 
-	if snapDecl.SnapName() != name {
-		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %q", name, snapDecl.SnapName())
+	if snapDecl.SnapName() != snap.InstanceSnap(instanceName) {
+		return fmt.Errorf("cannot install %q, snap %q is undergoing a rename to %q", instanceName, snap.InstanceSnap(instanceName), snapDecl.SnapName())
 	}
 
 	return nil

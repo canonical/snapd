@@ -24,6 +24,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Model holds a model assertion, which is a statement by a brand
@@ -78,12 +80,18 @@ func (mod *Model) Gadget() string {
 
 // Kernel returns the kernel snap the model uses.
 func (mod *Model) Kernel() string {
-	return mod.HeaderString("kernel")
+	kernel := mod.HeaderString("kernel")
+	return strings.SplitN(kernel, "=", 2)[0]
 }
 
 // KernelTrack returns the kernel track the model uses.
 func (mod *Model) KernelTrack() string {
-	return mod.HeaderString("kernel-track")
+	kernel := mod.HeaderString("kernel")
+	l := strings.SplitN(kernel, "=", 2)
+	if len(l) > 1 {
+		return l[1]
+	}
+	return ""
 }
 
 // Base returns the base snap the model uses.
@@ -123,11 +131,39 @@ var _ consistencyChecker = (*Model)(nil)
 // limit model to only lowercase for now
 var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
+func checkKernelHeader(headers map[string]interface{}) error {
+	_, ok := headers["kernel"]
+	if !ok {
+		return nil
+	}
+	kernel, ok := headers["kernel"].(string)
+	if !ok {
+		return fmt.Errorf(`"kernel" header must be a string`)
+	}
+	l := strings.SplitN(kernel, "=", 2)
+	if len(l) == 1 {
+		return nil
+	}
+	kernelTrack := l[1]
+	if strings.Count(kernelTrack, "/") != 0 {
+		return fmt.Errorf(`"kernel" channel selector must be a track name only`)
+	}
+	channelRisks := []string{"stable", "candidate", "beta", "edge"}
+	if strutil.ListContains(channelRisks, kernelTrack) {
+		return fmt.Errorf(`"kernel" channel selector must be a track name`)
+	}
+	return nil
+}
+
 func checkModel(headers map[string]interface{}) (string, error) {
 	s, err := checkStringMatches(headers, "model", validModel)
 	if err != nil {
 		return "", err
 	}
+	if err := checkKernelHeader(headers); err != nil {
+		return "", err
+	}
+
 	// TODO: support the concept of case insensitive/preserving string headers
 	if strings.ToLower(s) != s {
 		return "", fmt.Errorf(`"model" header cannot contain uppercase letters`)
@@ -189,9 +225,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	if classic {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
-		}
-		if _, ok := assert.headers["kernel-track"]; ok {
-			return nil, fmt.Errorf("cannot specify kernel-track with a classic model")
 		}
 		if _, ok := assert.headers["base"]; ok {
 			return nil, fmt.Errorf("cannot specify a base with a classic model")
