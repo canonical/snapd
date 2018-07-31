@@ -1,0 +1,29 @@
+summary: Ensure that the snap logs command works.
+
+details: |
+    Validate the logs command fetches logs of the given services and displays them in chronological order
+    for all supported systems.
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-service
+
+restore: |
+    rm -f service.log
+
+execute: |
+    echo "check the logs are displayed by service-name and service-name.app"
+    snap logs test-snapd-service | MATCH "running"
+    snap logs test-snapd-service.test-snapd-service | MATCH "running"
+    snap logs test-snapd-service.test-snapd-other-service | MATCH "running"
+
+    echo "check output lines for the logs"
+    snap logs -n=1 test-snapd-service | MATCH "running"
+    snap logs -n=all test-snapd-service | MATCH "running"
+    
+    echo "check -f option works"
+    snap logs -f test-snapd-service > service.log &    
+    snap stop test-snapd-service
+    pkill -f "snap logs -f test-snapd-service"
+    MATCH "stop service" < service.log
