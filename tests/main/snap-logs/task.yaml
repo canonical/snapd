@@ -25,5 +25,13 @@ execute: |
     echo "check -f option works"
     snap logs -f test-snapd-service > service.log &    
     snap stop test-snapd-service
-    pkill -f "snap logs -f test-snapd-service"
+    for _ in $(seq 10); do
+        if MATCH "stop service" < service.log; then
+            break
+        fi
+        sleep 1
+    done
     MATCH "stop service" < service.log
+
+    echo "stop the logs command"
+    kill $!
