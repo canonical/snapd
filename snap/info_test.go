@@ -1251,3 +1251,21 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 	c.Check(info.InstanceName(), Equals, "snap-name")
 	c.Check(info.SnapName(), Equals, "snap-name")
 }
+
+func (s *infoSuite) TestIsActive(c *C) {
+	info1 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1)})
+	info2 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(2)})
+	// no current -> not active
+	c.Check(info1.IsActive(), Equals, false)
+	c.Check(info2.IsActive(), Equals, false)
+
+	mountdir := info1.MountDir()
+	dir, rev := filepath.Split(mountdir)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	cur := filepath.Join(dir, "current")
+	c.Assert(os.Symlink(rev, cur), IsNil)
+
+	// is current -> is active
+	c.Check(info1.IsActive(), Equals, true)
+	c.Check(info2.IsActive(), Equals, false)
+}
