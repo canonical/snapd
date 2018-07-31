@@ -49,6 +49,8 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var ErrStopDaemon = fmt.Errorf("stop daemon")
+
 var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
@@ -65,7 +67,10 @@ type Daemon struct {
 	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
 	restartSystem bool
-	mu            sync.Mutex
+	// set to remember that we need to exit the daemon in a way that
+	// prevents systemd from restarting it
+	stopDaemon bool
+	mu         sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -231,6 +236,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			maintTransmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
 			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+		case state.StopDaemon:
+			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is stopping")
 		}
 	}
 
@@ -456,6 +463,9 @@ func (d *Daemon) Start() {
 			// remember we need to restart the system
 			d.restartSystem = true
 			d.tomb.Kill(nil)
+		case state.StopDaemon:
+			d.stopDaemon = true
+			d.tomb.Kill(nil)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)
@@ -577,6 +587,9 @@ func (d *Daemon) Stop() error {
 		logger.Noticef("Waiting for system reboot")
 		time.Sleep(rebootWaitTimeout)
 		return fmt.Errorf("expected reboot did not happen")
+	}
+	if d.stopDaemon {
+		return ErrStopDaemon
 	}
 
 	return nil

@@ -80,6 +80,7 @@ const (
 	RestartUnset RestartType = iota
 	RestartDaemon
 	RestartSystem
+	StopDaemon
 )
 
 // State represents an evolving system state that persists across restarts.

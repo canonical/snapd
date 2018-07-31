@@ -11,6 +11,8 @@ ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 Type=notify
+SuccessExitStatus=42
+RestartPreventExitStatus=42
 
 [Install]
 WantedBy=multi-user.target

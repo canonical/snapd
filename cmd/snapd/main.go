@@ -47,6 +47,10 @@ func init() {
 func main() {
 	cmd.ExecInCoreSnap()
 	if err := run(); err != nil {
+		if err == daemon.ErrStopDaemon {
+			fmt.Fprint(os.Stdout, "got stop daemon\n")
+			os.Exit(42)
+		}
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
