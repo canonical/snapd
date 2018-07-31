@@ -247,6 +247,91 @@ int validate_snap_name(const char* snap_name)
     return 0;
 }
 
+static int instance_key_validate(const char *instance_key)
+{
+	// NOTE: see snap.ValidateInstanceName for reference of a valid instance key
+	// format
+
+	// Ensure that name is not NULL
+	if (instance_key == NULL) {
+		bootstrap_msg = "instance key cannot be NULL";
+		return -1;
+	}
+
+	const char *p = instance_key;
+	int n = 0;
+	while (*p != '\0') {
+		int m = 0;
+		m = skip_lowercase_letters(&p);
+		if (m > 0) {
+			n += m;
+			continue;
+		}
+		m = skip_digits(&p);
+		if (m > 0) {
+			n += m;
+			continue;
+		}
+		bootstrap_msg = "instance key must use lower case letters or digits";
+		return -1;
+	}
+
+	if (n == 0) {
+		bootstrap_msg = "instance key must contain at least one letter or digit";
+		return -1;
+	} else if (n > 10) {
+		bootstrap_msg = "instance key must be shorter than 10 characters";
+		return -1;
+	}
+
+	return 0;
+}
+
+// validate_instance_name performs full validation of the given snap instance name.
+int validate_instance_name(const char* instance_name)
+{
+    // NOTE: This function should be synchronized with the two other
+    // implementations: sc_instance_name_validate and snap.ValidateInstanceName.
+
+    if (instance_name == NULL) {
+        bootstrap_msg = "snap instance name cannot be NULL";
+        return -1;
+    }
+
+	const char *instance_sep = strchr(instance_name, '_');
+
+	if (instance_sep != NULL) {
+		size_t snap_name_len = instance_sep - instance_name;
+		const char *instance_key = instance_sep + 1;
+
+		if (snap_name_len == 0) {
+			bootstrap_msg = "snap name must contain at least one letter";
+			return -1;
+		}
+
+		if (instance_key_validate(instance_key) != 0) {
+			return -1;
+		}
+
+		if (snap_name_len > 40) {
+			bootstrap_msg = "snap name must be shorter than 40 characters";
+			return -1;
+		}
+
+		char snap_name[41];
+		memcpy(snap_name, instance_name, snap_name_len);
+		snap_name[snap_name_len] = '\0';
+
+		return validate_snap_name(snap_name);
+	} else {
+		// just snap name
+		return validate_snap_name(instance_name);
+	}
+
+	return -1;
+}
+
+
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out, bool* process_user_fstab)
@@ -312,11 +397,11 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
         return;
     }
 
-    // Ensure that the snap name is valid so that we don't blindly setns into
+    // Ensure that the snap instance name is valid so that we don't blindly setns into
     // something that is controlled by a potential attacker.
-    if (validate_snap_name(snap_name) < 0) {
+    if (validate_instance_name(snap_name) < 0) {
         bootstrap_errno = 0;
-        // bootstap_msg is set by validate_snap_name;
+        // bootstap_msg is set by validate_instance_name;
         return;
     }
     // We have a valid snap name now so let's store it.
