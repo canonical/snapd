@@ -37,6 +37,9 @@ func (s *bootstrapSuite) TestValidateSnapName(c *C) {
 	c.Assert(update.ValidateInstanceName("hello-world_foo"), Equals, 0)
 	c.Assert(update.ValidateInstanceName("foo_0123456789"), Equals, 0)
 	c.Assert(update.ValidateInstanceName("foo_1234abcd"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789"), Equals, 0)
+
 	c.Assert(update.ValidateInstanceName("INVALID"), Equals, -1)
 	c.Assert(update.ValidateInstanceName("-invalid"), Equals, -1)
 	c.Assert(update.ValidateInstanceName(""), Equals, -1)
@@ -45,6 +48,10 @@ func (s *bootstrapSuite) TestValidateSnapName(c *C) {
 	c.Assert(update.ValidateInstanceName("foo_01234567890"), Equals, -1)
 	c.Assert(update.ValidateInstanceName("foo_123_456"), Equals, -1)
 	c.Assert(update.ValidateInstanceName("foo__456"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello-world_foo_foo"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo01234567890012345678900123456789001234567890"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo01234567890012345678900123456789001234567890_foo"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_01234567890"), Equals, -1)
 }
 
 // Test various cases of command line handling.
