@@ -42,8 +42,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -423,6 +425,17 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
+	// and pretend we have snaps
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	st.Unlock()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -533,6 +546,17 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 
 	// mark as already seeded
 	s.markSeeded(d)
+	// and pretend we have snaps
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	st.Unlock()
 
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
