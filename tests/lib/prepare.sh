@@ -598,7 +598,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure snapd.seeded.service has the right state"
-    systemctl status snapd.seeded.service | MATCH "Active: active"
+    systemctl status snapd.seeded.service | MATCH "status=0/SUCCESS"
     
     echo "Ensure fundamental snaps are still present"
     # shellcheck source=tests/lib/names.sh
