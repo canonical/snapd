@@ -90,12 +90,12 @@ func freeArgv(argv []*C.char) {
 	}
 }
 
-// validateSnapName checks if snap name is valid.
+// validateInstanceName checks if snap instance name is valid.
 // This also sets bootstrap_msg on failure.
-func validateSnapName(snapName string) int {
-	cStr := C.CString(snapName)
+func validateInstanceName(instanceName string) int {
+	cStr := C.CString(instanceName)
 	defer C.free(unsafe.Pointer(cStr))
-	return int(C.validate_snap_name(cStr))
+	return int(C.validate_instance_name(cStr))
 }
 
 // processArguments parses commnad line arguments.
