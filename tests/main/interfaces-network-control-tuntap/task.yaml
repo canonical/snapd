@@ -19,7 +19,7 @@ environment:
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
-    . "$TESTLIB"/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Given a snap declaring a plug on the network-control interface is installed"
     install_local test-snapd-tuntap

@@ -11,12 +11,12 @@ environment:
 
 prepare: |
     # shellcheck source=tests/lib/network.sh
-    . "$TESTLIB"/network.sh
+    . "$TESTSLIB"/network.sh
     make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
 
 restore: |
     #shellcheck source=tests/lib/systemd.sh
-    . "$TESTLIB"/systemd.sh
+    . "$TESTSLIB"/systemd.sh
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
     rm -f "$SERVICE_FILE" "$READABLE_FILE"

@@ -29,7 +29,7 @@ prepare: |
 
     echo "And a network service is up"
     # shellcheck source=tests/lib/network.sh
-    . "$TESTLIB"/network.sh
+    . "$TESTSLIB"/network.sh
     make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
 
 restore: |
