@@ -18,24 +18,26 @@ environment:
     DEV/tap: tap255
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTLIB"/snaps.sh
 
     echo "Given a snap declaring a plug on the network-control interface is installed"
     install_local test-snapd-tuntap
 
 execute: |
+    #shellcheck source=tests/lib/network.sh
     . "$TESTSLIB/network.sh"
 
     echo "The interface is disconnected by default"
-    snap interfaces -i network-control | MATCH "^- +test-snapd-tuntap:network-control$"
+    snap interfaces -i network-control | MATCH -- '^- +test-snapd-tuntap:network-control$'
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And cannot allocate the $DEV device"
-        test-snapd-tuntap.tuntap $DEV 2>&1 | MATCH "Permission denied"
+        test-snapd-tuntap.tuntap "$DEV" 2>&1 | MATCH "Permission denied"
     fi
 
     echo "When the plug is connected"
     snap connect test-snapd-tuntap:network-control
 
     echo "Then the snap command can allocate the $DEV device"
-    test-snapd-tuntap.tuntap $DEV | MATCH "PASS"
+    test-snapd-tuntap.tuntap "$DEV" | MATCH "PASS"

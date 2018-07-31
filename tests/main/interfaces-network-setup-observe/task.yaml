@@ -9,26 +9,27 @@ details: |
 
 prepare: |
     echo "Given the test-snapd-check-fs-access snap is installed"
-    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
-    sed 's/\[\]/\[network-setup-observe\]/g' -i $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
-    snap try $TESTSLIB/snaps/test-snapd-check-fs-access
+    cp "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
+    sed 's/\[\]/\[network-setup-observe\]/g' -i "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml
+    snap try "$TESTSLIB"/snaps/test-snapd-check-fs-access
 
 restore: |
-    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
+    cp "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml
 
 execute: |
     dirs="/etc/netplan /etc/network"
 
     echo "The interface is disconnected by default"
-    snap interfaces -i network-setup-observe| MATCH "\- +test-snapd-check-fs-access:network-setup-observe"
+    #shellcheck disable=SC1117
+    snap interfaces -i network-setup-observe| MATCH -- '^- +test-snapd-check-fs-access:network-setup-observe'
 
     echo "When the interface is connected"
     snap connect test-snapd-check-fs-access:network-setup-observe
 
     echo "Then the snap is able to read the network and netplan directories"
     for dir in $dirs; do
-        if [ -d $dir ]; then
-            test-snapd-check-fs-access.read-dir $dir
+        if [ -d "$dir" ]; then
+            test-snapd-check-fs-access.read-dir "$dir"
         fi
     done
 
@@ -41,8 +42,8 @@ execute: |
 
     echo "Then the snap is not able to read the network and netplan directories"
     for dir in $dirs; do
-        if [ -d $dir ]; then
-            if test-snapd-check-fs-access.read-dir $dir 2>${PWD}/call.error; then
+        if [ -d "$dir" ]; then
+            if test-snapd-check-fs-access.read-dir "$dir" 2>"${PWD}"/call.error; then
                 echo "Expected permission error calling desktop with disconnected plug"
                 exit 1
             fi

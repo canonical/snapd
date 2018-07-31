@@ -19,46 +19,47 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    . $TESTSLIB/systemd.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTLIB"/systemd.sh
     echo "Given a snap declaring the network plug is installed"
-    install_local $SNAP_NAME
+    install_local "$SNAP_NAME"
 
     echo "And a service is listening"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
-    chmod a+x $SERVICE_FILE
-    systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
     # shellcheck source=tests/lib/network.sh
-    . $TESTSLIB/network.sh
-    wait_listen_port "$PORT"
+    . "$TESTSLIB"/network.sh
+    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
 
 restore: |
-    . $TESTSLIB/systemd.sh
-    systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f $SERVICE_FILE
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTLIB"/systemd.sh
+    #shellcheck disable=SC2153
+    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    rm -f "$SERVICE_FILE"
 
 execute: |
     echo "The interface is connected by default"
     snap interfaces -i network | MATCH ":network .*$SNAP_NAME"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network
+    snap disconnect "$SNAP_NAME:network"
 
     echo "Then the plug can be connected again"
-    snap connect $SNAP_NAME:network
+    snap connect "$SNAP_NAME:network"
 
     echo "Then the snap is able to access a network service"
-    network-consumer http://127.0.0.1:$PORT | grep -Pqz "ok\n"
+    network-consumer http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network
+    snap disconnect "$SNAP_NAME:network"
 
     echo "Then snap can't access a network service"
-    if network-consumer http://127.0.0.1:$PORT; then
+    if network-consumer "http://127.0.0.1:$PORT"; then
         echo "Network shouldn't be accessible"
         exit 1
     fi
