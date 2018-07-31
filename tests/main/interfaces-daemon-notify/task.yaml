@@ -1,3 +1,5 @@
+# It is not possible to test it with "daemon: notify" yet, for more details please see the forum thread:
+# https://forum.snapcraft.io/t/its-a-little-bit-hard-to-use-daemon-notify-for-sd-notify/6366
 summary: Ensure that the daemon-notify interface works.
 
 details: |
