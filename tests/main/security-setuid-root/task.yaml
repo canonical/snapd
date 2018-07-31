@@ -6,6 +6,7 @@ systems:
     - -fedora-*
     - -opensuse-*
     - -arch-*
+    - -amazon-*
 
 details: |
     snap-confine is setuid root but is only confined with an apparmor profile
