@@ -30,8 +30,8 @@ import (
 
 var (
 	// change
-	ValidateSnapName = validateSnapName
-	ProcessArguments = processArguments
+	ValidateInstanceName = validateInstanceName
+	ProcessArguments     = processArguments
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
