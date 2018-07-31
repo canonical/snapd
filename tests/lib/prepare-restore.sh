@@ -296,8 +296,13 @@ prepare_project() {
             fi
         fi
         # double check we are running the installed kernel
-        # NOTE: arch kernels use ARCH as local version, eg. 4.16.13-2-ARCH
-        if [[ "$(pacman -Qi linux | grep '^Version' | awk '{print $3}')" != "$(uname -r | sed -e 's/-ARCH//')" ]]; then
+        # NOTE: LOCALVERSION is set by scripts/setlocalversion and loos like
+        # 4.17.11-arch1, since this may not match pacman -Qi output, we'll list
+        # the files within the package instead
+        # pacman -Ql linux output:
+        # ...
+        # linux /usr/lib/modules/4.17.11-arch1/modules.alias
+        if [[ "$(pacman -Ql linux | cut -f2 -d' ' |grep '/usr/lib/modules/.*/modules'|cut -f5 -d/ | uniq)" != "$(uname -r)" ]]; then
             echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
