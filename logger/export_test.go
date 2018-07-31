@@ -25,3 +25,12 @@ func GetLogger() Logger {
 
 	return logger
 }
+
+func GetLoggerFlags() int {
+	log, ok := GetLogger().(Log)
+	if !ok {
+		return -1
+	}
+
+	return log.log.Flags()
+}

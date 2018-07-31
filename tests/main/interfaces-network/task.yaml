@@ -1,6 +1,7 @@
 summary: Ensure network interface works.
 
-systems: [-fedora-*, -opensuse-*]
+# amazon: uses nmap-netcat
+systems: [-fedora-*, -opensuse-*, -amazon-*]
 
 details: |
     The network interface allows a snap to access the network as a client.
