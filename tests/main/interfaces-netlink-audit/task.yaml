@@ -11,14 +11,15 @@ details: |
 systems: [-ubuntu-14.04-*, -arch-*]
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTLIB"/snaps.sh
 
     # Install a snap declaring a plug on netlink-audit
     install_local test-snapd-netlink-audit
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i netlink-audit | MATCH "\- +test-snapd-netlink-audit:netlink-audit"
+    snap interfaces -i netlink-audit | MATCH -- '- +test-snapd-netlink-audit:netlink-audit'
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-audit:netlink-audit

@@ -14,7 +14,7 @@ restore: |
     rm -f /tmp/check-doc-portal.sh
 execute: |
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTLIB"/dirs.sh
 
     echo "Create XDG_RUNTIME_DIR for test user"
     USER_RUNTIME_DIR=/run/user/12345
