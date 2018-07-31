@@ -28,7 +28,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i dvb | MATCH "\\- +test-snapd-dvb:dvb"
+    snap interfaces -i dvb | MATCH -- '- +test-snapd-dvb:dvb'
 
     echo "When the interface is connected"
     snap connect test-snapd-dvb:dvb
@@ -45,7 +45,7 @@ execute: |
     fi
 
     echo "Then the snap is not able to read the input device"
-    if test-snapd-dvb.sh -c "cat /dev/dvb/adapter9/video9" 2>"${PWD}"/call.error; then
+    if test-snapd-dvb.sh -c 'cat /dev/dvb/adapter9/video9' 2>call.error; then
         echo "Expected permission error accessing to input device"
         exit 1
     fi
