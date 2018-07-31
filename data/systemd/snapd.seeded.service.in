@@ -9,7 +9,6 @@ ExecStart=@bindir@/snap wait system seed.loaded
 RemainAfterExit=true
 
 [Install]
-RequiredBy=snapd.service
-# This will be started when snapd.service is started so no need
-# for the snapd snap to do anything about it.
+WantedBy=multi-user.target cloud-final.service
+# This is handled special in snapd
 # X-Snapd-Snap: do-not-start
