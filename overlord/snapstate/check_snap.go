@@ -192,7 +192,7 @@ func validateContainer(c snap.Container, s *snap.Info, logf func(format string, 
 }
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, c, err := openSnapFile(snapFilePath, si)
@@ -207,6 +207,13 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 	if err := validateContainer(c, s, logger.Noticef); err != nil {
 		return err
 	}
+
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	if instanceKey != "" && snapName != s.SnapName() {
+		return fmt.Errorf("cannot install snap %q using instance name %q", s.SnapName(), instanceName)
+	}
+	// update instance key to what was requested
+	s.InstanceKey = instanceKey
 
 	st.Lock()
 	defer st.Unlock()

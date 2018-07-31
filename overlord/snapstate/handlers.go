@@ -425,10 +425,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err
@@ -462,14 +462,14 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
+	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
 		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb)
+	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	if err != nil {
 		return err
 	}
@@ -736,6 +736,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapst.UserID = snapsup.UserID
 		}
 	}
+	// keep instance key
+	snapst.InstanceKey = snapsup.InstanceKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
 	if err != nil {
