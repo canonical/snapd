@@ -43,7 +43,7 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	snapdSrv := filepath.Join(info.MountDir(), "/lib/systemd/system/snapd.service")
 	err = os.MkdirAll(filepath.Dir(snapdSrv), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapdSrv, []byte("[Unit]\nExecStart=/usr/lib/snapd/snapd"), 0644)
+	err = ioutil.WriteFile(snapdSrv, []byte("[Unit]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"), 0644)
 	c.Assert(err, IsNil)
 	return info
 }
@@ -61,7 +61,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snapd.service"))
 	c.Assert(err, IsNil)
 	// and paths get re-written
-	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd", dirs.SnapMountDir))
+	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", dirs.SnapMountDir))
 
 	// check that usr-lib-snapd.mount is created
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"))
@@ -89,10 +89,8 @@ WantedBy=snapd.service
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
-		{"stop", "snapd.service"},
-		{"show", "--property=ActiveState", "snapd.service"},
 		{"start", "snapd.service"},
-		{"start", "snapd.service"},
+		{"start", "--no-block", "snapd.seeded.service"},
 	})
 }
 
