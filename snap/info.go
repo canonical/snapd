@@ -117,34 +117,40 @@ func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
 }
 
-// DataDir returns the data directory of the snap.
-func DataDir(snapName string, revision Revision) string {
-	return filepath.Join(dirs.SnapDataDir, snapName, revision.String())
+// DataDir returns the data directory for given snap name. The name can be
+// either a snap name or snap instance name.
+func DataDir(name string, revision Revision) string {
+	return filepath.Join(dirs.SnapDataDir, name, revision.String())
 }
 
-// CommonDataDir returns the data directory common across revisions of the snap.
-func CommonDataDir(snapName string) string {
-	return filepath.Join(dirs.SnapDataDir, snapName, "common")
+// CommonDataDir returns the common data directory for given snap name. The name
+// can be either a snap name or snap instance name.
+func CommonDataDir(name string) string {
+	return filepath.Join(dirs.SnapDataDir, name, "common")
 }
 
-// HooksDir returns the directory containing the snap's hooks.
-func HooksDir(snapName string, revision Revision) string {
-	return filepath.Join(MountDir(snapName, revision), "meta", "hooks")
+// HooksDir returns the directory containing the snap's hooks for given snap
+// name. The name can be either a snap name or snap instance name.
+func HooksDir(name string, revision Revision) string {
+	return filepath.Join(MountDir(name, revision), "meta", "hooks")
 }
 
-// UserDataDir returns the user-specific data directory of the snap.
-func UserDataDir(home string, snapName string, revision Revision) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, snapName, revision.String())
+// UserDataDir returns the user-specific data directory for given snap name. The
+// name can be either a snap name or snap instance name.
+func UserDataDir(home string, name string, revision Revision) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name, revision.String())
 }
 
-// UserCommonDataDir returns the user-specific data directory common across revision of the snap.
-func UserCommonDataDir(home string, snapName string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, snapName, "common")
+// UserCommonDataDir returns the user-specific common data directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserCommonDataDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
 }
 
-// UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
-func UserXdgRuntimeDir(euid sys.UserID, snapName string) string {
-	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, snapName))
+// UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
+// given snap name. The name can be either a snap name or snap instance name.
+func UserXdgRuntimeDir(euid sys.UserID, name string) string {
+	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, name))
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
