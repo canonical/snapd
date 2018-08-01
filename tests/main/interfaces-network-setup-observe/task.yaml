@@ -20,7 +20,6 @@ execute: |
     dirs="/etc/netplan /etc/network"
 
     echo "The interface is disconnected by default"
-    #shellcheck disable=SC1117
     snap interfaces -i network-setup-observe| MATCH -- '^- +test-snapd-check-fs-access:network-setup-observe'
 
     echo "When the interface is connected"
