@@ -150,7 +150,7 @@ func UserCommonDataDir(home string, name string) string {
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
 // given snap name. The name can be either a snap name or snap instance name.
 func UserXdgRuntimeDir(euid sys.UserID, name string) string {
-	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, name))
+	return filepath.Join(dirs.XdgRuntimeDirBase, fmt.Sprintf("%d/snap.%s", euid, name))
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
