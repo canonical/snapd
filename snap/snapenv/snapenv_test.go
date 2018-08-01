@@ -87,6 +87,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_DATA":         "/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_NAME":         "foo",
+		"SNAP_INSTANCE":     "foo",
 		"SNAP_REEXEC":       "",
 		"SNAP_REVISION":     "17",
 		"SNAP_VERSION":      "1.0",
@@ -141,6 +142,46 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_DATA":         "/var/snap/snapname/42",
 			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 			"SNAP_NAME":         "snapname",
+			"SNAP_INSTANCE":     "snapname",
+			"SNAP_REEXEC":       "",
+			"SNAP_REVISION":     "42",
+			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_VERSION":      "1.0",
+			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
+		})
+	}
+}
+
+func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo.Revision = snap.R(42)
+
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+
+	homeEnv := os.Getenv("HOME")
+	defer os.Setenv("HOME", homeEnv)
+
+	// pretend it's snapname_foo
+	info.InstanceKey = "foo"
+
+	for _, withHomeEnv := range []bool{true, false} {
+		if !withHomeEnv {
+			os.Setenv("HOME", "")
+		}
+
+		env := snapEnv(info)
+		c.Check(env, DeepEquals, map[string]string{
+			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_ARCH":         arch.UbuntuArchitecture(),
+			"SNAP_COMMON":       "/var/snap/snapname/common",
+			"SNAP_DATA":         "/var/snap/snapname/42",
+			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+			"SNAP_NAME":         "snapname",
+			"SNAP_INSTANCE":     "snapname_foo",
 			"SNAP_REEXEC":       "",
 			"SNAP_REVISION":     "42",
 			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
