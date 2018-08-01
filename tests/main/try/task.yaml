@@ -73,12 +73,9 @@ execute: |
     s=$TESTSLIB/snaps/$n
     echo "Given a buildable snap with classic confinement:"
     echo " - you can't try it without --classic:"
-    #shellcheck disable=SC2015
-    snap try "$s" && exit 1 || true
-    #shellcheck disable=SC2015
-    snap try --jailmode "$s" && exit 1 || true
-    #shellcheck disable=SC2015
-    snap try --devmode "$s" && exit 1 || true
+    ! snap try "$s"
+    ! snap try --jailmode "$s"
+    ! snap try --devmode "$s"
 
     touch /tmp/lala
 
