@@ -1531,7 +1531,6 @@ out:
 		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, origPath)
 	}
 
-	// TODO parallel-install: pass instance key if needed
 	tset, err := snapstateInstallPath(st, sideInfo, tempPath, instanceName, "", flags)
 	if err != nil {
 		return errToResponse(err, []string{snapName}, InternalError, "cannot install snap file: %v")
