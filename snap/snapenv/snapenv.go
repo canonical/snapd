@@ -100,10 +100,16 @@ func basicEnv(info *snap.Info) map[string]string {
 		// shall *either* execute with the new mount namespace where snaps are
 		// always mounted on /snap OR it is a classically confined snap where
 		// /snap is a part of the distribution package.
-		"SNAP":          filepath.Join(dirs.CoreSnapMountDir, info.InstanceName(), info.Revision.String()),
-		"SNAP_COMMON":   info.CommonDataDir(),
-		"SNAP_DATA":     info.DataDir(),
-		"SNAP_NAME":     info.InstanceName(),
+		//
+		// NOTE for parallel-installs snap-confine takes care of making
+		// the environment of each snap instance appear as if it's the
+		// only snap, i.e. SNAP paths point to the same locations within
+		// the mount namespace
+		"SNAP":          filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
+		"SNAP_COMMON":   snap.CommonDataDir(info.SnapName()),
+		"SNAP_DATA":     snap.DataDir(info.SnapName(), info.Revision),
+		"SNAP_NAME":     info.SnapName(),
+		"SNAP_INSTANCE": info.InstanceName(),
 		"SNAP_VERSION":  info.Version,
 		"SNAP_REVISION": info.Revision.String(),
 		"SNAP_ARCH":     arch.UbuntuArchitecture(),
@@ -120,13 +126,13 @@ func basicEnv(info *snap.Info) map[string]string {
 func userEnv(info *snap.Info, home string) map[string]string {
 	// TODO parallel-install: use of proper instance/store name
 	result := map[string]string{
-		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
-		"SNAP_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(sys.Geteuid()),
+		"SNAP_USER_COMMON": snap.UserCommonDataDir(home, info.SnapName()),
+		"SNAP_USER_DATA":   snap.UserDataDir(home, info.SnapName(), info.Revision),
+		"XDG_RUNTIME_DIR":  snap.UserXdgRuntimeDir(sys.Geteuid(), info.SnapName()),
 	}
 	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {
-		result["HOME"] = info.UserDataDir(home)
+		result["HOME"] = snap.UserDataDir(home, info.SnapName(), info.Revision)
 	}
 	return result
 }
