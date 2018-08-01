@@ -16,7 +16,8 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i openvswitch-support | MATCH "\- +test-snapd-openvswitch-support:openvswitch-support"
+    #shellcheck disable=SC1117
+    snap interfaces -i openvswitch-support | MATCH -- '^- +test-snapd-openvswitch-support:openvswitch-support'
 
     echo "When the interface is connected"
     snap connect test-snapd-openvswitch-support:openvswitch-support
@@ -38,7 +39,7 @@ execute: |
     snap disconnect test-snapd-openvswitch-support:openvswitch-support
 
     echo "Then the snap is not able to get a random uuid"
-    if test-snapd-openvswitch-support.random-uuid 2>${PWD}/call.error; then
+    if test-snapd-openvswitch-support.random-uuid 2>"${PWD}"/call.error; then
         echo "Expected permission error getting random uuid"
         exit 1
     fi
