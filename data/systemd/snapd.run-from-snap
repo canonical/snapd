@@ -18,7 +18,7 @@ PREFIX="$2"
 UNITS="snapd.service snapd.autoimport.service snapd.core-fixup.service \
        snapd.seeded.service snapd.snap-repair.service \
        snapd.snap-repair.timer snapd.socket"
-ENABLE_UNITS="snapd.system-shutdown.service"
+ENABLE_UNITS="snapd.system-shutdown.service snapd.failure.service"
 
 if ! grep -q -E "ID(_LIKE)?=ubuntu-core" /etc/os-release && \
         ! grep -q -E "ID(_LIKE)?=ubuntu-core" /usr/lib/os-release;
@@ -61,7 +61,7 @@ EOF
         systemctl start usr-lib-snapd.mount
         # some units only need to get enabled
         for unit in $ENABLE_UNITS; do
-            if ! systemctl is-enabled $unit; then
+            if ! systemctl is-enabled "$unit"; then
                 systemctl enable "$unit"
             fi
         done

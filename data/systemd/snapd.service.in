@@ -1,6 +1,7 @@
 [Unit]
 Description=Snappy daemon
 Requires=snapd.socket
+OnFailure=snapd.failure.service
 
 [Service]
 # Disabled because it breaks lxd
