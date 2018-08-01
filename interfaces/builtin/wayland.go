@@ -26,8 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-
-	"strings"
 )
 
 const waylandSummary = `allows access to compositors supporting wayland protocol`
@@ -54,10 +52,6 @@ capability sys_tty_config,
 
 # Create the Wayland socket and lock file
 owner /run/user/[0-9]*/wayland-[0-9]* rw,
-# Allow access to common client Wayland sockets from non-snap clients
-/run/user/[0-9]*/wayland-shared-* rw,
-/run/user/[0-9]*/wayland-cursor-shared-* rw,
-/run/user/[0-9]*/xwayland-shared-* rw,
 
 # Allow write access to create /run/user/* to create XDG_RUNTIME_DIR (until lp:1738197 is fixed)
 /run/user/[0-9]*/ w,
@@ -91,13 +85,6 @@ accept4
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-const waylandConnectedSlotAppArmor = `
-# Allow access to common client Wayland sockets for connected snaps
-owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/wayland-shared-* rw,
-owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/wayland-cursor-shared-* rw,
-owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/xwayland-shared-* rw,
-`
-
 const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
 owner /run/user/[0-9]*/wayland-[0-9]* rw,
@@ -122,17 +109,6 @@ func (iface *waylandInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(waylandConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
-		old := "###PLUG_SECURITY_TAGS###"
-		// TODO parallel-install: use of proper instance/store name
-		new := "snap." + plug.Snap().InstanceName() // forms the snap-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
-		snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
-		spec.AddSnippet(snippet)
-	}
 	return nil
 }
 

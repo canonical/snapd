@@ -100,12 +100,6 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/drirc r,")
 
-	// connected core slot to plug
-	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
-	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/wayland-shared-* rw,")
-
 	// permanent core slot
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
