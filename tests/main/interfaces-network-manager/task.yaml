@@ -21,7 +21,7 @@ prepare: |
 execute: |
     # using wait_for_service is not enough, systemd considers the service
     # active even when it is not (yet) listening to dbus
-    for i in $(seq 300); do
+    for _ in $(seq 300); do
         if network-manager.nmcli general; then
             break
         fi
@@ -46,7 +46,7 @@ execute: |
     snap disconnect network-manager:nmcli
 
     echo "Then the consumer is not able to access the provided methods"
-    if network-manager.nmcli general 2>${PWD}/call.error; then
+    if network-manager.nmcli general 2>"${PWD}"/call.error; then
         echo "Expected permission error calling nmcli method with disconnected plug"
         exit 1
     fi
