@@ -10,6 +10,7 @@ OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
+WatchdogSec=5m
 Type=notify
 
 [Install]

@@ -102,7 +102,7 @@ type apiBaseSuite struct {
 
 	journalctlRestorer func()
 	jctlSvcses         [][]string
-	jctlNs             []string
+	jctlNs             []int
 	jctlFollows        []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
@@ -194,7 +194,7 @@ func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	return buf, err
 }
 
-func (s *apiBaseSuite) journalctl(svcs []string, n string, follow bool) (rc io.ReadCloser, err error) {
+func (s *apiBaseSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
 	s.jctlSvcses = append(s.jctlSvcses, svcs)
 	s.jctlNs = append(s.jctlNs, n)
 	s.jctlFollows = append(s.jctlFollows, follow)
@@ -6841,7 +6841,7 @@ func (s *appSuite) TestLogs(c *check.C) {
 	getLogs(logsCmd, req, nil).ServeHTTP(rec, req)
 
 	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
-	c.Check(s.jctlNs, check.DeepEquals, []string{"42"})
+	c.Check(s.jctlNs, check.DeepEquals, []int{42})
 	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
 
 	c.Check(rec.Code, check.Equals, 200)
@@ -6858,15 +6858,15 @@ func (s *appSuite) TestLogs(c *check.C) {
 func (s *appSuite) TestLogsN(c *check.C) {
 	type T struct {
 		in  string
-		out string
+		out int
 	}
 
 	for _, t := range []T{
-		{in: "", out: "10"},
-		{in: "0", out: "0"},
-		{in: "-1", out: "all"},
-		{in: strconv.Itoa(math.MinInt32), out: "all"},
-		{in: strconv.Itoa(math.MaxInt32), out: strconv.Itoa(math.MaxInt32)},
+		{in: "", out: 10},
+		{in: "0", out: 0},
+		{in: "-1", out: -1},
+		{in: strconv.Itoa(math.MinInt32), out: math.MinInt32},
+		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
 	} {
 
 		s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
@@ -6878,7 +6878,7 @@ func (s *appSuite) TestLogsN(c *check.C) {
 		rec := httptest.NewRecorder()
 		getLogs(logsCmd, req, nil).ServeHTTP(rec, req)
 
-		c.Check(s.jctlNs, check.DeepEquals, []string{t.out})
+		c.Check(s.jctlNs, check.DeepEquals, []int{t.out})
 	}
 }
 
