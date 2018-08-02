@@ -15,7 +15,7 @@ execute: |
     for instance in foo longname; do
         echo "Sideload same snap as different instance named test-snapd-tools_$instance"
         expected="^test-snapd-tools_$instance 1.0 installed\$"
-        snap install --dangerous --instance "test-snapd-tools_$instance" "$path" | MATCH "$expected"
+        snap install --dangerous --name "test-snapd-tools_$instance" "$path" | MATCH "$expected"
 
         test -d "$SNAP_MOUNT_DIR/test-snapd-tools_$instance/x1"
         # TODO: running from snap will fail until low-level bits are done
