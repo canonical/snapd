@@ -35,6 +35,7 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "apparmor-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
@@ -108,16 +109,18 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *snap_name = getenv("SNAP_NAME");
-	if (snap_name == NULL) {
-		die("SNAP_NAME is not set");
+	const char *snap_instance = getenv("SNAP_INSTANCE_NAME");
+	if (snap_instance == NULL) {
+		die("SNAP_INSTANCE_NAME is not set");
 	}
-	sc_instance_name_validate(snap_name, NULL);
+	sc_instance_name_validate(snap_instance, NULL);
+
+	const char *snap_name = getenv("SNAP_NAME");
 
 	// Collect and validate the security tag and a few other things passed on
 	// command line.
 	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag, snap_name)) {
+	if (!verify_security_tag(security_tag, snap_instance)) {
 		die("security tag %s not allowed", security_tag);
 	}
 	const char *executable = sc_args_executable(args);
@@ -126,11 +129,12 @@ int main(int argc, char **argv)
 
 	sc_snap_name_validate(base_snap_name, NULL);
 
-	debug("security tag: %s", security_tag);
-	debug("executable:   %s", executable);
-	debug("confinement:  %s",
+	debug("snap instance: %s", snap_instance);
+	debug("security tag:  %s", security_tag);
+	debug("executable:    %s", executable);
+	debug("confinement:   %s",
 	      classic_confinement ? "classic" : "non-classic");
-	debug("base snap:    %s", base_snap_name);
+	debug("base snap:     %s", base_snap_name);
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
@@ -162,7 +166,7 @@ int main(int argc, char **argv)
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(security_tag)) {
 		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
+		snap_context = sc_cookie_get_from_snapd(snap_instance, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
 		}
@@ -226,19 +230,21 @@ int main(int argc, char **argv)
 			snap_update_ns_fd = sc_open_snap_update_ns();
 
 			// Do per-snap initialization.
-			int snap_lock_fd = sc_lock_snap(snap_name);
-			debug("initializing mount namespace: %s", snap_name);
+			int snap_lock_fd = sc_lock_snap(snap_instance);
+			debug("initializing mount namespace: %s",
+			      snap_instance);
 			struct sc_ns_group *group = NULL;
-			group = sc_open_ns_group(snap_name, 0);
+			group = sc_open_ns_group(snap_instance, 0);
 			if (sc_create_or_join_ns_group(group, &apparmor,
 						       base_snap_name,
-						       snap_name) == EAGAIN) {
+						       snap_instance) ==
+			    EAGAIN) {
 				// If the namespace was stale and was discarded we just need to
 				// try again. Since this is done with the per-snap lock held
 				// there are no races here.
 				if (sc_create_or_join_ns_group(group, &apparmor,
 							       base_snap_name,
-							       snap_name) ==
+							       snap_instance) ==
 				    EAGAIN) {
 					die("unexpectedly the namespace needs to be discarded again");
 				}
@@ -246,7 +252,8 @@ int main(int argc, char **argv)
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(&apparmor,
 						     snap_update_ns_fd,
-						     base_snap_name, snap_name);
+						     base_snap_name,
+						     snap_instance);
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_close_ns_group(group);
@@ -269,7 +276,7 @@ int main(int argc, char **argv)
 					die("cannot set effective group id to root");
 				}
 			}
-			sc_cgroup_freezer_join(snap_name, getpid());
+			sc_cgroup_freezer_join(snap_instance, getpid());
 			if (geteuid() == 0 && real_gid != 0) {
 				if (setegid(real_gid) != 0) {
 					die("cannot set effective group id to %d", real_gid);
@@ -279,7 +286,7 @@ int main(int argc, char **argv)
 			sc_unlock(snap_lock_fd);
 
 			sc_setup_user_mounts(&apparmor, snap_update_ns_fd,
-					     snap_name);
+					     snap_instance);
 
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
@@ -328,6 +335,20 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
+
+	// Parallel installs support
+	if (!sc_streq(snap_name, snap_instance)) {
+		setup_user_snap_instance(snap_instance);
+
+		// Temporarily elevate privileges to set up snap instance mappings
+		if (geteuid() != 0 && seteuid(0) != 0) {
+			die("cannot set effective user id to root");
+		}
+		sc_setup_snap_instance_mapping(snap_instance);
+		if (seteuid(real_uid) != 0) {
+			die("cannot set effective user id to %d", real_uid);
+		}
+	}
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
