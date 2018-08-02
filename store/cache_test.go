@@ -165,3 +165,36 @@ func (s *cacheSuite) TestClenaupContinuesOnError(c *C) {
 	// even though the "unremovable" file is still in the cache
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
 }
+
+func (s *cacheSuite) TestHardLinkCount(c *C) {
+	p := filepath.Join(s.tmp, "foo")
+	err := ioutil.WriteFile(p, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// trivial case
+	fi, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	n, err := store.HardLinkCount(fi)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, uint64(1))
+
+	// add some hardlinks
+	for i := 0; i < 10; i++ {
+		err := os.Link(p, filepath.Join(s.tmp, strconv.Itoa(i)))
+		c.Assert(err, IsNil)
+	}
+	fi, err = os.Stat(p)
+	c.Assert(err, IsNil)
+	n, err = store.HardLinkCount(fi)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, uint64(11))
+
+	// and remove one
+	err = os.Remove(filepath.Join(s.tmp, "0"))
+	c.Assert(err, IsNil)
+	fi, err = os.Stat(p)
+	c.Assert(err, IsNil)
+	n, err = store.HardLinkCount(fi)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, uint64(10))
+}

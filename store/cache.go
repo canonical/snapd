@@ -124,8 +124,10 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 	return cm.cleanup()
 }
 
-// Count returns the number of items in the cache
-func (cm *CacheManager) Count() int {
+// count returns the number of items in the cache
+func (cm *CacheManager) count() int {
+	// TODO: Use something more effective than a list of all entries
+	//       here. This will waste a lot of memory on large dirs.
 	if l, err := ioutil.ReadDir(cm.cacheDir); err == nil {
 		return len(l)
 	}
@@ -152,7 +154,7 @@ func (cm *CacheManager) cleanup() error {
 	deleted := 0
 	for _, fi := range fil {
 		path := cm.path(fi.Name())
-		n, err := hardLinkCount(path)
+		n, err := hardLinkCount(fi)
 		if err != nil {
 			logger.Noticef("cannot inspect cache: %s", err)
 		}
@@ -178,15 +180,9 @@ func (cm *CacheManager) cleanup() error {
 }
 
 // hardLinkCount returns the number of hardlinks for the given path
-func hardLinkCount(path string) (uint64, error) {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return 0, err
+func hardLinkCount(fi os.FileInfo) (uint64, error) {
+	if stat, ok := fi.Sys().(*syscall.Stat_t); ok && stat != nil {
+		return uint64(stat.Nlink), nil
 	}
-	if sys := fi.Sys(); sys != nil {
-		if stat, ok := sys.(*syscall.Stat_t); ok {
-			return uint64(stat.Nlink), nil
-		}
-	}
-	return 0, fmt.Errorf("internal error: cannot read hardlink count from %s", path)
+	return 0, fmt.Errorf("internal error: cannot read hardlink count from %s", fi.Name())
 }
