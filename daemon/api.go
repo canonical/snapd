@@ -2744,17 +2744,13 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
-	n := "10"
+	n := 10
 	if s := query.Get("n"); s != "" {
 		m, err := strconv.ParseInt(s, 0, 32)
 		if err != nil {
 			return BadRequest(`invalid value for n: %q: %v`, s, err)
 		}
-		if m < 0 {
-			n = "all"
-		} else {
-			n = s
-		}
+		n = int(m)
 	}
 	follow := false
 	if s := query.Get("follow"); s != "" {
