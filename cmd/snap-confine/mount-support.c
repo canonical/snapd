@@ -140,6 +140,57 @@ static void setup_private_pts(void)
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
 }
 
+void sc_setup_snap_instance_mapping(const char *snap_instance)
+{
+	char snap_name[41] = { 0 };
+	char instance_key[11] = { 0 };
+	char dst[PATH_MAX + 1] = { 0 };
+	char src[PATH_MAX + 1] = { 0 };
+
+	sc_snap_split_instance_name(snap_instance,
+				    snap_name, sizeof snap_name,
+				    instance_key, sizeof instance_key);
+
+	if (strlen(instance_key) == 0) {
+		debug("not a snap instance, nothing to do");
+		// nothing to do
+		return;
+	}
+	// map:
+	//  /snap/foo_bar     -> /snap/foo
+	//  /var/snap/foo_bar -> /var/snap/foo
+	const char *basic_dirs[] = {
+		"/snap",
+		"/var/snap",
+	};
+	for (size_t i = 0; i < sizeof basic_dirs / sizeof basic_dirs[0]; i++) {
+		const char *dir = basic_dirs[i];
+
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", dir, snap_name);
+		sc_must_snprintf(src, sizeof src, "%s/%s", dir, snap_instance);
+		debug("snap instance mapping %s to %s", src, dst);
+		sc_do_mount(src, dst, NULL, MS_BIND | MS_REC, NULL);
+	}
+
+	const char *user_data = getenv("SNAP_USER_DATA");
+	if (user_data != NULL) {
+		// copy the user data path, dirname() modifies its arguments
+		char *user_data_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+		user_data_copy = strdup(user_data);
+		char *user_data_root = dirname(user_data_copy);
+
+		// SNAP_USER_DATA is /home/joe/snap/foo/123, we want to build
+		// /home/joe/snap/foo_bar path from it
+		sc_must_snprintf(src, sizeof src, "%s_%s", user_data_root,
+				 instance_key);
+
+		debug("snap instance mapping %s to %s", src, user_data_root);
+		sc_do_mount(src, user_data_root, NULL, MS_BIND | MS_REC, NULL);
+	} else {
+		debug("not setting up snap instance home mappings");
+	}
+}
+
 /**
  * Setup mount profiles by running snap-update-ns.
  *
