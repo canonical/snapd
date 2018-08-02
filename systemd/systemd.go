@@ -77,13 +77,18 @@ func Available() error {
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
-var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+var jctl = func(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
-	args := make([]string, 0, 2*len(svcs)+6)
-	args = append(args, "-o", "json", "-n", n, "--no-pager") // len(this)+1 == that ^ fixed number
+	args := make([]string, 0, 2*len(svcs)+6)        // the fixed number is 6
+	args = append(args, "-o", "json", "--no-pager") //   3...
+	if n < 0 {
+		args = append(args, "--no-tail") // < 2
+	} else {
+		args = append(args, "-n", strconv.Itoa(n)) // ... + 2 ...
+	}
 	if follow {
-		args = append(args, "-f") // this is the +1 :-)
+		args = append(args, "-f") // ... + 1 == 6
 	}
 
 	for i := range svcs {
@@ -93,7 +98,7 @@ var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	return osutilStreamCommand("journalctl", args...)
 }
 
-func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser, error)) func() {
+func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, error)) func() {
 	oldJctl := jctl
 	jctl = f
 	return func() {
@@ -107,11 +112,12 @@ type Systemd interface {
 	Enable(service string) error
 	Disable(service string) error
 	Start(service ...string) error
+	StartNoBlock(service ...string) error
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
-	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
+	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
 	Unmask(service string) error
@@ -184,8 +190,14 @@ func (*systemd) Start(serviceNames ...string) error {
 	return err
 }
 
+// StartNoBlock starts the given service or services non-blocking
+func (*systemd) StartNoBlock(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"start", "--no-block"}, serviceNames...)...)
+	return err
+}
+
 // LogReader for the given services
-func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
+func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadCloser, error) {
 	return jctl(serviceNames, n, follow)
 }
 

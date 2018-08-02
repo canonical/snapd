@@ -1,6 +1,8 @@
 [Unit]
 Description=Snappy daemon
 Requires=snapd.socket
+# This is handled by snapd
+# X-Snapd-Snap: do-not-start
 
 [Service]
 # Disabled because it breaks lxd
@@ -10,6 +12,7 @@ OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
+WatchdogSec=5m
 Type=notify
 
 [Install]
