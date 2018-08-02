@@ -192,26 +192,28 @@ func (e SnapActionError) Error() string {
 		}
 	}
 
-	// reverse the maps, as the common case is that they're all the same
-	reversed := map[string][]string{}
-	revkeys := []string{} // poorman's ordered map
+	// reverse the "snap->error" map to "error->snap", as the
+	// common case is that all snaps fail with the same error
+	// (e.g. "no refresh available")
+	errToSnaps := map[string][]string{}
+	errKeys := []string{} // poorman's ordered map
 
 	for _, m := range []map[string]error{e.Refresh, e.Install, e.Download} {
-		for name, err := range m {
+		for snapName, err := range m {
 			k := err.Error()
-			v, ok := reversed[k]
+			v, ok := errToSnaps[k]
 			if !ok {
-				revkeys = append(revkeys, k)
+				errKeys = append(errKeys, k)
 			}
-			reversed[k] = append(v, name)
+			errToSnaps[k] = append(v, snapName)
 		}
 	}
 
-	es := make([]string, 1, 1+len(reversed)+nOther)
+	es := make([]string, 1, 1+len(errToSnaps)+nOther)
 	es[0] = header
-	for _, k := range revkeys {
-		sort.Strings(reversed[k])
-		es = append(es, fmt.Sprintf("%s: %s", k, strutil.Quoted(reversed[k])))
+	for _, k := range errKeys {
+		sort.Strings(errToSnaps[k])
+		es = append(es, fmt.Sprintf("%s: %s", k, strutil.Quoted(errToSnaps[k])))
 	}
 
 	for _, e := range e.Other {
