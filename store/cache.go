@@ -149,6 +149,22 @@ func (cm *CacheManager) cleanup() error {
 		return nil
 	}
 
+	numOwned := 0
+	for _, fi := range fil {
+		n, err := hardLinkCount(fi)
+		if err != nil {
+			logger.Noticef("cannot inspect cache: %s", err)
+		}
+		// Only count the file if it is not referenced elsewhere in the filesystem
+		if n <= 1 {
+			numOwned++
+		}
+	}
+
+	if numOwned <= cm.maxItems {
+		return nil
+	}
+
 	var lastErr error
 	sort.Sort(changesByMtime(fil))
 	deleted := 0
@@ -172,7 +188,7 @@ func (cm *CacheManager) cleanup() error {
 			continue
 		}
 		deleted++
-		if len(fil)-deleted <= cm.maxItems {
+		if numOwned-deleted <= cm.maxItems {
 			break
 		}
 	}
