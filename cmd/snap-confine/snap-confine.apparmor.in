@@ -252,6 +252,11 @@
     # NOTE: at this stage the /snap directory is stable as we have called
     # pivot_root already.
 
+    # parallel instances, allow remapping of SNAP_ paths
+    mount options=(rw rbind) /snap/*_*/ -> /snap/*/,
+    mount options=(rw rbind) /var/snap/*_*/ -> /var/snap/*/,
+    mount options=(rw rbind) @{HOME}/snap/*_*/ -> @{HOME}/snap/*/,
+
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
     /sys/module/nvidia/version r,
