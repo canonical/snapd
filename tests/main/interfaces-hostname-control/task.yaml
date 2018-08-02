@@ -1,0 +1,55 @@
+summary: Ensure that the hostname-control interface works
+
+details: |
+    The hostname-control interface allows to configure the system hostname
+
+prepare: |
+    echo "Install test hooks snaps"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-hostname-control
+
+restore: |
+    rm -f ./*.error
+
+execute: |
+    echo "Then the plug is disconnected by default"
+    snap interfaces -i hostname-control | MATCH -- '- +test-snapd-hostname-control:hostname-control'
+
+    echo "When the plug is connected"
+    snap connect test-snapd-hostname-control:hostname-control
+
+    echo "And we have the hostname for the current instance"
+    hostname="$(hostname)"
+    
+    echo "And the hostname command can be used"
+    snap_hostname="$(test-snapd-hostname-control.sh -c "/bin/hostname")"
+    [ "$hostname" = "$snap_hostname" ]
+
+    echo "And the /etc/hostname file can be written"
+    test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname"
+
+    echo "And hostname can be set/set through dbus"
+    test-snapd-hostname-control.sh -c "hostnamectl" | MATCH "$hostname"
+    test-snapd-hostname-control.sh -c "hostnamectl set-hostname "$hostname""
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-hostname-control:hostname-control
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "Then the hostname method cannot be accessed through dbus"
+    if test-snapd-hostname-control.sh -c "hostnamectl set-hostname "$hostname"" 2>access.error; then
+        echo "Expected permission error trying to set hostname with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < access.error
+
+    echo "And the /etc/hostname file cannot be written"
+    if test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname" 2>hostname.error; then
+        echo "Expected permission error trying to acess to /etc/hostname with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < hostname.error
