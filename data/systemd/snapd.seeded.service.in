@@ -10,4 +10,5 @@ RemainAfterExit=true
 
 [Install]
 WantedBy=multi-user.target cloud-final.service
-
+# This is handled special in snapd
+# X-Snapd-Snap: do-not-start
