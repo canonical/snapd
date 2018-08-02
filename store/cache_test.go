@@ -71,10 +71,17 @@ func (s *cacheSuite) TestPutMany(c *C) {
 		// We need to sync the (meta)data here or the test is racy
 		syscall.Sync()
 
-		if i < s.maxItems {
+		if i <= s.maxItems {
 			c.Check(s.cm.Count(), Equals, i)
 		} else {
-			c.Check(s.cm.Count(), Equals, s.maxItems)
+			// Count() will include the cache plus the
+			// newly added test file. This latest testfile
+			// had a link count of 2 when "cm.Put()" is
+			// called because it still exists outside of
+			// the cache dir so it's considered "free" in
+			// the cache. This is why we need to have
+			// Count()-1 here.
+			c.Check(s.cm.Count()-1, Equals, s.maxItems)
 		}
 	}
 }
