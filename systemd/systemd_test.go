@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -114,11 +115,11 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 	return out, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	var err error
 	var out []byte
 
-	s.jns = append(s.jns, n)
+	s.jns = append(s.jns, strconv.Itoa(n))
 	s.jsvcs = append(s.jsvcs, svcs)
 	s.jfollows = append(s.jfollows, follow)
 
@@ -400,7 +401,7 @@ func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{&Timeout{}}
 
-	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, NotNil)
 	c.Check(reader, IsNil)
 	c.Check(s.jns, DeepEquals, []string{"24"})
@@ -415,7 +416,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 `
 	s.jouts = [][]byte{[]byte(expected)}
 
-	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, IsNil)
 	logs, err := ioutil.ReadAll(reader)
 	c.Assert(err, IsNil)
@@ -597,15 +598,18 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 	var args []string
 	var err error
 	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
-		c.Check(cap(myargs) <= len(myargs)+1, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		c.Check(cap(myargs) <= len(myargs)+2, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
 		args = myargs
 		return nil, nil
 	})
 
-	_, err = Jctl([]string{"foo", "bar"}, "10", false)
+	_, err = Jctl([]string{"foo", "bar"}, 10, false)
 	c.Assert(err, IsNil)
-	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "10", "--no-pager", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar", "baz"}, "99", true)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "10", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true)
 	c.Assert(err, IsNil)
-	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "99", "--no-pager", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "99", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
+	_, err = Jctl([]string{"foo", "bar"}, -1, false)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
 }
