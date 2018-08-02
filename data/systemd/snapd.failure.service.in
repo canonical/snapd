@@ -5,3 +5,4 @@ Description=Failure handling of the snapd snap
 Type=oneshot
 ExecStart=@libexecdir@/snapd/snap-failure run
 RemainAfterExit=true
+# X-Snapd-Snap: do-not-start
