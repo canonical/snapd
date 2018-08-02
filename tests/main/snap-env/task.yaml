@@ -31,7 +31,7 @@ execute: |
     CTX=$(cat /var/lib/snapd/cookie/snap.test-snapd-tools)
     MATCH "^SNAP_COOKIE=$CTX"                                             < snap-vars.txt
     MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 12
+    test $(wc -l < snap-vars.txt) -eq 18
 
     echo "Enure that XDG environment variables are what we expect"
     MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt
