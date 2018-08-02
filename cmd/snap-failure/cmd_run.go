@@ -117,10 +117,11 @@ func (c *cmdRun) Execute(args []string) error {
 		return osutil.OutputErr(output, err)
 	}
 
-	// at this point snapd is back but the unit is in failed state
-	// TODO: remove once https://github.com/snapcore/snapd/pull/5557
-	//       is merged
-	output, err = exec.Command("systemctl", "restart", "snapd.service").CombinedOutput()
+	// at this point out manually started snapd stopped and
+	// removed the /run/snap* sockets (this is a feature of
+	// golang) - we need to restart snapd.socket to make them
+	// available again.
+	output, err = exec.Command("systemctl", "restart", "snapd.socket").CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(output, err)
 	}
