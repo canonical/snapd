@@ -23,6 +23,7 @@ import "time"
 
 var (
 	ParseClockSpan = parseClockSpan
+	ParseWeekSpan  = parseWeekSpan
 	HumanTimeSince = humanTimeSince
 )
 

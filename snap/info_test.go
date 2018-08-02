@@ -1254,3 +1254,43 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 	c.Check(info.InstanceName(), Equals, "snap-name")
 	c.Check(info.SnapName(), Equals, "snap-name")
 }
+
+func (s *infoSuite) TestIsActive(c *C) {
+	info1 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1)})
+	info2 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(2)})
+	// no current -> not active
+	c.Check(info1.IsActive(), Equals, false)
+	c.Check(info2.IsActive(), Equals, false)
+
+	mountdir := info1.MountDir()
+	dir, rev := filepath.Split(mountdir)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	cur := filepath.Join(dir, "current")
+	c.Assert(os.Symlink(rev, cur), IsNil)
+
+	// is current -> is active
+	c.Check(info1.IsActive(), Equals, true)
+	c.Check(info2.IsActive(), Equals, false)
+}
+
+func (s *infoSuite) TestDirAndFileHelpers(c *C) {
+	dirs.SetRootDir("")
+
+	c.Check(snap.MountDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
+	c.Check(snap.MountFile("name", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(snap.HooksDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
+	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
+	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1)), Equals, "/home/bob/snap/name/1")
+	c.Check(snap.UserCommonDataDir("/home/bob", "name"), Equals, "/home/bob/snap/name/common")
+	c.Check(snap.UserXdgRuntimeDir(12345, "name"), Equals, "/run/user/12345/snap.name")
+
+	c.Check(snap.MountDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
+	c.Check(snap.MountFile("name_instance", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(snap.HooksDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(snap.DataDir("name_instance", snap.R(1)), Equals, "/var/snap/name_instance/1")
+	c.Check(snap.CommonDataDir("name_instance"), Equals, "/var/snap/name_instance/common")
+	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1)), Equals, "/home/bob/snap/name_instance/1")
+	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance"), Equals, "/home/bob/snap/name_instance/common")
+	c.Check(snap.UserXdgRuntimeDir(12345, "name_instance"), Equals, "/run/user/12345/snap.name_instance")
+}

@@ -68,7 +68,7 @@ func isValidName(name string) bool {
 	return true
 }
 
-// ValidateName checks if a string can be used as a snap instance name.
+// ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_instance_name_validate and validate_instance_name .
@@ -325,8 +325,10 @@ func Validate(info *Info) error {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 
-	// TODO parallel-install: use of proper instance/store name, validate instance key
-	if err := ValidateName(name); err != nil {
+	if err := ValidateName(info.SnapName()); err != nil {
+		return err
+	}
+	if err := ValidateInstanceName(name); err != nil {
 		return err
 	}
 
