@@ -522,9 +522,6 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	if err := validateContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
-	if err := validateFeatureFlags(st, info); err != nil {
-		return nil, err
-	}
 	if err := snap.ValidateInstanceName(instanceName); err != nil {
 		return nil, err
 	}
@@ -534,6 +531,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
 	}
 	info.InstanceKey = instanceKey
+
+	if err := validateFeatureFlags(st, info); err != nil {
+		return nil, err
+	}
 
 	snapsup := &SnapSetup{
 		Base:        info.Base,
