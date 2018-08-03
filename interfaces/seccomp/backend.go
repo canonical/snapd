@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,19 @@
  *
  */
 
-// Package seccomp implements integration between snappy and
-// ubuntu-core-launcher around seccomp.
+// Package seccomp implements integration between snapd and snap-confine around
+// seccomp.
 //
 // Snappy creates so-called seccomp profiles for each application (for each
-// snap) present in the system.  Upon each execution of ubuntu-core-launcher,
-// the profile is read and "compiled" to an eBPF program and injected into the
+// snap) present in the system.  Upon each execution of snap-confine, the
+// profile is read and "compiled" to an eBPF program and injected into the
 // kernel for the duration of the execution of the process.
 //
 // There is no binary cache for seccomp, each time the launcher starts an
 // application the profile is parsed and re-compiled.
 //
 // The actual profiles are stored in /var/lib/snappy/seccomp/bpf/*.{src,bin}.
-// This directory is hard-coded in ubuntu-core-launcher.
+// This directory is hard-coded in snap-confine.
 package seccomp
 
 import (
@@ -73,7 +73,7 @@ func seccompToBpfPath() string {
 	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
 }
 
-// Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
+// Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct{}
 
 // Initialize does nothing.
