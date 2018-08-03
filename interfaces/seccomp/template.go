@@ -550,11 +550,6 @@ writev
 pwrite
 pwrite64
 pwritev
-
-# FIXME: remove this after LP: #1446748 is implemented
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually.
-socketcall
 `)
 
 // Go's net package attempts to bind early to check whether IPv6 is available or not.
@@ -570,4 +565,13 @@ const bindSyscallWorkaround = `
 # Add bind() for systems with only Seccomp enabled to workaround
 # LP #1644573
 bind
+`
+
+// socketcall is an older interface and single entry point that can be used
+// instead of socket(), bind(), connect(), etc individually. It isn't needed
+// by most architectures with new enough kernels and glibc, so we leave it out
+// of the default policy and add only when needed.
+const socketcallSyscallDeprecated = `
+# Add socketcall() for systems that require it. LP: #1446748
+socketcall
 `
