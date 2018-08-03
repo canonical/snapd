@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -265,6 +265,8 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	defer restore()
 	restore = release.MockSecCompActions([]string{"log"})
 	defer restore()
+	restore = seccomp.MockRequiresSocketcall(func() bool { return false })
+	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
 	restore = seccomp.MockTemplate([]byte("default\n"))
@@ -299,6 +301,8 @@ apps:
 // Ensure that combined snippets are sorted
 func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	restore := release.MockForcedDevmode(false)
+	defer restore()
+	restore = seccomp.MockRequiresSocketcall(func() bool { return false })
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -335,6 +339,30 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
+}
+
+func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
+	restore := seccomp.MockRequiresSocketcall(func() bool { return true })
+	defer restore()
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", testutil.FileContains, "\nsocketcall\n")
+}
+
+func (s *backendSuite) TestSocketcallIsNotAddedWhenNotRequired(c *C) {
+	restore := seccomp.MockRequiresSocketcall(func() bool { return false })
+	defer restore()
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "\nsocketcall\n")
 }
 
 const ClassicYamlV1 = `
@@ -389,6 +417,77 @@ func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
+	restore = seccomp.MockRequiresSocketcall(func() bool { return true })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "require-socketcall"})
+
+	restore = seccomp.MockRequiresSocketcall(func() bool { return false })
+	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+}
+
+func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
+	testArchs := []string{"amd64", "armhf", "arm64", "unknownDefault"}
+	for _, arch := range testArchs {
+		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		defer restore()
+		c.Assert(seccomp.RequiresSocketcall(), Equals, false)
+	}
+}
+
+func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
+	testArchs := []string{"powerpc", "ppc64el", "s390x"}
+	for _, arch := range testArchs {
+		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		defer restore()
+		c.Assert(seccomp.RequiresSocketcall(), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
+	testDistros := []string{"ubuntu", "other"}
+	testArchs := []string{"i386", "other"}
+	testReleases := []string{"14.04", "16.04", "other"}
+	for _, distro := range testDistros {
+		restore := seccomp.MockReleaseInfoId(distro)
+		defer restore()
+		for _, arch := range testArchs {
+			restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+			defer restore()
+			for _, release := range testReleases {
+				restore = seccomp.MockReleaseInfoVersionId(release)
+				defer restore()
+
+				expected := true
+				if distro == "other" || arch == "other" || release == "other" {
+					expected = false
+				}
+				c.Assert(seccomp.RequiresSocketcall(), Equals, expected)
+			}
+		}
+	}
+}
+
+func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
+	restore := seccomp.MockReleaseInfoVersionId("debian")
+	defer restore()
+
+	testArchs := []string{"i386", "other"}
+	testVersions := []string{"4.2", "4.3", "4.4"}
+	for _, arch := range testArchs {
+		restore = seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		defer restore()
+		for _, version := range testVersions {
+			restore = seccomp.MockKernelVersion(func() string { return version })
+			defer restore()
+
+			expected := false
+			if arch == "i386" && version == "4.2" {
+				expected = true
+			}
+			c.Assert(seccomp.RequiresSocketcall(), Equals, expected)
+		}
+	}
 }

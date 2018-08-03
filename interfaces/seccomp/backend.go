@@ -40,17 +40,24 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
-	osReadlink     = os.Readlink
-	kernelFeatures = release.SecCompActions
+	osReadlink               = os.Readlink
+	kernelFeatures           = release.SecCompActions
+	requiresSocketcall       = RequiresSocketcall
+	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
+	kernelVersion            = release.KernelVersion
+	releaseInfoId            = release.ReleaseInfo.ID
+	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 )
 
 func seccompToBpfPath() string {
@@ -185,6 +192,10 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(bindSyscallWorkaround)
 	}
 
+	if requiresSocketcall() {
+		buffer.WriteString(socketcallSyscallDeprecated)
+	}
+
 	path := fmt.Sprintf("%s.src", securityTag)
 	content[path] = &osutil.FileState{
 		Content: buffer.Bytes(),
@@ -207,5 +218,51 @@ func (b *Backend) SandboxFeatures() []string {
 		tags = append(tags, "kernel:"+feature)
 	}
 	tags = append(tags, "bpf-argument-filtering")
+
+	if requiresSocketcall() {
+		tags = append(tags, "require-socketcall")
+	}
 	return tags
+}
+
+// Determine if the system requires the use of socketcall(). Factors:
+// - if the kernel architecture is amd64, armhf or arm64, do not require
+//   socketcall (unused on these architectures)
+// - if the kernrel architecture is i386
+//   - if the kernel is < 4.3, force the use of socketcall()
+//   - for backwards compatibility, if the system is Ubuntu 16.04 or lower,
+//     force use of socketcall()
+// - if the kernel architecture is not any of the above, force the use of
+//   socketcall() (TODO: verify)
+func RequiresSocketcall() bool {
+	var needed bool
+
+	switch ubuntuKernelArchitecture() {
+	case "i386":
+		needed = false
+		if cmp, _ := strutil.VersionCompare(kernelVersion(), "4.3"); cmp < 0 {
+			// On kernels < 4.3, always require socketcall(). See
+			// 'man 2 socketcall'
+			needed = true
+		} else if releaseInfoId == "ubuntu" {
+			// For now, on <= 16.04, always require socketcall()
+			if cmp, _ := strutil.VersionCompare(releaseInfoVersionId, "16.04"); cmp <= 0 {
+				needed = true
+			}
+		}
+	case "powerpc":
+		// TBD
+		needed = true
+	case "ppc64el":
+		// TBD
+		needed = true
+	case "s390x":
+		// TBD
+		needed = true
+	default:
+		// amd64, arm64, armhf, etc
+		needed = false
+	}
+
+	return needed
 }
