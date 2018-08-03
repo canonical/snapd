@@ -44,3 +44,43 @@ func MockKernelFeatures(f func() []string) (resture func()) {
 		kernelFeatures = old
 	}
 }
+
+func MockRequiresSocketcall(f func() bool) (restore func()) {
+	old := requiresSocketcall
+	requiresSocketcall = f
+	return func() {
+		requiresSocketcall = old
+	}
+}
+
+func MockUbuntuKernelArchitecture(f func() string) (restore func()) {
+	old := ubuntuKernelArchitecture
+	ubuntuKernelArchitecture = f
+	return func() {
+		ubuntuKernelArchitecture = old
+	}
+}
+
+func MockKernelVersion(f func() string) (restore func()) {
+	old := kernelVersion
+	kernelVersion = f
+	return func() {
+		kernelVersion = old
+	}
+}
+
+func MockReleaseInfoId(s string) (restore func()) {
+	old := releaseInfoId
+	releaseInfoId = s
+	return func() {
+		releaseInfoId = old
+	}
+}
+
+func MockReleaseInfoVersionId(s string) (restore func()) {
+	old := releaseInfoVersionId
+	releaseInfoVersionId = s
+	return func() {
+		releaseInfoVersionId = old
+	}
+}
