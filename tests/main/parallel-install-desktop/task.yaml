@@ -19,10 +19,10 @@ execute: |
         snap install --dangerous --name "basic-desktop_$instance" "$path" | MATCH "$expected"
 
         diff -u <(head -n4 "/var/lib/snapd/desktop/applications/basic-desktop_${instance}_echo.desktop") - <<-EOF
-    	  [Desktop Entry]
-    	  Name=Echo
-    	  Comment=It echos stuff
-    	  Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo
+    [Desktop Entry]
+    Name=Echo
+    Comment=It echos stuff
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo
     EOF
 
         test -d "$SNAP_MOUNT_DIR/basic-desktop_$instance/x1"
