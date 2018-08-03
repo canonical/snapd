@@ -71,5 +71,5 @@ var _ = Suite(&failureSuite{})
 
 func (r *failureSuite) TestUnknownArg(c *C) {
 	err := failure.ParseArgs([]string{})
-	c.Check(err, ErrorMatches, "Please specify the run command")
+	c.Check(err, ErrorMatches, "Please specify the snapd command")
 }

@@ -34,11 +34,11 @@ import (
 
 func init() {
 	const (
-		short = "Run failure handling"
+		short = "Run snapd failure handling"
 		long  = ""
 	)
 
-	if _, err := parser.AddCommand("run", short, long, &cmdRun{}); err != nil {
+	if _, err := parser.AddCommand("snapd", short, long, &cmdSnapd{}); err != nil {
 		panic(err)
 	}
 
@@ -55,7 +55,7 @@ type snapSeq struct {
 	Sequence []*sideInfo `json:"sequence"`
 }
 
-type cmdRun struct{}
+type cmdSnapd struct{}
 
 var errNoSnapd = errors.New("no snapd sequence file found")
 
@@ -92,7 +92,7 @@ func prevRevision(snapName string) (string, error) {
 }
 
 // FIXME: also do error reporting via errtracker
-func (c *cmdRun) Execute(args []string) error {
+func (c *cmdSnapd) Execute(args []string) error {
 	// find previous snapd
 	prevRev, err := prevRevision("snapd")
 	if err != nil {
@@ -117,7 +117,7 @@ func (c *cmdRun) Execute(args []string) error {
 		return osutil.OutputErr(output, err)
 	}
 
-	// at this point out manually started snapd stopped and
+	// at this point our manually started snapd stopped and
 	// removed the /run/snap* sockets (this is a feature of
 	// golang) - we need to restart snapd.socket to make them
 	// available again.
