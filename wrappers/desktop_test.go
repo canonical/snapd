@@ -326,6 +326,51 @@ TargetEnvironment=Unity
 	c.Assert(string(e), Equals, string(desktopContent))
 }
 
+func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesPlain(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	snap.InstanceKey = "bar"
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app
+`)
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
+`, dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesWithArgs(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	snap.InstanceKey = "bar"
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app %U
+`)
+
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
+`, dirs.SnapMountDir))
+}
+
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
 	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
