@@ -108,10 +108,14 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		// TODO parallel-install: adjust valid command checks to account
-		// for instance name
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
+		if s.InstanceKey != "" {
+			// wrapper uses s.InstanceName(), with the instance key
+			// set the command will be 'snap_foo.app' instead of
+			// 'snap.app', need to account for that
+			validCmd = snap.JoinSnapApp(s.SnapName(), app.Name)
+		}
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
