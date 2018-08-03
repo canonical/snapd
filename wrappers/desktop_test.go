@@ -340,11 +340,11 @@ apps:
 Name=foo
 Exec=snap.app
 `)
-
-	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap_bar.app
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }
 
@@ -363,10 +363,11 @@ Name=foo
 Exec=snap.app %U
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap_bar.app %%U
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
 `, dirs.SnapMountDir))
 }
 
