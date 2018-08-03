@@ -12,10 +12,12 @@ execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
+    snap set system experimental.parallel-instances=true
+
     for instance in foo longname; do
         echo "Sideload same snap as different instance named test-snapd-service_$instance"
         expected="^test-snapd-service_$instance 1.0 installed\$"
-        snap install --dangerous --instance "test-snapd-service_$instance" "$path" | MATCH "$expected"
+        snap install --dangerous --name "test-snapd-service_$instance" "$path" | MATCH "$expected"
 
         test -d "$SNAP_MOUNT_DIR/test-snapd-service_$instance/x1"
 
