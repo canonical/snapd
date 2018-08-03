@@ -10,6 +10,8 @@ execute: |
     . "$TESTSLIB"/snaps.sh
     path="$(make_snap test-snapd-tools)"
 
+    snap set system experimental.parallel-instances=true
+
     snap install --dangerous --name test-snapd-tools "$path"
     snap install --dangerous --name test-snapd-tools_foo "$path"
 
@@ -71,3 +73,6 @@ execute: |
 
     su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_COMMON/canary'" test | MATCH canary-instance-common
     su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_DATA/canary'" test | MATCH canary-instance-snap
+
+restore:
+    snap set system experimental.parallel-instances=null
