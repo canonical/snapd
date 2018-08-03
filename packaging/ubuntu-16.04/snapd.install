@@ -3,6 +3,7 @@ usr/bin/snapctl /usr/lib/snapd/
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
+usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/

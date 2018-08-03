@@ -363,6 +363,7 @@ fi
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
+%{_unitdir}/snapd.failure.service
 %if %{with apparmor}
 %{_unitdir}/snapd.apparmor.service
 %endif

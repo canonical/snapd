@@ -23,6 +23,7 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -347,6 +348,10 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return err
+	}
+
+	if snapsup.InstanceName() == "snapd" && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
 
 	// If not on classic check there was no rollback. A reboot
