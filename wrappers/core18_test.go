@@ -52,6 +52,12 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	// reset root dir
+	dirs.SetRootDir(s.tempdir)
+
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
 	err := wrappers.AddSnapServices(info, nil)
