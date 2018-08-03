@@ -30,7 +30,7 @@ import (
 func (r *failureSuite) TestRun(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
-	os.Args = []string{"snap-repair", "run"}
+	os.Args = []string{"snap-failure", "snapd"}
 	err := failure.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), HasLen, 0)
