@@ -5,7 +5,7 @@ description: |
     the snapd-xdg-open package from the archive is properly replaced.
 # Test case only applies to Ubuntu as that is the only distribution where
 # we had a snapd-xdg-open package ever.
-systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*]
+systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*, -amazon-*]
 restore: |
     . "$TESTSLIB/pkgdb.sh"
     if [ "$REMOTE_STORE" = staging ]; then

@@ -1,6 +1,6 @@
 summary: Ensure that our debs have the "built-using" header
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 execute: |
     out=$(dpkg -I "$GOHOME"/snapd_*.deb)

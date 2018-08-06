@@ -224,9 +224,9 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
 
 	actions := []*store.SnapAction{{
-		Action:   "download",
-		Name:     name,
-		Revision: revision,
+		Action:       "download",
+		InstanceName: name,
+		Revision:     revision,
 	}}
 
 	if revision.Unset() {

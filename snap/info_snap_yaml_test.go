@@ -1528,6 +1528,21 @@ apps:
 	c.Assert(info.Apps["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
 }
 
+func (s *YamlSuite) TestSnapYamlPerHookEnvironment(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+hooks:
+ foo:
+  environment:
+   k1: v1
+   k2: v2
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Hooks["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
+}
+
 // classic confinement
 func (s *YamlSuite) TestClassicConfinement(c *C) {
 	y := []byte(`

@@ -3,7 +3,7 @@ systems: [-opensuse-*]
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Install a snap that requires no base snap"
     cp -a "$TESTSLIB"/snaps/test-snapd-requires-base-bare .
