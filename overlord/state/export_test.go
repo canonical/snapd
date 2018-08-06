@@ -45,11 +45,11 @@ func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 	t.readyTime = readyTime
 }
 
-func (s *State) AddWarningFull(message string, lastAdded, lastShown time.Time, deleteAfter, repeatAfter time.Duration) {
+func (s *State) AddWarningFull(message string, lastAdded, lastShown time.Time, expireAfter, repeatAfter time.Duration) {
 	s.addWarningFull(Warning{
 		message:     message,
 		lastShown:   lastShown,
-		deleteAfter: deleteAfter,
+		expireAfter: expireAfter,
 		repeatAfter: repeatAfter,
 	}, lastAdded)
 }
