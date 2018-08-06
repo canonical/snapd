@@ -572,6 +572,6 @@ bind
 // by most architectures with new enough kernels and glibc, so we leave it out
 // of the default policy and add only when needed.
 const socketcallSyscallDeprecated = `
-# Add socketcall() for systems that require it. LP: #1446748
+# Add socketcall() for system and/or base that requires it. LP: #1446748
 socketcall
 `
