@@ -265,7 +265,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	defer restore()
 	restore = release.MockSecCompActions([]string{"log"})
 	defer restore()
-	restore = seccomp.MockRequiresSocketcall(func() bool { return false })
+	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -302,7 +302,7 @@ apps:
 func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	restore := release.MockForcedDevmode(false)
 	defer restore()
-	restore = seccomp.MockRequiresSocketcall(func() bool { return false })
+	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -342,7 +342,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 }
 
 func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
-	restore := seccomp.MockRequiresSocketcall(func() bool { return true })
+	restore := seccomp.MockRequiresSocketcall(func(string) bool { return true })
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -354,7 +354,7 @@ func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
 }
 
 func (s *backendSuite) TestSocketcallIsNotAddedWhenNotRequired(c *C) {
-	restore := seccomp.MockRequiresSocketcall(func() bool { return false })
+	restore := seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -417,13 +417,6 @@ func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
-	restore = seccomp.MockRequiresSocketcall(func() bool { return true })
-	defer restore()
-
-	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "require-socketcall"})
-
-	restore = seccomp.MockRequiresSocketcall(func() bool { return false })
-	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
 }
@@ -433,7 +426,7 @@ func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
 	for _, arch := range testArchs {
 		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
 		defer restore()
-		c.Assert(seccomp.RequiresSocketcall(), Equals, false)
+		c.Assert(seccomp.RequiresSocketcall(""), Equals, false)
 	}
 }
 
@@ -442,14 +435,14 @@ func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
 	for _, arch := range testArchs {
 		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
 		defer restore()
-		c.Assert(seccomp.RequiresSocketcall(), Equals, true)
+		c.Assert(seccomp.RequiresSocketcall(""), Equals, true)
 	}
 }
 
 func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
 	testDistros := []string{"ubuntu", "other"}
 	testArchs := []string{"i386", "other"}
-	testReleases := []string{"14.04", "16.04", "other"}
+	testReleases := []string{"14.04", "other"}
 	for _, distro := range testDistros {
 		restore := seccomp.MockReleaseInfoId(distro)
 		defer restore()
@@ -464,14 +457,16 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
 				if distro == "other" || arch == "other" || release == "other" {
 					expected = false
 				}
-				c.Assert(seccomp.RequiresSocketcall(), Equals, expected)
+				// specify "core18" here so as not to influence
+				// the release check.
+				c.Assert(seccomp.RequiresSocketcall("core18"), Equals, expected)
 			}
 		}
 	}
 }
 
 func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
-	restore := seccomp.MockReleaseInfoVersionId("debian")
+	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
 
 	testArchs := []string{"i386", "other"}
@@ -487,7 +482,41 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
 			if arch == "i386" && version == "4.2" {
 				expected = true
 			}
-			c.Assert(seccomp.RequiresSocketcall(), Equals, expected)
+			// specify "core18" here so as not to influence the
+			// kernel check.
+			c.Assert(seccomp.RequiresSocketcall("core18"), Equals, expected)
 		}
+	}
+}
+
+func (s *backendSuite) TestRequiresSocketcallForcedViaBaseSnap(c *C) {
+	// Mock up as non-Ubuntu, i386 with new enough kernel so the base snap
+	// check is reached
+	restore := seccomp.MockReleaseInfoId("other")
+	defer restore()
+	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
+	defer restore()
+	restore = seccomp.MockKernelVersion(func() string { return "4.3" })
+	defer restore()
+
+	testBases := []string{"", "core", "core16"}
+	for _, baseSnap := range testBases {
+		c.Assert(seccomp.RequiresSocketcall(baseSnap), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
+	// Mock up as non-Ubuntu, i386 with new enough kernel so the base snap
+	// check is reached
+	restore := seccomp.MockReleaseInfoId("other")
+	defer restore()
+	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
+	defer restore()
+	restore = seccomp.MockKernelVersion(func() string { return "4.3" })
+	defer restore()
+
+	testBases := []string{"bare", "core18", "fedora-core"}
+	for _, baseSnap := range testBases {
+		c.Assert(seccomp.RequiresSocketcall(baseSnap), Equals, false)
 	}
 }
