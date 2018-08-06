@@ -422,7 +422,7 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 }
 
 func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
-	testArchs := []string{"amd64", "armhf", "arm64", "unknownDefault"}
+	testArchs := []string{"amd64", "armhf", "arm64", "powerpc", "ppc64el", "unknownDefault"}
 	for _, arch := range testArchs {
 		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
 		defer restore()
@@ -431,7 +431,7 @@ func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
 }
 
 func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
-	testArchs := []string{"powerpc", "ppc64el", "s390x"}
+	testArchs := []string{"sparc", "sparc64"}
 	for _, arch := range testArchs {
 		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
 		defer restore()
@@ -441,7 +441,7 @@ func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
 
 func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
 	testDistros := []string{"ubuntu", "other"}
-	testArchs := []string{"i386", "other"}
+	testArchs := []string{"i386", "s390x", "other"}
 	testReleases := []string{"14.04", "other"}
 	for _, distro := range testDistros {
 		restore := seccomp.MockReleaseInfoId(distro)
@@ -469,7 +469,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
 	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
 
-	testArchs := []string{"i386", "other"}
+	testArchs := []string{"i386", "s390x", "other"}
 	testVersions := []string{"4.2", "4.3", "4.4"}
 	for _, arch := range testArchs {
 		restore = seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
@@ -479,7 +479,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
 			defer restore()
 
 			expected := false
-			if arch == "i386" && version == "4.2" {
+			if (arch == "i386" || arch == "s390x") && version == "4.2" {
 				expected = true
 			}
 			// specify "core18" here so as not to influence the
