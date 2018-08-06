@@ -286,6 +286,18 @@ backends:
             - ubuntu-core-16-arm-32:
                 username: test
                 password: ubuntu
+            - ubuntu-core-18-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-18-32:
+                username: test
+                password: ubuntu
+            - ubuntu-core-18-arm-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-18-arm-32:
+                username: test
+                password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
