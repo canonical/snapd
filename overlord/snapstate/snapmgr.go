@@ -79,9 +79,17 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+
+	// InstanceKey is set by the user during installation and differs for
+	// each instance of given snap
+	InstanceKey string `json:"instance-key,omitempty"`
 }
 
-func (snapsup *SnapSetup) Name() string {
+func (snapsup *SnapSetup) InstanceName() string {
+	return snap.InstanceName(snapsup.SnapName(), snapsup.InstanceKey)
+}
+
+func (snapsup *SnapSetup) SnapName() string {
 	if snapsup.SideInfo.RealName == "" {
 		panic("SnapSetup.SideInfo.RealName not set")
 	}
@@ -93,15 +101,15 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.Name(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.Name(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) MountFile() string {
-	return snap.MountFile(snapsup.Name(), snapsup.Revision())
+	return snap.MountFile(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // SnapState holds the state for a snap installed in the system.
@@ -122,6 +130,10 @@ type SnapState struct {
 
 	// UserID of the user requesting the install
 	UserID int `json:"user-id,omitempty"`
+
+	// InstanceKey is set by the user during installation and differs for
+	// each instance of given snap
+	InstanceKey string `json:"instance-key,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -261,7 +273,9 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(cur.RealName, cur, 0)
+
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
+	return readInfo(name, cur, 0)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -550,17 +564,4 @@ func (m *SnapManager) Ensure() error {
 	}
 
 	return nil
-}
-
-func (m *SnapManager) KnownTaskKinds() []string {
-	// XXX go away
-	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *SnapManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() {
 }

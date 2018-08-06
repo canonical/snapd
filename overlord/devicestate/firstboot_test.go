@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -319,6 +320,12 @@ func (s *FirstBootTestSuite) makeAssertedSnap(c *C, snapYaml string, files [][]s
 	c.Assert(err, IsNil)
 
 	snapID := (snapName + "-snap-" + strings.Repeat("id", 20))[:32]
+	// FIXME: snapd is special in the interface policy code and it
+	//        identified by its snap-id. so we fake the real snap-id
+	//        here. Instead we should add a "type: snapd" for snaps.
+	if snapName == "snapd" {
+		snapID = "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+	}
 
 	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -599,7 +606,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
 
-	ifacemgr, err := ifacestate.Manager(st, nil, nil, nil)
+	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
 	st.Lock()
@@ -1265,6 +1272,13 @@ version: 1.0
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
@@ -1386,6 +1400,9 @@ snaps:
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 	}
+
+	// the right systemd commands were run
+	c.Check(sysdLog, testutil.DeepContains, []string{"start", "usr-lib-snapd.mount"})
 
 	// and ensure state is now considered seeded
 	var seeded bool

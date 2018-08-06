@@ -119,8 +119,11 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 		Revision: snap.R(12),
 	}
 
-	// everything cross checks
+	// everything cross checks, with the regular snap name
 	err = snapasserts.CrossCheck("foo", digest, size, si, s.localDB)
+	c.Check(err, IsNil)
+	// and a snap instance name
+	err = snapasserts.CrossCheck("foo_instance", digest, size, si, s.localDB)
 	c.Check(err, IsNil)
 }
 
@@ -148,6 +151,8 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 	// different size
 	err = snapasserts.CrossCheck("foo", digest, size+1, si, s.localDB)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
+	err = snapasserts.CrossCheck("foo_instance", digest, size+1, si, s.localDB)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo_instance" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
 
 	// mismatched revision vs what we got from store original info
 	err = snapasserts.CrossCheck("foo", digest, size, &snap.SideInfo{
@@ -155,6 +160,11 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 		Revision: snap.R(21),
 	}, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
+	err = snapasserts.CrossCheck("foo_instance", digest, size, &snap.SideInfo{
+		SnapID:   "snap-id-1",
+		Revision: snap.R(21),
+	}, s.localDB)
+	c.Check(err, ErrorMatches, `snap "foo_instance" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
 
 	// mismatched snap id vs what we got from store original info
 	err = snapasserts.CrossCheck("foo", digest, size, &snap.SideInfo{
@@ -162,10 +172,17 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 		Revision: snap.R(12),
 	}, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
+	err = snapasserts.CrossCheck("foo_instance", digest, size, &snap.SideInfo{
+		SnapID:   "snap-id-other",
+		Revision: snap.R(12),
+	}, s.localDB)
+	c.Check(err, ErrorMatches, `snap "foo_instance" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
 
 	// changed name
 	err = snapasserts.CrossCheck("baz", digest, size, si, s.localDB)
-	c.Check(err, ErrorMatches, `cannot install snap "baz" that is undergoing a rename to "foo"`)
+	c.Check(err, ErrorMatches, `cannot install "baz", snap "baz" is undergoing a rename to "foo"`)
+	err = snapasserts.CrossCheck("baz_instance", digest, size, si, s.localDB)
+	c.Check(err, ErrorMatches, `cannot install "baz_instance", snap "baz" is undergoing a rename to "foo"`)
 
 }
 
@@ -206,6 +223,8 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 
 	err = snapasserts.CrossCheck("foo", digest, size, si, s.localDB)
 	c.Check(err, ErrorMatches, `cannot install snap "foo" with a revoked snap declaration`)
+	err = snapasserts.CrossCheck("foo_instance", digest, size, si, s.localDB)
+	c.Check(err, ErrorMatches, `cannot install snap "foo_instance" with a revoked snap declaration`)
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
