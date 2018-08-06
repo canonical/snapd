@@ -231,7 +231,7 @@ func (b *Backend) SandboxFeatures() []string {
 // Determine if the system requires the use of socketcall(). Factors:
 // - if the kernel architecture is amd64, armhf or arm64, do not require
 //   socketcall (unused on these architectures)
-// - if the kernrel architecture is i386
+// - if the kernel architecture is i386 or s390x
 //   - if the kernel is < 4.3, force the use of socketcall()
 //   - for backwards compatibility, if the system is Ubuntu 14.04 or lower,
 //     force use of socketcall()
@@ -240,16 +240,17 @@ func (b *Backend) SandboxFeatures() []string {
 //   - otherwise (ie, if new enough kernel, not 14.04, and a non-16 base
 //     snap), don't force use of socketcall()
 // - if the kernel architecture is not any of the above, force the use of
-//   socketcall() (TODO: verify)
+//   socketcall()
 func RequiresSocketcall(baseSnap string) bool {
 	var needed bool
 
 	switch ubuntuKernelArchitecture() {
-	case "i386":
+	case "i386", "s390x":
 		needed = false
 		if cmp, _ := strutil.VersionCompare(kernelVersion(), "4.3"); cmp < 0 {
-			// On kernels < 4.3, always require socketcall(). See
-			// 'man 2 socketcall'
+			// glibc sysdeps/unix/sysv/linux/i386/kernel-features.h
+			// and sysdeps/unix/sysv/linux/s390/kernel-features.h
+			// added the individual socket syscalls in 4.3.
 			needed = true
 		} else if releaseInfoId == "ubuntu" {
 			// For now, on 14.04, always require socketcall()
@@ -270,11 +271,25 @@ func RequiresSocketcall(baseSnap string) bool {
 				needed = true
 			}
 		}
-	case "powerpc", "ppc64el", "s390x":
-		// TBD
+	case "powerpc":
+		// glibc's sysdeps/unix/sysv/linux/powerpc/kernel-features.h
+		// states that the individual syscalls are all available as of
+		// 2.6.37. snapd isn't expected to run on these kernels so just
+		// default to unneeded.
+		needed = false
+	case "sparc", "sparc64":
+		// glibc's sysdeps/unix/sysv/linux/sparc/kernel-features.h
+		// indicates that socketcall() is used and the individual
+		// syscalls are undefined.
 		needed = true
 	default:
-		// amd64, arm64, armhf, etc
+		// amd64, arm64, armhf, ppc64el, etc
+		// glibc's sysdeps/unix/sysv/linux/kernel-features.h says that
+		// __ASSUME_SOCKETCALL will be defined on archs that need it.
+		// Modern architectures do not implement the socketcall()
+		// syscall and all the older architectures except sparc (see
+		// above) have introduced the individual syscalls, so default
+		// to unneeded.
 		needed = false
 	}
 
