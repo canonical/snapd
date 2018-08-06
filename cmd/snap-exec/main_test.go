@@ -112,12 +112,12 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 		expected     string
 	}{
 		// With command chain
-		{app: "app", cmd: "", includeChain: false, expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
-		{app: "app2", cmd: "", includeChain: false, expected: fmt.Sprintf("%[1]s/chain1 %[1]s/chain2 %[1]s/run-app2", snapPath)},
-		{app: "app", cmd: "stop", includeChain: false, expected: fmt.Sprintf("%s/stop-app", snapPath)},
-		{app: "app2", cmd: "stop", includeChain: false, expected: fmt.Sprintf("%[1]s/chain1 %[1]s/chain2 %[1]s/stop-app2", snapPath)},
-		{app: "app", cmd: "post-stop", includeChain: false, expected: fmt.Sprintf("%s/post-stop-app", snapPath)},
-		{app: "app2", cmd: "post-stop", includeChain: false, expected: fmt.Sprintf("%[1]s/chain1 %[1]s/chain2 %[1]s/post-stop-app2", snapPath)},
+		{app: "app", expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
+		{app: "app2", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/run-app2", snapPath, snapPath, snapPath)},
+		{app: "app", cmd: "stop", expected: fmt.Sprintf("%s/stop-app", snapPath)},
+		{app: "app2", cmd: "stop", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/stop-app2", snapPath, snapPath, snapPath)},
+		{app: "app", cmd: "post-stop", expected: fmt.Sprintf("%s/post-stop-app", snapPath)},
+		{app: "app2", cmd: "post-stop", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/post-stop-app2", snapPath, snapPath, snapPath)},
 
 		// Without command chain
 		{app: "app", cmd: "", includeChain: true, expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
