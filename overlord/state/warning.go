@@ -27,7 +27,7 @@ import (
 
 var (
 	DefaultRepeatAfter = time.Hour * 24
-	DefaultDeleteAfter = time.Hour * 24 * 28
+	DefaultExpireAfter = time.Hour * 24 * 28
 )
 
 type jsonWarning struct {
@@ -35,7 +35,7 @@ type jsonWarning struct {
 	FirstAdded  time.Time  `json:"first-added"`
 	LastAdded   time.Time  `json:"last-added"`
 	LastShown   *time.Time `json:"last-shown,omitempty"`
-	DeleteAfter string     `json:"delete-after,omitempty"`
+	ExpireAfter string     `json:"expire-after,omitempty"`
 	RepeatAfter string     `json:"repeat-after,omitempty"`
 }
 
@@ -49,7 +49,7 @@ type Warning struct {
 	// the last time one of these was shown to the user
 	lastShown time.Time
 	// how much time since one of these was last added should we drop the message
-	deleteAfter time.Duration
+	expireAfter time.Duration
 	// how much time since one of these was last shown should we repeat it
 	repeatAfter time.Duration
 }
@@ -63,7 +63,7 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 		Message:     w.message,
 		FirstAdded:  w.firstAdded,
 		LastAdded:   w.lastAdded,
-		DeleteAfter: w.deleteAfter.String(),
+		ExpireAfter: w.expireAfter.String(),
 		RepeatAfter: w.repeatAfter.String(),
 	}
 	if !w.lastShown.IsZero() {
@@ -85,7 +85,7 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 	if jw.LastShown != nil {
 		w.lastShown = *jw.LastShown
 	}
-	w.deleteAfter, err = time.ParseDuration(jw.DeleteAfter)
+	w.expireAfter, err = time.ParseDuration(jw.ExpireAfter)
 	if err != nil {
 		return err
 	}
@@ -97,8 +97,8 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (w *Warning) IsDeletable(now time.Time) bool {
-	return w.lastAdded.Add(w.deleteAfter).Before(now)
+func (w *Warning) Expired(now time.Time) bool {
+	return w.lastAdded.Add(w.expireAfter).Before(now)
 }
 
 func (w *Warning) IsShowable(t time.Time) bool {
@@ -133,7 +133,7 @@ func (s *State) unflattenWarnings(flat []*Warning) {
 func (s *State) AddWarning(message string) {
 	s.addWarningFull(Warning{
 		message:     message,
-		deleteAfter: DefaultDeleteAfter,
+		expireAfter: DefaultExpireAfter,
 		repeatAfter: DefaultRepeatAfter,
 	}, time.Now().UTC())
 }
@@ -148,15 +148,15 @@ func (s *State) addWarningFull(w Warning, t time.Time) {
 	s.warnings[w.message].lastAdded = t
 }
 
-// DeleteOldWarnings delets warnings that are up for deletion.
-func (s *State) DeleteOldWarnings() int {
+// DeleteExpired deletes warnings that have expired.
+func (s *State) DeleteExpired() int {
 	s.writing()
 
 	now := time.Now().UTC()
 
 	n := 0
 	for k, w := range s.warnings {
-		if w.IsDeletable(now) {
+		if w.Expired(now) {
 			delete(s.warnings, k)
 			n++
 		}

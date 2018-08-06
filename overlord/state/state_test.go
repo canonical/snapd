@@ -696,7 +696,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.AddWarning("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
-		func() { st.DeleteOldWarnings() },
+		func() { st.DeleteExpired() },
 	}
 
 	reads := []func(){
