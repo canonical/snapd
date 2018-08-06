@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-var udevadmBin = `/sbin/udevadm`
+var udevadmBin = `udevadm`
 var udevadmRe = regexp.MustCompile("^([A-Z]): (.*)$")
 
 // RunUdevadm enumerates all devices by parsing 'udevadm info -e' command output and reports them
