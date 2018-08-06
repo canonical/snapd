@@ -39,7 +39,7 @@ check-syntax-c:
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/unit-tests
+	SNAP_DEVICE_HELPER=$(srcdir)/snap-confine/snap-device-helper $(HAVE_VALGRIND) ./snap-confine/unit-tests
 	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:

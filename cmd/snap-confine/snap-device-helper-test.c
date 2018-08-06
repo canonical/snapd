@@ -26,7 +26,7 @@
 #include <string.h>
 
 // TODO: build at runtime
-static char *sdh_path = "snap-confine/snap-device-helper";
+static const char *sdh_path_default = "snap-confine/snap-device-helper";
 
 // A variant of unsetenv that is compatible with GDestroyNotify
 static void my_unsetenv(const char *k)
@@ -41,10 +41,19 @@ static void rm_rf_tmp_free(gchar * dirpath)
 	g_free(dirpath);
 }
 
+static gchar *find_sdh_path(void) {
+	const char *sdh_from_env = g_getenv("SNAP_DEVICE_HELPER");
+	if (sdh_from_env != NULL) {
+		return g_strdup(sdh_from_env);
+	}
+	return g_strdup(sdh_path_default);
+}
+
 static int run_sdh(gchar * action,
 		   gchar * appname, gchar * devpath, gchar * majmin)
 {
 	g_autofree gchar *mod_appname = g_strdup(appname);
+	g_autofree gchar *sdh_path = find_sdh_path();
 	for (size_t i = 0; i < strlen(mod_appname); i++) {
 		if (mod_appname[i] == '.') {
 			mod_appname[i] = '_';
