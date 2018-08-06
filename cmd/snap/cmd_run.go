@@ -87,7 +87,7 @@ and environment.
 			"hook":               i18n.G("Hook to run"),
 			"r":                  i18n.G("Use a specific snap revision when running hook"),
 			"shell":              i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"skip-command-chain": i18n.G("Don't run the command chain (useful for debugging)"),
+			"skip-command-chain": i18n.G("Do not run the command chain (useful for debugging)"),
 			"strace":             i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
 			"gdb":                i18n.G("Run the command with gdb"),
 			"timer":              i18n.G("Run as a timer service with given schedule"),

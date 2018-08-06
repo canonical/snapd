@@ -40,7 +40,7 @@ var syscallExec = syscall.Exec
 // commandline args
 var opts struct {
 	Command          string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
-	SkipCommandChain bool   `long:"skip-command-chain" description:"don't run command chain"`
+	SkipCommandChain bool   `long:"skip-command-chain" description:"do not run command chain"`
 	Hook             string `long:"hook" description:"hook to run" hidden:"yes"`
 }
 
