@@ -150,25 +150,32 @@ func (b *Backend) Remove(snapName string) error {
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
+	addSocketcall := false
+	// Some base snaps and systems require the socketcall() in the default
+	// template
+	if requiresSocketcall(snapInfo.Base) {
+		addSocketcall = true
+	}
+
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content, addSocketcall)
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content, addSocketcall)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, addSocketcall bool) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
@@ -192,7 +199,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(bindSyscallWorkaround)
 	}
 
-	if requiresSocketcall() {
+	if addSocketcall {
 		buffer.WriteString(socketcallSyscallDeprecated)
 	}
 
@@ -218,10 +225,6 @@ func (b *Backend) SandboxFeatures() []string {
 		tags = append(tags, "kernel:"+feature)
 	}
 	tags = append(tags, "bpf-argument-filtering")
-
-	if requiresSocketcall() {
-		tags = append(tags, "require-socketcall")
-	}
 	return tags
 }
 
@@ -234,7 +237,7 @@ func (b *Backend) SandboxFeatures() []string {
 //     force use of socketcall()
 // - if the kernel architecture is not any of the above, force the use of
 //   socketcall() (TODO: verify)
-func RequiresSocketcall() bool {
+func RequiresSocketcall(baseSnap string) bool {
 	var needed bool
 
 	switch ubuntuKernelArchitecture() {
@@ -245,8 +248,20 @@ func RequiresSocketcall() bool {
 			// 'man 2 socketcall'
 			needed = true
 		} else if releaseInfoId == "ubuntu" {
-			// For now, on <= 16.04, always require socketcall()
-			if cmp, _ := strutil.VersionCompare(releaseInfoVersionId, "16.04"); cmp <= 0 {
+			// For now, on 14.04, always require socketcall()
+			if cmp, _ := strutil.VersionCompare(releaseInfoVersionId, "14.04"); cmp <= 0 {
+				needed = true
+			}
+		} else {
+			// Detect when the base snap requires the use of
+			// socketcall(). Technically, core16's glibc is new
+			// enough, but it always had socketcall in the
+			// template, so maintain backwards compatibility.
+			//
+			// TODO: eventually try to auto-detect this. For now,
+			// err on the side of security and only require it for
+			// base snaps where we know we want it added.
+			if baseSnap == "" || baseSnap == "core" || baseSnap == "core16" {
 				needed = true
 			}
 		}
