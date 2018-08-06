@@ -3,6 +3,7 @@ usr/bin/snapctl /usr/lib/snapd/
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
+usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
@@ -18,6 +19,8 @@ data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 data/info /usr/lib/snapd/
 # polkit actions
 data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
+# apt hook
+data/apt/20snapd.conf /etc/apt/apt.conf.d/
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real
