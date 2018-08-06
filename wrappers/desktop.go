@@ -108,10 +108,14 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		// TODO parallel-install: adjust valid command checks to account
-		// for instance name
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
+		if s.InstanceKey != "" {
+			// wrapper uses s.InstanceName(), with the instance key
+			// set the command will be 'snap_foo.app' instead of
+			// 'snap.app', need to account for that
+			validCmd = snap.JoinSnapApp(s.SnapName(), app.Name)
+		}
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
@@ -234,14 +238,16 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	// TODO parallel-install: verify use of instance names here
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.InstanceName()+"_*.desktop")
-	activeDesktopFiles, err := filepath.Glob(glob)
-	if err != nil {
-		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)
-	}
-	for _, f := range activeDesktopFiles {
-		os.Remove(f)
+	activeDesktopFiles := make([]string, 0, len(s.Apps))
+	for _, app := range s.Apps {
+		df := app.DesktopFile()
+		if err := os.Remove(df); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			activeDesktopFiles = append(activeDesktopFiles, df)
+		}
 	}
 
 	// updates mime info etc

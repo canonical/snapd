@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"time"
 
@@ -223,6 +224,44 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
+	s.state.Lock()
+	// pretend we have an installed snap
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si11},
+		Current:  si11.Revision,
+	})
+	// add a new one
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	// and check that the sequence file got updated
+	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	c.Assert(err, IsNil)
+	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33"}`)
+}
+
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -254,6 +293,11 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	// and check that the sequence file got updated
+	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	c.Assert(err, IsNil)
+	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset"}`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
