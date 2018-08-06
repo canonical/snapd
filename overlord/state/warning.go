@@ -32,8 +32,8 @@ var (
 
 type jsonWarning struct {
 	Message     string     `json:"message"`
-	FirstSeen   time.Time  `json:"first-seen"`
-	LastSeen    time.Time  `json:"last-seen"`
+	FirstAdded  time.Time  `json:"first-added"`
+	LastAdded   time.Time  `json:"last-added"`
 	LastShown   *time.Time `json:"last-shown,omitempty"`
 	DeleteAfter string     `json:"delete-after,omitempty"`
 	RepeatAfter string     `json:"repeat-after,omitempty"`
@@ -43,12 +43,12 @@ type Warning struct {
 	// the warning text itself. Only one of these in the system at a time.
 	message string
 	// the first time one of these messages was created
-	firstSeen time.Time
+	firstAdded time.Time
 	// the last time one of these was created
-	lastSeen time.Time
+	lastAdded time.Time
 	// the last time one of these was shown to the user
 	lastShown time.Time
-	// how much time since one of these was last seen should we drop the message
+	// how much time since one of these was last added should we drop the message
 	deleteAfter time.Duration
 	// how much time since one of these was last shown should we repeat it
 	repeatAfter time.Duration
@@ -61,8 +61,8 @@ func (w *Warning) String() string {
 func (w *Warning) MarshalJSON() ([]byte, error) {
 	jw := jsonWarning{
 		Message:     w.message,
-		FirstSeen:   w.firstSeen,
-		LastSeen:    w.lastSeen,
+		FirstAdded:  w.firstAdded,
+		LastAdded:   w.lastAdded,
 		DeleteAfter: w.deleteAfter.String(),
 		RepeatAfter: w.repeatAfter.String(),
 	}
@@ -80,8 +80,8 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	w.message = jw.Message
-	w.firstSeen = jw.FirstSeen
-	w.lastSeen = jw.LastSeen
+	w.firstAdded = jw.FirstAdded
+	w.lastAdded = jw.LastAdded
 	if jw.LastShown != nil {
 		w.lastShown = *jw.LastShown
 	}
@@ -98,11 +98,11 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 }
 
 func (w *Warning) IsDeletable(now time.Time) bool {
-	return w.lastSeen.Add(w.deleteAfter).Before(now)
+	return w.lastAdded.Add(w.deleteAfter).Before(now)
 }
 
 func (w *Warning) IsShowable(t time.Time) bool {
-	return (w.lastShown.IsZero() || w.lastShown.Add(w.repeatAfter).Before(t)) && !w.firstSeen.After(t)
+	return (w.lastShown.IsZero() || w.lastShown.Add(w.repeatAfter).Before(t)) && !w.firstAdded.After(t)
 }
 
 // flattenWarning loops over the warnings map, and returns all
@@ -127,8 +127,8 @@ func (s *State) unflattenWarnings(flat []*Warning) {
 }
 
 // AddWarning records a warning: if it's the first Warning with this
-// message it'll be added (with its firstSeen and lastSeen set to the
-// current time), otherwise the existing one will have its lastSeen
+// message it'll be added (with its firstAdded and lastAdded set to the
+// current time), otherwise the existing one will have its lastAdded
 // updated.
 func (s *State) AddWarning(message string) {
 	s.addWarningFull(Warning{
@@ -142,10 +142,10 @@ func (s *State) addWarningFull(w Warning, t time.Time) {
 	s.writing()
 
 	if s.warnings[w.message] == nil {
-		w.firstSeen = t
+		w.firstAdded = t
 		s.warnings[w.message] = &w
 	}
-	s.warnings[w.message].lastSeen = t
+	s.warnings[w.message].lastAdded = t
 }
 
 // DeleteOldWarnings delets warnings that are up for deletion.
@@ -164,19 +164,19 @@ func (s *State) DeleteOldWarnings() int {
 	return n
 }
 
-type byLastSeen []*Warning
+type byLastAdded []*Warning
 
-func (a byLastSeen) Len() int           { return len(a) }
-func (a byLastSeen) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byLastSeen) Less(i, j int) bool { return a[i].lastSeen.Before(a[j].lastSeen) }
+func (a byLastAdded) Len() int           { return len(a) }
+func (a byLastAdded) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byLastAdded) Less(i, j int) bool { return a[i].lastAdded.Before(a[j].lastAdded) }
 
 // AllWarnings returns all the warnings in the system, whether they're
-// due to be shown or not. They'll be sorted by lastSeen.
+// due to be shown or not. They'll be sorted by lastAdded.
 func (s *State) AllWarnings() []*Warning {
 	s.reading()
 
 	all := s.flattenWarnings()
-	sort.Sort(byLastSeen(all))
+	sort.Sort(byLastAdded(all))
 
 	return all
 }
@@ -198,7 +198,7 @@ func (s *State) OkayWarnings(t time.Time) int {
 }
 
 // WarningsToShow returns the list of warnings to show the user, sorted by
-// lastSeen, and a timestamp than can be used to refer to these warnings.
+// lastAdded, and a timestamp than can be used to refer to these warnings.
 //
 // Warnings to show to the user are those that have not been shown before,
 // or that have been shown earlier than repeatAfter ago.
@@ -214,7 +214,7 @@ func (s *State) WarningsToShow() ([]*Warning, time.Time) {
 		toShow = append(toShow, w)
 	}
 
-	sort.Sort(byLastSeen(toShow))
+	sort.Sort(byLastAdded(toShow))
 	return toShow, now
 }
 

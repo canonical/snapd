@@ -59,8 +59,8 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	c.Check(v[0]["message"], check.DeepEquals, "hello")
 	c.Check(v[0]["delete-after"], check.Equals, state.DefaultDeleteAfter.String())
 	c.Check(v[0]["repeat-after"], check.Equals, state.DefaultRepeatAfter.String())
-	c.Check(v[0]["first-seen"], check.Equals, v[0]["last-seen"])
-	t, err := time.Parse(time.RFC3339, v[0]["first-seen"])
+	c.Check(v[0]["first-added"], check.Equals, v[0]["last-added"])
+	t, err := time.Parse(time.RFC3339, v[0]["first-added"])
 	c.Assert(err, check.IsNil)
 	dt := t.Sub(now)
 	// 'now' was just *after* creating the warning
