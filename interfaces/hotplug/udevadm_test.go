@@ -20,10 +20,9 @@
 package hotplug
 
 import (
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
+
+	. "gopkg.in/check.v1"
 )
 
 type udevadmSuite struct {
@@ -34,16 +33,14 @@ var _ = Suite(&udevadmSuite{})
 
 func (s *udevadmSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
 }
 
 func (s *udevadmSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-	dirs.SetRootDir("")
 }
 
 func (s *udevadmSuite) TestParsingHappy(c *C) {
-	restore, err := MockUdevadmbin(c, []byte(`#!/bin/sh
+	cmd := testutil.MockCommand(c, udevadmBin, `#!/bin/sh
 cat << __END__
 P: /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
 E: DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
@@ -81,9 +78,8 @@ E: MINOR=0
 E: SUBSYSTEM=tty
 E: TAGS=:systemd:
 __END__
-`))
-	c.Assert(err, IsNil)
-	defer restore()
+`)
+	defer cmd.Restore()
 
 	devs := make(chan *HotplugDeviceInfo)
 	errors := make(chan error)
@@ -118,7 +114,7 @@ __END__
 }
 
 func (s *udevadmSuite) TestParsingError(c *C) {
-	restore, err := MockUdevadmbin(c, []byte(`#!/bin/sh
+	cmd := testutil.MockCommand(c, udevadmBin, `#!/bin/sh
 cat << __END__
 P: /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
 E: DEVPATH
@@ -129,9 +125,8 @@ EXX: K=V
 P: /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
 E: DEVPATH=foo
 __END__
-`))
-	c.Assert(err, IsNil)
-	defer restore()
+`)
+	defer cmd.Restore()
 
 	devs := make(chan *HotplugDeviceInfo)
 	errors := make(chan error)
@@ -162,14 +157,4 @@ __END__
 	c.Assert(devices, HasLen, 1)
 	v, _ := devices[0].Attribute("DEVPATH")
 	c.Assert(v, Equals, "foo")
-}
-
-func (s *udevadmSuite) TestUdevadmFailure(c *C) {
-	restore, err := MockUdevadmbin(c, []byte(``))
-	c.Assert(err, IsNil)
-	defer restore()
-
-	devs := make(chan *HotplugDeviceInfo)
-	errors := make(chan error)
-	c.Assert(RunUdevadm(devs, errors), ErrorMatches, `.*exec format error`)
 }
