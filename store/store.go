@@ -38,6 +38,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/ratelimit"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
@@ -1519,7 +1520,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		dlSize = float64(resp.ContentLength)
 		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
-		_, finalErr = io.Copy(mw, resp.Body)
+		var limiter io.Reader
+		limiter = resp.Body
+		if v, ok := ctx.Value("rate-limit").(float64); ok {
+			bucket := ratelimit.NewBucketWithRate(v, 2*int64(v))
+			limiter = ratelimit.Reader(resp.Body, bucket)
+		}
+		_, finalErr = io.Copy(mw, limiter)
 		pbar.Finished()
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {

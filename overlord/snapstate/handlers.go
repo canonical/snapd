@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -397,6 +398,14 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
 }
 
+func rateLimited(st *state.State) (rate float64) {
+	tr := config.NewTransaction(st)
+	if err := tr.Get("core", "network.rate-limit", &rate); err == nil {
+		return rate
+	}
+	return 0
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -416,6 +425,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
+
+	ctx := tomb.Context(nil)
+	st.Lock()
+	rate := rateLimited(st)
+	st.Unlock()
+	if rate > 0 {
+		ctx = context.WithValue(ctx, "rate-limit", float64(rate))
+	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
@@ -425,10 +442,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(ctx, snapsup.InstanceName(), targetFn, &storeInfo.DownloadInfo, meter, user)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(ctx, snapsup.InstanceName(), targetFn, snapsup.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err
