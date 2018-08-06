@@ -487,9 +487,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	cref := interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: RemapSnapFromState(plugRef.Snap), Name: plugRef.Name},
-		SlotRef: interfaces.SlotRef{Snap: RemapSnapFromState(slotRef.Snap), Name: slotRef.Name}}
+	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 	conn, ok := conns[cref.ID()]
 	if !ok {
 		return fmt.Errorf("internal error: connection %q not found in state", cref.ID())
