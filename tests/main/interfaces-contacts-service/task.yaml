@@ -2,9 +2,11 @@ summary: Ensure that the contacts-service interface works
 
 # Only test on classic systems.  Don't test on Ubuntu 14.04, which
 # does not ship a new enough evolution-data-server.
+# amazon: no need to run this on amazon
 systems:
     - -ubuntu-core-*
     - -ubuntu-14.04-*
+    - -amazon-*
 
 environment:
     XDG: $(pwd)/xdg
@@ -42,7 +44,7 @@ execute: |
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
 
     echo "The interface is initially disconnected"
-    snap interfaces -i contacts-service | MATCH "\- +test-snapd-eds:contacts-service"
+    snap interfaces -i contacts-service | MATCH -- '- +test-snapd-eds:contacts-service'
     if [ "$(snap debug confinement)" = strict ]; then
       ! test-snapd-eds.contacts list test-address-book
     fi

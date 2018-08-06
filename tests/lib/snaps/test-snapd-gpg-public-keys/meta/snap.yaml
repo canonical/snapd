@@ -5,5 +5,5 @@ description: A basic snap which access to public gpg keys
 
 apps:
   sh:
-    command: ../../../bin/sh
+    command: bin/sh
     plugs: [gpg-public-keys]

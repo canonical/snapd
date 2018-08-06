@@ -3,7 +3,7 @@ version: 1.0
 summary: Sample illustrating very basic layout support
 apps:
     sh:
-        command: ../../../bin/sh
+        command: bin/sh
 layout:
   # Layouts can be used to inject configuration files and directories.
   /etc/demo:

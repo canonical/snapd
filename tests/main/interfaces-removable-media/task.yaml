@@ -4,7 +4,8 @@ details: |
     The removable-media interface allows to access to removable storage filesystems.
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-removable-media
 
     if ! [ -d /media ]; then
@@ -27,6 +28,7 @@ restore: |
 
     rm -rf /media/testdir
     if [ -f /media/fake ]; then
+        #shellcheck disable=SC2114
         rm -rf /media
     fi
 
@@ -37,7 +39,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i removable-media | MATCH "\- +test-snapd-removable-media:removable-media"
+    snap interfaces -i removable-media | MATCH -- '- +test-snapd-removable-media:removable-media'
 
     echo "When the interface is connected"
     snap connect test-snapd-removable-media:removable-media
@@ -62,7 +64,7 @@ execute: |
     snap disconnect test-snapd-removable-media:removable-media
 
     echo "Then the snap is not able to access read the test media file"
-    if test-snapd-removable-media.sh -c "ls /run" 2>${PWD}/call.error; then
+    if test-snapd-removable-media.sh -c "ls /run" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to removable storage filesystems"
         exit 1
     fi

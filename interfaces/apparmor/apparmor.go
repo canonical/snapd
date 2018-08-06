@@ -42,7 +42,7 @@ import (
 // If no such profile was previously loaded then it is simply added to the kernel.
 // If there was a profile with the same name before, that profile is replaced.
 func LoadProfile(fname string) error {
-	return loadProfile(fname, dirs.AppArmorCacheDir)
+	return loadProfile(fname, dirs.AppArmorCacheDir, 0)
 }
 
 // UnloadProfile removes the named profile from the running kernel.
@@ -53,9 +53,23 @@ func UnloadProfile(name string) error {
 	return unloadProfile(name, dirs.AppArmorCacheDir)
 }
 
-func loadProfile(fname, cacheDir string) error {
+type aaParserFlags int
+
+const (
+	// skipReadCache causes apparmor_parser to be invoked with --skip-read-cache.
+	// This allows us to essentially overwrite a cache that we know is stale regardless
+	// of the time and date settings (apparmor_parser caching is based on mtime).
+	// Note that writing of the cache relies on --write-cache but we pass that
+	// command-line option unconditionally.
+	skipReadCache aaParserFlags = 1 << iota
+)
+
+func loadProfile(fname, cacheDir string, flags aaParserFlags) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
+	if flags&skipReadCache != 0 {
+		args = append(args, "--skip-read-cache")
+	}
 	if !osutil.GetenvBool("SNAPD_DEBUG") {
 		args = append(args, "--quiet")
 	}

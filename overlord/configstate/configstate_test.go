@@ -222,19 +222,16 @@ type configcoreHijackSuite struct {
 func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
-	hookMgr, err := hookstate.Manager(s.state)
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
 	configstate.Init(hookMgr)
+	s.o.AddManager(s.o.TaskRunner())
 }
 
 type witnessManager struct {
 	state     *state.State
 	committed bool
-}
-
-func (m *witnessManager) KnownTaskKinds() []string {
-	return nil
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -247,12 +244,6 @@ func (wm *witnessManager) Ensure() error {
 		wm.committed = true
 	}
 	return nil
-}
-
-func (wm *witnessManager) Stop() {
-}
-
-func (wm *witnessManager) Wait() {
 }
 
 func (s *configcoreHijackSuite) TestHijack(c *C) {
