@@ -45,7 +45,7 @@ func MockKernelFeatures(f func() []string) (resture func()) {
 	}
 }
 
-func MockRequiresSocketcall(f func() bool) (restore func()) {
+func MockRequiresSocketcall(f func(string) bool) (restore func()) {
 	old := requiresSocketcall
 	requiresSocketcall = f
 	return func() {
