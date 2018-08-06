@@ -43,13 +43,22 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
+// ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.
+type ErrAlreadyConnected struct {
+	Connection interfaces.ConnRef
+}
+
+func (e ErrAlreadyConnected) Error() string {
+	return fmt.Sprintf("already connected: %q", e.Connection.ID())
+}
+
 // findSymmetricAutoconnectTask checks if there is another auto-connect task affecting same snap because of plug/slot.
 func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, installTask *state.Task) (bool, error) {
 	snapsup, err := snapstate.TaskSnapSetup(installTask)
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installTask.Summary())
 	}
-	installedSnap := snapsup.Name()
+	installedSnap := snapsup.InstanceName()
 
 	// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
 	// it should be ignored (we shouldn't create connect tasks for it)
@@ -59,7 +68,7 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 			if err != nil {
 				return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
 			}
-			otherSnap := snapsup.Name()
+			otherSnap := snapsup.InstanceName()
 
 			if (otherSnap == plugSnap && installedSnap == slotSnap) || (otherSnap == slotSnap && installedSnap == plugSnap) {
 				return true, nil
@@ -95,6 +104,16 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// 'snapctl set' can only modify own attributes (plug's attributes in the *-plug-* hook and
 	// slot's attributes in the *-slot-* hook).
 	// 'snapctl get' can read both slot's and plug's attributes.
+
+	// check if the connection already exists
+	conns, err := getConns(st)
+	if err != nil {
+		return nil, err
+	}
+	connRef := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
+	if conn, ok := conns[connRef.ID()]; ok && conn.Undesired == false {
+		return nil, &ErrAlreadyConnected{Connection: connRef}
+	}
 
 	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnap, plugName, slotSnap, slotName)
 	if err != nil {

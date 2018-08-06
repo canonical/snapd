@@ -185,7 +185,10 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
-	// TODO parallel-install: use instance name, instance name must match the store name
+	if snapInfo.InstanceName() != snapInfo.SnapName() {
+		return fmt.Errorf("cannot install %q, parallel installation of kernel or gadget snaps is not supported", snapInfo.InstanceName())
+	}
+
 	if snapInfo.InstanceName() != expectedName {
 		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}

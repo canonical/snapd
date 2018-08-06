@@ -44,6 +44,16 @@ var (
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
 	TrueishJSON        = trueishJSON
+
+	CanUnicode           = canUnicode
+	ColorTable           = colorTable
+	MonoColorTable       = mono
+	ColorColorTable      = color
+	NoEscColorTable      = noesc
+	ColorMixinGetEscapes = (colorMixin).getEscapes
+	FillerPublisher      = fillerPublisher
+	LongPublisher        = longPublisher
+	ShortPublisher       = shortPublisher
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -132,6 +142,14 @@ func AssertTypeNameCompletion(match string) []flags.Completion {
 	return assertTypeName("").Complete(match)
 }
 
+func MockIsTTY(t bool) (restore func()) {
+	oldIsTTY := isTTY
+	isTTY = t
+	return func() {
+		isTTY = oldIsTTY
+	}
+}
+
 func MockIsTerminal(t bool) (restore func()) {
 	oldIsTerminal := isTerminal
 	isTerminal = func() bool { return t }
@@ -166,4 +184,12 @@ func MockWaitConfTimeout(d time.Duration) (restore func()) {
 
 func Wait(cli *client.Client, id string) (*client.Change, error) {
 	return waitMixin{}.wait(cli, id)
+}
+
+func ColorMixin(cmode, umode string) colorMixin {
+	return colorMixin{Color: cmode, Unicode: umode}
+}
+
+func CmdAdviseSnap() *cmdAdviseSnap {
+	return &cmdAdviseSnap{}
 }

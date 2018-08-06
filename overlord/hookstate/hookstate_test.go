@@ -147,6 +147,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 func (s *hookManagerSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 
+	s.manager.StopHooks()
 	s.se.Stop()
 	dirs.SetRootDir("")
 }
