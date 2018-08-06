@@ -142,6 +142,7 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 
 	info.InstanceKey = "instance"
 	err = wrappers.RemoveSnapDesktopFiles(info)
+	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
