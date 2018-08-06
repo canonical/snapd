@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <string.h>
 
 // TODO: build at runtime
 static char *sdh_path = "snap-confine/snap-device-helper";
@@ -30,7 +31,7 @@ static char *sdh_path = "snap-confine/snap-device-helper";
 // A variant of unsetenv that is compatible with GDestroyNotify
 static void my_unsetenv(const char *k)
 {
-	unsetenv(k);
+	g_unsetenv(k);
 }
 
 // A variant of rm_rf_tmp that calls g_free() on its parameter
