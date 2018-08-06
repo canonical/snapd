@@ -57,3 +57,11 @@ func (s *State) AddWarningFull(message string, lastAdded, lastShown time.Time, e
 func (w Warning) LastAdded() time.Time {
 	return w.lastAdded
 }
+
+var (
+	ErrNoMessage     = errNoMessage
+	ErrBadMessage    = errBadMessage
+	ErrNoFirstAdded  = errNoFirstAdded
+	ErrNoExpireAfter = errNoExpireAfter
+	ErrNoRepeatAfter = errNoRepeatAfter
+)
