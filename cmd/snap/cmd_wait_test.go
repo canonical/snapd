@@ -31,21 +31,15 @@ import (
 )
 
 func (s *SnapSuite) TestCmdWaitHappy(c *C) {
-	var seeded bool
-
 	restore := snap.MockWaitConfTimeout(10 * time.Millisecond)
 	defer restore()
 
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		seeded = true
-	}()
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/snaps/system/conf")
 
-		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"seed.loaded":%v}}`, seeded))
+		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"seed.loaded":%v}}`, n > 1))
 		n++
 	})
 

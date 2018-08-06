@@ -4,6 +4,7 @@ details: |
     The raw-usb interface allows detection and grants access to all connected USB devices.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-raw-usb
 
@@ -12,7 +13,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i raw-usb | MATCH "\- +test-snapd-raw-usb:raw-usb"
+    snap interfaces -i raw-usb | MATCH -- '^- +test-snapd-raw-usb:raw-usb'
 
     echo "When the interface is connected"
     snap connect test-snapd-raw-usb:raw-usb
@@ -44,7 +45,7 @@ execute: |
     snap disconnect test-snapd-raw-usb:raw-usb
 
     echo "Then the snap is not able to check for USB devices"
-    if test-snapd-raw-usb.sh -c "cat /sys/bus/usb/devices/usb1/serial" 2>${PWD}/call.error; then
+    if test-snapd-raw-usb.sh -c "cat /sys/bus/usb/devices/usb1/serial" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to check for USB devices"
         exit 1
     fi
