@@ -233,8 +233,12 @@ func (b *Backend) SandboxFeatures() []string {
 //   socketcall (unused on these architectures)
 // - if the kernrel architecture is i386
 //   - if the kernel is < 4.3, force the use of socketcall()
-//   - for backwards compatibility, if the system is Ubuntu 16.04 or lower,
+//   - for backwards compatibility, if the system is Ubuntu 14.04 or lower,
 //     force use of socketcall()
+//   - for backwards compatibility, if the base snap is unspecified, "core" or
+//     "core16", then force use of socketcall()
+//   - otherwise (ie, if new enough kernel, not 14.04, and a non-16 base
+//     snap), don't force use of socketcall()
 // - if the kernel architecture is not any of the above, force the use of
 //   socketcall() (TODO: verify)
 func RequiresSocketcall(baseSnap string) bool {
@@ -254,13 +258,14 @@ func RequiresSocketcall(baseSnap string) bool {
 			}
 		} else {
 			// Detect when the base snap requires the use of
-			// socketcall(). Technically, core16's glibc is new
-			// enough, but it always had socketcall in the
-			// template, so maintain backwards compatibility.
+			// socketcall().
 			//
 			// TODO: eventually try to auto-detect this. For now,
 			// err on the side of security and only require it for
 			// base snaps where we know we want it added.
+			// Technically, core16's glibc is new enough, but it
+			// always had socketcall in the template, so ensure
+			// backwards compatibility.
 			if baseSnap == "" || baseSnap == "core" || baseSnap == "core16" {
 				needed = true
 			}
