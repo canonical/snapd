@@ -119,8 +119,7 @@ cat << __END__
 P: /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
 E: DEVPATH
 
-P: /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
-EXX: K=V
+E: K=V
 
 P: /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0
 E: DEVPATH=foo
@@ -151,7 +150,7 @@ __END__
 
 	c.Assert(parseErrors, HasLen, 2)
 	c.Assert(parseErrors[0], ErrorMatches, `failed to parse udevadm output "E: DEVPATH"`)
-	c.Assert(parseErrors[1], ErrorMatches, `failed to parse udevadm output "EXX: K=V"`)
+	c.Assert(parseErrors[1], ErrorMatches, `no device block marker found before "E: K=V"`)
 
 	// successfully parsed devices are still reported
 	c.Assert(devices, HasLen, 1)
