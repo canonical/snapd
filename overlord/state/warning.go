@@ -21,13 +21,21 @@ package state
 
 import (
 	"encoding/json"
+	"errors"
 	"sort"
+	"strings"
 	"time"
 )
 
 var (
 	DefaultRepeatAfter = time.Hour * 24
 	DefaultExpireAfter = time.Hour * 24 * 28
+
+	errNoMessage     = errors.New("warning has no message")
+	errBadMessage    = errors.New("malformed warning message")
+	errNoFirstAdded  = errors.New("warning has no first-added timestamp")
+	errNoExpireAfter = errors.New("warning has no expire-after duration")
+	errNoRepeatAfter = errors.New("warning has no repeat-after duration")
 )
 
 type jsonWarning struct {
@@ -85,15 +93,38 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 	if jw.LastShown != nil {
 		w.lastShown = *jw.LastShown
 	}
-	w.expireAfter, err = time.ParseDuration(jw.ExpireAfter)
-	if err != nil {
-		return err
+	if jw.ExpireAfter != "" {
+		w.expireAfter, err = time.ParseDuration(jw.ExpireAfter)
+		if err != nil {
+			return err
+		}
 	}
-	w.repeatAfter, err = time.ParseDuration(jw.RepeatAfter)
-	if err != nil {
-		return err
+	if jw.RepeatAfter != "" {
+		w.repeatAfter, err = time.ParseDuration(jw.RepeatAfter)
+		if err != nil {
+			return err
+		}
 	}
 
+	return w.validate()
+}
+
+func (w *Warning) validate() (e error) {
+	if w.message == "" {
+		return errNoMessage
+	}
+	if strings.TrimSpace(w.message) != w.message {
+		return errBadMessage
+	}
+	if w.firstAdded.IsZero() {
+		return errNoFirstAdded
+	}
+	if w.expireAfter == 0 {
+		return errNoExpireAfter
+	}
+	if w.repeatAfter == 0 {
+		return errNoRepeatAfter
+	}
 	return nil
 }
 
@@ -143,6 +174,10 @@ func (s *State) addWarningFull(w Warning, t time.Time) {
 
 	if s.warnings[w.message] == nil {
 		w.firstAdded = t
+		if err := w.validate(); err != nil {
+			// programming error!
+			panic(err)
+		}
 		s.warnings[w.message] = &w
 	}
 	s.warnings[w.message].lastAdded = t
@@ -219,7 +254,7 @@ func (s *State) WarningsToShow() ([]*Warning, time.Time) {
 }
 
 // WarningsSummary returns the number of warnings that are ready to be
-// shown to the user, and the current timestamp (useful for ACKing the
+// shown to the user, and the current timestamp (useful for OKing the
 // returned warnings).
 func (s *State) WarningsSummary() (int, time.Time) {
 	s.reading()
