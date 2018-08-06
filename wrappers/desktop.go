@@ -246,7 +246,7 @@ func RemoveSnapDesktopFiles(s *snap.Info) error {
 				return err
 			}
 		} else {
-			activeDesktopFiles = append(activeDesktopFiles, app.DesktopFile())
+			activeDesktopFiles = append(activeDesktopFiles, df)
 		}
 	}
 
