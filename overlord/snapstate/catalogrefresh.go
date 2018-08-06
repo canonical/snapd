@@ -70,7 +70,13 @@ func (r *catalogRefresh) Ensure() error {
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	return refreshCatalogs(r.state, theStore)
+	err := refreshCatalogs(r.state, theStore)
+	if err == nil {
+		logger.Debugf("Catalog refresh succeeded.")
+	} else {
+		logger.Debugf("Catalog refresh failed: %v.", err)
+	}
+	return err
 }
 
 var newCmdDB = advisor.Create

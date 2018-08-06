@@ -9,7 +9,7 @@ prepare: |
 
 restore: |
     echo "Stop weston compositor"
-    /usr/bin/killall -9 /usr/bin/weston || true
+    pkill -SIGKILL weston || true
 
 execute: |
     echo "The interface is connected by default"
@@ -56,4 +56,4 @@ execute: |
     # If this is in 'restore', execute doesn't exit and spread must timeout
     # the test.
     echo "Stop weston compositor"
-    /usr/bin/killall -9 /usr/bin/weston || true
+    pkill -SIGKILL weston || true

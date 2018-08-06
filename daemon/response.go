@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -472,4 +474,78 @@ func AppNotFound(format string, v ...interface{}) Response {
 		Result: res,
 		Status: 404,
 	}
+}
+
+func errToResponse(err error, snaps []string, fallback func(format string, v ...interface{}) Response, format string, v ...interface{}) Response {
+	var kind errorKind
+	var snapName string
+
+	switch err {
+	case store.ErrSnapNotFound:
+		switch len(snaps) {
+		case 1:
+			return SnapNotFound(snaps[0], err)
+		// store.ErrSnapNotFound should only be returned for individual
+		// snap queries; in all other cases something's wrong
+		case 0:
+			return InternalError("store.SnapNotFound with no snap given")
+		default:
+			return InternalError("store.SnapNotFound with %d snaps", len(snaps))
+		}
+	case store.ErrNoUpdateAvailable:
+		kind = errorKindSnapNoUpdateAvailable
+	case store.ErrLocalSnap:
+		kind = errorKindSnapLocal
+	default:
+		handled := true
+		switch err := err.(type) {
+		case *store.RevisionNotAvailableError:
+			// store.ErrRevisionNotAvailable should only be returned for
+			// individual snap queries; in all other cases something's wrong
+			switch len(snaps) {
+			case 1:
+				return SnapRevisionNotAvailable(snaps[0], err)
+			case 0:
+				return InternalError("store.RevisionNotAvailable with no snap given")
+			default:
+				return InternalError("store.RevisionNotAvailable with %d snaps", len(snaps))
+			}
+		case *snap.AlreadyInstalledError:
+			kind = errorKindSnapAlreadyInstalled
+			snapName = err.Snap
+		case *snap.NotInstalledError:
+			kind = errorKindSnapNotInstalled
+			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
+		case *snapstate.SnapNeedsDevModeError:
+			kind = errorKindSnapNeedsDevMode
+			snapName = err.Snap
+		case *snapstate.SnapNeedsClassicError:
+			kind = errorKindSnapNeedsClassic
+			snapName = err.Snap
+		case *snapstate.SnapNeedsClassicSystemError:
+			kind = errorKindSnapNeedsClassicSystem
+			snapName = err.Snap
+		case net.Error:
+			if err.Timeout() {
+				kind = errorKindNetworkTimeout
+			} else {
+				handled = false
+			}
+		default:
+			handled = false
+		}
+
+		if !handled {
+			v = append(v, err)
+			return fallback(format, v...)
+		}
+	}
+
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Result: &errorResult{Message: err.Error(), Kind: kind, Value: snapName},
+		Status: 400,
+	}, nil)
 }
