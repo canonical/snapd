@@ -265,13 +265,7 @@ func RequiresSocketcall(baseSnap string) bool {
 				needed = true
 			}
 		}
-	case "powerpc":
-		// TBD
-		needed = true
-	case "ppc64el":
-		// TBD
-		needed = true
-	case "s390x":
+	case "powerpc", "ppc64el", "s390x":
 		// TBD
 		needed = true
 	default:
