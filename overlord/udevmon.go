@@ -68,7 +68,7 @@ func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback
 func (m *UDevMonitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
-		panic("cannot run UDevMonitor more than once")
+		return fmt.Errorf("cannot connect: already connected")
 	}
 
 	if err := m.netlinkConn.Connect(netlink.UdevEvent); err != nil {

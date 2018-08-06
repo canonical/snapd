@@ -76,10 +76,10 @@ func MockConfigstateInit(new func(hookmgr *hookstate.HookManager)) (restore func
 	}
 }
 
-func MockUDevMonitorChannels(mon *UDevMonitor, events chan netlink.UEvent) {
+func MockUDevMonitorChannel(mon *UDevMonitor, events chan netlink.UEvent) {
 	mon.netlinkEvents = events
 }
 
-func MockUDevMonitorStopChannels(mon *UDevMonitor, monitorStop chan struct{}) {
+func MockUDevMonitorStopChannel(mon *UDevMonitor, monitorStop chan struct{}) {
 	mon.monitorStop = monitorStop
 }
