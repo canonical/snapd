@@ -111,7 +111,6 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			if err == nil {
 				info.SnapID = si.SnapID
 				info.Revision = si.Revision
-				info.Channel = opts.Channel
 			}
 		}
 	}
@@ -151,6 +150,9 @@ func Prepare(opts *Options) error {
 
 	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
 		return err
+	}
+	if _, err := snap.ParseChannel(opts.Channel, ""); err != nil {
+		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
 	// TODO: might make sense to support this later
@@ -293,6 +295,22 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
+func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use kernel-track %q from model assertion", kernelTrack)
+	kch, err := snap.ParseChannel(kernelTrack, "")
+	if err != nil {
+		return "", fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	if defaultChannel != "" {
+		dch, err := snap.ParseChannel(defaultChannel, "")
+		if err != nil {
+			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
+		}
+		kch.Risk = dch.Risk
+	}
+	return kch.Clean().String(), nil
+}
+
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -332,11 +350,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dlOpts := &DownloadOptions{
-		TargetDir: snapSeedDir,
-		Channel:   opts.Channel,
-	}
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
@@ -380,6 +393,19 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
 		}
 
+		snapChannel := opts.Channel
+		if name == model.Kernel() && model.KernelTrack() != "" {
+			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			snapChannel = kch
+		}
+		dlOpts := &DownloadOptions{
+			TargetDir: snapSeedDir,
+			Channel:   snapChannel,
+		}
+
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
 		if err != nil {
 			return err
@@ -410,6 +436,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			}
 		} else {
 			locals = append(locals, name)
+			// local snaps have no channel
+			snapChannel = ""
 		}
 
 		// kernel/os/model.base are required for booting
@@ -433,7 +461,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
-			Channel: info.Channel,
+			Channel: snapChannel,
 			File:    filepath.Base(fn),
 			DevMode: info.NeedsDevMode(),
 			Contact: info.Contact,

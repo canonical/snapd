@@ -133,7 +133,12 @@ func New(w io.Writer, flag int) (Logger, error) {
 
 // SimpleSetup creates the default (console) logger
 func SimpleSetup() error {
-	l, err := New(os.Stderr, DefaultFlags)
+	flags := log.Lshortfile
+	if term := os.Getenv("TERM"); term != "" {
+		// snapd is probably not running under systemd
+		flags = DefaultFlags
+	}
+	l, err := New(os.Stderr, flags)
 	if err == nil {
 		SetLogger(l)
 	}
