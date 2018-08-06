@@ -43,6 +43,12 @@
 			"revisionTime": "2017-07-20T12:40:56Z"
 		},
 		{
+			"checksumSHA1": "dqtKfXGotqkiYaS328PpWeusig8=",
+			"path": "github.com/juju/ratelimit",
+			"revision": "59fac5042749a5afb9af70e813da1dd5474f0167",
+			"revisionTime": "2017-10-26T09:04:26Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
