@@ -62,8 +62,8 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 
 	event := make(chan netlink.UEvent)
 
-	overlord.MockUDevMonitorStopChannels(udevmon, mstop)
-	overlord.MockUDevMonitorChannels(udevmon, event)
+	overlord.MockUDevMonitorStopChannel(udevmon, mstop)
+	overlord.MockUDevMonitorChannel(udevmon, event)
 
 	c.Assert(udevmon.Run(), IsNil)
 
