@@ -238,14 +238,16 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	// TODO parallel-install: verify use of instance names here
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.InstanceName()+"_*.desktop")
-	activeDesktopFiles, err := filepath.Glob(glob)
-	if err != nil {
-		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)
-	}
-	for _, f := range activeDesktopFiles {
-		os.Remove(f)
+	activeDesktopFiles := make([]string, 0, len(s.Apps))
+	for _, app := range s.Apps {
+		df := app.DesktopFile()
+		if err := os.Remove(df); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			activeDesktopFiles = append(activeDesktopFiles, df)
+		}
 	}
 
 	// updates mime info etc
