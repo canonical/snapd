@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -40,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	// FIXME: only needed for store.ContextWithRateLimit, move to its own package?
+	"github.com/snapcore/snapd/store"
 )
 
 // hook setup by devicestate
@@ -398,9 +399,12 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
 }
 
-func rateLimited(st *state.State) (rate float64) {
+// autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
+// there is no limit.
+func autoRefreshRateLimited(st *state.State) (rate float64) {
 	tr := config.NewTransaction(st)
-	if err := tr.Get("core", "network.rate-limit", &rate); err == nil {
+	// FIXME: support user friendly values like "5M"
+	if err := tr.Get("core", "refresh.rate-limit", &rate); err == nil {
 		return rate
 	}
 	return 0
@@ -417,6 +421,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	theStore := Store(st)
+	rate := autoRefreshRateLimited(st)
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
@@ -427,11 +432,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 
 	ctx := tomb.Context(nil)
-	st.Lock()
-	rate := rateLimited(st)
-	st.Unlock()
-	if rate > 0 {
-		ctx = context.WithValue(ctx, "rate-limit", float64(rate))
+	if snapsup.IsAutoRefresh && rate > 0 {
+		ctx = store.ContextWithRateLimit(ctx, float64(rate))
 	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info

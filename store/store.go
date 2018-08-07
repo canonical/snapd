@@ -70,6 +70,19 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+type rateLimitKey string
+
+func ContextWithRateLimit(ctx context.Context, rate float64) context.Context {
+	return context.WithValue(ctx, rateLimitKey("rate"), rate)
+}
+
+func GetRateLimit(ctx context.Context) float64 {
+	if val, ok := ctx.Value(rateLimitKey("rate")).(float64); ok {
+		return val
+	}
+	return 0
+}
+
 type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
@@ -1522,8 +1535,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		mw := io.MultiWriter(w, h, pbar)
 		var limiter io.Reader
 		limiter = resp.Body
-		if v, ok := ctx.Value("rate-limit").(float64); ok {
-			bucket := ratelimit.NewBucketWithRate(v, 2*int64(v))
+		if limit := GetRateLimit(ctx); limit > 0 {
+			bucket := ratelimit.NewBucketWithRate(limit, 2*int64(limit))
 			limiter = ratelimit.Reader(resp.Body, bucket)
 		}
 		_, finalErr = io.Copy(mw, limiter)

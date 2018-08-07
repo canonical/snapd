@@ -34,6 +34,7 @@ func init() {
 	supportedConfigurations["core.refresh.timer"] = true
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
+	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
 func validateRefreshSchedule(tr Conf) error {

@@ -32,7 +32,6 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.network.disable-ipv6"] = true
-	supportedConfigurations["core.network.rate-limit"] = true
 }
 
 func validateNetworkSettings(tr Conf) error {

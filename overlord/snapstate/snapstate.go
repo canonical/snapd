@@ -653,10 +653,10 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	}
 
-	return doUpdate(st, names, updates, params, userID)
+	return doUpdate(ctx, st, names, updates, params, userID)
 }
 
-func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 
 	refreshAll := len(names) == 0
@@ -711,7 +711,9 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	// and bases and then other snaps
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
-
+		if v, ok := ctx.Value("auto-refresh").(bool); ok {
+			flags.IsAutoRefresh = v
+		}
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
@@ -1045,7 +1047,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID)
 	if err != nil {
 		return nil, err
 	}
