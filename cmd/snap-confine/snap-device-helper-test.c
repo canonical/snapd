@@ -105,6 +105,8 @@ static void test_sdh_action(gconstpointer test_data)
 
 	gchar *mock_dir = g_dir_make_tmp(NULL, NULL);
 	g_assert_nonnull(mock_dir);
+	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp_free, mock_dir);
+
 	gchar *app_dir = g_build_filename(mock_dir, td->app, NULL);
 	gchar *with_data = g_build_filename(mock_dir,
 					    td->app,
@@ -114,7 +116,6 @@ static void test_sdh_action(gconstpointer test_data)
 					       td->app,
 					       td->file_with_no_data,
 					       NULL);
-	int ret = 0;
 	gchar *data = NULL;
 
 	g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
@@ -125,9 +126,8 @@ static void test_sdh_action(gconstpointer test_data)
 	g_setenv("DEVICES_CGROUP", mock_dir, TRUE);
 
 	g_test_queue_destroy((GDestroyNotify) my_unsetenv, "DEVICES_CGROUP");
-	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp_free, mock_dir);
 
-	ret =
+	int ret =
 	    run_sdh(td->action, td->app, "/devices/foo/block/sda/sda4", "8:4");
 	g_assert_cmpint(ret, ==, 0);
 	g_assert_true(g_file_get_contents(with_data, &data, NULL, NULL));
@@ -152,9 +152,7 @@ static void test_sdh_action(gconstpointer test_data)
 
 static void test_sdh_err(void)
 {
-	int ret = 0;
-
-	ret = run_sdh("add", "", "/devices/foo/block/sda/sda4", "8:4");
+	int ret = run_sdh("add", "", "/devices/foo/block/sda/sda4", "8:4");
 	g_assert_cmpint(ret, ==, 1);
 	ret = run_sdh("add", "foo_bar", "", "8:4");
 	g_assert_cmpint(ret, ==, 1);
@@ -164,13 +162,14 @@ static void test_sdh_err(void)
 	// mock some stuff so that we can reach the 'action' checks
 	gchar *mock_dir = g_dir_make_tmp(NULL, NULL);
 	g_assert_nonnull(mock_dir);
+	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp_free, mock_dir);
+
 	gchar *app_dir = g_build_filename(mock_dir, "foo.bar", NULL);
 	g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
 	g_free(app_dir);
 	g_setenv("DEVICES_CGROUP", mock_dir, TRUE);
 
 	g_test_queue_destroy((GDestroyNotify) my_unsetenv, "DEVICES_CGROUP");
-	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp_free, mock_dir);
 
 	ret =
 	    run_sdh("badaction", "foo_bar", "/devices/foo/block/sda/sda4",
