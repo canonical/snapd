@@ -89,7 +89,7 @@ func RunUdevadm(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) err
 
 			// We are only interested in 'E' properties as they carry all the interesting data,
 			// including DEVPATH and DEVNAME which seem to mirror the 'P' and 'N' values.
-			if strings.HasPrefix(line, "E:") {
+			if strings.HasPrefix(line, "E: ") {
 				if kv := strings.SplitN(line[3:], "=", 2); len(kv) == 2 {
 					env[kv[0]] = kv[1]
 				} else {
@@ -98,16 +98,18 @@ func RunUdevadm(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) err
 			}
 		}
 
+		if err := rd.Err(); err != nil {
+			parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
+			env = nil
+		}
+		if err := cmd.Wait(); err != nil {
+			env = nil
+			parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
+		}
+
 		// eof, flush remaining device
 		if len(env) > 0 {
 			outputDevice(env, devices, parseErrors)
-		}
-
-		if err := rd.Err(); err != nil {
-			parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
-		}
-		if err := cmd.Wait(); err != nil {
-			parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
 		}
 	}()
 
