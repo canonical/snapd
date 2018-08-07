@@ -181,6 +181,12 @@ static struct sdh_test_data change_data =
     { "change", "foo.bar", "devices.allow", "devices.deny" };
 static struct sdh_test_data remove_data =
     { "remove", "foo.bar", "devices.deny", "devices.allow" };
+static struct sdh_test_data instance_add_data =
+    { "add", "foo_bar.baz", "devices.allow", "devices.deny" };
+static struct sdh_test_data instance_change_data =
+    { "change", "foo_bar.baz", "devices.allow", "devices.deny" };
+static struct sdh_test_data instance_remove_data =
+    { "remove", "foo_bar.baz", "devices.deny", "devices.allow" };
 
 static void __attribute__ ((constructor)) init(void)
 {
@@ -192,4 +198,10 @@ static void __attribute__ ((constructor)) init(void)
 	g_test_add_data_func("/snap-device-helper/remove", &remove_data,
 			     test_sdh_action);
 	g_test_add_func("/snap-device-helper/err", test_sdh_err);
+	g_test_add_data_func("/snap-device-helper/parallel/add",
+			     &instance_add_data, test_sdh_action);
+	g_test_add_data_func("/snap-device-helper/parallel/change",
+			     &instance_change_data, test_sdh_action);
+	g_test_add_data_func("/snap-device-helper/parallel/remove",
+			     &instance_remove_data, test_sdh_action);
 }
