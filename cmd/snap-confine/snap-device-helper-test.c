@@ -41,7 +41,8 @@ static void rm_rf_tmp_free(gchar * dirpath)
 	g_free(dirpath);
 }
 
-static gchar *find_sdh_path(void) {
+static gchar *find_sdh_path(void)
+{
 	const char *sdh_from_env = g_getenv("SNAP_DEVICE_HELPER");
 	if (sdh_from_env != NULL) {
 		return g_strdup(sdh_from_env);
@@ -52,8 +53,10 @@ static gchar *find_sdh_path(void) {
 static int run_sdh(gchar * action,
 		   gchar * appname, gchar * devpath, gchar * majmin)
 {
-	g_autofree gchar *mod_appname = g_strdup(appname);
-	g_autofree gchar *sdh_path = find_sdh_path();
+	gchar *mod_appname = g_strdup(appname);
+	gchar *sdh_path = find_sdh_path();
+
+	// snap-device-helper expects appname to ba passed as <snap>_<app>
 	for (size_t i = 0; i < strlen(mod_appname); i++) {
 		if (mod_appname[i] == '.') {
 			mod_appname[i] = '_';
@@ -61,9 +64,9 @@ static int run_sdh(gchar * action,
 	}
 	g_debug("appname modified from %s to %s", appname, mod_appname);
 
-	g_autoptr(GError) err = NULL;
+	GError *err = NULL;
 
-	g_autoptr(GPtrArray) argv = g_ptr_array_new();
+	GPtrArray *argv = g_ptr_array_new();
 	g_ptr_array_add(argv, sdh_path);
 	g_ptr_array_add(argv, action);
 	g_ptr_array_add(argv, mod_appname);
@@ -75,8 +78,13 @@ static int run_sdh(gchar * action,
 
 	gboolean ret = g_spawn_sync(NULL, (gchar **) argv->pdata, NULL, 0,
 				    NULL, NULL, NULL, NULL, &status, &err);
+	g_free(mod_appname);
+	g_free(sdh_path);
+	g_ptr_array_unref(argv);
+
 	if (!ret) {
 		g_debug("failed with: %s", err->message);
+		g_error_free(err);
 		return -2;
 	}
 
@@ -95,19 +103,20 @@ static void test_sdh_action(gconstpointer test_data)
 	struct sdh_test_data *td = (struct sdh_test_data *)test_data;
 
 	gchar *mock_dir = g_dir_make_tmp(NULL, NULL);
-	g_autofree gchar *app_dir = g_build_filename(mock_dir, td->app, NULL);
-	g_autofree gchar *with_data = g_build_filename(mock_dir,
-						       td->app,
-						       td->file_with_data,
-						       NULL);
-	g_autofree gchar *without_data = g_build_filename(mock_dir,
-							  td->app,
-							  td->file_with_no_data,
-							  NULL);
+	gchar *app_dir = g_build_filename(mock_dir, td->app, NULL);
+	gchar *with_data = g_build_filename(mock_dir,
+					    td->app,
+					    td->file_with_data,
+					    NULL);
+	gchar *without_data = g_build_filename(mock_dir,
+					       td->app,
+					       td->file_with_no_data,
+					       NULL);
 	int ret = 0;
 	gchar *data = NULL;
 
 	g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
+	g_free(app_dir);
 
 	g_debug("mock cgroup dir: %s", mock_dir);
 
@@ -135,6 +144,8 @@ static void test_sdh_action(gconstpointer test_data)
 
 	g_assert_false(g_file_get_contents(without_data, &data, NULL, NULL));
 
+	g_free(with_data);
+	g_free(without_data);
 }
 
 static void test_sdh_err(void)
@@ -150,8 +161,9 @@ static void test_sdh_err(void)
 
 	// mock some stuff so that we can reach the 'action' checks
 	gchar *mock_dir = g_dir_make_tmp(NULL, NULL);
-	g_autofree gchar *app_dir = g_build_filename(mock_dir, "foo.bar", NULL);
+	gchar *app_dir = g_build_filename(mock_dir, "foo.bar", NULL);
 	g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
+	g_free(app_dir);
 	g_setenv("DEVICES_CGROUP", mock_dir, TRUE);
 
 	g_test_queue_destroy((GDestroyNotify) my_unsetenv, "DEVICES_CGROUP");
