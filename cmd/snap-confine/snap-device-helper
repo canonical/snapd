@@ -15,12 +15,15 @@ MAJMIN="$4"
 [ -n "$DEVPATH" ] || { echo "no devpath given" >&2; exit 1; }
 [ -n "$MAJMIN" ] || { echo "no major/minor given" >&2; exit 0; }
 
-if [ "${APPNAME#*_*_}" = "${APPNAME}" ]; then
-    # <snap>_<app> -> <snap>.<app>
-    SNAPAPP="${APPNAME%_*}.${APPNAME#*_}"
+NOSNAP="${APPNAME#snap_}"
+[ "$NOSNAP" != "$APPNAME" ] || { echo "malformed appname $APPNAME" >&2; exit 1; }
+
+if [ "${NOSNAP#*_*_}" = "${NOSNAP}" ]; then
+    # snap_<snap>_<app> -> snap.<snap>.<app>
+    SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_}"
 else
-    # <snap>_<instance>_<app> -> <snap>_<instance>.<app>
-    SNAPAPP="${APPNAME%_*}.${APPNAME#*_*_}"
+    # snap_<snap>_<instance>_<app> -> snap.<snap>_<instance>.<app>
+    SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_*_}"
 fi
 
 DEVICES_CGROUP=${DEVICES_CGROUP:="/sys/fs/cgroup/devices"}
