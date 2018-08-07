@@ -56,11 +56,15 @@ static int run_sdh(gchar * action,
 	gchar *mod_appname = g_strdup(appname);
 	gchar *sdh_path = find_sdh_path();
 
-	// snap-device-helper expects appname to ba passed as <snap>_<app>
+	// appnames have the following format:
+	// - snap.<snap>.<app>
+	// - snap.<snap>_<instance>.<app>,
+	// snap-device-helper expects:
+	// - snap_<snap>_<app>
+	// - snap_<snap>_<instance>_<app>
 	for (size_t i = 0; i < strlen(mod_appname); i++) {
 		if (mod_appname[i] == '.') {
 			mod_appname[i] = '_';
-			break;
 		}
 	}
 	g_debug("appname modified from %s to %s", appname, mod_appname);
@@ -152,11 +156,17 @@ static void test_sdh_action(gconstpointer test_data)
 
 static void test_sdh_err(void)
 {
+	// missing appname
 	int ret = run_sdh("add", "", "/devices/foo/block/sda/sda4", "8:4");
 	g_assert_cmpint(ret, ==, 1);
-	ret = run_sdh("add", "foo_bar", "", "8:4");
+	// malformed appname
+	ret = run_sdh("add", "foo_bar", "/devices/foo/block/sda/sda4", "8:4");
 	g_assert_cmpint(ret, ==, 1);
-	ret = run_sdh("add", "foo_bar", "/devices/foo/block/sda/sda4", "");
+	// missing devpath
+	ret = run_sdh("add", "snap_foo_bar", "", "8:4");
+	g_assert_cmpint(ret, ==, 1);
+	// missing device major:minor numbers
+	ret = run_sdh("add", "snap_foo_bar", "/devices/foo/block/sda/sda4", "");
 	g_assert_cmpint(ret, ==, 0);
 
 	// mock some stuff so that we can reach the 'action' checks
@@ -164,7 +174,7 @@ static void test_sdh_err(void)
 	g_assert_nonnull(mock_dir);
 	g_test_queue_destroy((GDestroyNotify) rm_rf_tmp_free, mock_dir);
 
-	gchar *app_dir = g_build_filename(mock_dir, "foo.bar", NULL);
+	gchar *app_dir = g_build_filename(mock_dir, "snap.foo.bar", NULL);
 	g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
 	g_free(app_dir);
 	g_setenv("DEVICES_CGROUP", mock_dir, TRUE);
@@ -172,23 +182,23 @@ static void test_sdh_err(void)
 	g_test_queue_destroy((GDestroyNotify) my_unsetenv, "DEVICES_CGROUP");
 
 	ret =
-	    run_sdh("badaction", "foo_bar", "/devices/foo/block/sda/sda4",
+	    run_sdh("badaction", "snap_foo_bar", "/devices/foo/block/sda/sda4",
 		    "8:4");
 	g_assert_cmpint(ret, ==, 1);
 }
 
 static struct sdh_test_data add_data =
-    { "add", "foo.bar", "devices.allow", "devices.deny" };
+    { "add", "snap.foo.bar", "devices.allow", "devices.deny" };
 static struct sdh_test_data change_data =
-    { "change", "foo.bar", "devices.allow", "devices.deny" };
+    { "change", "snap.foo.bar", "devices.allow", "devices.deny" };
 static struct sdh_test_data remove_data =
-    { "remove", "foo.bar", "devices.deny", "devices.allow" };
+    { "remove", "snap.foo.bar", "devices.deny", "devices.allow" };
 static struct sdh_test_data instance_add_data =
-    { "add", "foo_bar.baz", "devices.allow", "devices.deny" };
+    { "add", "snap.foo_bar.baz", "devices.allow", "devices.deny" };
 static struct sdh_test_data instance_change_data =
-    { "change", "foo_bar.baz", "devices.allow", "devices.deny" };
+    { "change", "snap.foo_bar.baz", "devices.allow", "devices.deny" };
 static struct sdh_test_data instance_remove_data =
-    { "remove", "foo_bar.baz", "devices.deny", "devices.allow" };
+    { "remove", "snap.foo_bar.baz", "devices.deny", "devices.allow" };
 
 static void __attribute__ ((constructor)) init(void)
 {
