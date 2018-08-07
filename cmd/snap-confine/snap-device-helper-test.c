@@ -60,6 +60,7 @@ static int run_sdh(gchar * action,
 	for (size_t i = 0; i < strlen(mod_appname); i++) {
 		if (mod_appname[i] == '.') {
 			mod_appname[i] = '_';
+			break;
 		}
 	}
 	g_debug("appname modified from %s to %s", appname, mod_appname);
@@ -103,6 +104,7 @@ static void test_sdh_action(gconstpointer test_data)
 	struct sdh_test_data *td = (struct sdh_test_data *)test_data;
 
 	gchar *mock_dir = g_dir_make_tmp(NULL, NULL);
+	g_assert_nonnull(mock_dir);
 	gchar *app_dir = g_build_filename(mock_dir, td->app, NULL);
 	gchar *with_data = g_build_filename(mock_dir,
 					    td->app,
@@ -161,6 +163,7 @@ static void test_sdh_err(void)
 
 	// mock some stuff so that we can reach the 'action' checks
 	gchar *mock_dir = g_dir_make_tmp(NULL, NULL);
+	g_assert_nonnull(mock_dir);
 	gchar *app_dir = g_build_filename(mock_dir, "foo.bar", NULL);
 	g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
 	g_free(app_dir);
