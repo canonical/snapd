@@ -1,0 +1,51 @@
+summary: Ensure that the juju client observe interface works.
+
+details: |
+    The juju-client-observe interface allows access to the juju client configuration
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-juju-client-observe
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    ensure_dir_exists_backup_real "$HOME"/.local/
+    ensure_dir_exists_backup_real "$HOME"/.local/share/juju
+    ensure_file_exists_backup_real "$HOME"/.local/share/juju/juju.conf
+
+restore: |
+    rm -f call.error
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    # Delete the created juju dir and configuration files
+    clean_file "$HOME"/.local/share/juju/juju.conf
+    clean_dir "$HOME"/.local/share/juju
+    clean_dir "$HOME"/.local/
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i juju-client-observe | MATCH -- '- +test-snapd-juju-client-observe:juju-client-observe'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-juju-client-observe:juju-client-observe
+
+    echo "Then the snap is able to access the juju client configuration"
+    test-snapd-juju-client-observe.sh -c "cat $HOME/.local/share/juju/juju.conf"
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-juju-client-observe:juju-client-observe
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "Then the snap is not able to read the juju client configuration"
+    if test-snapd-juju-client-observe.sh -c "cat $HOME/.local/share/juju/juju.conf" 2>call.error; then
+        echo "Expected permission error accessing to input device"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
