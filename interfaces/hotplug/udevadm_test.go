@@ -89,8 +89,10 @@ __END__
 	var stop bool
 	for !stop {
 		select {
-		case dev, more := <-devs:
-			if !more {
+		case err := <-errors:
+			c.Fatalf("unexpected error: %s", err)
+		case dev, ok := <-devs:
+			if !ok {
 				stop = true
 				break
 			}
@@ -98,8 +100,8 @@ __END__
 		}
 	}
 
-	_, hasErrors := <-errors
-	c.Assert(hasErrors, Equals, false)
+	_, ok := <-errors
+	c.Assert(ok, Equals, false)
 
 	c.Assert(devices, HasLen, 2)
 
@@ -140,12 +142,12 @@ __END__
 	var stop bool
 	for !stop {
 		select {
-		case e, more := <-errors:
-			if more {
+		case e, ok := <-errors:
+			if ok {
 				parseErrors = append(parseErrors, e)
 			}
-		case dev, more := <-devs:
-			if !more {
+		case dev, ok := <-devs:
+			if !ok {
 				stop = true
 			} else {
 				devices = append(devices, dev)
@@ -153,8 +155,8 @@ __END__
 		}
 	}
 
-	_, hasMoreErrors := <-errors
-	c.Assert(hasMoreErrors, Equals, false)
+	_, ok := <-errors
+	c.Assert(ok, Equals, false)
 
 	c.Assert(parseErrors, HasLen, 2)
 	c.Assert(parseErrors[0], ErrorMatches, `failed to parse udevadm output "E: DEVPATH"`)
