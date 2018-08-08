@@ -209,20 +209,23 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
-	if instanceKey != "" && snapName != s.SnapName() {
-		return fmt.Errorf("cannot install snap %q using instance name %q", s.SnapName(), instanceName)
-	}
 	// update instance key to what was requested
 	s.InstanceKey = instanceKey
 
 	st.Lock()
 	defer st.Unlock()
 
+	// allow registered checks to run first as they may produce more
+	// precise errors
 	for _, check := range checkSnapCallbacks {
 		err := check(st, s, curInfo, flags)
 		if err != nil {
 			return err
 		}
+	}
+
+	if snapName != s.SnapName() {
+		return fmt.Errorf("cannot install snap %q using instance name %q", s.SnapName(), instanceName)
 	}
 
 	return nil
