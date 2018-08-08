@@ -51,6 +51,9 @@ type SeedSnap struct {
 	Unasserted bool `yaml:"unasserted,omitempty"`
 
 	File string `yaml:"file"`
+
+	// internally used for sorting
+	Order int `yaml:"-"`
 }
 
 type Seed struct {

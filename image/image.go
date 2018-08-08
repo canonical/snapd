@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -311,6 +312,30 @@ func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
 	return kch.Clean().String(), nil
 }
 
+type byRequires []*snap.SeedSnap
+
+func (r byRequires) Len() int           { return len(r) }
+func (r byRequires) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
+func (r byRequires) Less(i, j int) bool { return r[i].Order < r[j].Order }
+
+func hasContentSlot(info *snap.Info) bool {
+	for _, slot := range info.Slots {
+		if slot.Interface == "content" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasContentPlug(info *snap.Info) bool {
+	for _, slot := range info.Slots {
+		if slot.Interface == "content" {
+			return true
+		}
+	}
+	return false
+}
+
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -365,16 +390,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
 		snaps = append(snaps, "snapd")
-		// TODO: once we order snaps by what they need this
-		//       can go aways
-		// Here we ensure that "core" is seeded very early
-		// when bases are in use. This fixes the issue
-		// that when people use model assertions with
-		// required snaps like bluez which at this point
-		// still requires core will hang forever in seeding.
-		if strutil.ListContains(opts.Snaps, "core") {
-			snaps = append(snaps, "core")
-		}
 	}
 	// core/base,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(baseName))
@@ -450,6 +465,28 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			snapChannel = ""
 		}
 
+		// TODO: do proper topological sort
+		// Do very basic ordering:
+		// 1. base/core,kernel,gadget,"snapd" are never reordered
+		// 2. other bases
+		// 3. snaps that provide any content interface slot
+		// 4. other snaps
+		var order int
+		switch {
+		// makes following
+		case info.InstanceName() == "snapd":
+			order = 0
+		case typ == snap.TypeBase && info.InstanceName() != model.Base():
+			order = 10
+		case typ == snap.TypeApp && hasContentSlot(info):
+			order = 20
+		case typ == snap.TypeApp:
+			order = 30
+		}
+		if typ == snap.TypeApp && hasContentSlot(info) && hasContentPlug(info) {
+			fmt.Fprintf(Stderr, "WARNING: %s has both a content slot and a content plug. Please order manually\n", info.InstanceName())
+		}
+
 		// kernel/os/model.base are required for booting
 		if typ == snap.TypeKernel || local.Name(snapName) == baseName {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
@@ -477,11 +514,14 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			Contact: info.Contact,
 			// no assertions for this snap were put in the seed
 			Unasserted: info.SnapID == "",
+			Order:      order,
 		})
 	}
 	if len(locals) > 0 {
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
+	// sort so that the requires are taken into consideration
+	sort.Stable(byRequires(seedYaml.Snaps))
 
 	for _, aRef := range f.addedRefs {
 		var afn string
