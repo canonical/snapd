@@ -106,10 +106,10 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 	snapPath := fmt.Sprintf("%s/snapname/unset", dirs.SnapMountDir)
 
 	for _, t := range []struct {
-		app          string
-		cmd          string
-		includeChain bool
-		expected     string
+		app       string
+		cmd       string
+		skipChain bool
+		expected  string
 	}{
 		// With command chain
 		{app: "app", expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
@@ -120,14 +120,14 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 		{app: "app2", cmd: "post-stop", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/post-stop-app2", snapPath, snapPath, snapPath)},
 
 		// Without command chain
-		{app: "app", cmd: "", includeChain: true, expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
-		{app: "app2", cmd: "", includeChain: true, expected: fmt.Sprintf("%s/run-app2", snapPath)},
-		{app: "app", cmd: "stop", includeChain: true, expected: fmt.Sprintf("%s/stop-app", snapPath)},
-		{app: "app2", cmd: "stop", includeChain: true, expected: fmt.Sprintf("%s/stop-app2", snapPath)},
-		{app: "app", cmd: "post-stop", includeChain: true, expected: fmt.Sprintf("%s/post-stop-app", snapPath)},
-		{app: "app2", cmd: "post-stop", includeChain: true, expected: fmt.Sprintf("%s/post-stop-app2", snapPath)},
+		{app: "app", cmd: "", skipChain: true, expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
+		{app: "app2", cmd: "", skipChain: true, expected: fmt.Sprintf("%s/run-app2", snapPath)},
+		{app: "app", cmd: "stop", skipChain: true, expected: fmt.Sprintf("%s/stop-app", snapPath)},
+		{app: "app2", cmd: "stop", skipChain: true, expected: fmt.Sprintf("%s/stop-app2", snapPath)},
+		{app: "app", cmd: "post-stop", skipChain: true, expected: fmt.Sprintf("%s/post-stop-app", snapPath)},
+		{app: "app2", cmd: "post-stop", skipChain: true, expected: fmt.Sprintf("%s/post-stop-app2", snapPath)},
 	} {
-		cmd, err := snapExec.FindCommand(info.Apps[t.app], t.cmd, t.includeChain)
+		cmd, err := snapExec.FindCommand(info.Apps[t.app], t.cmd, t.skipChain)
 		c.Check(err, IsNil)
 		c.Check(cmd, Equals, t.expected)
 	}

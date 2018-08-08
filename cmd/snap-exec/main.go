@@ -99,7 +99,7 @@ func run() error {
 const defaultShell = "/bin/bash"
 
 func findCommand(app *snap.AppInfo, command string, skipCommandChain bool) (string, error) {
-	var chain []string
+	chain := make([]string, 0, len(app.CommandChain)+1)
 
 	if !skipCommandChain {
 		for _, element := range app.CommandChain {
