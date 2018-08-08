@@ -58,7 +58,7 @@ static int run_sdh(gchar * action,
 
 	// appnames have the following format:
 	// - snap.<snap>.<app>
-	// - snap.<snap>_<instance>.<app>,
+	// - snap.<snap>_<instance>.<app>
 	// snap-device-helper expects:
 	// - snap_<snap>_<app>
 	// - snap_<snap>_<instance>_<app>
