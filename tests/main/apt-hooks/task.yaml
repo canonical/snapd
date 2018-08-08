@@ -8,6 +8,8 @@ restore: |
 
 debug: |
     ls -lh /var/cache/snapd
+    # low tech dump of db
+    strings /var/cache/snapd/commands.db | sed  -e 's#"}\(]\)\?#"}\1\n#g'
     
 execute: |
     echo "Ensure we have a snap catalog in our cache"

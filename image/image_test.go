@@ -1110,8 +1110,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18",
+		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -1170,8 +1169,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18",
+		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -1221,82 +1219,6 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapWithKernelTrackWithRisk(c *C) {
-	restore := image.MockTrusted(s.storeSigning.Trusted)
-	defer restore()
-
-	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18/beta",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
-
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
-		"core":      "canonical",
-		"pc":        "canonical",
-		"pc-kernel": "canonical",
-	})
-
-	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot use kernel-track "18/beta" from model assertion: must be a track name only`)
-}
-
-func (s *imageSuite) TestBootstrapWithKernelTrackIsRiskOnly(c *C) {
-	restore := image.MockTrusted(s.storeSigning.Trusted)
-	defer restore()
-
-	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "beta",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
-
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
-		"core":      "canonical",
-		"pc":        "canonical",
-		"pc-kernel": "canonical",
-	})
-
-	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot use kernel-track "beta" from model assertion: not a track`)
-}
-
 func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
@@ -1309,8 +1231,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 		"model":        "my-model",
 		"architecture": "amd64",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"kernel-track": "18",
+		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
