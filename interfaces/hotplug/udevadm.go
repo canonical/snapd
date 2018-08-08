@@ -21,6 +21,7 @@ package hotplug
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -28,13 +29,49 @@ import (
 
 var udevadmBin = `udevadm`
 
+func parseEnvBlock(block string) (map[string]string, error) {
+	env := make(map[string]string)
+	for i, line := range strings.Split(block, "\n") {
+		if i == 0 && !strings.HasPrefix(line, "P: ") {
+			return nil, fmt.Errorf("no device block marker found before %q", line)
+		}
+		// We are only interested in 'E' properties as they carry all the interesting data,
+		// including DEVPATH and DEVNAME which seem to mirror the 'P' and 'N' values.
+		if strings.HasPrefix(line, "E: ") {
+			if kv := strings.SplitN(line[3:], "=", 2); len(kv) == 2 {
+				env[kv[0]] = kv[1]
+			} else {
+				return nil, fmt.Errorf("failed to parse udevadm output %q", line)
+			}
+		}
+	}
+	return env, nil
+}
+
+func scanDoubleNewline(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.Index(data, []byte("\n\n")); i >= 0 {
+		// we found data
+		return i + 2, data[0:i], nil
+	}
+
+	// If we're at EOF, return what is left.
+	if atEOF {
+		return len(data), data, nil
+	}
+	// Request more data.
+	return 0, nil, nil
+}
+
 func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner, devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) {
 	defer close(devices)
 	defer close(parseErrors)
 
 	env := make(map[string]string)
 
-	var deviceBlock bool
 	for rd.Scan() {
 		// udevadm export output is divided in per-device blocks, blocks are separated
 		// with empty lines, each block starts with device path (P:) line, within a block
@@ -50,34 +87,12 @@ func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner, devices chan<- *Hotplu
 		// E: DEVNAME=/dev/dm-1
 		// E: USEC_INITIALIZED=8899394
 		// <empty-line>
-		line := rd.Text()
-		if line == "" {
-			deviceBlock = false
-			if len(env) > 0 {
-				outputDevice(env, devices, parseErrors)
-				env = make(map[string]string)
-			}
-			continue
-		}
-		if strings.HasPrefix(line, "P: ") {
-			deviceBlock = true
-			continue
-		}
-
-		// any property we find needs to belong to a device "block" started by "P: "
-		if deviceBlock == false {
-			parseErrors <- fmt.Errorf("no device block marker found before %q", line)
-			continue
-		}
-
-		// We are only interested in 'E' properties as they carry all the interesting data,
-		// including DEVPATH and DEVNAME which seem to mirror the 'P' and 'N' values.
-		if strings.HasPrefix(line, "E: ") {
-			if kv := strings.SplitN(line[3:], "=", 2); len(kv) == 2 {
-				env[kv[0]] = kv[1]
-			} else {
-				parseErrors <- fmt.Errorf("failed to parse udevadm output %q", line)
-			}
+		block := rd.Text()
+		env, err := parseEnvBlock(block)
+		if err != nil {
+			parseErrors <- err
+		} else {
+			outputDevice(env, devices, parseErrors)
 		}
 	}
 
@@ -115,6 +130,7 @@ func EnumerateExistingDevices(devices chan<- *HotplugDeviceInfo, parseErrors cha
 	}
 
 	rd := bufio.NewScanner(stdout)
+	rd.Split(scanDoubleNewline)
 	if err = cmd.Start(); err != nil {
 		return err
 	}
