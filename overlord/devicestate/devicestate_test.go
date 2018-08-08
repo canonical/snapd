@@ -1122,6 +1122,7 @@ hooks:
 
 	// avoid full seeding
 	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
