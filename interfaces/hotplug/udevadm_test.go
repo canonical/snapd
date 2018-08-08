@@ -90,7 +90,9 @@ __END__
 	for !stop {
 		select {
 		case err := <-errors:
-			c.Fatalf("unexpected error: %s", err)
+			if err != nil {
+				c.Fatalf("unexpected error: %s", err)
+			}
 		case dev, ok := <-devs:
 			if !ok {
 				stop = true
