@@ -27,6 +27,21 @@ import (
 	"strings"
 )
 
+// udevadm export output is divided in per-device blocks, blocks are separated
+// with empty lines, each block starts with device path (P:) line, within a block
+// there is one attribute per line, example:
+//
+// P: /devices/virtual/workqueue/nvme-wq
+// E: DEVPATH=/devices/virtual/workqueue/nvme-wq
+// E: SUBSYSTEM=workqueue
+// <empty-line>
+// P: /devices/virtual/block/dm-1
+// N: dm-1
+// S: disk/by-id/dm-name-linux-root
+// E: DEVNAME=/dev/dm-1
+// E: USEC_INITIALIZED=8899394
+// <empty-line>
+
 var udevadmBin = `udevadm`
 
 func parseEnvBlock(block string) (map[string]string, error) {
@@ -70,23 +85,7 @@ func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner, devices chan<- *Hotplu
 	defer close(devices)
 	defer close(parseErrors)
 
-	env := make(map[string]string)
-
 	for rd.Scan() {
-		// udevadm export output is divided in per-device blocks, blocks are separated
-		// with empty lines, each block starts with device path (P:) line, within a block
-		// there is one attribute per line, example:
-		//
-		// P: /devices/virtual/workqueue/nvme-wq
-		// E: DEVPATH=/devices/virtual/workqueue/nvme-wq
-		// E: SUBSYSTEM=workqueue
-		// <empty-line>
-		// P: /devices/virtual/block/dm-1
-		// N: dm-1
-		// S: disk/by-id/dm-name-linux-root
-		// E: DEVNAME=/dev/dm-1
-		// E: USEC_INITIALIZED=8899394
-		// <empty-line>
 		block := rd.Text()
 		env, err := parseEnvBlock(block)
 		if err != nil {
@@ -98,16 +97,9 @@ func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner, devices chan<- *Hotplu
 
 	if err := rd.Err(); err != nil {
 		parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
-		env = nil
 	}
 	if err := cmd.Wait(); err != nil {
-		env = nil
 		parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
-	}
-
-	// eof, flush remaining device
-	if len(env) > 0 {
-		outputDevice(env, devices, parseErrors)
 	}
 }
 
