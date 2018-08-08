@@ -28,15 +28,16 @@ import (
 
 var udevadmBin = `udevadm`
 
-// RunUdevadm enumerates all devices by parsing 'udevadm info -e' command output and reports them
+// EnumerateExistingDevices all devices by parsing 'udevadm info -e' command output and reports them
 // via devices channel. The devices channel gets closed to indicate that all devices were processed.
 // Parsing errors are reported to parseErrors channel. Fatal errors encountered when starting udevadm
 // are reported by the error return value.
-func RunUdevadm(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) error {
+func EnumerateExistingDevices(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) error {
 	cmd := exec.Command(udevadmBin, "info", "-e")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		close(devices)
+		close(parseErrors)
 		return err
 	}
 
@@ -48,6 +49,7 @@ func RunUdevadm(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) err
 
 	go func() {
 		defer close(devices)
+		defer close(parseErrors)
 
 		env := make(map[string]string)
 
