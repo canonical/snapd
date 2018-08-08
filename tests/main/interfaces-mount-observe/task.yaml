@@ -12,16 +12,18 @@ details: |
     is also shown when the plug is connected.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap declaring a plug on the mount-observe interface is installed"
     install_local mount-observe-consumer
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "The interface is not connected by default"
-    snap interfaces -i mount-observe | MATCH "\- +mount-observe-consumer:mount-observe"
+    snap interfaces -i mount-observe | MATCH -- '- +mount-observe-consumer:mount-observe'
 
     echo "When the plug is connected"
     snap connect mount-observe-consumer:mount-observe
@@ -45,6 +47,7 @@ execute: |
     snap connect mount-observe-consumer:mount-observe
 
     echo "And a new mount is created"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
 

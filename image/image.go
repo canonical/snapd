@@ -297,17 +297,10 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 
 func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
 	errPrefix := fmt.Sprintf("cannot use kernel-track %q from model assertion", kernelTrack)
-	if strings.Count(kernelTrack, "/") != 0 {
-		return "", fmt.Errorf("%s: must be a track name only", errPrefix)
-	}
 	kch, err := snap.ParseChannel(kernelTrack, "")
 	if err != nil {
 		return "", fmt.Errorf("%s: %v", errPrefix, err)
 	}
-	if kch.Track == "" {
-		return "", fmt.Errorf("%s: not a track", errPrefix)
-	}
-
 	if defaultChannel != "" {
 		dch, err := snap.ParseChannel(defaultChannel, "")
 		if err != nil {
