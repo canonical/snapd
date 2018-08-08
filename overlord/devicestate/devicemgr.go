@@ -261,6 +261,14 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	hasPrepareDeviceHook := (gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil)
+	// When the prepare-device hook is used we need a fully seeded system
+	// to ensure the prepare-device hook has access to the things it
+	// needs
+	if !seeded && hasPrepareDeviceHook {
+		return &state.Retry{}
+	}
+
 	// have some backoff between full retries
 	if m.ensureOperationalShouldBackoff(time.Now()) {
 		return nil
@@ -275,7 +283,7 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks := []*state.Task{}
 
 	var prepareDevice *state.Task
-	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
+	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
 			Snap: gadgetInfo.InstanceName(),
