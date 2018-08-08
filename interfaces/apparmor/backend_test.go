@@ -438,6 +438,7 @@ type combineSnippetsScenario struct {
 
 const commonPrefix = `
 @{SNAP_NAME}="samba"
+@{SNAP_INSTANCE_NAME}="samba"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_2esmbd"
 @{INSTALL_DIR}="/{,var/lib/snapd/}snap"`
@@ -526,6 +527,52 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		s.RemoveSnap(c, snapInfo)
 	}
 }
+
+func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected,mediate_deleted) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected,mediate_deleted) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreClassicTemplate()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		return nil
+	}
+	expected := `
+@{SNAP_NAME}="samba"
+@{SNAP_INSTANCE_NAME}="samba_foo"
+@{SNAP_REVISION}="1"
+@{PROFILE_DBUS}="snap_2esamba_5ffoo_2esmbd"
+@{INSTALL_DIR}="/{,var/lib/snapd/}snap"
+profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
+
+}
+`
+	snapInfo := s.InstallSnapInstance(c, interfaces.ConfinementOptions{}, "samba_foo", ifacetest.SambaYamlV1, 1)
+	c.Assert(snapInfo, NotNil)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba_foo.smbd")
+	stat, err := os.Stat(profile)
+	c.Assert(err, IsNil)
+	c.Check(profile, testutil.FileEquals, expected)
+	c.Check(stat.Mode(), Equals, os.FileMode(0644))
+	s.RemoveSnap(c, snapInfo)
+}
+
 
 // On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
 // Strict confinement template, along with snippets, are used.
