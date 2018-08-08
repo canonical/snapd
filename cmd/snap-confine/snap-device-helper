@@ -16,7 +16,8 @@ MAJMIN="$4"
 [ -n "$MAJMIN" ] || { echo "no major/minor given" >&2; exit 0; }
 
 APPNAME="$( echo "$APPNAME" | tr '_' '.' )"
-app_dev_cgroup="/sys/fs/cgroup/devices/$APPNAME"
+DEVICES_CGROUP=${DEVICES_CGROUP:="/sys/fs/cgroup/devices"}
+app_dev_cgroup="$DEVICES_CGROUP/$APPNAME"
 
 # The cgroup is only present after snap start so ignore any cgroup changes
 # (eg, 'add' on boot, hotplug, hotunplug) when the cgroup doesn't exist

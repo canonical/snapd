@@ -657,6 +657,7 @@ popd
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.seeded.service
+%{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.seeded.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
