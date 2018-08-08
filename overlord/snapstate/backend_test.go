@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type fakeOp struct {
@@ -543,12 +544,27 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		op.sinfo = *si
 	}
 
-	name := filepath.Base(snapFilePath)
-	split := strings.Split(name, "_")
-	if len(split) >= 2 {
-		// <snap>_<rev>.snap
-		// <snap>_<instance-key>_<rev>.snap
-		name = split[0]
+	var name string
+	if !osutil.IsDirectory(snapFilePath) {
+		name = filepath.Base(snapFilePath)
+		split := strings.Split(name, "_")
+		if len(split) >= 2 {
+			// <snap>_<rev>.snap
+			// <snap>_<instance-key>_<rev>.snap
+			name = split[0]
+		}
+	} else {
+		// for snap try only
+		snapf, err := snap.Open(snapFilePath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		info, err := snap.ReadInfoFromSnapFile(snapf, si)
+		if err != nil {
+			return nil, nil, err
+		}
+		name = info.SuggestedName
 	}
 
 	f.ops = append(f.ops, op)
