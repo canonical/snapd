@@ -83,12 +83,15 @@ __END__
 
 	devs := make(chan *HotplugDeviceInfo)
 	errors := make(chan error)
-	c.Assert(RunUdevadm(devs, errors), IsNil)
+	c.Assert(EnumerateExistingDevices(devs, errors), IsNil)
 
 	devices := []*HotplugDeviceInfo{}
-	var stop bool
+	var stop, errorsClosed bool
 	for !stop {
 		select {
+		case _, more := <-errors:
+			c.Assert(more, Equals, false)
+			errorsClosed = true
 		case dev, more := <-devs:
 			if !more {
 				stop = true
@@ -111,6 +114,8 @@ __END__
 
 	v, _ = devices[1].Attribute("TAGS")
 	c.Assert(v, Equals, ":systemd:")
+
+	c.Assert(errorsClosed, Equals, true)
 }
 
 func (s *udevadmSuite) TestParsingError(c *C) {
@@ -129,16 +134,20 @@ __END__
 
 	devs := make(chan *HotplugDeviceInfo)
 	errors := make(chan error)
-	c.Assert(RunUdevadm(devs, errors), IsNil)
+	c.Assert(EnumerateExistingDevices(devs, errors), IsNil)
 
 	var parseErrors []error
 	devices := []*HotplugDeviceInfo{}
 
-	var stop bool
+	var stop, errorsClosed bool
 	for !stop {
 		select {
-		case e := <-errors:
-			parseErrors = append(parseErrors, e)
+		case e, more := <-errors:
+			if more {
+				parseErrors = append(parseErrors, e)
+			} else {
+				errorsClosed = true
+			}
 		case dev, more := <-devs:
 			if !more {
 				stop = true
@@ -151,6 +160,7 @@ __END__
 	c.Assert(parseErrors, HasLen, 2)
 	c.Assert(parseErrors[0], ErrorMatches, `failed to parse udevadm output "E: DEVPATH"`)
 	c.Assert(parseErrors[1], ErrorMatches, `no device block marker found before "E: K=V"`)
+	c.Assert(errorsClosed, Equals, true)
 
 	// successfully parsed devices are still reported
 	c.Assert(devices, HasLen, 1)
