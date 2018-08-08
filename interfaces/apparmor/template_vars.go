@@ -31,8 +31,8 @@ import (
 // apparmor template and by apparmor snippets.
 func templateVariables(info *snap.Info, securityTag string) string {
 	var buf bytes.Buffer
-	// TODO parallel-install: use of proper instance/store name
-	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.InstanceName())
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.SnapName())
+	fmt.Fprintf(&buf, "@{SNAP_INSTANCE_NAME}=\"%s\"\n", info.InstanceName())
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
 		dbus.SafePath(securityTag))
