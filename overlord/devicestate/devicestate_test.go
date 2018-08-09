@@ -183,8 +183,7 @@ func (s *deviceMgrSuite) settle(c *C) {
 
 const (
 	requestIDURLPath = "/api/v1/snaps/auth/request-id"
-	serialURLPath    = "/api/v1/snaps/auth/serial"  // /serial is to a custom serial vault
-	devicesURLPath   = "/api/v1/snaps/auth/devices" // /devices is to the proxy or direct to the canonical serial vault
+	serialURLPath    = "/api/v1/snaps/auth/devices"
 )
 
 // seeding avoids triggering a real full seeding, it simulates having it in process instead
@@ -214,7 +213,7 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 		case "/svc/serial":
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
-		case serialURLPath, devicesURLPath:
+		case serialURLPath:
 			if s.reqID == "REQID-42" {
 				c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "http://[^/]*/bad/svc/")
 			}

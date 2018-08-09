@@ -100,7 +100,7 @@ func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
 	}
 
 	cfg.requestIDURL = base.ResolveReference(reqIdRef).String()
-	if svcURL != nil {
+	if svcURL != nil && proxyURL == nil {
 		cfg.serialRequestURL = base.ResolveReference(serialRef).String()
 	} else {
 		cfg.serialRequestURL = base.ResolveReference(devicesRef).String()
