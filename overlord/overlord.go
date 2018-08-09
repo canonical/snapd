@@ -266,12 +266,14 @@ func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		if o.udevMon != nil {
-			if err := o.udevMon.Connect(); err != nil {
+			err := o.udevMon.Connect()
+			if err == nil {
+				err = o.udevMon.Run()
+				if err != nil {
+					logger.Noticef("Failed to start udev monitor: %s", err)
+				}
+			} else {
 				logger.Noticef("Failed to connect udev monitor: %s", err)
-			}
-			if err := o.udevMon.Run(); err != nil {
-				logger.Noticef("Failed to start udev monitor: %s", err)
-				return err
 			}
 		}
 
