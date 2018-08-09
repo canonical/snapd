@@ -75,8 +75,8 @@ func (m *UDevMonitor) Connect() error {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
-	var deviceFilter netlink.Matcher
-	/*deviceFilter = &netlink.RuleDefinitions{
+	/*var deviceFilter netlink.Matcher
+	deviceFilter = &netlink.RuleDefinitions{
 		Rules: []netlink.RuleDefinition{
 			{
 				Env: map[string]string{
