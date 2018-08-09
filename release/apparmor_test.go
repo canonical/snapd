@@ -26,22 +26,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type apparmorSuite struct {
-	mockApparmorParser *testutil.MockCmd
-}
+type apparmorSuite struct{}
 
 var _ = Suite(&apparmorSuite{})
-
-func (s *apparmorSuite) SetUpTest(c *C) {
-	s.mockApparmorParser = testutil.MockCommand(c, "apparmor_parser", "")
-}
-
-func (s *apparmorSuite) TearDownTest(c *C) {
-	s.mockApparmorParser.Restore()
-}
 
 func (s *apparmorSuite) TestMockAppArmorLevel(c *C) {
 	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.PartialAppArmor, release.FullAppArmor} {
@@ -98,11 +87,16 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 }
 
-func (s *apparmorSuite) TestAppamorParserFails(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", "echo unhappy;exit 1")
-	defer cmd.Restore()
+func (s *apparmorSuite) TestAppamorInsufficientPermissions(c *C) {
+	restore := release.MockOsGetuid(0)
+	defer restore()
+	epermProfilePath := filepath.Join(c.MkDir(), ".remove")
+	restore = release.MockAppArmorRemoveProfilePath(epermProfilePath)
+	defer restore()
+	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
+	c.Assert(err, IsNil)
 
 	level, summary := release.ProbeAppArmor()
 	c.Check(level, Equals, release.NoAppArmor)
-	c.Check(summary, Equals, "apparmor not usable, cannot load empty profile")
+	c.Check(summary, Equals, "apparmor available but insufficient permissions to use it")
 }

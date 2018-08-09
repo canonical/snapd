@@ -20,11 +20,9 @@
 package release
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -107,38 +105,34 @@ func isDirectory(path string) bool {
 	return stat.IsDir()
 }
 
-// runApparmorParser runs the apparmor parser with the given option and input
-func runApparmorParser(option, input string) error {
-	cmd := exec.Command("apparmor_parser", option)
-	cmd.Stdin = bytes.NewBufferString(input)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		// we cannot import osutil.OutputErr here (import cycle)
-		return fmt.Errorf("%s\n%s", err, output)
-	}
-	return nil
-}
-
-// we cannot import logger (import cycles)
-func debug(format string, a ...interface{}) {
-	if os.Getenv("SNAPD_DEBUG") != "" {
-		fmt.Fprintf(os.Stderr, format, a...)
-	}
-}
+var (
+	osGetuid                  = os.Getuid
+	apparmorRemoveProfilePath = "/sys/kernel/security/apparmor/.remove"
+)
 
 func probeAppArmor() (AppArmorLevelType, string) {
 	if !isDirectory(appArmorFeaturesSysPath) {
 		return NoAppArmor, "apparmor not enabled"
 	}
 
-	// Check if we can load an apparmor profiles at all, under some
-	// systems (like lxd without apparmor stacking) this won't work
-	canaryProfile := fmt.Sprintf("/canary-%s {}", strutil.MakeRandomString(20))
-	if err := runApparmorParser("--add", canaryProfile); err != nil {
-		debug("cannot load canary profile: %s", err)
-		return NoAppArmor, "apparmor not usable, cannot load empty profile"
-	}
-	if err := runApparmorParser("--remove", canaryProfile); err != nil {
-		debug("cannot unload canary profile: %s", err)
+	// Check if we can actually use apparmor, under some systems
+	// (like lxd without apparmor stacking) apparmor will appear
+	// to be available but it won't actually work. For details see
+	// the lxd spread test.
+	//
+	// We do the detection by "removing" an non-exiting (randomly
+	// generated) profile. If we get ENOENT apparmor if fine.
+	// If we get EPERM we run in a system without CAP_MAC_ADMIN
+	// and need to consider apparmor as "unavailable".
+	//
+	// We do it this way instead of using apparmor_parser to avoid
+	// spaming the audit log (apparmor_parser will generate audit
+	// messages).
+	if osGetuid() == 0 {
+		canary := fmt.Sprintf("canary-%s", strutil.MakeRandomString(20))
+		if err := ioutil.WriteFile(apparmorRemoveProfilePath, []byte(canary), 0644); os.IsPermission(err) {
+			return NoAppArmor, "apparmor available but insufficient permissions to use it"
+		}
 	}
 
 	// Check apparmor features
