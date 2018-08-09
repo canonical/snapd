@@ -151,7 +151,6 @@ func New() (*Overlord, error) {
 
 	s.Lock()
 	defer s.Unlock()
-
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
