@@ -45,7 +45,9 @@ import (
 
 func TestOverlord(t *testing.T) { TestingT(t) }
 
-type overlordSuite struct{}
+type overlordSuite struct {
+	restoreUDevMon func()
+}
 
 var _ = Suite(&overlordSuite{})
 
@@ -54,10 +56,14 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
+	ovs.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
+		return nil
+	})
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	ovs.restoreUDevMon()
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
