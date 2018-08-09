@@ -100,6 +100,24 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	} else {
 		apparmor->mode = SC_AA_INVALID;
 	}
+
+        // Check that apparmor is actually usable, i.e. that we have
+        // the right capabilities to use it (CAP_MAC_ADMIN). We test
+        // by tryingto load an empty profile. If we get a
+        // permission denied error we know we are inside an environment
+        // where apparmor is not usable, e.g. in a lxd container that
+        // did not setup apparmor stacking.
+        debug("checking aa_kernel_interface_load_policy");
+        aa_kernel_interface *ki;
+        if (aa_kernel_interface_new(&ki, NULL, NULL) < 0) {
+           die("cannot get apparmor kernel interface");
+        }
+        if (aa_kernel_interface_load_policy(ki, "x", 1) < 0) {
+           if (errno == EPERM) {
+              apparmor->mode = SC_AA_NOT_APPLICABLE;
+           }
+        }
+        aa_kernel_interface_unref(ki);
 #else
 	apparmor->mode = SC_AA_NOT_APPLICABLE;
 	apparmor->is_confined = false;

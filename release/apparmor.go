@@ -20,11 +20,15 @@
 package release
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // ApparmorLevelType encodes the kind of support for apparmor
@@ -46,19 +50,21 @@ var (
 	appArmorSummary string
 )
 
-func init() {
-	appArmorLevel, appArmorSummary = probeAppArmor()
-}
-
 // AppArmorLevel quantifies how well apparmor is supported on the
 // current kernel.
 func AppArmorLevel() AppArmorLevelType {
+	if appArmorSummary == "" {
+		appArmorLevel, appArmorSummary = probeAppArmor()
+	}
 	return appArmorLevel
 }
 
 // AppArmorSummary describes how well apparmor is supported on the
 // current kernel.
 func AppArmorSummary() string {
+	if appArmorSummary == "" {
+		appArmorLevel, appArmorSummary = probeAppArmor()
+	}
 	return appArmorSummary
 }
 
@@ -101,10 +107,41 @@ func isDirectory(path string) bool {
 	return stat.IsDir()
 }
 
+// runApparmorParser runs the apparmor parser with the given option and input
+func runApparmorParser(option, input string) error {
+	cmd := exec.Command("apparmor_parser", option)
+	cmd.Stdin = bytes.NewBufferString(input)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		// we cannot import osutil.OutputErr here (import cycle)
+		return fmt.Errorf("%s\n%s", err, output)
+	}
+	return nil
+}
+
+// we cannot import logger (import cycles)
+func debug(format string, a ...interface{}) {
+	if os.Getenv("SNAPD_DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, format, a...)
+	}
+}
+
 func probeAppArmor() (AppArmorLevelType, string) {
 	if !isDirectory(appArmorFeaturesSysPath) {
 		return NoAppArmor, "apparmor not enabled"
 	}
+
+	// Check if we can load an apparmor profiles at all, under some
+	// systems (like lxd without apparmor stacking) this won't work
+	canaryProfile := fmt.Sprintf("/canary-%s {}", strutil.MakeRandomString(20))
+	if err := runApparmorParser("--add", canaryProfile); err != nil {
+		debug("cannot load canary profile: %s", err)
+		return NoAppArmor, "apparmor not usable, cannot load empty profile"
+	}
+	if err := runApparmorParser("--remove", canaryProfile); err != nil {
+		debug("cannot unload canary profile: %s", err)
+	}
+
+	// Check apparmor features
 	var missing []string
 	for _, feature := range requiredAppArmorFeatures {
 		if !isDirectory(filepath.Join(appArmorFeaturesSysPath, feature)) {

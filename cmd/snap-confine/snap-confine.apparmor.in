@@ -91,6 +91,10 @@
     # To find if apparmor is enabled
     /sys/module/apparmor/parameters/enabled r,
 
+    # aa_kernel_interface_new
+    /sys/kernel/security/apparmor/ r,
+    /sys/kernel/security/apparmor/** r,
+
     # Don't allow changing profile to unconfined or profiles that start with
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
     # the environment for determining the capabilities of the architecture.

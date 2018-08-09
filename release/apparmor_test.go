@@ -26,11 +26,22 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type apparmorSuite struct{}
+type apparmorSuite struct {
+	mockApparmorParser *testutil.MockCmd
+}
 
 var _ = Suite(&apparmorSuite{})
+
+func (s *apparmorSuite) SetUpTest(c *C) {
+	s.mockApparmorParser = testutil.MockCommand(c, "apparmor_parser", "")
+}
+
+func (s *apparmorSuite) TearDownTest(c *C) {
+	s.mockApparmorParser.Restore()
+}
 
 func (s *apparmorSuite) TestMockAppArmorLevel(c *C) {
 	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.PartialAppArmor, release.FullAppArmor} {
@@ -85,4 +96,13 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 
 	features := release.AppArmorFeatures()
 	c.Check(features, DeepEquals, []string{"network", "policy"})
+}
+
+func (s *apparmorSuite) TestAppamorParserFails(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "echo unhappy;exit 1")
+	defer cmd.Restore()
+
+	level, summary := release.ProbeAppArmor()
+	c.Check(level, Equals, release.NoAppArmor)
+	c.Check(summary, Equals, "apparmor not usable, cannot load empty profile")
 }
