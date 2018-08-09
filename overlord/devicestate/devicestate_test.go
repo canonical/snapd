@@ -198,9 +198,34 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	var mu sync.Mutex
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		default:
+			c.Fatalf("unexpected verb %q", r.Method)
+		case "HEAD":
+			if r.URL.Path != "/" {
+				c.Fatalf("unexpected HEAD request %q", r.URL.String())
+			}
+			switch s.reqID {
+			case "REQID-42":
+				w.Header().Set("Snap-Store-Version", "6")
+			case "REQID-41":
+				w.Header().Set("Snap-Store-Version", "5")
+			default:
+				c.Fatalf("unexpected HEAD request w/reqID %q", s.reqID)
+			}
+			w.WriteHeader(200)
+			return
+		case "POST":
+			// carry on
+		}
+
+		if s.reqID == "REQID-42" {
+			c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "http://[^/]*/bad/svc/")
+		}
+
 		switch r.URL.Path {
 		default:
-			c.Fatalf("unexpected request %q", r.URL.String())
+			c.Fatalf("unexpected POST request %q", r.URL.String())
 		case requestIDURLPath, "/svc/request-id":
 			if s.reqID == "REQID-501" {
 				w.WriteHeader(501)
@@ -215,7 +240,7 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			fallthrough
 		case serialURLPath:
 			if s.reqID == "REQID-42" {
-				c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "http://[^/]*/bad/svc/")
+				c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			}
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 
@@ -1166,19 +1191,43 @@ hooks:
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithHookAndProxy(c *C) {
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithHookAndNewProxy(c *C) {
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, true)
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithHookAndOldProxy(c *C) {
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, false)
+}
+
+func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, newEnough bool) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
-	s.reqID = "REQID-42"
+	if newEnough {
+		s.reqID = "REQID-42"
+	} else {
+		s.reqID = "REQID-41"
+	}
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
 	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
+		deviceURL := mockServer.URL + "/bad/svc/"
+		if !newEnough {
+			deviceURL = mockServer.URL + "/svc/"
+		}
+
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/bad/svc/")}, 0)
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", deviceURL)}, 0)
+		c.Assert(err, IsNil)
+
+		h, err := json.Marshal(map[string]string{
+			"x-extra-header": "extra",
+		})
+		c.Assert(err, IsNil)
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
 		c.Assert(err, IsNil)
 
 		return nil, nil

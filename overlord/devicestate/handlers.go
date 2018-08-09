@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,6 +85,27 @@ var (
 	serialRef  = mustParse("serial")
 	devicesRef = mustParse("devices")
 )
+
+func newEnoughProxy(proxyURL *url.URL, client *http.Client) bool {
+	req, err := http.NewRequest("HEAD", proxyURL.String(), nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("User-Agent", httputil.UserAgent())
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return false
+	}
+	ver, err := strconv.Atoi(resp.Header.Get("Snap-Store-Version"))
+	if err != nil {
+		return false
+	}
+	return ver >= 6
+}
 
 func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
 	base := baseStoreURL
@@ -303,7 +325,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, cfg *serialRequestConfig) (*asserts.Serial, error) {
+func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -323,6 +345,11 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		Timeout:    30 * time.Second,
 		MayLogBody: true,
 	})
+
+	cfg, err := getSerialRequestConfig(t, client)
+	if err != nil {
+		return nil, err
+	}
 
 	// NB: until we get at least an Accepted (202) we need to
 	// retry from scratch creating a new request-id because the
@@ -377,7 +404,7 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 	}
 }
 
-func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
+func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestConfig, error) {
 	var svcURL, proxyURL *url.URL
 
 	st := t.State()
@@ -439,6 +466,10 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 	}
 
+	if proxyURL != nil && svcURL != nil && !newEnoughProxy(proxyURL, client) {
+		proxyURL = nil
+	}
+
 	cfg.setURLs(proxyURL, svcURL)
 
 	return &cfg, nil
@@ -459,11 +490,6 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-
-	cfg, err := getSerialRequestConfig(t)
-	if err != nil {
-		return err
-	}
 
 	device, err := auth.Device(st)
 	if err != nil {
@@ -497,7 +523,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device, cfg)
+	serial, err := getSerial(t, privKey, device)
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}
