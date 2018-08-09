@@ -26,13 +26,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -58,56 +58,53 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func baseURL() string {
+func baseURL() *url.URL {
 	if useStaging() {
-		return "https://api.staging.snapcraft.io/"
+		return mustParse("https://api.staging.snapcraft.io/")
 	}
-	return "https://api.snapcraft.io/"
+	return mustParse("https://api.snapcraft.io/")
+}
+
+func mustParse(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }
 
 var (
 	keyLength     = 4096
 	retryInterval = 60 * time.Second
 	maxTentatives = 15
-	baseStoreURL  = baseURL()
+	baseStoreURL  = baseURL().ResolveReference(authRef)
+
+	authRef    = mustParse("api/v1/snaps/auth/") // authRef must end in / for the following refs to work
+	reqIdRef   = mustParse("request-id")
+	serialRef  = mustParse("serial")
+	devicesRef = mustParse("devices")
 )
 
-func deviceAPIbase(proxyStore *asserts.Store, svcURL string) (s string) {
-	if proxyStore != nil && svcURL != "" {
-		// TODO: warning
-		logger.Noticef("UNSUPPORTED! trying to use a snap store proxy (at %q) together with a device service URL (%q). Falling back to contacting the service URL directly.", proxyStore.URL(), svcURL)
-	}
-	if svcURL != "" {
-		if svcURL[len(svcURL)-1] != '/' {
-			svcURL += "/"
+func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
+	base := baseStoreURL
+	if proxyURL != nil {
+		if svcURL != nil {
+			if cfg.headers == nil {
+				cfg.headers = make(map[string]string, 1)
+			}
+			cfg.headers["X-Snap-Device-Service-URL"] = svcURL.String()
 		}
-		return svcURL
+		base = proxyURL.ResolveReference(authRef)
+	} else if svcURL != nil {
+		base = svcURL
 	}
 
-	var base string
-	if proxyStore != nil {
-		base = proxyStore.URL().String()
+	cfg.requestIDURL = base.ResolveReference(reqIdRef).String()
+	if svcURL != nil {
+		cfg.serialRequestURL = base.ResolveReference(serialRef).String()
+	} else {
+		cfg.serialRequestURL = base.ResolveReference(devicesRef).String()
 	}
-	if base == "" {
-		base = baseStoreURL
-	}
-	if base[len(base)-1] != '/' {
-		base += "/"
-	}
-
-	return base + "api/v1/snaps/auth/"
-}
-
-func requestIDURL(proxyStore *asserts.Store, svcURL string) string {
-	return deviceAPIbase(proxyStore, svcURL) + "request-id"
-}
-
-func serialRequestURL(proxyStore *asserts.Store, svcURL string) string {
-	base := deviceAPIbase(proxyStore, svcURL)
-	if svcURL == "" {
-		return base + "devices"
-	}
-	return base + "serial"
 }
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
@@ -381,13 +378,14 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 }
 
 func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
-	var svcURL string
+	var svcURL, proxyURL *url.URL
 
 	st := t.State()
 	tr := config.NewTransaction(st)
-	proxyStore, err := proxyStore(st, tr)
-	if err != nil && err != state.ErrNoState {
+	if proxyStore, err := proxyStore(st, tr); err != nil && err != state.ErrNoState {
 		return nil, err
+	} else if proxyStore != nil {
+		proxyURL = proxyStore.URL()
 	}
 
 	// gadget is optional on classic
@@ -406,15 +404,19 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 		gadgetName := gadgetInfo.InstanceName()
 
-		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
+		var svcURI string
+		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
 		if err != nil {
 			return nil, err
 		}
 
-		if svcURL != "" {
-			_, err = url.Parse(svcURL)
+		if svcURI != "" {
+			svcURL, err = url.Parse(svcURI)
 			if err != nil {
-				return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
+				return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURI, err)
+			}
+			if !strings.HasSuffix(svcURL.Path, "/") {
+				svcURL.Path += "/"
 			}
 		}
 
@@ -437,8 +439,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 	}
 
-	cfg.requestIDURL = requestIDURL(proxyStore, svcURL)
-	cfg.serialRequestURL = serialRequestURL(proxyStore, svcURL)
+	cfg.setURLs(proxyURL, svcURL)
 
 	return &cfg, nil
 }

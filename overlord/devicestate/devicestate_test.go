@@ -183,7 +183,8 @@ func (s *deviceMgrSuite) settle(c *C) {
 
 const (
 	requestIDURLPath = "/api/v1/snaps/auth/request-id"
-	serialURLPath    = "/api/v1/snaps/auth/devices"
+	serialURLPath    = "/api/v1/snaps/auth/serial"  // /serial is to a custom serial vault
+	devicesURLPath   = "/api/v1/snaps/auth/devices" // /devices is to the proxy or direct to the canonical serial vault
 )
 
 // seeding avoids triggering a real full seeding, it simulates having it in process instead
@@ -213,7 +214,10 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 		case "/svc/serial":
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
-		case serialURLPath:
+		case serialURLPath, devicesURLPath:
+			if s.reqID == "REQID-42" {
+				c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "http://[^/]*/bad/svc/")
+			}
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 
 			mu.Lock()
@@ -418,7 +422,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	// as device-service.url is set, should not need to do this but just in case
+	// as core.proxy.store is set, should not need to do this but just in case
 	r2 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baaad/")
 	defer r2()
 
@@ -1155,6 +1159,104 @@ hooks:
 	c.Check(details, DeepEquals, map[string]interface{}{
 		"mac": "00:00:00:00:ff:00",
 	})
+
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithHookAndProxy(c *C) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	s.reqID = "REQID-42"
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		c.Assert(ctx.HookName(), Equals, "prepare-device")
+
+		// snapctl set the registration params
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/bad/svc/")}, 0)
+		c.Assert(err, IsNil)
+
+		return nil, nil
+	})
+	defer r2()
+
+	// as device-service.url is set, should not need to do this but just in case
+	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
+	defer r3()
+
+	// setup state as will be done by first-boot
+	// & have a gadget with a prepare-device hook
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "proxy.store", "foo"), IsNil)
+	tr.Commit()
+	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
+	c.Assert(assertstate.Add(s.state, operatorAcct), IsNil)
+
+	// have a store assertion.
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "foo",
+		"url":         mockServer.URL,
+		"operator-id": operatorAcct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, stoAs), IsNil)
+
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "gadget",
+	})
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+hooks:
+    prepare-device:
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc2",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc2")
+	c.Check(device.Serial, Equals, "9999")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc2",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
