@@ -173,6 +173,21 @@ func SupportsClassicConfinement() bool {
 	return false
 }
 
+var metaSnapPath = "/meta/snap.yaml"
+
+// isInsideBaseSnap returns true if the process is inside a base snap environment.
+//
+// The things that count as a base snap are:
+// - any base snap mounted at /
+// - any os snap mounted at /
+func isInsideBaseSnap() (bool, error) {
+	_, err := os.Stat(metaSnapPath)
+	if err != nil && os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -181,7 +196,8 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	if release.DistroLike("fedora", "arch", "manjaro", "antergos") {
+	isInsideBase, _ := isInsideBaseSnap()
+	if !isInsideBase && release.DistroLike("fedora", "arch", "manjaro", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
