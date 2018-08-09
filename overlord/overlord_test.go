@@ -752,3 +752,40 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 
 	c.Check(restartRequested, Equals, true)
 }
+
+type udevMonMock struct {
+	ConnectCalled, RunCalled, StopCalled bool
+}
+
+func (u *udevMonMock) Connect() error {
+	u.ConnectCalled = true
+	return nil
+}
+
+func (u *udevMonMock) Run() error {
+	u.RunCalled = true
+	return nil
+}
+
+func (u *udevMonMock) Stop() error {
+	u.StopCalled = true
+	return nil
+}
+
+func (ovs *overlordSuite) TestUDevMonBasic(c *C) {
+	u := udevMonMock{}
+	restore := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
+		return &u
+	})
+	defer restore()
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	o.Loop()
+	o.Stop()
+
+	c.Assert(u.ConnectCalled, Equals, true)
+	c.Assert(u.RunCalled, Equals, true)
+	c.Assert(u.StopCalled, Equals, true)
+}
