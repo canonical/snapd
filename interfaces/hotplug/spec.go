@@ -61,7 +61,7 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	if _, ok := h.slots[slotSpec.Name]; ok {
 		return fmt.Errorf("slot %q already exists", slotSpec.Name)
 	}
-	if err := snap.ValdateSlotName(slotSpec.Name); err != nil {
+	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
 		return err
 	}
 	attrs := slotSpec.Attrs

@@ -1,4 +1,24 @@
 -------------------------------------------------------------------
+Fri Jul 27 19:08:44 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34.3
+
+-------------------------------------------------------------------
+Thu Jul 19 12:05:50 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34.2
+
+-------------------------------------------------------------------
+Wed Jul 17 19:46:56 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34.1
+
+-------------------------------------------------------------------
+Fri Jul 06 16:08:17 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34
+
+-------------------------------------------------------------------
 Fri Jun 22 15:58:54 UTC 2018 - me@zygoon.pl
 
 - Fixed changelog chronology
@@ -12,7 +32,7 @@ Fri Jun 22 14:25:35 UTC 2018 - me@zygoon.pl
 - Load snap-confine apparmor profile in post, if apparmor is enabled
 - Adjust badness of polkit-untracked-privlege
 -------------------------------------------------------------------
-Fri Jun 21 17:37:56 UTC 2018 - mvo@fastmail.fm
+Thu Jun 21 17:37:56 UTC 2018 - mvo@fastmail.fm
 
 - Update to upstream release 2.33.1
 

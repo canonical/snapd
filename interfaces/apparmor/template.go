@@ -254,6 +254,7 @@ var defaultTemplate = `
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
+  /usr/lib/snapd/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
@@ -562,7 +563,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
-  /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 
   # Allow reading the dynamic linker cache.

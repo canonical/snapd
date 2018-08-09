@@ -24,7 +24,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/osutil/udev/crawler"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -47,12 +46,9 @@ type UDevMonitor struct {
 	deviceRemovedCb DeviceRemovedCallback
 	netlinkConn     *netlink.UEventConn
 	// channels used by netlink connection and monitor
-	monitorStop    chan struct{}
-	crawlerStop    chan struct{}
-	crawlerDevices chan crawler.Device
-	crawlerErrors  chan error
-	netlinkErrors  chan error
-	netlinkEvents  chan netlink.UEvent
+	monitorStop   chan struct{}
+	netlinkErrors chan error
+	netlinkEvents chan netlink.UEvent
 }
 
 func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
@@ -63,9 +59,6 @@ func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback
 		tmb:             new(tomb.Tomb),
 	}
 
-	m.crawlerErrors = make(chan error)
-	m.crawlerDevices = make(chan crawler.Device)
-
 	m.netlinkEvents = make(chan netlink.UEvent)
 	m.netlinkErrors = make(chan error)
 
@@ -75,10 +68,10 @@ func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback
 func (m *UDevMonitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
-		panic("cannot run UDevMonitor more than once")
+		return fmt.Errorf("cannot connect: already connected")
 	}
 
-	if err := m.netlinkConn.Connect(); err != nil {
+	if err := m.netlinkConn.Connect(netlink.UdevEvent); err != nil {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
@@ -93,8 +86,7 @@ func (m *UDevMonitor) Connect() error {
 		},
 	}*/
 
-	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, deviceFilter)
-	m.crawlerStop = crawler.ExistingDevices(m.crawlerDevices, m.crawlerErrors, deviceFilter)
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
 
 	return nil
 }
@@ -106,17 +98,12 @@ func (m *UDevMonitor) Run() error {
 	m.tmb.Go(func() error {
 		for {
 			select {
-			case dv := <-m.crawlerDevices:
-				m.addDevice(dv.KObj, dv.Env)
-			case err := <-m.crawlerErrors:
-				logger.Noticef("error enumerating devices: %q\n", err)
 			case err := <-m.netlinkErrors:
 				logger.Noticef("netlink error: %q\n", err)
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tmb.Dying():
 				close(m.monitorStop)
-				close(m.crawlerStop)
 				m.netlinkConn.Close()
 				return nil
 			}

@@ -117,6 +117,42 @@ func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
 }
 
+// DataDir returns the data directory for given snap name. The name can be
+// either a snap name or snap instance name.
+func DataDir(name string, revision Revision) string {
+	return filepath.Join(dirs.SnapDataDir, name, revision.String())
+}
+
+// CommonDataDir returns the common data directory for given snap name. The name
+// can be either a snap name or snap instance name.
+func CommonDataDir(name string) string {
+	return filepath.Join(dirs.SnapDataDir, name, "common")
+}
+
+// HooksDir returns the directory containing the snap's hooks for given snap
+// name. The name can be either a snap name or snap instance name.
+func HooksDir(name string, revision Revision) string {
+	return filepath.Join(MountDir(name, revision), "meta", "hooks")
+}
+
+// UserDataDir returns the user-specific data directory for given snap name. The
+// name can be either a snap name or snap instance name.
+func UserDataDir(home string, name string, revision Revision) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name, revision.String())
+}
+
+// UserCommonDataDir returns the user-specific common data directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserCommonDataDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
+}
+
+// UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
+// given snap name. The name can be either a snap name or snap instance name.
+func UserXdgRuntimeDir(euid sys.UserID, name string) string {
+	return filepath.Join(dirs.XdgRuntimeDirBase, fmt.Sprintf("%d/snap.%s", euid, name))
+}
+
 // SideInfo holds snap metadata that is crucial for the tracking of
 // snaps and for the working of the system offline and which is not
 // included in snap.yaml or for which the store is the canonical
@@ -313,27 +349,27 @@ func (s *Info) MountFile() string {
 
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
-	return filepath.Join(s.MountDir(), "meta", "hooks")
+	return HooksDir(s.InstanceName(), s.Revision)
 }
 
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.InstanceName(), s.Revision.String())
+	return DataDir(s.InstanceName(), s.Revision)
 }
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, s.InstanceName(), s.Revision.String())
+	return UserDataDir(home, s.InstanceName(), s.Revision)
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, s.InstanceName(), "common")
+	return UserCommonDataDir(home, s.InstanceName())
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.InstanceName(), "common")
+	return CommonDataDir(s.InstanceName())
 }
 
 // DataHomeDir returns the per user data directory of the snap.
@@ -348,7 +384,7 @@ func (s *Info) CommonDataHomeDir() string {
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
 func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
-	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.InstanceName()))
+	return UserXdgRuntimeDir(euid, s.InstanceName())
 }
 
 // XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
@@ -413,6 +449,14 @@ func (s *Info) InstallDate() time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// IsActive returns whether this snap revision is active.
+func (s *Info) IsActive() bool {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	return err == nil && tag == rev
 }
 
 // BadInterfacesSummary returns a summary of the problems of bad plugs
@@ -690,6 +734,8 @@ type HookInfo struct {
 	Name  string
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment strutil.OrderedMap
 }
 
 // File returns the path to the *.socket file
@@ -797,7 +843,12 @@ func (hook *HookInfo) SecurityTag() string {
 
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
-	return envFromMap(hook.Snap.Environment.Copy())
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hook.Environment.Keys() {
+		hookEnv.Set(k, hook.Environment.Get(k))
+	}
+
+	return envFromMap(hookEnv)
 }
 
 func envFromMap(envMap *strutil.OrderedMap) []string {
@@ -991,24 +1042,6 @@ func JoinSnapApp(snap, app string) string {
 		return InstanceName(app, instanceKey)
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
-}
-
-// UseNick returns the nickname for given snap name. If there is none, returns
-// the original name.
-func UseNick(snapName string) string {
-	if snapName == "core" {
-		return "system"
-	}
-	return snapName
-}
-
-// DropNick returns the snap name for given nickname. If there is none, returns
-// the original name.
-func DropNick(nick string) string {
-	if nick == "system" {
-		return "core"
-	}
-	return nick
 }
 
 // InstanceSnap splits the instance name and returns the name of the snap.

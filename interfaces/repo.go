@@ -26,7 +26,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
-
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -104,6 +103,7 @@ func (r *Repository) AllInterfaces() []Interface {
 	return ifaces
 }
 
+// AllHotplugInterfaces returns all interfaces that handle hotplug events.
 func (r *Repository) AllHotplugInterfaces() []Interface {
 	r.m.Lock()
 	defer r.m.Unlock()

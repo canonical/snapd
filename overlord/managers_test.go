@@ -107,17 +107,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	restoreUdevMon := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
-
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
 	ms.restore = func() {
-		restoreUdevMon()
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
 	}
@@ -578,19 +573,21 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			dec := json.NewDecoder(r.Body)
 			var input struct {
 				Actions []struct {
-					Action string `json:"action"`
-					SnapID string `json:"snap-id"`
-					Name   string `json:"name"`
+					Action      string `json:"action"`
+					SnapID      string `json:"snap-id"`
+					Name        string `json:"name"`
+					InstanceKey string `json:"instance-key"`
 				} `json:"actions"`
 			}
 			if err := dec.Decode(&input); err != nil {
 				panic(err)
 			}
 			type resultJSON struct {
-				Result string          `json:"result"`
-				SnapID string          `json:"snap-id"`
-				Name   string          `json:"name"`
-				Snap   json.RawMessage `json:"snap"`
+				Result      string          `json:"result"`
+				SnapID      string          `json:"snap-id"`
+				Name        string          `json:"name"`
+				Snap        json.RawMessage `json:"snap"`
+				InstanceKey string          `json:"instance-key"`
 			}
 			var results []resultJSON
 			for _, a := range input.Actions {
@@ -603,10 +600,11 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 					continue
 				}
 				results = append(results, resultJSON{
-					Result: a.Action,
-					SnapID: a.SnapID,
-					Name:   name,
-					Snap:   json.RawMessage(fillHit(snapV2, name)),
+					Result:      a.Action,
+					SnapID:      a.SnapID,
+					InstanceKey: a.InstanceKey,
+					Name:        name,
+					Snap:        json.RawMessage(fillHit(snapV2, name)),
 				})
 			}
 			w.WriteHeader(200)
@@ -1905,7 +1903,6 @@ type authContextSetupSuite struct {
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
-	restoreUDevMon func()
 
 	brandSigning *assertstest.SigningDB
 	deviceKey    asserts.PrivateKey
@@ -1919,10 +1916,6 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
-
-	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
 
 	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
 		s.ac = ac
@@ -1990,7 +1983,6 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 func (s *authContextSetupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.restoreUDevMon()
 	s.restoreTrusted()
 }
 

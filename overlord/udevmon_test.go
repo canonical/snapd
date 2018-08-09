@@ -21,10 +21,12 @@ package overlord_test
 
 import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
-	"github.com/snapcore/snapd/osutil/udev/crawler"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 	"github.com/snapcore/snapd/overlord"
+
 	. "gopkg.in/check.v1"
+
+	"time"
 )
 
 type udevMonitorSuite struct{}
@@ -56,14 +58,12 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 
 	// stop channels are normally created by netlink crawler/monitor, but since
 	// we don't create them with Connect(), they must be mocked.
-	cstop := make(chan struct{})
 	mstop := make(chan struct{})
 
-	crawl := make(chan crawler.Device)
 	event := make(chan netlink.UEvent)
 
-	overlord.MockUDevMonitorStopChannels(udevmon, cstop, mstop)
-	overlord.MockUDevMonitorChannels(udevmon, crawl, event)
+	overlord.MockUDevMonitorStopChannel(udevmon, mstop)
+	overlord.MockUDevMonitorChannel(udevmon, event)
 
 	c.Assert(udevmon.Run(), IsNil)
 
@@ -95,6 +95,16 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 
 	c.Assert(addCalled, Equals, true)
 	c.Assert(removeCalled, Equals, true)
+
+	// test that stop channel was closed
+	more := true
+	timeout := time.After(2 * time.Second)
+	select {
+	case _, more = <-mstop:
+	case <-timeout:
+		c.Fatalf("mstop channel was not closed")
+	}
+	c.Assert(more, Equals, false)
 
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
