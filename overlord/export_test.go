@@ -83,10 +83,3 @@ func MockUDevMonitorChannel(mon *UDevMonitor, events chan netlink.UEvent) {
 func MockUDevMonitorStopChannel(mon *UDevMonitor, monitorStop chan struct{}) {
 	mon.monitorStop = monitorStop
 }
-
-func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
-	createUDevMonitor = new
-	return func() {
-		createUDevMonitor = NewUDevMonitor
-	}
-}
