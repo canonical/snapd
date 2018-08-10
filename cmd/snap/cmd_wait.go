@@ -22,6 +22,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"time"
 
@@ -34,7 +35,7 @@ import (
 type cmdWait struct {
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
-		Key  string            `required:"yes"`
+		Key  string
 	} `positional-args:"yes"`
 }
 
@@ -114,6 +115,21 @@ func (x *cmdWait) Execute(args []string) error {
 
 	snapName := string(x.Positional.Snap)
 	confKey := x.Positional.Key
+
+	// This is fine because not providing a confKey is unsupport so this
+	// won't interfere with supported uses of `snap wait`.
+	if snapName == "godot" && confKey == "" {
+		switch rand.Intn(2) {
+		case 0:
+			fmt.Fprintf(Stdout, `"Let's go." "We can't." "Why not?" "We're waiting for Godot."`+"\n")
+		default:
+			fmt.Fprintf(Stdout, "Nothing happens. Nobody comes, nobody goes. It's awful.\n")
+		}
+		return nil
+	}
+	if confKey == "" {
+		return fmt.Errorf("the required argument `<key>` was not provided")
+	}
 
 	cli := Client()
 	for {
