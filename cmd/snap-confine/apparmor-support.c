@@ -111,7 +111,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	// outside) and also unconfined (where lxd doesn't set up an
 	// apparmor policy namespace). We can therefore simply check
 	// if /sys/kernel/security/apparmor/profiles is readable (like
-	// aa-status does), and it isn't, we know we can't manipulate
+	// aa-status does), and if it isn't, we know we can't manipulate
 	// policy.
 	int fd = open("/sys/kernel/security/apparmor/profiles", O_RDONLY);
 	if (fd < 0) {
@@ -119,7 +119,6 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 			apparmor->mode = SC_AA_NOT_APPLICABLE;
 		} else {
 			die("open() failed");
-			exit(1);
 		}
 	}
 	close(fd);

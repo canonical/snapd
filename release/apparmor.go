@@ -123,7 +123,7 @@ func probeAppArmor() (AppArmorLevelType, string) {
 	// outside) and also unconfined (where lxd doesn't set up an
 	// apparmor policy namespace). We can therefore simply check
 	// if /sys/kernel/security/apparmor/profiles is readable (like
-	// aa-status does), and it isn't, we know we can't manipulate
+	// aa-status does), and if it isn't, we know we can't manipulate
 	// policy.
 	if osGetuid() == 0 {
 		f, err := os.Open(apparmorProfilesPath)
