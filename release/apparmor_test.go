@@ -88,8 +88,12 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 }
 
 func (s *apparmorSuite) TestAppamorInsufficientPermissions(c *C) {
-	restore := release.MockOsGetuid(0)
+	restore := release.MockAppArmorFeaturesSysPath(c.MkDir())
 	defer restore()
+
+	restore = release.MockOsGetuid(0)
+	defer restore()
+
 	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
 	restore = release.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()
