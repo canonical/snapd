@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 
 	"github.com/jessevdk/go-flags"
@@ -45,6 +46,9 @@ type cmdAdviseSnap struct {
 	// FromApt tells advise that it got started from an apt hook
 	// and needs to communicate over a socket
 	FromApt bool `long:"from-apt"`
+
+	// DumpDb dumps the whole advise database
+	DumpDb bool `long:"dump-db"`
 }
 
 var shortAdviseSnapHelp = i18n.G("Advise on available snaps")
@@ -60,6 +64,7 @@ func init() {
 		return &cmdAdviseSnap{}
 	}, map[string]string{
 		"command":  i18n.G("Advise on snaps that provide the given command"),
+		"dump-db":  i18n.G("Dump advise database for use by command-not-found."),
 		"from-apt": i18n.G("Advise will talk to apt via an apt hook"),
 		"format":   i18n.G("Use the given output format"),
 	}, []argDesc{
@@ -76,7 +81,7 @@ func outputAdviseExactText(command string, result []advisor.Command) error {
 		fmt.Fprintf(Stdout, "sudo snap install %s\n", snap.Snap)
 	}
 	fmt.Fprintf(Stdout, "\n")
-	fmt.Fprintf(Stdout, "See 'snap info <snap name>' for additional versions.\n")
+	fmt.Fprintf(Stdout, i18n.G("See 'snap info <snap name>' for additional versions.\n"))
 	fmt.Fprintf(Stdout, "\n")
 	return nil
 }
@@ -89,7 +94,7 @@ func outputAdviseMisspellText(command string, result []advisor.Command) error {
 		fmt.Fprintf(Stdout, " command %q from snap %q\n", snap.Command, snap.Snap)
 	}
 	fmt.Fprintf(Stdout, "\n")
-	fmt.Fprintf(Stdout, "See 'snap info <snap name>' for additional versions.\n")
+	fmt.Fprintf(Stdout, i18n.G("See 'snap info <snap name>' for additional versions.\n"))
 	fmt.Fprintf(Stdout, "\n")
 	return nil
 }
@@ -205,9 +210,48 @@ func adviseViaAptHook() error {
 	return nil
 }
 
+type Snap struct {
+	Snap    string
+	Version string
+	Command string
+}
+
+func dumpDbHook() error {
+	commands, err := advisor.DumpCommands()
+	if err != nil {
+		return err
+	}
+
+	commands_processed := make([]string, 0)
+	var b []Snap
+
+	for key, value := range commands {
+		err := json.Unmarshal([]byte(value), &b)
+		if err != nil {
+			return err
+		}
+		for i := range b {
+			var s = fmt.Sprintf("%s\xff%s/s\n", key, b[i].Snap)
+			commands_processed = append(commands_processed, s)
+		}
+	}
+
+	sort.Strings(commands_processed)
+
+	for _, value := range commands_processed {
+		fmt.Fprint(Stdout, value)
+	}
+
+	return nil
+}
+
 func (x *cmdAdviseSnap) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.DumpDb {
+		return dumpDbHook()
 	}
 
 	if x.FromApt {
