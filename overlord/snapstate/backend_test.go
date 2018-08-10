@@ -336,7 +336,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	if len(currentSnaps) == 0 && len(actions) == 0 {
 		return nil, nil
 	}
-	if len(actions) > 3 {
+	if len(actions) > 4 {
 		panic("fake SnapAction unexpectedly called with more than 3 actions")
 	}
 
