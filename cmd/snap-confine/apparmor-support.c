@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #ifdef HAVE_APPARMOR
@@ -105,10 +104,15 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		apparmor->mode = SC_AA_INVALID;
 	}
 
-	// Check that apparmor is actually usable. In some configurations
-	// of lxd apparmor looks available but it is not usable. This is
-        // the case in when a container runs unprivileged and also
-        // unconfined.
+	// Check that apparmor is actually usable. In some
+	// configurations of lxd, apparmor looks available when in
+	// reality it isn't. Eg, this can happen when a container runs
+	// unprivileged (eg, root in the container is non-root
+	// outside) and also unconfined (where lxd doesn't set up an
+	// apparmor policy namespace). We can therefore simply check
+	// if /sys/kernel/security/apparmor/profiles is readable (like
+	// aa-status does), and it isn't, we know we can't manipulate
+	// policy.
 	int fd = open("/sys/kernel/security/apparmor/profiles", O_RDONLY);
 	if (fd < 0) {
 		if (errno == EACCES) {

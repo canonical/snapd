@@ -32,8 +32,11 @@ import (
 type AppArmorLevelType int
 
 const (
+	// UninitializedAppArmor indicates that no apparmor detection was
+	// done yet
+	UninitializedAppArmorDetection AppArmorLevelType = iota
 	// NoAppArmor indicates that apparmor is not enabled.
-	NoAppArmor AppArmorLevelType = iota
+	NoAppArmor
 	// PartialAppArmor indicates that apparmor is enabled but some
 	// features are missing.
 	PartialAppArmor
@@ -58,7 +61,7 @@ func AppArmorLevel() AppArmorLevelType {
 // AppArmorSummary describes how well apparmor is supported on the
 // current kernel.
 func AppArmorSummary() string {
-	if appArmorSummary == "" {
+	if appArmorLevel == UninitializedAppArmorDetection {
 		appArmorLevel, appArmorSummary = probeAppArmor()
 	}
 	return appArmorSummary
@@ -105,7 +108,7 @@ func isDirectory(path string) bool {
 
 var (
 	osGetuid             = os.Getuid
-	apparmorProfilesPath = "/sys/kernel/security/apparmor/.remove"
+	apparmorProfilesPath = "/sys/kernel/security/apparmor/profiles"
 )
 
 func probeAppArmor() (AppArmorLevelType, string) {
@@ -113,17 +116,19 @@ func probeAppArmor() (AppArmorLevelType, string) {
 		return NoAppArmor, "apparmor not enabled"
 	}
 
-	// Check if we can actually use apparmor, under some systems
-	// apparmor will appear to be available but it won't actually
-	// work. This is the case for e.g. an lxd container that runs
-	// unprivileged and also unconfined. In this case no apparmor
-	// stacking is available and any apparmor calls will try to
-	// access the hosts apparmor which willl fail (because the
-	// container runs as a regular user).
+	// Check that apparmor is actually usable. In some
+	// configurations of lxd, apparmor looks available when in
+	// reality it isn't. Eg, this can happen when a container runs
+	// unprivileged (eg, root in the container is non-root
+	// outside) and also unconfined (where lxd doesn't set up an
+	// apparmor policy namespace). We can therefore simply check
+	// if /sys/kernel/security/apparmor/profiles is readable (like
+	// aa-status does), and it isn't, we know we can't manipulate
+	// policy.
 	if osGetuid() == 0 {
 		f, err := os.Open(apparmorProfilesPath)
 		if os.IsPermission(err) {
-			return NoAppArmor, "apparmor available but insufficient permissions to use it"
+			return NoAppArmor, "apparmor detected but insufficient permissions to use it"
 		}
 		f.Close()
 	}

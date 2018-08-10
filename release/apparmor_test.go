@@ -90,7 +90,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 func (s *apparmorSuite) TestAppamorInsufficientPermissions(c *C) {
 	restore := release.MockOsGetuid(0)
 	defer restore()
-	epermProfilePath := filepath.Join(c.MkDir(), ".remove")
+	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
 	restore = release.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()
 	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
@@ -98,5 +98,5 @@ func (s *apparmorSuite) TestAppamorInsufficientPermissions(c *C) {
 
 	level, summary := release.ProbeAppArmor()
 	c.Check(level, Equals, release.NoAppArmor)
-	c.Check(summary, Equals, "apparmor available but insufficient permissions to use it")
+	c.Check(summary, Equals, "apparmor detected but insufficient permissions to use it")
 }
