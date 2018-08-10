@@ -24,6 +24,7 @@
 
 #include "bootstrap.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -258,32 +259,30 @@ static int instance_key_validate(const char *instance_key)
         return -1;
     }
 
+    // This is a regexp-free routine hand-coding the following pattern:
+    //
+    // "^[a-z]{1,10}$"
+    //
+    // The only motivation for not using regular expressions is so that we don't
+    // run untrusted input against a potentially complex regular expression
+    // engine.
     const char *p = instance_key;
-    int n = 0;
-    while (*p != '\0') {
-        int m = 0;
-        m = skip_lowercase_letters(&p);
-        if (m > 0) {
-            n += m;
-            continue;
-        }
-        m = skip_digits(&p);
-        if (m > 0) {
-            n += m;
+    int i = 0;
+    for (i = 0; instance_key[i] != '\0'; i++) {
+        if (islower(instance_key[i]) || isdigit(instance_key[i])) {
             continue;
         }
         bootstrap_msg = "instance key must use lower case letters or digits";
         return -1;
     }
 
-    if (n == 0) {
+    if (i == 0) {
         bootstrap_msg = "instance key must contain at least one letter or digit";
         return -1;
-    } else if (n > 10) {
+    } else if (i > 10) {
         bootstrap_msg = "instance key must be shorter than 10 characters";
         return -1;
     }
-
     return 0;
 }
 
@@ -298,37 +297,30 @@ int validate_instance_name(const char* instance_name)
         return -1;
     }
 
-    const char *instance_sep = strchr(instance_name, '_');
+    // 40 char snap_name + 10 char instance_key + 1 NULL + 1 extra to detect
+    // overflows
+    char s[52] = {0,};
+    strncpy(s, instance_name, sizeof(s));
 
-    if (instance_sep != NULL) {
-        size_t snap_name_len = instance_sep - instance_name;
-        const char *instance_key = instance_sep + 1;
-
-        if (snap_name_len == 0) {
-            bootstrap_msg = "snap name must contain at least one letter";
-            return -1;
-        }
-
-        if (instance_key_validate(instance_key) != 0) {
-            return -1;
-        }
-
-        if (snap_name_len > 40) {
-            bootstrap_msg = "snap name must be shorter than 40 characters";
-            return -1;
-        }
-
-        char snap_name[41];
-        memcpy(snap_name, instance_name, snap_name_len);
-        snap_name[snap_name_len] = '\0';
-
-        return validate_snap_name(snap_name);
-    } else {
-        // just snap name
-        return validate_snap_name(instance_name);
+    char *t = s;
+    const char *snap_name = strsep(&t, "_");
+    const char *instance_key = strsep(&t, "_");
+    const char *third_separator = strsep(&t, "_");
+    if (third_separator != NULL) {
+        return -1;
     }
-    return -1;
+
+    if (validate_snap_name(snap_name) < 0) {
+        return -1;
+    }
+
+    if (instance_key != NULL && instance_key_validate(instance_key) < 0) {
+        return -1;
+    }
+
+    return 0;
 }
+
 
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
