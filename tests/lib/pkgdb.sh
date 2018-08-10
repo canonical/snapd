@@ -513,16 +513,14 @@ pkg_dependencies_ubuntu_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            echo "
-                linux-image-extra-$(uname -r)
-                "
+                pkg_linux_image_extra
             ;;
         ubuntu-16.04-32)
             echo "
                 evolution-data-server
                 gnome-online-accounts
-                linux-image-extra-$(uname -r)
                 "
+                pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
@@ -531,17 +529,15 @@ pkg_dependencies_ubuntu_classic(){
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
-                linux-image-extra-$(uname -r)
                 nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
                 "
+                pkg_linux_image_extra
             ;;
         ubuntu-17.10-64)
-            echo "
-                linux-image-extra-4.13.0-16-generic
-                "
+                pkg_linux_image_extra
             ;;
         ubuntu-18.04-64)
             echo "
@@ -562,11 +558,22 @@ pkg_dependencies_ubuntu_classic(){
     esac
 }
 
+pkg_linux_image_extra(){
+    available_pkgs=$(apt-cache policy linux-image-extra-*-generic | grep -E 'linux-image-extra-.*:' | tr -d :)
+    if echo "$available_pkgs" | grep -q "linux-image-extra-$(uname -r)"; then
+        echo "linux-image-extra-$(uname -r)"
+        return
+    fi
+
+    kernel_version="$(uname -r | cut -d '-' -f1)"
+    echo "$available_pkgs" | grep -E "linux-image-extra-${kernel_version}.*" | head -n1
+}
+
 pkg_dependencies_ubuntu_core(){
     echo "
-        linux-image-extra-$(uname -r)
         pollinate
         "
+        pkg_linux_image_extra
 }
 
 pkg_dependencies_fedora(){
