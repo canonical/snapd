@@ -21,8 +21,12 @@
 
 #include "apparmor-support.h"
 
-#include <string.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #ifdef HAVE_APPARMOR
 #include <sys/apparmor.h>
 #endif				// ifdef HAVE_APPARMOR
@@ -101,23 +105,20 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		apparmor->mode = SC_AA_INVALID;
 	}
 
-        // Check that apparmor is actually usable, i.e. that we have
-        // the right capabilities to use it (CAP_MAC_ADMIN). We test
-        // by tryingto load an empty profile. If we get a
-        // permission denied error we know we are inside an environment
-        // where apparmor is not usable, e.g. in a lxd container that
-        // did not setup apparmor stacking.
-        debug("checking aa_kernel_interface_load_policy");
-        aa_kernel_interface *ki;
-        if (aa_kernel_interface_new(&ki, NULL, NULL) < 0) {
-           die("cannot get apparmor kernel interface");
-        }
-        if (aa_kernel_interface_load_policy(ki, "x", 1) < 0) {
-           if (errno == EPERM) {
-              apparmor->mode = SC_AA_NOT_APPLICABLE;
-           }
-        }
-        aa_kernel_interface_unref(ki);
+	// Check that apparmor is actually usable. In some configurations
+	// of lxd apparmor looks available but it is not usable. This is
+        // the case in when a container runs unprivileged and also
+        // unconfined.
+	int fd = open("/sys/kernel/security/apparmor/profiles", O_RDONLY);
+	if (fd < 0) {
+		if (errno == EACCES) {
+			apparmor->mode = SC_AA_NOT_APPLICABLE;
+		} else {
+			die("open() failed");
+			exit(1);
+		}
+	}
+	close(fd);
 #else
 	apparmor->mode = SC_AA_NOT_APPLICABLE;
 	apparmor->is_confined = false;

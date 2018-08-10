@@ -25,8 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ApparmorLevelType encodes the kind of support for apparmor
@@ -106,8 +104,8 @@ func isDirectory(path string) bool {
 }
 
 var (
-	osGetuid                  = os.Getuid
-	apparmorRemoveProfilePath = "/sys/kernel/security/apparmor/.remove"
+	osGetuid             = os.Getuid
+	apparmorProfilesPath = "/sys/kernel/security/apparmor/.remove"
 )
 
 func probeAppArmor() (AppArmorLevelType, string) {
@@ -116,23 +114,18 @@ func probeAppArmor() (AppArmorLevelType, string) {
 	}
 
 	// Check if we can actually use apparmor, under some systems
-	// (like lxd without apparmor stacking) apparmor will appear
-	// to be available but it won't actually work. For details see
-	// the lxd spread test.
-	//
-	// We do the detection by "removing" an non-exiting (randomly
-	// generated) profile. If we get ENOENT apparmor if fine.
-	// If we get EPERM we run in a system without CAP_MAC_ADMIN
-	// and need to consider apparmor as "unavailable".
-	//
-	// We do it this way instead of using apparmor_parser to avoid
-	// spaming the audit log (apparmor_parser will generate audit
-	// messages).
+	// apparmor will appear to be available but it won't actually
+	// work. This is the case for e.g. an lxd container that runs
+	// unprivileged and also unconfined. In this case no apparmor
+	// stacking is available and any apparmor calls will try to
+	// access the hosts apparmor which willl fail (because the
+	// container runs as a regular user).
 	if osGetuid() == 0 {
-		canary := fmt.Sprintf("canary-%s", strutil.MakeRandomString(20))
-		if err := ioutil.WriteFile(apparmorRemoveProfilePath, []byte(canary), 0644); os.IsPermission(err) {
+		f, err := os.Open(apparmorProfilesPath)
+		if os.IsPermission(err) {
 			return NoAppArmor, "apparmor available but insufficient permissions to use it"
 		}
+		f.Close()
 	}
 
 	// Check apparmor features

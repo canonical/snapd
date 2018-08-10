@@ -91,7 +91,7 @@ func (s *apparmorSuite) TestAppamorInsufficientPermissions(c *C) {
 	restore := release.MockOsGetuid(0)
 	defer restore()
 	epermProfilePath := filepath.Join(c.MkDir(), ".remove")
-	restore = release.MockAppArmorRemoveProfilePath(epermProfilePath)
+	restore = release.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()
 	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
 	c.Assert(err, IsNil)

@@ -40,11 +40,11 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 	}
 }
 
-func MockAppArmorRemoveProfilePath(path string) (restorer func()) {
-	old := apparmorRemoveProfilePath
-	apparmorRemoveProfilePath = path
+func MockAppArmorProfilesPath(path string) (restorer func()) {
+	old := apparmorProfilesPath
+	apparmorProfilesPath = path
 	return func() {
-		apparmorRemoveProfilePath = old
+		apparmorProfilesPath = old
 	}
 }
 
