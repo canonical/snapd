@@ -85,6 +85,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "@invalid"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
 		{[]string{"argv0", "INVALID"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
 		{[]string{"argv0", "foo_01234567890"}, "", false, false, "instance key must be shorter than 10 characters"},
+		{[]string{"argv0", "foo_0123456_2"}, "", false, false, "snap instance name can contain only one underscore"},
 		// The option --from-snap-confine disables setns.
 		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, ""},
 		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, ""},
@@ -96,6 +97,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, false, "unsupported option"},
 	}
 	for _, tc := range cases {
+		update.ClearBootstrapError()
 		snapName, shouldSetNs, userFstab := update.ProcessArguments(tc.cmdline)
 		err := update.BootstrapError()
 		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",

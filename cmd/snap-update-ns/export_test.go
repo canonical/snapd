@@ -42,6 +42,9 @@ var (
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
 	ApplyUserFstab        = applyUserFstab
+
+	// bootstrap
+	ClearBootstrapError = clearBootstrapError
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
