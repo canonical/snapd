@@ -116,14 +116,18 @@ func (x *cmdWait) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKey := x.Positional.Key
 
-	// This is fine because not providing a confKey is unsupport so this
+	// This is fine because not providing a confKey is unsupported so this
 	// won't interfere with supported uses of `snap wait`.
 	if snapName == "godot" && confKey == "" {
-		switch rand.Intn(2) {
+		switch rand.Intn(10) {
 		case 0:
-			fmt.Fprintf(Stdout, `"Let's go." "We can't." "Why not?" "We're waiting for Godot."`+"\n")
+			fmt.Fprintln(Stdout, `The tears of the world are a constant quantity.
+For each one who begins to weep somewhere else another stops.
+The same is true of the laugh.`)
+		case 1:
+			fmt.Fprintln(Stdout, "Nothing happens. Nobody comes, nobody goes. It's awful.")
 		default:
-			fmt.Fprintf(Stdout, "Nothing happens. Nobody comes, nobody goes. It's awful.\n")
+			fmt.Fprintln(Stdout, `"Let's go." "We can't." "Why not?" "We're waiting for Godot."`)
 		}
 		return nil
 	}
