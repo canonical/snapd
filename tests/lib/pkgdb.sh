@@ -559,7 +559,7 @@ pkg_dependencies_ubuntu_classic(){
 }
 
 pkg_linux_image_extra(){
-    available_pkgs=$(apt-cache policy linux-image-extra-*-generic | grep -E 'linux-image-extra-.*:' | tr -d :)
+    available_pkgs=$(apt-cache policy linux-image-extra-.*-generic | grep -E 'linux-image-extra-.*:' | tr -d :)
     if echo "$available_pkgs" | grep -q "linux-image-extra-$(uname -r)"; then
         echo "linux-image-extra-$(uname -r)"
         return
