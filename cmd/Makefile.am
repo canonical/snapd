@@ -39,7 +39,7 @@ check-syntax-c:
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/unit-tests
+	SNAP_DEVICE_HELPER=$(srcdir)/snap-confine/snap-device-helper $(HAVE_VALGRIND) ./snap-confine/unit-tests
 	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:
@@ -288,7 +288,8 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
 	snap-confine/quirks.h \
-	snap-confine/snap-confine-args-test.c
+	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
