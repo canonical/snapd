@@ -870,6 +870,8 @@ func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
+	snapstate.MockModelWithBase("core18")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -891,6 +893,15 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 		SnapType: "base",
 	})
 
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -901,10 +912,10 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 		Channel:  "channel-for-base",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base", "snapd"}, 0)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 3)
-	c.Check(updates, HasLen, 3)
+	c.Assert(tts, HasLen, 4)
+	c.Check(updates, HasLen, 4)
 
 	// to make TaskSnapSetup work
 	chg := s.state.NewChange("refresh", "...")
@@ -912,9 +923,9 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 		chg.AddAll(ts)
 	}
 
-	prereqTotal := len(tts[0].Tasks()) + len(tts[1].Tasks())
+	prereqTotal := len(tts[0].Tasks()) + len(tts[1].Tasks()) + len(tts[2].Tasks())
 	prereqs := map[string]bool{}
-	for i, task := range tts[2].Tasks() {
+	for i, task := range tts[3].Tasks() {
 		waitTasks := task.WaitTasks()
 		if i == 0 {
 			c.Check(len(waitTasks), Equals, prereqTotal)
@@ -933,6 +944,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 	c.Check(prereqs, DeepEquals, map[string]bool{
 		"core":      true,
 		"some-base": true,
+		"snapd":     true,
 	})
 }
 
