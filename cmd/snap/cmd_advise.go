@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdAdviseSnap struct {
@@ -107,7 +108,33 @@ type jsonRPC struct {
 		Command         string   `json:"command"`
 		SearchTerms     []string `json:"search-terms"`
 		UnknownPackages []string `json:"unknown-packages"`
-		Packages        []string `json:"packages"`
+		Packages        []struct {
+			ID           int    `json:"id"`
+			Name         string `json:"name"`
+			Architecture string `json:"architecture"`
+			Mode         string `json:"mode"`
+			Automatic    bool   `json:"automatic"`
+			Versions     struct {
+				Candidate struct {
+					ID           int    `json:"id"`
+					Version      string `json:"version"`
+					Architecture string `json:"architecture"`
+					Pin          int    `json:"pin"`
+				} `json:"candidate"`
+				Install struct {
+					ID           int    `json:"id"`
+					Version      string `json:"version"`
+					Architecture string `json:"architecture"`
+					Pin          int    `json:"pin"`
+				} `json:"install"`
+				Current struct {
+					ID           int    `json:"id"`
+					Version      string `json:"version"`
+					Architecture string `json:"architecture"`
+					Pin          int    `json:"pin"`
+				} `json:"current"`
+			} `json:"versions"`
+		} `json:"packages"`
 	} `json:"params"`
 }
 
@@ -117,6 +144,9 @@ func readRpc(r *bufio.Reader) (*jsonRPC, error) {
 	line, _, err := r.ReadLine()
 	if err != nil {
 		return nil, fmt.Errorf("cannot read json-rpc: %v", err)
+	}
+	if osutil.GetenvBool("SNAP_APT_HOOK_DEBUG") {
+		fmt.Fprintf(os.Stderr, "%s\n", line)
 	}
 
 	var rpc jsonRPC
