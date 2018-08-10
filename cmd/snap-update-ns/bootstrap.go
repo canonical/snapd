@@ -73,6 +73,11 @@ func BootstrapError() error {
 	return fmt.Errorf("%s", C.GoString(C.bootstrap_msg))
 }
 
+func clearBootstrapError() {
+	C.bootstrap_msg = nil
+	C.bootstrap_errno = 0
+}
+
 // END IMPORTANT
 
 func makeArgv(args []string) []*C.char {
