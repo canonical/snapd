@@ -296,16 +296,17 @@ int validate_instance_name(const char* instance_name)
         return -1;
     }
 
-    // 40 char snap_name + 10 char instance_key + 1 NULL + 1 extra to detect
-    // overflows
-    char s[52] = {0,};
-    strncpy(s, instance_name, sizeof(s));
+    // 40 char snap_name + '_' + 10 char instance_key + 1 extra overflow + 1
+    // NULL
+    char s[53] = {0};
+    strncpy(s, instance_name, sizeof(s)-1);
 
     char *t = s;
     const char *snap_name = strsep(&t, "_");
     const char *instance_key = strsep(&t, "_");
     const char *third_separator = strsep(&t, "_");
     if (third_separator != NULL) {
+        bootstrap_msg = "snap instance name can contain only one underscore";
         return -1;
     }
 
@@ -314,6 +315,8 @@ int validate_instance_name(const char* instance_name)
     }
 
     if (instance_key != NULL && instance_key_validate(instance_key) < 0) {
+        // When the instance_name is a normal snap name, instance_key will be
+        // NULL, so only validate instance_key when we found one.
         return -1;
     }
 
