@@ -54,6 +54,7 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	err := s.dbusDaemon.Start()
 	c.Assert(err, IsNil)
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
+	os.Unsetenv("DBUS_SESSION_BUS_ADDRESS")
 
 	s.SessionBus, err = dbus.SessionBus()
 	c.Assert(err, IsNil)
