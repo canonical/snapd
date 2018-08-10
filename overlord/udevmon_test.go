@@ -20,13 +20,14 @@
 package overlord_test
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
-
-	"time"
 )
 
 type udevMonitorSuite struct{}
@@ -43,15 +44,34 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addCalled, removeCalled bool
-	var addInfo, remInfo *hotplug.HotplugDeviceInfo
+	var addInfos []*hotplug.HotplugDeviceInfo
+	var remInfo *hotplug.HotplugDeviceInfo
+
+	callbackChannel := make(chan struct{}, 2)
+	defer close(callbackChannel)
+
 	addedCb := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
-		addInfo = inf
+		addInfos = append(addInfos, inf)
+		callbackChannel <- struct{}{}
 	}
 	removedCb := func(inf *hotplug.HotplugDeviceInfo) {
 		removeCalled = true
 		remInfo = inf
+		callbackChannel <- struct{}{}
 	}
+
+	cmd := testutil.MockCommand(c, "udevadm", `#!/bin/sh
+cat << __END__
+P: /a/path
+N: name
+E: DEVNAME=name
+E: foo=bar
+E: DEVPATH=/a/path
+E: SUBSYSTEM=tty
+`)
+	defer cmd.Restore()
+
 	mon := overlord.NewUDevMonitor(addedCb, removedCb)
 	c.Assert(mon, NotNil)
 	udevmon, _ := mon.(*overlord.UDevMonitor)
@@ -91,10 +111,28 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 			"DEVTYPE":   "bzz",
 		},
 	}
-	c.Assert(udevmon.Stop(), IsNil)
+
+	// expect two devices - one from udev event, one from enumeration.
+	const numExpectedDevices = 2
+
+	var done bool
+	for !done {
+		select {
+		case <-callbackChannel:
+			if len(addInfos) == numExpectedDevices && removeCalled {
+				done = true
+			}
+		case <-time.After(3 * time.Second):
+			done = true
+			c.Error("Did not receive expected devices before timeout")
+		}
+	}
 
 	c.Assert(addCalled, Equals, true)
 	c.Assert(removeCalled, Equals, true)
+	c.Assert(addInfos, HasLen, numExpectedDevices)
+
+	c.Assert(udevmon.Stop(), IsNil)
 
 	// test that stop channel was closed
 	more := true
@@ -106,6 +144,12 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	}
 	c.Assert(more, Equals, false)
 
+	addInfo := addInfos[0]
+	c.Assert(addInfo.DeviceName(), Equals, "name")
+	c.Assert(addInfo.DevicePath(), Equals, "/sys/a/path")
+	c.Assert(addInfo.Subsystem(), Equals, "tty")
+
+	addInfo = addInfos[1]
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
 	c.Assert(addInfo.Subsystem(), Equals, "usb")

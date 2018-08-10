@@ -24,10 +24,9 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/osutil/udev/netlink"
-
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
 type UDevMon interface {
@@ -46,9 +45,10 @@ type UDevMonitor struct {
 	deviceRemovedCb DeviceRemovedCallback
 	netlinkConn     *netlink.UEventConn
 	// channels used by netlink connection and monitor
-	monitorStop   chan struct{}
-	netlinkErrors chan error
-	netlinkEvents chan netlink.UEvent
+	monitorStop         chan struct{}
+	netlinkErrors       chan error
+	netlinkEvents       chan netlink.UEvent
+	queuedNetlinkEvents []*netlink.UEvent
 }
 
 func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
@@ -85,16 +85,51 @@ func (m *UDevMonitor) Connect() error {
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
 func (m *UDevMonitor) Run() error {
+	existingDevices := make(chan *hotplug.HotplugDeviceInfo)
+	udevadmErrors := make(chan error)
+
+	if err := hotplug.EnumerateExistingDevices(existingDevices, udevadmErrors); err != nil {
+		return fmt.Errorf("failed to enumerate existing devices: %s", err)
+	}
+
 	m.tmb.Go(func() error {
+		var enumerationFinished bool
+
 		for {
 			select {
+			case err, ok := <-udevadmErrors:
+				if ok {
+					logger.Noticef("udevadm error: %q\n", err)
+				} else {
+					udevadmErrors = nil
+				}
+			case dev, ok := <-existingDevices:
+				if ok {
+					if m.deviceAddedCb != nil {
+						m.deviceAddedCb(dev)
+					}
+				} else {
+					existingDevices = nil
+					// enumeration of existing devices has finished, flush queued events
+					for _, ev := range m.queuedNetlinkEvents {
+						m.udevEvent(ev)
+					}
+					m.queuedNetlinkEvents = nil
+					enumerationFinished = true
+				}
 			case err := <-m.netlinkErrors:
 				logger.Noticef("netlink error: %q\n", err)
 			case ev := <-m.netlinkEvents:
-				m.udevEvent(&ev)
+				// queue netlink events until enumeration of existing devices finishes
+				if !enumerationFinished {
+					m.queuedNetlinkEvents = append(m.queuedNetlinkEvents, &ev)
+				} else {
+					m.udevEvent(&ev)
+				}
 			case <-m.tmb.Dying():
 				close(m.monitorStop)
 				m.netlinkConn.Close()
+				m.queuedNetlinkEvents = nil
 				return nil
 			}
 		}
