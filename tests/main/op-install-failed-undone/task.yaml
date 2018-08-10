@@ -3,23 +3,26 @@ summary: Check that all tasks of a failed installtion are undone
 systems: [-ubuntu-core-*]
 
 restore: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     rm -rf $SNAP_MOUNT_DIR/test-snapd-tools
 
 execute: |
     check_empty_glob(){
         local base_path=$1
         local glob=$2
-        [ $(find $base_path -maxdepth 1 -name "$glob" | wc -l) -eq 0 ]
+        [ "$(find "$base_path" -maxdepth 1 -name "$glob" | wc -l)" -eq 0 ]
     }
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Given we make a snap uninstallable"
     mkdir -p $SNAP_MOUNT_DIR/test-snapd-tools/current/foo
 
     echo "And we try to install it"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     if install_local test-snapd-tools; then
         echo "A snap shouldn't be installable if its mount point is busy"
         exit 1
@@ -30,23 +33,23 @@ execute: |
 
     echo "And the installation task is reported as an error"
     failed_task_id=$(snap changes | perl -ne 'print $1 if /(\d+) +Error.*?Install \"test-snapd-tools\" snap/')
-    if [ -z $failed_task_id ]; then
+    if [ -z "$failed_task_id" ]; then
         echo "Installation task should be reported as error"
         exit 1
     fi
 
     echo "And the Mount subtask is actually undone"
-    snap change $failed_task_id | grep -Pq "Undone +.*?Mount snap \"test-snapd-tools\""
+    snap change "$failed_task_id" | grep -Pq "Undone +.*?Mount snap \"test-snapd-tools\""
     check_empty_glob $SNAP_MOUNT_DIR/test-snapd-tools [0-9]+
     check_empty_glob /var/lib/snapd/snaps test-snapd-tools_[0-9]+.snap
 
     echo "And the Data Copy subtask is actually undone"
-    snap change $failed_task_id | grep -Pq "Undone +.*?Copy snap \"test-snapd-tools\" data"
-    check_empty_glob $HOME/snap/test-snapd-tools [0-9]+
+    snap change "$failed_task_id" | grep -Pq "Undone +.*?Copy snap \"test-snapd-tools\" data"
+    check_empty_glob "$HOME"/snap/test-snapd-tools [0-9]+
     check_empty_glob /var/snap/test-snapd-tools [0-9]+
 
     echo "And the Security Profiles Setup subtask is actually undone"
-    snap change $failed_task_id | grep -Pq "Undone +.*?Setup snap \"test-snapd-tools\" \(unset\) security profiles"
+    snap change "$failed_task_id" | grep -Pq "Undone +.*?Setup snap \"test-snapd-tools\" \\(unset\\) security profiles"
     check_empty_glob /var/lib/snapd/apparmor/profiles snap.test-snapd-tools.*
     check_empty_glob /var/lib/snapd/seccomp/bpf snap.test-snapd-tools.*
     check_empty_glob /etc/dbus-1/system.d snap.test-snapd-tools.*.conf
