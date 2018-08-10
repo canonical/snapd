@@ -266,7 +266,6 @@ static int instance_key_validate(const char *instance_key)
     // The only motivation for not using regular expressions is so that we don't
     // run untrusted input against a potentially complex regular expression
     // engine.
-    const char *p = instance_key;
     int i = 0;
     for (i = 0; instance_key[i] != '\0'; i++) {
         if (islower(instance_key[i]) || isdigit(instance_key[i])) {
