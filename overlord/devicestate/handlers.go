@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -87,21 +88,30 @@ var (
 )
 
 func newEnoughProxy(proxyURL *url.URL, client *http.Client) bool {
+	const prefix = "Cannot check whether proxy store supports a custom serial vault"
+
 	req, err := http.NewRequest("HEAD", proxyURL.String(), nil)
 	if err != nil {
+		// can't really happen unless proxyURL is somehow broken
+		logger.Debugf(prefix+": %v", err)
 		return false
 	}
 	req.Header.Set("User-Agent", httputil.UserAgent())
 	resp, err := client.Do(req)
 	if err != nil {
+		// some sort of network or protocol error
+		logger.Debugf(prefix+": %v", err)
 		return false
 	}
 	resp.Body.Close()
 	if resp.StatusCode != 200 {
+		logger.Debugf(prefix+": Head request returned %s.", resp.Status)
 		return false
 	}
-	ver, err := strconv.Atoi(resp.Header.Get("Snap-Store-Version"))
+	verstr := resp.Header.Get("Snap-Store-Version")
+	ver, err := strconv.Atoi(verstr)
 	if err != nil {
+		logger.Debugf(prefix+": Bogus Snap-Store-Version header %q.", verstr)
 		return false
 	}
 	return ver >= 6
@@ -467,6 +477,7 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 	}
 
 	if proxyURL != nil && svcURL != nil && !newEnoughProxy(proxyURL, client) {
+		logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
 		proxyURL = nil
 	}
 

@@ -112,6 +112,7 @@ var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
 	CanAutoRefresh           = canAutoRefresh
+	NewEnoughProxy           = newEnoughProxy
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts

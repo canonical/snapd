@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"sync"
 	"testing"
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -2487,4 +2489,67 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	// only the fake seeding change is in the state, no further
 	// changes
 	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
+	expectedUserAgent := httputil.UserAgent()
+	log, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	expecteds := []string{
+		`parse .*`, // this one won't actually reach the server
+		`Head http://\S+: EOF`,
+		`Head request returned 403 Forbidden.`,
+		`Bogus Snap-Store-Version header "5pre1".`,
+		``,
+	}
+
+	n := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
+		n++
+		switch n {
+		case 1:
+			conn, _, err := w.(http.Hijacker).Hijack()
+			c.Assert(err, IsNil)
+			conn.Close()
+		case 2:
+			w.WriteHeader(403)
+		case 3:
+			w.Header().Set("Snap-Store-Version", "5pre1")
+			w.WriteHeader(200)
+		case 4:
+			w.Header().Set("Snap-Store-Version", "5")
+			w.WriteHeader(200)
+		case 5:
+			w.Header().Set("Snap-Store-Version", "6")
+			w.WriteHeader(200)
+		default:
+			c.Errorf("expected %d results, now on %d", len(expecteds), n)
+		}
+	}))
+	defer server.Close()
+
+	u1 := &url.URL{Opaque: "%a"} // bad urls are bad
+	u2, err := url.Parse(server.URL)
+	c.Assert(err, IsNil)
+	u := u1
+	for _, expected := range expecteds {
+		log.Reset()
+		c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, false)
+		if len(expected) > 0 {
+			expected = "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: " + expected
+		}
+		c.Check(log.String(), Matches, expected)
+		u = u2
+	}
+	c.Check(n, Equals, len(expecteds)-1)
+
+	// and success at last
+	log.Reset()
+	c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, true)
+	c.Check(log.String(), Equals, "")
+	c.Check(n, Equals, len(expecteds))
 }
