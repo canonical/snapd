@@ -99,6 +99,16 @@ E: SUBSYSTEM=tty
 			"DEVTYPE":   "boo",
 		},
 	}
+	// the 2nd device will be ignored by de-duplication logic since it's also reported by udevadm mock.
+	event <- netlink.UEvent{
+		Action: netlink.ADD,
+		KObj:   "foo",
+		Env: map[string]string{
+			"DEVPATH":   "/a/path",
+			"SUBSYSTEM": "tty",
+			"DEVNAME":   "name",
+		},
+	}
 	event <- netlink.UEvent{
 		Action: netlink.REMOVE,
 		KObj:   "bar",
