@@ -100,10 +100,11 @@ const defaultShell = "/bin/bash"
 
 func findCommand(app *snap.AppInfo, command string, skipCommandChain bool) (string, error) {
 	chain := make([]string, 0, len(app.CommandChain)+1)
+	snapMountDir := app.Snap.MountDir()
 
 	if !skipCommandChain {
 		for _, element := range app.CommandChain {
-			chain = append(chain, filepath.Join(app.Snap.MountDir(), element))
+			chain = append(chain, filepath.Join(snapMountDir, element))
 		}
 	}
 
@@ -116,18 +117,18 @@ func findCommand(app *snap.AppInfo, command string, skipCommandChain bool) (stri
 		}
 	case "stop":
 		if app.StopCommand != "" {
-			chain = append(chain, filepath.Join(app.Snap.MountDir(), app.StopCommand))
+			chain = append(chain, filepath.Join(snapMountDir, app.StopCommand))
 		}
 	case "reload":
 		if app.ReloadCommand != "" {
-			chain = append(chain, filepath.Join(app.Snap.MountDir(), app.ReloadCommand))
+			chain = append(chain, filepath.Join(snapMountDir, app.ReloadCommand))
 		}
 	case "post-stop":
 		if app.PostStopCommand != "" {
-			chain = append(chain, filepath.Join(app.Snap.MountDir(), app.PostStopCommand))
+			chain = append(chain, filepath.Join(snapMountDir, app.PostStopCommand))
 		}
 	case "", "gdb":
-		chain = append(chain, filepath.Join(app.Snap.MountDir(), app.Command))
+		chain = append(chain, filepath.Join(snapMountDir, app.Command))
 	default:
 		return "", fmt.Errorf("cannot use %q command", command)
 	}
