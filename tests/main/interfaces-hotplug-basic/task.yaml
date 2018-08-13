@@ -1,0 +1,28 @@
+summary: Basic test to ensure udev monitor doesn't error out and is enabled.
+
+execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    # Restart so that we capture early startup messages in the logs
+    systemctl restart snapd.{socket,service}
+
+    # Feature flag doesn't need to be set for udev monitor to start, but make sure
+    # the flag is accepted (TODO: add some checks based on the flag on/off once
+    # hotplug works).
+    echo "Ensure feature flag is enabled"
+    snap set core experimental.hotplug=true
+
+    if [ $(snap get core experimental.hotplug) != "true" ]; then
+        echo "Expected experimental.hotplug feature to be enabled"
+        exit 1
+    fi
+
+    echo "Ensure that udev monitoring is enabled and doesn't fail"
+    if get_journalctl_log | MATCH "Failed to start udev monitor:"; then
+        exit 1
+    fi
+    if get_journalctl_log | MATCH "Failed to connect udev monitor:"; then
+      exit 1
+    fi
+    get_journalctl_log | MATCH "Udev event monitoring enabled"

@@ -271,6 +271,8 @@ func (o *Overlord) Loop() {
 				err = o.udevMon.Run()
 				if err != nil {
 					logger.Noticef("Failed to start udev monitor: %s", err)
+				} else {
+					logger.Noticef("Udev event monitoring enabled")
 				}
 			} else {
 				logger.Noticef("Failed to connect udev monitor: %s", err)
