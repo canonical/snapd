@@ -584,8 +584,10 @@ func validateAppTimer(app *AppInfo) error {
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
-// will get confused.
+// will get confused. chainContentWhitelist is the same, but for the
+// command-chain, which also doesn't allow whitespace.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
+var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
@@ -623,9 +625,9 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
-	// Also validate the command chain in the same manner
+	// Also validate the command chain
 	for _, value := range app.CommandChain {
-		if err := validateField("command-chain", value, appContentWhitelist); err != nil {
+		if err := validateField("command-chain", value, commandChainContentWhitelist); err != nil {
 			return err
 		}
 	}

@@ -445,6 +445,7 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar'baz"}}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar baz"}}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
