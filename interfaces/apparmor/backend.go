@@ -429,8 +429,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
-		case "###SNAP_NAME###":
-			// TODO parallel-install: use of proper instance/store name
+		case "###SNAP_INSTANCE_NAME###":
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
 			return snippets
