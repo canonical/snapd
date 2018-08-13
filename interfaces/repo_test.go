@@ -128,7 +128,7 @@ func (s *RepositorySuite) TearDownTest(c *C) {
 }
 
 func addPlugsSlotsFromInstances(c *C, repo *Repository, instanceNamesAndYamls ...string) []*snap.Info {
-	c.Assert(len(instanceNamesAndYamls)%2, Equals, 0, Commentf("unexpected length"))
+	c.Assert(len(instanceNamesAndYamls)%2, Equals, 0, Commentf("unexpected length: expected instance name, yaml pairs"))
 	result := make([]*snap.Info, 0, len(instanceNamesAndYamls)/2)
 	for i := 0; i < len(instanceNamesAndYamls); i = i + 2 {
 		info := snaptest.MockInfo(c, instanceNamesAndYamls[i+1], nil)
@@ -2101,48 +2101,48 @@ func (s *RepositorySuite) TestInfo(c *C) {
 	c.Assert(r.AddInterface(i3), IsNil)
 
 	// Add some test snaps.
-	s1 := snaptest.MockInfo(c, fmt.Sprintf(`
+	s1 := snaptest.MockInfo(c, `
 name: s1
 version: 0
 apps:
   s1:
     plugs: [i1, i2]
-`), nil)
+`, nil)
 	c.Assert(r.AddSnap(s1), IsNil)
 
-	s2 := snaptest.MockInfo(c, fmt.Sprintf(`
+	s2 := snaptest.MockInfo(c, `
 name: s2
 version: 0
 apps:
   s2:
     slots: [i1, i3]
-`), nil)
+`, nil)
 	c.Assert(r.AddSnap(s2), IsNil)
 
-	s3 := snaptest.MockInfo(c, fmt.Sprintf(`
+	s3 := snaptest.MockInfo(c, `
 name: s3
 version: 0
 type: os
 slots:
   i2:
-`), nil)
+`, nil)
 	c.Assert(r.AddSnap(s3), IsNil)
-	s3Instance := snaptest.MockInfo(c, fmt.Sprintf(`
+	s3Instance := snaptest.MockInfo(c, `
 name: s3
 version: 0
 type: os
 slots:
   i2:
-`), nil)
+`, nil)
 	s3Instance.InstanceKey = "instance"
 	c.Assert(r.AddSnap(s3Instance), IsNil)
-	s4 := snaptest.MockInfo(c, fmt.Sprintf(`
+	s4 := snaptest.MockInfo(c, `
 name: s4
 version: 0
 apps:
   s1:
     plugs: [i2]
-`), nil)
+`, nil)
 	c.Assert(r.AddSnap(s4), IsNil)
 
 	// Connect a few things for the tests below.
