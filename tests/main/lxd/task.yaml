@@ -17,7 +17,9 @@ priority: 1000
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
-    apt autoremove -y lxd
+    if command -v apt; then
+        apt autoremove -y lxd
+    fi
 
 restore: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
@@ -59,7 +61,10 @@ execute: |
         lxd.lxc config set core.proxy_https $http_proxy
     fi
 
-    lxd.lxc launch ubuntu:16.04 my-ubuntu
+    # The snapd package we build as part of the tests will only run on the
+    # distro we build on. So we need to launch the right ubuntu version.
+    . /etc/os-release
+    lxd.lxc launch ubuntu:${VERSION_ID} my-ubuntu
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
@@ -70,7 +75,7 @@ execute: |
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
     lxd.lxc file push "$GOHOME"/snapd_*.deb my-ubuntu/$GOPATH/
-    lxd.lxc exec my-ubuntu -- dpkg -i "$GOHOME"/snapd_*.deb
+    lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
     echo "Setting up proxy *inside* the container"
     if [ -n "${http_proxy:-}" ]; then
