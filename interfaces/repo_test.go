@@ -428,10 +428,10 @@ plugs:
 	c.Assert(s.testRepo.AllPlugs(""), DeepEquals, []*snap.PlugInfo{
 		snaps[0].Plugs["name-a"],
 		snaps[1].Plugs["name-a"],
-		snaps[2].Plugs["name-a"],
 		snaps[1].Plugs["name-b"],
-		snaps[2].Plugs["name-b"],
 		snaps[1].Plugs["name-c"],
+		snaps[2].Plugs["name-a"],
+		snaps[2].Plugs["name-b"],
 		snaps[2].Plugs["name-c"],
 	})
 }
