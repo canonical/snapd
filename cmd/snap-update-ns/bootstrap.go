@@ -73,6 +73,11 @@ func BootstrapError() error {
 	return fmt.Errorf("%s", C.GoString(C.bootstrap_msg))
 }
 
+func clearBootstrapError() {
+	C.bootstrap_msg = nil
+	C.bootstrap_errno = 0
+}
+
 // END IMPORTANT
 
 func makeArgv(args []string) []*C.char {
@@ -90,12 +95,12 @@ func freeArgv(argv []*C.char) {
 	}
 }
 
-// validateSnapName checks if snap name is valid.
+// validateInstanceName checks if snap instance name is valid.
 // This also sets bootstrap_msg on failure.
-func validateSnapName(snapName string) int {
-	cStr := C.CString(snapName)
+func validateInstanceName(instanceName string) int {
+	cStr := C.CString(instanceName)
 	defer C.free(unsafe.Pointer(cStr))
-	return int(C.validate_snap_name(cStr))
+	return int(C.validate_instance_name(cStr))
 }
 
 // processArguments parses commnad line arguments.
