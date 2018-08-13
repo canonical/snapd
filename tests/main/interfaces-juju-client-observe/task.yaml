@@ -3,6 +3,9 @@ summary: Ensure that the juju client observe interface works.
 details: |
     The juju-client-observe interface allows access to the juju client configuration
 
+# The interface is not defined for ubuntu core systems
+systems: [-ubuntu-core-*]
+
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
