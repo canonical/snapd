@@ -6,4 +6,4 @@ description: A buildable snap that uses command chain
 apps:
   hello:
     command: hello
-    command-chain: [chain -i1, chain -i2]
+    command-chain: [chain1, chain2]
