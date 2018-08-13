@@ -314,9 +314,9 @@ int validate_instance_name(const char* instance_name)
         return -1;
     }
 
+    // When the instance_name is a normal snap name, instance_key will be
+    // NULL, so only validate instance_key when we found one.
     if (instance_key != NULL && instance_key_validate(instance_key) < 0) {
-        // When the instance_name is a normal snap name, instance_key will be
-        // NULL, so only validate instance_key when we found one.
         return -1;
     }
 
