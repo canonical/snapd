@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "utils.h"
 #include "string-utils.h"
@@ -154,19 +155,16 @@ void sc_instance_key_validate(const char *instance_key,
 				    "instance key cannot be NULL");
 		goto out;
 	}
-
-	const char *p = instance_key;
-	int n = 0;
-	while (*p != '\0') {
-		int m = 0;
-		m = skip_lowercase_letters(&p);
-		if (m > 0) {
-			n += m;
-			continue;
-		}
-		m = skip_digits(&p);
-		if (m > 0) {
-			n += m;
+	// This is a regexp-free routine hand-coding the following pattern:
+	//
+	// "^[a-z]{1,10}$"
+	//
+	// The only motivation for not using regular expressions is so that we don't
+	// run untrusted input against a potentially complex regular expression
+	// engine.
+	int i = 0;
+	for (i = 0; instance_key[i] != '\0'; i++) {
+		if (islower(instance_key[i]) || isdigit(instance_key[i])) {
 			continue;
 		}
 		err =
@@ -175,16 +173,15 @@ void sc_instance_key_validate(const char *instance_key,
 		goto out;
 	}
 
-	if (n == 0) {
+	if (i == 0) {
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
 				  "instance key must contain at least one letter or digit");
-	} else if (n > 10) {
+	} else if (i > 10) {
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
 				  "instance key must be shorter than 10 characters");
 	}
-
  out:
 	sc_error_forward(errorp, err);
 }
