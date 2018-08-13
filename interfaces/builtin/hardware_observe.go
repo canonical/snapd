@@ -52,6 +52,9 @@ capability sys_admin,
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
 
+# power information
+/sys/power/{,**} r,
+
 # interrupts
 @{PROC}/interrupts r,
 
