@@ -222,6 +222,42 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 
 }
 
+func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current:     snap.R(1),
+		SnapType:    "os",
+		Channel:     "foo",
+		InstanceKey: "bar",
+	}
+
+	s.state.Lock()
+
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "no-instance-key", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	err := snapstate.Get(s.state, "bar", nil)
+	c.Assert(err, ErrorMatches, "internal error: snapst is nil")
+
+	err = snapstate.Get(s.state, "no-instance-key", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst, DeepEquals, snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+}
+
 func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1742,9 +1778,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "some-snap",
-				Channel: "some-channel",
+				Action:       "install",
+				InstanceName: "some-snap",
+				Channel:      "some-channel",
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -1901,9 +1937,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:   "install",
-				Name:     "some-snap",
-				Revision: snap.R(42),
+				Action:       "install",
+				InstanceName: "some-snap",
+				Revision:     snap.R(42),
 			},
 			revno:  snap.R(42),
 			userID: 1,
@@ -2080,7 +2116,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{{
-				Name:            "services-snap",
+				InstanceName:    "services-snap",
 				SnapID:          "services-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
@@ -2091,10 +2127,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "refresh",
-				SnapID:  "services-snap-id",
-				Channel: "some-channel",
-				Flags:   store.SnapActionEnforceValidation,
+				Action:       "refresh",
+				InstanceName: "services-snap",
+				SnapID:       "services-snap-id",
+				Channel:      "some-channel",
+				Flags:        store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -2558,9 +2595,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 		case "storesvc-snap-action":
 			ir++
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
-				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
-				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
-				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
+				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
@@ -2648,9 +2685,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 		case "storesvc-snap-action":
 			ir++
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
-				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
-				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
-				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
+				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
@@ -2749,9 +2786,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 		case "storesvc-snap-action":
 			ir++
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
-				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
-				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
-				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
+				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
@@ -2806,7 +2843,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{{
-				Name:          "some-snap",
+				InstanceName:  "some-snap",
 				SnapID:        "some-snap-id",
 				Revision:      snap.R(7),
 				RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
@@ -2816,10 +2853,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "refresh",
-				SnapID:  "some-snap-id",
-				Channel: "some-channel",
-				Flags:   store.SnapActionEnforceValidation,
+				Action:       "refresh",
+				InstanceName: "some-snap",
+				SnapID:       "some-snap-id",
+				Channel:      "some-channel",
+				Flags:        store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -2977,7 +3015,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{{
-				Name:            "some-snap",
+				InstanceName:    "some-snap",
 				SnapID:          "some-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
@@ -2988,10 +3026,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "refresh",
-				SnapID:  "some-snap-id",
-				Channel: "some-channel",
-				Flags:   store.SnapActionEnforceValidation,
+				Action:       "refresh",
+				InstanceName: "some-snap",
+				SnapID:       "some-snap-id",
+				Channel:      "some-channel",
+				Flags:        store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -3261,7 +3300,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{{
-				Name:            "some-snap",
+				InstanceName:    "some-snap",
 				SnapID:          "some-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "other-channel",
@@ -3273,10 +3312,11 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "refresh",
-				SnapID:  "some-snap-id",
-				Channel: "channel-for-7",
-				Flags:   store.SnapActionEnforceValidation,
+				Action:       "refresh",
+				InstanceName: "some-snap",
+				SnapID:       "some-snap-id",
+				Channel:      "channel-for-7",
+				Flags:        store.SnapActionEnforceValidation,
 			},
 			userID: 1,
 		},
@@ -3533,7 +3573,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			Name:             "some-snap",
+			InstanceName:     "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(7),
 			IgnoreValidation: false,
@@ -3545,10 +3585,11 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 		op:    "storesvc-snap-action:action",
 		revno: snap.R(11),
 		action: store.SnapAction{
-			Action:  "refresh",
-			SnapID:  "some-snap-id",
-			Channel: "stable",
-			Flags:   store.SnapActionIgnoreValidation,
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+			Channel:      "stable",
+			Flags:        store.SnapActionIgnoreValidation,
 		},
 		userID: 1,
 	})
@@ -3579,7 +3620,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			Name:             "some-snap",
+			InstanceName:     "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(11),
 			TrackingChannel:  "stable",
@@ -3592,9 +3633,10 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 		op:    "storesvc-snap-action:action",
 		revno: snap.R(12),
 		action: store.SnapAction{
-			Action: "refresh",
-			SnapID: "some-snap-id",
-			Flags:  0,
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+			Flags:        0,
 		},
 		userID: 1,
 	})
@@ -3630,7 +3672,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			Name:             "some-snap",
+			InstanceName:     "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(12),
 			TrackingChannel:  "stable",
@@ -3643,10 +3685,11 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 		op:    "storesvc-snap-action:action",
 		revno: snap.R(11),
 		action: store.SnapAction{
-			Action:  "refresh",
-			SnapID:  "some-snap-id",
-			Channel: "stable",
-			Flags:   store.SnapActionEnforceValidation,
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+			Channel:      "stable",
+			Flags:        store.SnapActionEnforceValidation,
 		},
 		userID: 1,
 	})
@@ -3765,7 +3808,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			Name:          "some-snap",
+			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
@@ -3805,7 +3848,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			Name:          "some-snap",
+			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
@@ -3844,7 +3887,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			Name:          "some-snap",
+			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
@@ -6150,9 +6193,9 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "some-snap",
-				Channel: "some-channel",
+				Action:       "install",
+				InstanceName: "some-snap",
+				Channel:      "some-channel",
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -7504,8 +7547,13 @@ type canRemoveSuite struct {
 var _ = Suite(&canRemoveSuite{})
 
 func (s *canRemoveSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	snapstate.MockModel()
+}
+
+func (s *canRemoveSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -7543,6 +7591,9 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	snapstate.MockModelWithBase("core18")
 	os := &snap.Info{
 		Type: snap.TypeOS,
@@ -7550,6 +7601,30 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
 	os.RealName = "os"
 
 	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapstate.MockModelWithBase("core18")
+
+	// pretend we have a snap installed that has no base (which means
+	// it needs core)
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0", si)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+	})
+
+	// now pretend we want to remove the core snap
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.RealName = "core"
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
 }
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
@@ -7570,6 +7645,74 @@ func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
+}
+
+func (s *canRemoveSuite) TestBaseUnused(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestBaseInUse(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+	})
+
+	// pretend now we want to remove "some-base"
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
+	// older revision uses base
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	// new one does not
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\n", si2)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si, si2},
+		Current:  snap.R(2),
+	})
+
+	// pretend now we want to remove "some-base"
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+	// revision 1 requires some-base
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+
+	// now pretend we want to remove the core snap
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.RealName = "core"
+	// but revision 2 requires core
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
 }
 
 func revs(seq []*snap.SideInfo) []int {
@@ -8510,15 +8653,15 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{
-				{Name: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{InstanceName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
 			},
 		},
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "core",
-				Channel: "beta",
+				Action:       "install",
+				InstanceName: "core",
+				Channel:      "beta",
 			},
 			revno: snap.R(11),
 		},
@@ -9148,9 +9291,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:   "install",
-				Name:     "some-snap",
-				Revision: snap.R(42),
+				Action:       "install",
+				InstanceName: "some-snap",
+				Revision:     snap.R(42),
 			},
 			revno:  snap.R(42),
 			userID: 1,
@@ -9164,9 +9307,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "core",
-				Channel: "stable",
+				Action:       "install",
+				InstanceName: "core",
+				Channel:      "stable",
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -9459,7 +9602,7 @@ type behindYourBackStore struct {
 }
 
 func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
-	if len(actions) == 1 && actions[0].Action == "install" && actions[0].Name == "core" {
+	if len(actions) == 1 && actions[0].Action == "install" && actions[0].InstanceName == "core" {
 		s.state.Lock()
 		if !s.coreInstallRequested {
 			s.coreInstallRequested = true
@@ -9700,9 +9843,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:   "install",
-			Name:     "snap-content-plug",
-			Revision: snap.R(42),
+			Action:       "install",
+			InstanceName: "snap-content-plug",
+			Revision:     snap.R(42),
 		},
 		revno:  snap.R(42),
 		userID: 1,
@@ -9712,9 +9855,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:  "install",
-			Name:    "snap-content-slot",
-			Channel: "stable",
+			Action:       "install",
+			InstanceName: "snap-content-slot",
+			Channel:      "stable",
 		},
 		revno:  snap.R(11),
 		userID: 1,
