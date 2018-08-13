@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,22 +28,28 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
+// The audio-playback interface is the companion interface to the audio-record
+// interface. The design of this interface is based on the idea that the slot
+// implementation (eg pulseaudio) is expected to query snapd on if the
+// audio-record slot is connected or not and the audio service will mediate
+// recording. If other audio recording servers require different security
+// policy for record and playback (eg, a different socket path), then those
+// accesses will be added to this interface.
 
-const pulseaudioBaseDeclarationSlots = `
-  pulseaudio:
+const audioPlaybackSummary = `allows operating as or interacting with playback audio services`
+
+const audioPlaybackBaseDeclarationSlots = `
+  audio-playback:
     allow-installation:
       slot-snap-type:
         - app
         - core
     deny-connection:
       on-classic: false
-    deny-auto-connection: true
 `
 
-const pulseaudioConnectedPlugAppArmor = `
-# Allow communicating with pulseaudio service for playback and, on some
-# distributions, recording.
+const audioPlaybackConnectedPlugAppArmor = `
+# Allow communicating with pulseaudio service
 /{run,dev}/shm/pulse-shm-* mrwk,
 
 owner /{,var/}run/pulse/ r,
@@ -55,23 +61,24 @@ owner /run/user/[0-9]*/pulse/ rw,
 /run/udev/data/+sound:card[0-9]* r,
 `
 
-const pulseaudioConnectedPlugAppArmorDesktop = `
+const audioPlaybackConnectedPlugAppArmorDesktop = `
+# Allow communicating with pulseaudio service on the desktop in classic distro.
 # Only on desktop do we need access to /etc/pulse for any PulseAudio client
 # to read available client side configuration settings. On an Ubuntu Core
 # device those things will be stored inside the snap directory.
 /etc/pulse/ r,
-/etc/pulse/** r,
+/etc/pulse/* r,
 owner @{HOME}/.pulse-cookie rk,
 owner @{HOME}/.config/pulse/cookie rk,
 owner /{,var/}run/user/*/pulse/ rwk,
 owner /{,var/}run/user/*/pulse/native rwk,
 `
 
-const pulseaudioConnectedPlugSecComp = `
+const audioPlaybackConnectedPlugSecComp = `
 shmctl
 `
 
-const pulseaudioPermanentSlotAppArmor = `
+const audioPlaybackPermanentSlotAppArmor = `
 # When running PulseAudio in system mode it will switch to the at
 # build time configured user/group on startup.
 capability setuid,
@@ -83,23 +90,11 @@ capability sys_resource,
 owner @{PROC}/@{pid}/exe r,
 /etc/machine-id r,
 
-# Audio related
-@{PROC}/asound/devices r,
-@{PROC}/asound/card** r,
-
-# Should use the alsa interface instead
-/dev/snd/pcm* rw,
-/dev/snd/control* rw,
-/dev/snd/timer r,
-
-/sys/**/sound/** r,
-
 # For udev
 network netlink raw,
 /sys/devices/virtual/dmi/id/sys_vendor r,
 /sys/devices/virtual/dmi/id/bios_vendor r,
-# FIXME: use udev queries to make this more specific
-/run/udev/data/** r,
+/sys/**/sound/** r,
 
 owner /{,var/}run/pulse/ rw,
 owner /{,var/}run/pulse/** rwk,
@@ -107,14 +102,12 @@ owner /{,var/}run/pulse/** rwk,
 # Shared memory based communication with clients
 /{run,dev}/shm/pulse-shm-* mrwk,
 
-/usr/share/applications/ r,
-
 owner /run/pulse/native/ rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
 `
 
-const pulseaudioPermanentSlotSecComp = `
+const audioPlaybackPermanentSlotSecComp = `
 # The following are needed for UNIX sockets
 personality
 setpriority
@@ -131,54 +124,54 @@ setgroups32
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-type pulseAudioInterface struct{}
+type audioPlaybackInterface struct{}
 
-func (iface *pulseAudioInterface) Name() string {
-	return "pulseaudio"
+func (iface *audioPlaybackInterface) Name() string {
+	return "audio-playback"
 }
 
-func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
+func (iface *audioPlaybackInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:              pulseaudioSummary,
+		Summary:              audioPlaybackSummary,
 		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: pulseaudioBaseDeclarationSlots,
+		BaseDeclarationSlots: audioPlaybackBaseDeclarationSlots,
 	}
 }
 
-func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
+func (iface *audioPlaybackInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(audioPlaybackConnectedPlugAppArmor)
 	if release.OnClassic {
-		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
+		spec.AddSnippet(audioPlaybackConnectedPlugAppArmorDesktop)
 	}
 	return nil
 }
 
-func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+func (iface *audioPlaybackInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.TagDevice(`KERNEL=="controlC[0-9]*"`)
 	spec.TagDevice(`KERNEL=="pcmC[0-9]*D[0-9]*[cp]"`)
 	spec.TagDevice(`KERNEL=="timer"`)
 	return nil
 }
 
-func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
+func (iface *audioPlaybackInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(audioPlaybackPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
+func (iface *audioPlaybackInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(audioPlaybackConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
+func (iface *audioPlaybackInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(audioPlaybackPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *pulseAudioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+func (iface *audioPlaybackInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
 func init() {
-	registerIface(&pulseAudioInterface{})
+	registerIface(&audioPlaybackInterface{})
 }

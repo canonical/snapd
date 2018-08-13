@@ -5,6 +5,8 @@ description: Test policy app for non-implicitOnCore slots
 confinement: strict
 
 slots:
+  audio-playback: null
+  audio-record: null
   avahi-control: null
   avahi-observe: null
   bluez: null
@@ -48,6 +50,12 @@ slots:
   x11: null
 
 apps:
+  audio-playback:
+    command: bin/run
+    slots: [ audio-playback ]
+  audio-record:
+    command: bin/run
+    slots: [ audio-record ]
   avahi-control:
     command: bin/run
     slots: [ avahi-control ]

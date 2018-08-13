@@ -14,6 +14,12 @@ apps:
   alsa:
     command: bin/run
     plugs: [ alsa ]
+  audio-playback:
+    command: bin/run
+    plugs: [ audio-playback ]
+  audio-record:
+    command: bin/run
+    plugs: [ audio-record ]
   autopilot-introspection:
     command: bin/run
     plugs: [ autopilot-introspection ]
