@@ -64,6 +64,7 @@ capability sys_admin,
 network netlink raw,
 
 # util-linux
+/{,usr/}bin/lsblk ixr,
 /{,usr/}bin/lscpu ixr,
 /{,usr/}bin/lsmem ixr,
 
