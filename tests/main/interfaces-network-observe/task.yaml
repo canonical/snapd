@@ -18,29 +18,30 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
     echo "Given a snap declaring a plug on the network-observe interface is installed"
     install_local network-observe-consumer
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT; done" > $SERVICE_FILE
-    chmod a+x $SERVICE_FILE
-    systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
     # shellcheck source=tests/lib/network.sh
-    . $TESTSLIB/network.sh
-    wait_listen_port "$PORT"
+    . "$TESTSLIB"/network.sh
+    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
 
 restore: |
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
-    systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f net-query.output $SERVICE_FILE
+    #shellcheck disable=SC2153
+    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    rm -f net-query.output "$SERVICE_FILE"
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i network-observe | MATCH "\- +network-observe-consumer:network-observe"
+    snap interfaces -i network-observe | MATCH -- '^- +network-observe-consumer:network-observe'
 
     echo "When the plug is connected"
     snap connect network-observe-consumer:network-observe
@@ -56,5 +57,5 @@ execute: |
         if network-observe-consumer 2>net-query.output; then
             echo "Expected error caling command with disconnected plug"
         fi
-        cat net-query.output | grep -Pq "Permission denied"
+        grep -Pq "Permission denied" < net-query.output
     fi
