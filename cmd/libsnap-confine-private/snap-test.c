@@ -276,7 +276,7 @@ static void test_sc_instance_name_validate(void)
 	sc_instance_name_validate("_", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
-		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME));
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
 			"snap name must contain at least one letter");
 	sc_error_free(err);
@@ -294,7 +294,7 @@ static void test_sc_instance_name_validate(void)
 	sc_instance_name_validate("_bar", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
-		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME));
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
 			"snap name must contain at least one letter");
 	sc_error_free(err);
@@ -305,6 +305,15 @@ static void test_sc_instance_name_validate(void)
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
 			"snap name must contain at least one letter");
+	sc_error_free(err);
+
+	// third separator
+	sc_instance_name_validate("foo_bar_baz", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap instance name can contain only one underscore");
 	sc_error_free(err);
 
 	const char *valid_names[] = {
@@ -324,10 +333,13 @@ static void test_sc_instance_name_validate(void)
 		"a_01234567891", "a_0123456789123",
 		// snap name must not be more than 40 characters, regardless of instance
 		// key
-		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_foobar",
-		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx_foobar",
+		"01234567890123456789012345678901234567890_foobar",
+		"01234567890123456789-01234567890123456789_foobar",
 		// instance key  must be plain ASCII
 		"foobar_日本語",
+		// way too many underscores
+		"foobar_baz_zed_daz",
+		"foobar______",
 	};
 	for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names;
 	     ++i) {
