@@ -6,6 +6,7 @@ systems:
     - -fedora-*
     - -opensuse-*
     - -arch-*
+    - -amazon-*
 
 details: |
     The upower-observe interface allows a snap to query UPower for power devices, history
