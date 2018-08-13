@@ -98,45 +98,42 @@ func run() error {
 
 const defaultShell = "/bin/bash"
 
-func findCommand(app *snap.AppInfo, command string, skipCommandChain bool) (string, error) {
-	chain := make([]string, 0, len(app.CommandChain)+1)
-	snapMountDir := app.Snap.MountDir()
-
-	if !skipCommandChain {
-		for _, element := range app.CommandChain {
-			chain = append(chain, filepath.Join(snapMountDir, element))
-		}
-	}
-
+func findCommand(app *snap.AppInfo, command string) (string, error) {
+	var cmd string
 	switch command {
 	case "shell":
-		chain = append(chain, defaultShell)
+		cmd = defaultShell
 	case "complete":
 		if app.Completer != "" {
-			chain = append(chain, defaultShell)
+			cmd = defaultShell
 		}
 	case "stop":
-		if app.StopCommand != "" {
-			chain = append(chain, filepath.Join(snapMountDir, app.StopCommand))
-		}
+		cmd = app.StopCommand
 	case "reload":
-		if app.ReloadCommand != "" {
-			chain = append(chain, filepath.Join(snapMountDir, app.ReloadCommand))
-		}
+		cmd = app.ReloadCommand
 	case "post-stop":
-		if app.PostStopCommand != "" {
-			chain = append(chain, filepath.Join(snapMountDir, app.PostStopCommand))
-		}
+		cmd = app.PostStopCommand
 	case "", "gdb":
-		chain = append(chain, filepath.Join(snapMountDir, app.Command))
+		cmd = app.Command
 	default:
 		return "", fmt.Errorf("cannot use %q command", command)
 	}
 
-	if len(chain) == len(app.CommandChain) {
+	if cmd == "" {
 		return "", fmt.Errorf("no %q command found for %q", command, app.Name)
 	}
-	return strings.Join(chain, " "), nil
+	return cmd, nil
+}
+
+func commandChain(app *snap.AppInfo) []string {
+	chain := make([]string, 0, len(app.CommandChain))
+	snapMountDir := app.Snap.MountDir()
+
+	for _, element := range app.CommandChain {
+		chain = append(chain, filepath.Join(snapMountDir, element))
+	}
+
+	return chain
 }
 
 // expandEnvCmdArgs takes the string list of commandline arguments
@@ -173,7 +170,7 @@ func execApp(snapApp, revision, command string, args []string, skipCommandChain 
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	cmdAndArgs, err := findCommand(app, command, skipCommandChain)
+	cmdAndArgs, err := findCommand(app, command)
 	if err != nil {
 		return err
 	}
@@ -192,22 +189,36 @@ func execApp(snapApp, revision, command string, args []string, skipCommandChain 
 
 	// strings.Split() is ok here because we validate all app fields and the
 	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
-	// (see also snap/container.go's normPath). No quotes are
-	// supported, so whitespace is actually a delimiter.
-	cmd := strings.Split(cmdAndArgs, " ")
-	cmd = expandEnvCmdArgs(cmd, osutil.EnvMap(env))
+	// (see also overlord/snapstate/check_snap.go's normPath)
+	tmpArgv := strings.Split(cmdAndArgs, " ")
+	cmd := tmpArgv[0]
+	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
 
-	var extraArgs []string
+	// run the command
+	fullCmd := []string{filepath.Join(app.Snap.MountDir(), cmd)}
 	switch command {
+	case "shell":
+		fullCmd[0] = defaultShell
+		cmdArgs = nil
 	case "complete":
-		extraArgs = append(extraArgs, dirs.CompletionHelper, filepath.Join(app.Snap.MountDir(), app.Completer))
+		fullCmd[0] = defaultShell
+		cmdArgs = []string{
+			dirs.CompletionHelper,
+			filepath.Join(app.Snap.MountDir(), app.Completer),
+		}
 	case "gdb":
-		cmd = append([]string{filepath.Join(dirs.CoreLibExecDir, "snap-gdb-shim")}, cmd...)
+		fullCmd = append(fullCmd, fullCmd[0])
+		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdb-shim")
 	}
-	cmd = append(cmd, extraArgs...)
-	cmd = append(cmd, args...)
-	if err := syscallExec(cmd[0], cmd, env); err != nil {
-		return fmt.Errorf("cannot exec %q: %s", cmd[0], err)
+	fullCmd = append(fullCmd, cmdArgs...)
+	fullCmd = append(fullCmd, args...)
+
+	if !skipCommandChain {
+		fullCmd = append(commandChain(app), fullCmd...)
+	}
+
+	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
+		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
 	// this is never reached except in tests
 	return nil

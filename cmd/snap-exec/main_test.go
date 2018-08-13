@@ -103,31 +103,15 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
 
-	snapPath := fmt.Sprintf("%s/snapname/unset", dirs.SnapMountDir)
-
 	for _, t := range []struct {
-		app       string
-		cmd       string
-		skipChain bool
-		expected  string
+		cmd      string
+		expected string
 	}{
-		// With command chain
-		{app: "app", expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
-		{app: "app2", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/run-app2", snapPath, snapPath, snapPath)},
-		{app: "app", cmd: "stop", expected: fmt.Sprintf("%s/stop-app", snapPath)},
-		{app: "app2", cmd: "stop", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/stop-app2", snapPath, snapPath, snapPath)},
-		{app: "app", cmd: "post-stop", expected: fmt.Sprintf("%s/post-stop-app", snapPath)},
-		{app: "app2", cmd: "post-stop", expected: fmt.Sprintf("%s/chain1 %s/chain2 %s/post-stop-app2", snapPath, snapPath, snapPath)},
-
-		// Without command chain
-		{app: "app", cmd: "", skipChain: true, expected: fmt.Sprintf("%s/run-app cmd-arg1 $SNAP_DATA", snapPath)},
-		{app: "app2", cmd: "", skipChain: true, expected: fmt.Sprintf("%s/run-app2", snapPath)},
-		{app: "app", cmd: "stop", skipChain: true, expected: fmt.Sprintf("%s/stop-app", snapPath)},
-		{app: "app2", cmd: "stop", skipChain: true, expected: fmt.Sprintf("%s/stop-app2", snapPath)},
-		{app: "app", cmd: "post-stop", skipChain: true, expected: fmt.Sprintf("%s/post-stop-app", snapPath)},
-		{app: "app2", cmd: "post-stop", skipChain: true, expected: fmt.Sprintf("%s/post-stop-app2", snapPath)},
+		{cmd: "", expected: `run-app cmd-arg1 $SNAP_DATA`},
+		{cmd: "stop", expected: "stop-app"},
+		{cmd: "post-stop", expected: "post-stop-app"},
 	} {
-		cmd, err := snapExec.FindCommand(info.Apps[t.app], t.cmd, t.skipChain)
+		cmd, err := snapExec.FindCommand(info.Apps["app"], t.cmd)
 		c.Check(err, IsNil)
 		c.Check(cmd, Equals, t.expected)
 	}
@@ -137,7 +121,7 @@ func (s *snapExecSuite) TestFindCommandInvalidCommand(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
 
-	_, err = snapExec.FindCommand(info.Apps["app"], "xxx", true)
+	_, err = snapExec.FindCommand(info.Apps["app"], "xxx")
 	c.Check(err, ErrorMatches, `cannot use "xxx" command`)
 }
 
@@ -145,7 +129,7 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
 
-	_, err = snapExec.FindCommand(info.Apps["nostop"], "stop", true)
+	_, err = snapExec.FindCommand(info.Apps["nostop"], "stop")
 	c.Check(err, ErrorMatches, `no "stop" command found for "nostop"`)
 }
 
@@ -191,22 +175,41 @@ func (s *snapExecSuite) TestSnapExecAppCommandChainIntegration(c *C) {
 	})
 	defer restore()
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app2", "42", "", []string{"arg1", "arg2"}, false)
-	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/chain1", dirs.SnapMountDir))
-	c.Check(execArgs, DeepEquals, []string{
-		execArgv0,
-		fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir),
-		fmt.Sprintf("%s/snapname/42/run-app2", dirs.SnapMountDir),
-		"arg1", "arg2",
-	})
+	chain1_path := fmt.Sprintf("%s/snapname/42/chain1", dirs.SnapMountDir)
+	chain2_path := fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir)
+	app_path := fmt.Sprintf("%s/snapname/42/run-app2", dirs.SnapMountDir)
+	stop_path := fmt.Sprintf("%s/snapname/42/stop-app2", dirs.SnapMountDir)
+	post_stop_path := fmt.Sprintf("%s/snapname/42/post-stop-app2", dirs.SnapMountDir)
 
-	// Verify that it also supports launching without the command chain
-	err = snapExec.ExecApp("snapname.app2", "42", "", []string{"arg1", "arg2"}, true)
-	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/run-app2", dirs.SnapMountDir))
-	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
+	for _, t := range []struct {
+		cmd              string
+		args             []string
+		skipCommandChain bool
+		expected         []string
+	}{
+		// Normal command
+		{expected: []string{chain1_path, chain2_path, app_path}},
+		{skipCommandChain: true, expected: []string{app_path}},
+		{args: []string{"arg1", "arg2"}, expected: []string{chain1_path, chain2_path, app_path, "arg1", "arg2"}},
+		{args: []string{"arg1", "arg2"}, skipCommandChain: true, expected: []string{app_path, "arg1", "arg2"}},
+
+		// Stop command
+		{cmd: "stop", expected: []string{chain1_path, chain2_path, stop_path}},
+		{cmd: "stop", skipCommandChain: true, expected: []string{stop_path}},
+		{cmd: "stop", args: []string{"arg1", "arg2"}, expected: []string{chain1_path, chain2_path, stop_path, "arg1", "arg2"}},
+		{cmd: "stop", args: []string{"arg1", "arg2"}, skipCommandChain: true, expected: []string{stop_path, "arg1", "arg2"}},
+
+		// Post-stop command
+		{cmd: "post-stop", expected: []string{chain1_path, chain2_path, post_stop_path}},
+		{cmd: "post-stop", skipCommandChain: true, expected: []string{post_stop_path}},
+		{cmd: "post-stop", args: []string{"arg1", "arg2"}, expected: []string{chain1_path, chain2_path, post_stop_path, "arg1", "arg2"}},
+		{cmd: "post-stop", args: []string{"arg1", "arg2"}, skipCommandChain: true, expected: []string{post_stop_path, "arg1", "arg2"}},
+	} {
+		err := snapExec.ExecApp("snapname.app2", "42", t.cmd, t.args, t.skipCommandChain)
+		c.Assert(err, IsNil)
+		c.Check(execArgv0, Equals, t.expected[0])
+		c.Check(execArgs, DeepEquals, t.expected)
+	}
 }
 
 func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
