@@ -247,10 +247,9 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	// if there's a gadget specified wait for it
-	var hasPrepareDeviceHook bool
-
 	var gadgetInfo *snap.Info
+	var hasPrepareDeviceHook bool
+	// if there's a gadget specified wait for it
 	if gadget != "" {
 		var err error
 		gadgetInfo, err = snapstate.GadgetInfo(m.state)
