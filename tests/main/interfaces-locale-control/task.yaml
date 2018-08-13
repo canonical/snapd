@@ -1,6 +1,6 @@
 summary: Ensure that the locale-control interface works.
 
-systems: [-fedora-*, -opensuse-*, -arch-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.

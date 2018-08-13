@@ -15,18 +15,19 @@ environment:
     REQUEST_FILE: ./request.txt
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap declaring the network-bind plug is installed"
-    install_local $SNAP_NAME
+    install_local "$SNAP_NAME"
 
     echo "Given the snap's service is listening"
     # shellcheck source=tests/lib/network.sh
-    . $TESTSLIB/network.sh
+    . "$TESTSLIB"/network.sh
     wait_listen_port "$PORT"
 
     echo "Given we store a basic HTTP request"
-    cat > $REQUEST_FILE <<EOF
+    cat > "$REQUEST_FILE" <<EOF
     GET / HTTP/1.0
 
     EOF
@@ -42,18 +43,18 @@ execute: |
     snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"
 
     echo "Then the service is accessible by a client"
-    nc -w 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
+    nc -w 1 localhost "$PORT" < "$REQUEST_FILE" | grep -Pqz 'ok\n'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network-bind
+    snap disconnect "$SNAP_NAME:network-bind"
 
     echo "Then the service is not accessible by a client"
-    response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
+    response=$(nc -w 1 localhost "$PORT" < "$REQUEST_FILE")
     [ "$response" = "" ]
 
     echo "Then the plug can be connected again"
-    snap connect $SNAP_NAME:network-bind
+    snap connect "$SNAP_NAME:network-bind"

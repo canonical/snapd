@@ -257,6 +257,84 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
 }
 
+func (s *interfaceManagerSuite) TestParallelInstallConnectTask(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnapInstance(c, "consumer_foo", consumerYaml)
+	s.mockSnapInstance(c, "producer", producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := ifacestate.Connect(s.state, "consumer_foo", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+
+	var hs hookstate.HookSetup
+	i := 0
+	task := ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	var hookSetup hookstate.HookSetup
+	err = task.Get("hook-setup", &hookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer_foo", Hook: "prepare-plug-plug", Optional: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "prepare-slot-slot", Optional: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Assert(task.Kind(), Equals, "connect")
+	var plug interfaces.PlugRef
+	err = task.Get("plug", &plug)
+	c.Assert(err, IsNil)
+	c.Assert(plug.Snap, Equals, "consumer_foo")
+	c.Assert(plug.Name, Equals, "plug")
+	var slot interfaces.SlotRef
+	err = task.Get("slot", &slot)
+	c.Assert(err, IsNil)
+	c.Assert(slot.Snap, Equals, "producer")
+	c.Assert(slot.Name, Equals, "slot")
+
+	var autoconnect bool
+	err = task.Get("auto", &autoconnect)
+	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(autoconnect, Equals, false)
+
+	// verify initial attributes are present in connect task
+	var plugStaticAttrs map[string]interface{}
+	var plugDynamicAttrs map[string]interface{}
+	err = task.Get("plug-static", &plugStaticAttrs)
+	c.Assert(err, IsNil)
+	c.Assert(plugStaticAttrs, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	err = task.Get("plug-dynamic", &plugDynamicAttrs)
+	c.Assert(err, IsNil)
+	c.Assert(plugDynamicAttrs, DeepEquals, map[string]interface{}{})
+
+	var slotStaticAttrs map[string]interface{}
+	var slotDynamicAttrs map[string]interface{}
+	err = task.Get("slot-static", &slotStaticAttrs)
+	c.Assert(err, IsNil)
+	c.Assert(slotStaticAttrs, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	err = task.Get("slot-dynamic", &slotDynamicAttrs)
+	c.Assert(err, IsNil)
+	c.Assert(slotDynamicAttrs, DeepEquals, map[string]interface{}{})
+
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hs)
+	c.Assert(err, IsNil)
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hs)
+	c.Assert(err, IsNil)
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer_foo", Hook: "connect-plug-plug", Optional: true})
+}
+
 func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
@@ -896,10 +974,14 @@ func (s *interfaceManagerSuite) mockSnapDecl(c *C, name, publisher string, extra
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
+	return s.mockSnapInstance(c, "", yamlText)
+}
+
+func (s *interfaceManagerSuite) mockSnapInstance(c *C, instanceName, yamlText string) *snap.Info {
 	sideInfo := &snap.SideInfo{
 		Revision: snap.R(1),
 	}
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, yamlText, sideInfo)
 	sideInfo.RealName = snapInfo.SnapName()
 
 	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
@@ -919,10 +1001,11 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 	// Put a side info into the state
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  sideInfo.Revision,
-		SnapType: string(snapInfo.Type),
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
 	})
 	return snapInfo
 }
