@@ -57,7 +57,9 @@ execute: |
 
     echo "Make sure snap user data writes work"
     echo canary-instance-snap > /home/test/snap/test-snapd-tools_foo/x1/canary
+    chown test:test /home/test/snap/test-snapd-tools_foo/x1/canary
     echo canary-instance-common > /home/test/snap/test-snapd-tools_foo/common/canary
+    chown test:test /home/test/snap/test-snapd-tools_foo/common/canary
 
     # instance snap can write to user data
     su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
