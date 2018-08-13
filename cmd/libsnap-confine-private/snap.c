@@ -111,44 +111,30 @@ void sc_instance_name_validate(const char *instance_name,
 				  "snap instance name cannot be NULL");
 		goto out;
 	}
+	// 40 char snap_name + '_' + 10 char instance_key + 1 extra overflow + 1
+	// NULL
+	char s[53] = { 0 };
+	strncpy(s, instance_name, sizeof(s) - 1);
 
-	const char *instance_sep = strchr(instance_name, '_');
+	char *t = s;
+	const char *snap_name = strsep(&t, "_");
+	const char *instance_key = strsep(&t, "_");
+	const char *third_separator = strsep(&t, "_");
+	if (third_separator != NULL) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME,
+				  "snap instance name can contain only one underscore");
+		goto out;
+	}
 
-	if (instance_sep != NULL) {
-		size_t snap_name_len = instance_sep - instance_name;
-		const char *instance_key = instance_sep + 1;
-
-		if (snap_name_len == 0) {
-			err =
-			    sc_error_init(SC_SNAP_DOMAIN,
-					  SC_SNAP_INVALID_INSTANCE_NAME,
-					  "snap name must contain at least one letter");
-			goto out;
-		}
-
+	sc_snap_name_validate(snap_name, &err);
+	if (err != NULL) {
+		goto out;
+	}
+	// When the instance_name is a normal snap name, instance_key will be
+	// NULL, so only validate instance_key when we found one.
+	if (instance_key != NULL) {
 		sc_instance_key_validate(instance_key, &err);
-		if (err != NULL) {
-			goto out;
-		}
-
-		if (snap_name_len > 40) {
-			err =
-			    sc_error_init(SC_SNAP_DOMAIN,
-					  SC_SNAP_INVALID_INSTANCE_NAME,
-					  "snap name must be shorter than 40 characters");
-			goto out;
-		}
-
-		char *snap_name SC_CLEANUP(sc_cleanup_string) =
-		    strndup(instance_name, snap_name_len);
-		sc_snap_name_validate(snap_name, &err);
-		if (err != NULL) {
-			goto out;
-		}
-
-	} else {
-		// just snap name
-		sc_snap_name_validate(instance_name, &err);
 	}
 
  out:
