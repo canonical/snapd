@@ -72,10 +72,10 @@ func (c byPlugSnapAndName) Less(i, j int) bool {
 	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
 		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
 	}
-	if c[i].Name != c[j].Name {
-		return c[i].Name < c[j].Name
+	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
+		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
 	}
-	return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
+	return c[i].Name < c[j].Name
 }
 
 type bySlotSnapAndName []*snap.SlotInfo
@@ -86,10 +86,10 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
 		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
 	}
-	if c[i].Name != c[j].Name {
-		return c[i].Name < c[j].Name
+	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
+		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
 	}
-	return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
+	return c[i].Name < c[j].Name
 }
 
 type byBackendName []SecurityBackend
@@ -152,10 +152,10 @@ func (c byPlugInfo) Less(i, j int) bool {
 	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
 		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
 	}
-	if c[i].Name != c[j].Name {
-		return c[i].Name < c[j].Name
+	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
+		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
 	}
-	return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
+	return c[i].Name < c[j].Name
 }
 
 type bySlotInfo []*snap.SlotInfo
@@ -166,8 +166,8 @@ func (c bySlotInfo) Less(i, j int) bool {
 	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
 		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
 	}
-	if c[i].Name != c[j].Name {
-		return c[i].Name < c[j].Name
+	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
+		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
 	}
-	return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
+	return c[i].Name < c[j].Name
 }
