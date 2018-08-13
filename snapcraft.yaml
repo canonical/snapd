@@ -9,8 +9,14 @@ description: |
  Start with 'snap list' to see installed snaps.
 version: set-by-version-script-thxbye
 version-script: |
-  # extract the version from the debian/changelog
-  dpkg-parsechangelog -Sversion
+  # extract the version from the debian/changelog + git
+  DEBVER="$(dpkg-parsechangelog -Sversion)"
+  GITVER="$(git describe |cut -s -f2- -d-)"
+  if [ -n "$GITVER" ]; then
+      echo "$DEBVER+$GITVER"
+  else
+      echo "$DEBVER"
+  fi
 grade: devel
 
 parts:
