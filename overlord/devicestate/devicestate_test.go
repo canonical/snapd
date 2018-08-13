@@ -1122,14 +1122,25 @@ hooks:
 
 	// avoid full seeding
 	s.seeding()
-	s.state.Set("seeded", true)
 
-	// runs the whole device registration process
+	// runs the whole device registration process, note that the
+	// device is not seeded yet
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 
+	// without a seeded device, there is no become-operational change
 	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
+
+	// now mark it as seeded
+	s.state.Set("seeded", true)
+	// and run the device registration again
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
