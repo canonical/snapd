@@ -1013,6 +1013,11 @@ func verifySnapInstructions(inst *snapInstruction) error {
 }
 
 func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	for _, name := range inst.Snaps {
+		if len(name) == 0 {
+			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+		}
+	}
 	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
@@ -1038,6 +1043,10 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if len(inst.Snaps[0]) == 0 {
+		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+	}
+
 	flags, err := inst.installFlags()
 	if err != nil {
 		return "", nil, err

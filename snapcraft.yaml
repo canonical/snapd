@@ -9,8 +9,7 @@ description: |
  Start with 'snap list' to see installed snaps.
 version: set-by-version-script-thxbye
 version-script: |
-  # extract the version from the debian/changelog
-  dpkg-parsechangelog -Sversion
+  ./mkversion.sh --output-only
 grade: devel
 
 parts:
