@@ -3,6 +3,9 @@ summary: Ensure that the udisks2 interface works.
 details: |
     The udisks2 interface allows operating as or interacting with the UDisks2 service
 
+# Interfaces not defined for ubuntu core systems
+systems: [-ubuntu-core-*]
+
 prepare: |
     snap install test-snapd-udisks2
 
@@ -45,7 +48,7 @@ execute: |
     snap disconnect test-snapd-udisks2:udisks2
 
     echo "Then the snap is not able to check udisks2 status"
-    if test-snapd-udisks2.udisksctl status 2>${PWD}/call.error; then
+    if test-snapd-udisks2.udisksctl status 2>call.error; then
         echo "Expected permission error calling udisksctl status with disconnected plug"
         exit 1
     fi
