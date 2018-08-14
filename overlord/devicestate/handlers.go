@@ -133,6 +133,7 @@ func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
 
 	cfg.requestIDURL = base.ResolveReference(reqIdRef).String()
 	if svcURL != nil && proxyURL == nil {
+		// talking directly to the custom device service
 		cfg.serialRequestURL = base.ResolveReference(serialRef).String()
 	} else {
 		cfg.serialRequestURL = base.ResolveReference(devicesRef).String()

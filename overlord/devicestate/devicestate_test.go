@@ -2491,6 +2491,17 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
+func (s *deviceMgrSuite) TestNewEnoughProxyParse(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	badURL := &url.URL{Opaque: "%a"} // url.Parse(badURL.String()) needs to fail, which isn't easy :-)
+	c.Check(devicestate.NewEnoughProxy(badURL, http.DefaultClient), Equals, false)
+	c.Check(log.String(), Matches, "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: parse .*")
+}
+
 func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 	expectedUserAgent := httputil.UserAgent()
 	log, restore := logger.MockLogger()
@@ -2499,7 +2510,6 @@ func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	expecteds := []string{
-		`parse .*`, // this one won't actually reach the server
 		`Head http://\S+: EOF`,
 		`Head request returned 403 Forbidden.`,
 		`Bogus Snap-Store-Version header "5pre1".`,
@@ -2532,10 +2542,8 @@ func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 	}))
 	defer server.Close()
 
-	u1 := &url.URL{Opaque: "%a"} // bad urls are bad
-	u2, err := url.Parse(server.URL)
+	u, err := url.Parse(server.URL)
 	c.Assert(err, IsNil)
-	u := u1
 	for _, expected := range expecteds {
 		log.Reset()
 		c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, false)
@@ -2543,13 +2551,12 @@ func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 			expected = "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: " + expected
 		}
 		c.Check(log.String(), Matches, expected)
-		u = u2
 	}
-	c.Check(n, Equals, len(expecteds)-1)
+	c.Check(n, Equals, len(expecteds))
 
 	// and success at last
 	log.Reset()
 	c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, true)
 	c.Check(log.String(), Equals, "")
-	c.Check(n, Equals, len(expecteds))
+	c.Check(n, Equals, len(expecteds)+1)
 }
