@@ -106,6 +106,8 @@ var defaultTemplate = `
   # Common utilities for shell scripts
   /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
+  /{,usr/}bin/base32 ixr,
+  /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
   /{,usr/}bin/bzcat ixr,
@@ -135,6 +137,7 @@ var defaultTemplate = `
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/fold ixr,
   /{,usr/}bin/getconf ixr,
   /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
