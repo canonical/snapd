@@ -150,12 +150,9 @@ func (b *Backend) Remove(snapName string) error {
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
-	addSocketcall := false
 	// Some base snaps and systems require the socketcall() in the default
 	// template
-	if requiresSocketcall(snapInfo.Base) {
-		addSocketcall = true
-	}
+	addSocketcall := requiresSocketcall(snapInfo.Base)
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
