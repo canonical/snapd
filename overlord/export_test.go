@@ -22,6 +22,7 @@ package overlord
 import (
 	"time"
 
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -73,4 +74,12 @@ func MockConfigstateInit(new func(hookmgr *hookstate.HookManager)) (restore func
 	return func() {
 		configstateInit = configstate.Init
 	}
+}
+
+func MockUDevMonitorChannel(mon *UDevMonitor, events chan netlink.UEvent) {
+	mon.netlinkEvents = events
+}
+
+func MockUDevMonitorStopChannel(mon *UDevMonitor, monitorStop chan struct{}) {
+	mon.monitorStop = monitorStop
 }
