@@ -68,6 +68,8 @@ type I2cInterfaceSuite struct {
 	testSysfsNameBadValue1Info *snap.SlotInfo
 	testSysfsNameAndPath       *interfaces.ConnectedSlot
 	testSysfsNameAndPathInfo   *snap.SlotInfo
+	testSysfsNameEmpty         *interfaces.ConnectedSlot
+	testSysfsNameEmptyInfo     *snap.SlotInfo
 
 	// Consuming Snap
 	testPlugPort1     *interfaces.ConnectedPlug
@@ -138,6 +140,9 @@ slots:
     interface: i2c
     path: /dev/i2c-0
     sysfs-name: 1-0050
+  test-sysfs-name-empty:
+    interface: i2c
+    sysfs-name: ""
 `, nil)
 	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
 	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil)
@@ -166,6 +171,8 @@ slots:
 	s.testSysfsNameBadValue1 = interfaces.NewConnectedSlot(s.testSysfsNameBadValue1Info, nil)
 	s.testSysfsNameAndPathInfo = gadgetSnapInfo.Slots["test-sysfs-name-and-path"]
 	s.testSysfsNameAndPath = interfaces.NewConnectedSlot(s.testSysfsNameAndPathInfo, nil)
+	s.testSysfsNameEmptyInfo = gadgetSnapInfo.Slots["test-sysfs-name-empty"]
+	s.testSysfsNameEmpty = interfaces.NewConnectedSlot(s.testSysfsNameEmptyInfo, nil)
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -208,6 +215,7 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "i2c slot must have a path or sysfs-name attribute")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsNameBadValue1Info), ErrorMatches, "i2c sysfs-name attribute must be a valid sysfs-name")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsNameAndPathInfo), ErrorMatches, "i2c slot can only use path or sysfs-name")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsNameEmptyInfo), ErrorMatches, "i2c sysfs-name attribute must be a valid sysfs-name")
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
