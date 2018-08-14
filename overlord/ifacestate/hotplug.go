@@ -88,33 +88,18 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			}
 		}
 
-		var connsToRecreate []*interfaces.ConnRef
-
-		// find old connections for slots of this device
-		for id, connSt := range conns {
-			if connSt.Interface != iface.Name() || connSt.HotplugDeviceKey != key {
-				continue
-			}
-			connRef, err := interfaces.ParseConnRef(id)
-			if err != nil {
-				logger.Noticef("Failed to parse connection id %q: %s", id, err)
-				continue
-			}
-			if connRef.SlotRef.Snap != coreSnapName {
-				continue
-			}
-			// we found an old connection
-			connsToRecreate = append(connsToRecreate, connRef)
-		}
-
 		if !m.hotplug {
 			logger.Noticef("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
 
+		// find old connections for slots of this device - note can't ask the repository since we need
+		// to recreate old connections that are only remembered in the state.
+		connsToRecreate := findConnsForDeviceKey(&conns, coreSnapName, iface.Name(), key)
+
 		slots := make(map[string]*hotplug.SlotSpec, len(slotSpecs))
 
-		// add slots to the repo
+		// add slots to the repo based on the slot specs returned by the interface
 		for _, ss := range slotSpecs {
 			slot := &snap.SlotInfo{
 				Name:             ss.Name,
@@ -182,6 +167,26 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 			continue
 		}
 	}
+}
+
+func findConnsForDeviceKey(conns *map[string]connState, coreSnapName, ifaceName, deviceKey string) []*interfaces.ConnRef {
+	var connsForDevice []*interfaces.ConnRef
+	for id, connSt := range *conns {
+		if connSt.Interface != ifaceName || connSt.HotplugDeviceKey != deviceKey {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			logger.Noticef("Failed to parse connection id %q: %s", id, err)
+			continue
+		}
+		if connRef.SlotRef.Snap != coreSnapName {
+			continue
+		}
+		// we found a connection
+		connsForDevice = append(connsForDevice, connRef)
+	}
+	return connsForDevice
 }
 
 func (m *InterfaceManager) hotplugEnabled() (bool, error) {

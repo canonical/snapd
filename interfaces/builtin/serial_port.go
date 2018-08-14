@@ -210,10 +210,7 @@ func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bo
 }
 
 func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-	if di.Subsystem() != "tty" {
-		return nil
-	}
-	if strings.HasPrefix(di.DeviceName(), "ttyUSB") {
+	if di.Subsystem() == "tty" && strings.HasPrefix(di.DeviceName(), "ttyUSB") {
 		seqnum, ok := di.Attribute("SEQNUM")
 		if !ok {
 			// FIXME
