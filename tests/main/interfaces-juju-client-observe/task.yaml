@@ -14,7 +14,6 @@ prepare: |
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 
-    ensure_dir_exists_backup_real "$HOME"/.local/
     ensure_dir_exists_backup_real "$HOME"/.local/share/juju
     ensure_file_exists_backup_real "$HOME"/.local/share/juju/juju.conf
 
@@ -27,7 +26,6 @@ restore: |
     # Delete the created juju dir and configuration files
     clean_file "$HOME"/.local/share/juju/juju.conf
     clean_dir "$HOME"/.local/share/juju
-    clean_dir "$HOME"/.local/
 
 execute: |
     echo "The interface is not connected by default"
