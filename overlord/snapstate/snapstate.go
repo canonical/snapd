@@ -1491,7 +1491,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 	if removeAll {
 		// run disconnect hooks
-		disconnect := st.NewTask("disconnect-interfaces", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
+		disconnect := st.NewTask("auto-disconnect", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
 		disconnect.Set("snap-setup", snapsup)
 		if prev != nil {
 			disconnect.WaitFor(prev)

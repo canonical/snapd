@@ -202,7 +202,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, nil)
-	runner.AddHandler("disconnect-interfaces", fakeHandler, nil)
+	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
@@ -428,7 +428,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
-		"disconnect-interfaces",
+		"auto-disconnect",
 		"run-hook[remove]",
 		"remove-aliases",
 		"unlink-snap",
@@ -4668,7 +4668,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:    "disconnect-interfaces:Doing",
+			op:    "auto-disconnect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -4791,7 +4791,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:    "disconnect-interfaces:Doing",
+			op:    "auto-disconnect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -5003,7 +5003,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := fakeOps{
 		{
-			op:    "disconnect-interfaces:Doing",
+			op:    "auto-disconnect:Doing",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},
@@ -5046,7 +5046,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
-		if t.Kind() == "disconnect-interfaces" {
+		if t.Kind() == "auto-disconnect" {
 			expSnapSetup.PlugsOnly = true
 			expSnapSetup.Type = "app"
 		}
@@ -8248,7 +8248,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
-			"disconnect-interfaces",
+			"auto-disconnect",
 			"run-hook[remove]",
 			"remove-aliases",
 			"unlink-snap",
@@ -8737,7 +8737,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
-			op:    "disconnect-interfaces:Doing",
+			op:    "auto-disconnect:Doing",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
 		},
@@ -8823,7 +8823,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			name: "ubuntu-core",
 		},
 		{
-			op:    "disconnect-interfaces:Doing",
+			op:    "auto-disconnect:Doing",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
 		},

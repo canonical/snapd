@@ -3252,7 +3252,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	}, plugDynAttrs, slotDynAttrs, nil)
 
 	chg := s.state.NewChange("install", "")
-	t := s.state.NewTask("disconnect-interfaces", "")
+	t := s.state.NewTask("auto-disconnect", "")
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
@@ -3325,7 +3325,7 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	}
 
 	chg2 := s.state.NewChange("remove", "")
-	t2 := s.state.NewTask("disconnect-interfaces", "")
+	t2 := s.state.NewTask("auto-disconnect", "")
 	t2.Set("snap-setup", sup)
 	chg2.AddTask(t2)
 
