@@ -34,7 +34,7 @@ execute: |
     echo "Check we can mount/unmount a block device using the snap"
     # create a 10M filesystem in pwd
     dd if=/dev/zero of="$FILESYSTEM" bs=1M count=10
-    mkfs.ext4 "$FILESYSTEM"
+    mkfs.ext4 -F "$FILESYSTEM"
     # create the loopback block device
     mknod "$DEVICE" b 7 200
     losetup "$DEVICE" "$FILESYSTEM"
