@@ -210,12 +210,12 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 }
 
 func initialConnectAttributes(st *state.State, plugSnap string, plugName string, slotSnap string, slotName string) (plugStatic, slotStatic map[string]interface{}, err error) {
-	var snapst snapstate.SnapState
+	var plugSnapst snapstate.SnapState
 
-	if err = snapstate.Get(st, plugSnap, &snapst); err != nil {
+	if err = snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
 		return nil, nil, err
 	}
-	snapInfo, err := snapst.CurrentInfo()
+	snapInfo, err := plugSnapst.CurrentInfo()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -225,10 +225,12 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 		return nil, nil, fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
 
-	if err = snapstate.Get(st, slotSnap, &snapst); err != nil {
+	var slotSnapst snapstate.SnapState
+
+	if err = snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
 		return nil, nil, err
 	}
-	snapInfo, err = snapst.CurrentInfo()
+	snapInfo, err = slotSnapst.CurrentInfo()
 	if err != nil {
 		return nil, nil, err
 	}
