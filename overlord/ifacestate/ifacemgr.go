@@ -71,7 +71,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
-	addHandler("disconnect-interfaces", m.doDisconnectInterfaces, nil)
+	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)

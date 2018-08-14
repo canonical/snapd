@@ -2525,7 +2525,7 @@ apps:
 
 	var disconnectInterfacesCount, slotHookCount, plugHookCount int
 	for _, t := range st.Tasks() {
-		if t.Kind() == "disconnect-interfaces" {
+		if t.Kind() == "auto-disconnect" {
 			disconnectInterfacesCount++
 		}
 		if t.Kind() == "run-hook" {

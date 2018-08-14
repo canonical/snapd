@@ -639,7 +639,7 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 		k := task.Kind()
 		if k == "connect" || k == "disconnect" {
 			// retry if we found another connect/disconnect affecting same snap; note we can only encounter
-			// connects/disconnects created by doDisconnectInterfaces / doAutoConnect here as manual interface ops
+			// connects/disconnects created by doAutoDisconnect / doAutoConnect here as manual interface ops
 			// are rejected by conflict check logic in snapstate.
 			plugRef, slotRef, err := getPlugAndSlotRefs(task)
 			if err != nil {
@@ -683,7 +683,7 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 		k := task.Kind()
 		if k == "connect" || k == "disconnect" {
 			// retry if we found another connect/disconnect affecting same snap; note we can only encounter
-			// connects/disconnects created by doDisconnectInterfaces / doAutoConnect here as manual interface ops
+			// connects/disconnects created by doAutoDisconnect / doAutoConnect here as manual interface ops
 			// are rejected by conflict check logic in snapstate.
 			plugRef, slotRef, err := getPlugAndSlotRefs(task)
 			if err != nil {
@@ -714,7 +714,7 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 		}
 
 		// note, don't care about unlink-snap for the opposite end. This relies
-		// on the fact that disconnect-interfaces will create conflicting "disconnect" tasks that
+		// on the fact that auto-disconnect will create conflicting "disconnect" tasks that
 		// we will retry with the logic above.
 		if k == "link-snap" || k == "setup-profiles" {
 			// other snap is getting installed/refreshed - temporary conflict
@@ -908,8 +908,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// doDisconnectInterfaces creates tasks for disconnecting an interface and running its interface hooks.
-func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb) error {
+// doAutoDisconnect creates tasks for disconnecting all interfaces of a snap and running its interface hooks.
+func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
