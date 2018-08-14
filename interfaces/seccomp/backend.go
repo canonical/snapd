@@ -242,46 +242,46 @@ func (b *Backend) SandboxFeatures() []string {
 // - if the kernel architecture is not any of the above, force the use of
 //   socketcall()
 func requiresSocketcallImpl(baseSnap string) bool {
-	var needed bool
-
 	switch ubuntuKernelArchitecture() {
 	case "i386", "s390x":
-		needed = false
+		// glibc sysdeps/unix/sysv/linux/i386/kernel-features.h and
+		// sysdeps/unix/sysv/linux/s390/kernel-features.h added the
+		// individual socket syscalls in 4.3.
 		if cmp, _ := strutil.VersionCompare(kernelVersion(), "4.3"); cmp < 0 {
-			// glibc sysdeps/unix/sysv/linux/i386/kernel-features.h
-			// and sysdeps/unix/sysv/linux/s390/kernel-features.h
-			// added the individual socket syscalls in 4.3.
-			needed = true
-		} else if releaseInfoId == "ubuntu" {
-			// For now, on 14.04, always require socketcall()
+			return true
+		}
+
+		// For now, on 14.04, always require socketcall()
+		if releaseInfoId == "ubuntu" {
 			if cmp, _ := strutil.VersionCompare(releaseInfoVersionId, "14.04"); cmp <= 0 {
-				needed = true
-			}
-		} else {
-			// Detect when the base snap requires the use of
-			// socketcall().
-			//
-			// TODO: eventually try to auto-detect this. For now,
-			// err on the side of security and only require it for
-			// base snaps where we know we want it added.
-			// Technically, core16's glibc is new enough, but it
-			// always had socketcall in the template, so ensure
-			// backwards compatibility.
-			if baseSnap == "" || baseSnap == "core" || baseSnap == "core16" {
-				needed = true
+				return true
 			}
 		}
+
+		// Detect when the base snap requires the use of socketcall().
+		//
+		// TODO: eventually try to auto-detect this. For now, err on
+		// the side of security and only require it for base snaps
+		// where we know we want it added. Technically, core16's glibc
+		// is new enough, but it always had socketcall in the template,
+		// so ensure backwards compatibility.
+		if baseSnap == "" || baseSnap == "core" || baseSnap == "core16" {
+			return true
+		}
+
+		// If none of the above, we don't need the syscall
+		return false
 	case "powerpc":
 		// glibc's sysdeps/unix/sysv/linux/powerpc/kernel-features.h
 		// states that the individual syscalls are all available as of
 		// 2.6.37. snapd isn't expected to run on these kernels so just
 		// default to unneeded.
-		needed = false
+		return false
 	case "sparc", "sparc64":
 		// glibc's sysdeps/unix/sysv/linux/sparc/kernel-features.h
 		// indicates that socketcall() is used and the individual
 		// syscalls are undefined.
-		needed = true
+		return true
 	default:
 		// amd64, arm64, armhf, ppc64el, etc
 		// glibc's sysdeps/unix/sysv/linux/kernel-features.h says that
@@ -290,8 +290,9 @@ func requiresSocketcallImpl(baseSnap string) bool {
 		// syscall and all the older architectures except sparc (see
 		// above) have introduced the individual syscalls, so default
 		// to unneeded.
-		needed = false
+		return false
 	}
 
-	return needed
+	// If we got here, something went wrong
+	panic("unreachable")
 }
