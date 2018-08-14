@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -57,21 +58,57 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func deviceAPIBaseURL() string {
+func baseURL() string {
 	if useStaging() {
-		return "https://api.staging.snapcraft.io/api/v1/snaps/auth/"
+		return "https://api.staging.snapcraft.io/"
 	}
-	return "https://api.snapcraft.io/api/v1/snaps/auth/"
+	return "https://api.snapcraft.io/"
 }
 
 var (
-	keyLength        = 4096
-	retryInterval    = 60 * time.Second
-	maxTentatives    = 15
-	deviceAPIBase    = deviceAPIBaseURL()
-	requestIDURL     = deviceAPIBase + "request-id"
-	serialRequestURL = deviceAPIBase + "devices"
+	keyLength     = 4096
+	retryInterval = 60 * time.Second
+	maxTentatives = 15
+	baseStoreURL  = baseURL()
 )
+
+func deviceAPIbase(proxyStore *asserts.Store, svcURL string) (s string) {
+	if proxyStore != nil && svcURL != "" {
+		// TODO: warning
+		logger.Noticef("UNSUPPORTED! trying to use a snap store proxy (at %q) together with a device service URL (%q). Falling back to contacting the service URL directly.", proxyStore.URL(), svcURL)
+	}
+	if svcURL != "" {
+		if svcURL[len(svcURL)-1] != '/' {
+			svcURL += "/"
+		}
+		return svcURL
+	}
+
+	var base string
+	if proxyStore != nil {
+		base = proxyStore.URL().String()
+	}
+	if base == "" {
+		base = baseStoreURL
+	}
+	if base[len(base)-1] != '/' {
+		base += "/"
+	}
+
+	return base + "api/v1/snaps/auth/"
+}
+
+func requestIDURL(proxyStore *asserts.Store, svcURL string) string {
+	return deviceAPIbase(proxyStore, svcURL) + "request-id"
+}
+
+func serialRequestURL(proxyStore *asserts.Store, svcURL string) string {
+	base := deviceAPIbase(proxyStore, svcURL)
+	if svcURL == "" {
+		return base + "devices"
+	}
+	return base + "serial"
+}
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -346,79 +383,62 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	var svcURL string
 
-	// gadget is optional on classic
-	model, err := Model(t.State())
+	st := t.State()
+	tr := config.NewTransaction(st)
+	proxyStore, err := proxyStore(st, tr)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
-	var gadgetName string
-	var tr *config.Transaction
+	// gadget is optional on classic
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	cfg := serialRequestConfig{}
+
 	if model != nil && model.Gadget() != "" {
 		// model specifies a gadget
-		gadgetInfo, err := snapstate.GadgetInfo(t.State())
+		gadgetInfo, err := snapstate.GadgetInfo(st)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
 		}
-		gadgetName = gadgetInfo.InstanceName()
+		gadgetName := gadgetInfo.InstanceName()
 
-		tr = config.NewTransaction(t.State())
 		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
+		if err != nil {
+			return nil, err
+		}
+
+		if svcURL != "" {
+			_, err = url.Parse(svcURL)
+			if err != nil {
+				return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
+			}
+		}
+
+		err = tr.GetMaybe(gadgetName, "device-service.headers", &cfg.headers)
+		if err != nil {
+			return nil, err
+		}
+
+		var bodyStr string
+		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.body = []byte(bodyStr)
+
+		err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &cfg.proposedSerial)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if svcURL == "" {
-		// no gadget or no device-service.url, use the fallback
-		// service in the store
-		return &serialRequestConfig{
-			requestIDURL:     requestIDURL,
-			serialRequestURL: serialRequestURL,
-		}, nil
-	}
-
-	baseURL, err := url.Parse(svcURL)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
-	}
-
-	var headers map[string]string
-	err = tr.GetMaybe(gadgetName, "device-service.headers", &headers)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := serialRequestConfig{
-		headers: headers,
-	}
-
-	reqIDURL, err := baseURL.Parse("request-id")
-	if err != nil {
-		return nil, fmt.Errorf("cannot build /request-id URL from %v: %v", baseURL, err)
-	}
-	cfg.requestIDURL = reqIDURL.String()
-
-	var bodyStr string
-	err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.body = []byte(bodyStr)
-
-	serialURL, err := baseURL.Parse("serial")
-	if err != nil {
-		return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
-	}
-	cfg.serialRequestURL = serialURL.String()
-
-	var proposedSerial string
-	err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &proposedSerial)
-	if err != nil {
-		return nil, err
-	}
-	cfg.proposedSerial = proposedSerial
+	cfg.requestIDURL = requestIDURL(proxyStore, svcURL)
+	cfg.serialRequestURL = serialRequestURL(proxyStore, svcURL)
 
 	return &cfg, nil
 }

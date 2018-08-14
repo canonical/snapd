@@ -163,7 +163,7 @@ func New() (*Overlord, error) {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
-	o.udevMon = createUDevMonitor(nil, nil) //ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
+	o.udevMon = createUDevMonitor(ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
 
 	return o, nil
 }
@@ -267,13 +267,14 @@ func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		if o.udevMon != nil {
-			if err := o.udevMon.Connect(); err != nil {
+			err := o.udevMon.Connect()
+			if err == nil {
+				err = o.udevMon.Run()
+				if err != nil {
+					logger.Noticef("Failed to start udev monitor: %s", err)
+				}
+			} else {
 				logger.Noticef("Failed to connect udev monitor: %s", err)
-				panic(fmt.Sprintf("! %s", err))
-			}
-			if err := o.udevMon.Run(); err != nil {
-				logger.Noticef("Failed to start udev monitor: %s", err)
-				return err
 			}
 		}
 
@@ -494,4 +495,11 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 
 func (mb mockBackend) RequestRestart(t state.RestartType) {
 	mb.o.requestRestart(t)
+}
+
+func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
+	createUDevMonitor = new
+	return func() {
+		createUDevMonitor = NewUDevMonitor
+	}
 }
