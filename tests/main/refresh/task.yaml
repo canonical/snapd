@@ -132,4 +132,4 @@ execute: |
         echo "snap refresh invalid-snap-name should fail but it did not?"
         exit 1
     fi
-    < out.err tr '\n' ' ' | tr -s ' ' | MATCH 'cannot refresh .* is not installed'
+    tr '\n' ' ' < out.err | tr -s ' ' | MATCH 'cannot refresh .* is not installed'
