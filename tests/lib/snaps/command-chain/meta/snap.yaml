@@ -1,0 +1,9 @@
+name: command-chain
+version: 1.0
+summary: Command chain snap
+description: A buildable snap that uses command chain
+
+apps:
+  hello:
+    command: hello
+    command-chain: [chain1, chain2]
