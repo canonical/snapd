@@ -12,9 +12,9 @@ restore: |
 
 execute: |
     echo "List all featured snaps"
-    expected="(?s).*Name +Version +Publisher +Notes +Summary *\n\
-    (.*?\n)?\
-    .*"
+    expected='(?s).*Name +Version +Publisher +Notes +Summary *\n
+    (.*?\n)?
+    .*'
     snap find > featured.txt
     if ! grep -Pzq "$expected" < featured.txt; then
         echo "expected out put $expected not found in:"
@@ -24,12 +24,12 @@ execute: |
     MATCH "No search term specified. Here are some interesting snaps" < featured.txt
     MATCH "Provide a search term for more specific results." < featured.txt
 
-    if [ $(snap find | wc -l) -gt 50 ]; then
+    if [ "$(snap find | wc -l)" -gt 50 ]; then
         echo "Found more than 50 featured apps, this seems bogus:"
         snap find
         exit 1
     fi
-    if [ $(snap find | wc -l) -lt 2 ]; then
+    if [ "$(snap find | wc -l)" -lt 2 ]; then
         echo "Not found any featured app, this seems bogus:"
         snap find
         exit 1
@@ -38,28 +38,28 @@ execute: |
     echo "Exact matches"
     for snapName in test-snapd-tools test-snapd-python-webserver
     do
-        expected="(?s)Name +Version +Publisher +Notes +Summary *\n\
-    (.*?\n)?\
-    $snapName +.*? *\n\
+        expected="(?s)Name +Version +Publisher +Notes +Summary *\\n\
+    (.*?\\n)?\
+    $snapName +.*? *\\n\
     .*"
         snap find $snapName | grep -Pzq "$expected"
     done
 
     echo "Partial terms work too"
-    expected="(?s)Name +Version +Publisher +Notes +Summary *\n\
-    (.*?\n)?\
-    test-snapd-tools +.*? *\n\
-    .*"
+    expected='(?s)Name +Version +Publisher +Notes +Summary *\n
+    (.*?\n)?
+    test-snapd-tools +.*? *\n
+    .*'
     snap find test-snapd- | grep -Pzq "$expected"
 
     echo "List of snaps in a section works"
     # NOTE: this shows featured snaps which change all the time, do not
     # make any assumptions about the contents
-    test $(snap find --section=featured | wc -l) -gt 1
+    test "$(snap find --section=featured | wc -l)" -gt 1
 
     # TODO: discuss with the store how we can make this test stable, i.e.
     #       that section/snap changes do not break us
-    if [ $(uname -m) = "x86_64" ]; then
+    if [ "$(uname -m)" = "x86_64" ]; then
         snap find --section=video vlc | MATCH vlc
     else
         snap find --section=video vlc 2>&1 | MATCH 'No matching snaps'
