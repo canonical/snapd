@@ -365,6 +365,16 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
 		snaps = append(snaps, "snapd")
+		// TODO: once we order snaps by what they need this
+		//       can go aways
+		// Here we ensure that "core" is seeded very early
+		// when bases are in use. This fixes the issue
+		// that when people use model assertions with
+		// required snaps like bluez which at this point
+		// still requires core will hang forever in seeding.
+		if strutil.ListContains(opts.Snaps, "core") {
+			snaps = append(snaps, "core")
+		}
 	}
 	// core/base,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(baseName))

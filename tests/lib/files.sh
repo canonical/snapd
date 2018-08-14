@@ -22,11 +22,23 @@ ensure_dir_exists() {
     fi
 }
 
+ensure_dir_exists_backup_real() {
+    dir="$1"
+    if [ -d "$dir" ]; then
+        mv "$dir" "$dir.back"
+    fi
+    mkdir -p "$dir"
+    touch "$dir.fake"
+}
+
 clean_dir() {
     dir="$1"
     if [ -f "$dir.fake" ]; then
         rm -rf "$dir"
         rm -f "$dir.fake"
+    fi
+    if [ -d "$dir.back" ]; then
+        mv "$dir.back" "$dir"
     fi
 }
 
