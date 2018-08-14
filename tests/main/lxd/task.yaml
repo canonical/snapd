@@ -108,9 +108,11 @@ execute: |
     lxd.lxc stop --force my-ubuntu
     lxd.lxc config edit my-ubuntu < conf.yaml
     lxd.lxc start my-ubuntu
+    # shellcheck disable=SC2016
     lxd.lxc exec my-ubuntu -- sh -c 'set -x;for i in $(seq 120); do if systemctl is-active snapd; then break; fi; sleep 1; done'
     lxd.lxc exec my-ubuntu -- snap install test-snapd-tools
-    lxd.lxc exec my-ubuntu -- SNAP_CONFINE_DEBUG=1 test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+    lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
 
 debug: |
     lxd.lxc exec my-ubuntu -- dmesg | grep DENIED
+    lxd.lxc exec my-ubuntu -- SNAP_CONFINE_DEBUG=1 test-snapd-tools.echo hello
