@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ScreenshotInterfaceSuite struct {
+type ScreencastLegacyInterfaceSuite struct {
 	iface        interfaces.Interface
 	coreSlotInfo *snap.SlotInfo
 	coreSlot     *interfaces.ConnectedSlot
@@ -37,50 +37,50 @@ type ScreenshotInterfaceSuite struct {
 	plug         *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&ScreenshotInterfaceSuite{
-	iface: builtin.MustInterface("screenshot"),
+var _ = Suite(&ScreencastLegacyInterfaceSuite{
+	iface: builtin.MustInterface("screencast-legacy"),
 })
 
-const screenshotConsumerYaml = `name: consumer
+const screencastLegacyConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [screenshot]
+  plugs: [screencast-legacy]
 `
 
-const screenshotCoreYaml = `name: core
+const screencastLegacyCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  screenshot:
+  screencast-legacy:
 `
 
-func (s *ScreenshotInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, screenshotConsumerYaml, nil, "screenshot")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, screenshotCoreYaml, nil, "screenshot")
+func (s *ScreencastLegacyInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, screencastLegacyConsumerYaml, nil, "screencast-legacy")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, screencastLegacyCoreYaml, nil, "screencast-legacy")
 }
 
-func (s *ScreenshotInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "screenshot")
+func (s *ScreencastLegacyInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "screencast-legacy")
 }
 
-func (s *ScreenshotInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *ScreencastLegacyInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
-	// screenshot slot currently only used with core
+	// screencast-legacy slot currently only used with core
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "screenshot",
-		Interface: "screenshot",
+		Name:      "screencast-legacy",
+		Interface: "screencast-legacy",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"screenshot slots are reserved for the core snap")
+		"screencast-legacy slots are reserved for the core snap")
 }
 
-func (s *ScreenshotInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *ScreencastLegacyInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *ScreenshotInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *ScreencastLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
@@ -94,14 +94,14 @@ func (s *ScreenshotInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *ScreenshotInterfaceSuite) TestStaticInfo(c *C) {
+func (s *ScreencastLegacyInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows privileged access to desktop screenshot, screencast and recording with saving result to arbitrary locations`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "screenshot")
+	c.Assert(si.Summary, Equals, `allows screen recording and audio recording, and also writing to arbitrary filesystem paths`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "screencast-legacy")
 }
 
-func (s *ScreenshotInterfaceSuite) TestInterfaces(c *C) {
+func (s *ScreencastLegacyInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -19,17 +19,17 @@
 
 package builtin
 
-const screenshotSummary = `allows privileged access to desktop screenshot, screencast and recording with saving result to arbitrary locations`
+const screencastLegacySummary = `allows screen recording and audio recording, and also writing to arbitrary filesystem paths`
 
-const screenshotBaseDeclarationSlots = `
-  screenshot:
+const screencastLegacyBaseDeclarationSlots = `
+  screencast-legacy:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const screenshotConnectedPlugAppArmor = `
+const screencastLegacyConnectedPlugAppArmor = `
 # Description: Can access common desktop screenshot, screencast and recording
 # methods thus giving privileged access to screen output and microphone via the
 # desktop session manager.
@@ -54,11 +54,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "screenshot",
-		summary:               screenshotSummary,
+		name:                  "screencast-legacy",
+		summary:               screencastLegacySummary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  screenshotBaseDeclarationSlots,
-		connectedPlugAppArmor: screenshotConnectedPlugAppArmor,
+		baseDeclarationSlots:  screencastLegacyBaseDeclarationSlots,
+		connectedPlugAppArmor: screencastLegacyConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }

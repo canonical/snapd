@@ -257,9 +257,9 @@ apps:
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
-  screenshot:
+  screencast-legacy:
     command: bin/run
-    plugs: [ screenshot ]
+    plugs: [ screencast-legacy ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
