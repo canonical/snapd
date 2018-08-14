@@ -293,6 +293,6 @@ func requiresSocketcallImpl(baseSnap string) bool {
 		return false
 	}
 
-	// If we got here, something went wrong
-	panic("unreachable")
+	// If we got here, something went wrong, but if the code above changes
+	// the compiler will complain about the lack of 'return'.
 }
