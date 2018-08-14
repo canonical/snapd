@@ -573,7 +573,6 @@ profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
 	s.RemoveSnap(c, snapInfo)
 }
 
-
 // On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
 // Strict confinement template, along with snippets, are used.
 func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
