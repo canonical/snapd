@@ -1761,6 +1761,17 @@ func CurrentInfo(st *state.State, name string) (*snap.Info, error) {
 
 // Get retrieves the SnapState of the given snap.
 func Get(st *state.State, name string, snapst *SnapState) error {
+	if snapst == nil {
+		return fmt.Errorf("internal error: snapst is nil")
+	}
+	// SnapState is (un-)marshalled from/to JSON, fields having omitempty
+	// tag will not appear in the output (if empty) and subsequently will
+	// not be unmarshalled to (or cleared); if the caller reuses the same
+	// struct though subsequent calls, it is possible that they end up with
+	// garbage inside, clear the destination struct so that we always
+	// unmarshal to a clean state
+	*snapst = SnapState{}
+
 	var snaps map[string]*json.RawMessage
 	err := st.Get("snaps", &snaps)
 	if err != nil {

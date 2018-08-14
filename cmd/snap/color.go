@@ -71,8 +71,7 @@ func canUnicode(mode string) bool {
 	return strings.Contains(lang, "UTF-8") || strings.Contains(lang, "UTF8")
 }
 
-// TODO: maybe unify isTTY (~3 calls just in cmd/snap) (but note stdout vs stdin)
-var isTTY = terminal.IsTerminal(1)
+var isStdoutTTY = terminal.IsTerminal(1)
 
 func colorTable(mode string) escapes {
 	switch mode {
@@ -81,7 +80,7 @@ func colorTable(mode string) escapes {
 	case "never":
 		return noesc
 	}
-	if !isTTY {
+	if !isStdoutTTY {
 		return noesc
 	}
 	if _, ok := os.LookupEnv("NO_COLOR"); ok {

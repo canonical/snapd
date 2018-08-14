@@ -142,19 +142,19 @@ func AssertTypeNameCompletion(match string) []flags.Completion {
 	return assertTypeName("").Complete(match)
 }
 
-func MockIsTTY(t bool) (restore func()) {
-	oldIsTTY := isTTY
-	isTTY = t
+func MockIsStdoutTTY(t bool) (restore func()) {
+	oldIsStdoutTTY := isStdoutTTY
+	isStdoutTTY = t
 	return func() {
-		isTTY = oldIsTTY
+		isStdoutTTY = oldIsStdoutTTY
 	}
 }
 
-func MockIsTerminal(t bool) (restore func()) {
-	oldIsTerminal := isTerminal
-	isTerminal = func() bool { return t }
+func MockIsStdinTTY(t bool) (restore func()) {
+	oldIsStdinTTY := isStdinTTY
+	isStdinTTY = t
 	return func() {
-		isTerminal = oldIsTerminal
+		isStdinTTY = oldIsStdinTTY
 	}
 }
 
