@@ -440,52 +440,88 @@ func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
 }
 
 func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
-	testDistros := []string{"ubuntu", "other"}
-	testArchs := []string{"i386", "s390x", "other"}
-	testReleases := []string{"14.04", "other"}
-	for _, distro := range testDistros {
-		restore := seccomp.MockReleaseInfoId(distro)
-		defer restore()
-		for _, arch := range testArchs {
-			restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
-			defer restore()
-			for _, release := range testReleases {
-				restore = seccomp.MockReleaseInfoVersionId(release)
-				defer restore()
+	// specify "core18" with 4.4 kernel so as not to influence the release
+	// check.
+	base := "core18"
+	restore := seccomp.MockKernelVersion(func() string { return "4.4" })
+	defer restore()
 
-				expected := true
-				if distro == "other" || arch == "other" || release == "other" {
-					expected = false
-				}
-				// specify "core18" here so as not to influence
-				// the release check.
-				c.Assert(seccomp.RequiresSocketcall("core18"), Equals, expected)
-			}
-		}
+	tests := []struct {
+		distro          string
+		arch            string
+		release         string
+		needsSocketcall bool
+	}{
+		// with core18 as base and 4.4 kernel, we only require
+		// socketcall on i386/s390
+		{"ubuntu", "i386", "14.04", true},
+		{"ubuntu", "s390x", "14.04", true},
+		{"ubuntu", "other", "14.04", false},
+
+		// releases after 14.04 aren't forced
+		{"ubuntu", "i386", "other", false},
+		{"ubuntu", "s390x", "other", false},
+		{"ubuntu", "other", "other", false},
+
+		// other distros aren't forced
+		{"other", "i386", "14.04", false},
+		{"other", "s390x", "14.04", false},
+		{"other", "other", "14.04", false},
+		{"other", "i386", "other", false},
+		{"other", "s390x", "other", false},
+		{"other", "other", "other", false},
+	}
+
+	for _, t := range tests {
+		restore = seccomp.MockReleaseInfoId(t.distro)
+		defer restore()
+		restore = seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
+		defer restore()
+		restore = seccomp.MockReleaseInfoVersionId(t.release)
+		defer restore()
+
+		c.Assert(seccomp.RequiresSocketcall(base), Equals, t.needsSocketcall)
 	}
 }
 
 func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
+	// specify "core18" with non-ubuntu so as not to influence the kernel
+	// check.
+	base := "core18"
+
 	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
 
-	testArchs := []string{"i386", "s390x", "other"}
-	testVersions := []string{"4.2", "4.3", "4.4"}
-	for _, arch := range testArchs {
-		restore = seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
-		defer restore()
-		for _, version := range testVersions {
-			restore = seccomp.MockKernelVersion(func() string { return version })
-			defer restore()
+	tests := []struct {
+		arch            string
+		version         string
+		needsSocketcall bool
+	}{
+		// i386 needs socketcall on <= 4.2 kernels
+		{"i386", "4.2", true},
+		{"i386", "4.3", false},
+		{"i386", "4.4", false},
 
-			expected := false
-			if (arch == "i386" || arch == "s390x") && version == "4.2" {
-				expected = true
-			}
-			// specify "core18" here so as not to influence the
-			// kernel check.
-			c.Assert(seccomp.RequiresSocketcall("core18"), Equals, expected)
-		}
+		// s390x needs socketcall on <= 4.2 kernels
+		{"s390x", "4.2", true},
+		{"s390x", "4.3", false},
+		{"s390x", "4.4", false},
+
+		// other architectures don't require it
+		{"other", "4.2", false},
+		{"other", "4.3", false},
+		{"other", "4.4", false},
+	}
+
+	for _, t := range tests {
+		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
+		defer restore()
+		restore = seccomp.MockKernelVersion(func() string { return t.version })
+		defer restore()
+
+		// specify "core18" here so as not to influence the
+		// kernel check.
+		c.Assert(seccomp.RequiresSocketcall(base), Equals, t.needsSocketcall)
 	}
 }
 
