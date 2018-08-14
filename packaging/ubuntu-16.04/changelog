@@ -1,6 +1,8 @@
-snapd (2.35~pre2) xenial; urgency=medium
+snapd (2.35~pre3) xenial; urgency=medium
 
   * New upstream release, LP: #1786438
+    - interfaces/builtin: addtl network-manager resolved DBus fix
+    - hookstate: simplify some hook tests
     - udev: skip TestParseUdevEvent on ppc
     - interfaces: miscellaneous policy updates
     - debian: add tzdata to build-dep to ensure snapd builds correctly
