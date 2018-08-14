@@ -439,10 +439,13 @@ func (s *ValidateSuite) TestAppWhitelistWithVars(c *C) {
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "test'me"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar'baz"}}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar baz"}}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
