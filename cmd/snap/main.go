@@ -286,12 +286,14 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	return parser
 }
 
+var isStdinTTY = terminal.IsTerminal(0)
+
 // ClientConfig is the configuration of the Client used by all commands.
 var ClientConfig = client.Config{
 	// we need the powerful snapd socket
 	Socket: dirs.SnapdSocket,
 	// Allow interactivity if we have a terminal
-	Interactive: terminal.IsTerminal(0),
+	Interactive: isStdinTTY,
 }
 
 // Client returns a new client using ClientConfig as configuration.
