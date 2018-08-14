@@ -63,7 +63,7 @@ type localInfos struct {
 
 func (li *localInfos) Name(pathOrName string) string {
 	if info := li.pathToInfo[pathOrName]; info != nil {
-		return info.Name()
+		return info.InstanceName()
 	}
 	return pathOrName
 }
@@ -101,7 +101,7 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			}
 			// local snap gets local revision
 			info.Revision = snap.R(-1)
-			nameToPath[info.Name()] = snapName
+			nameToPath[info.InstanceName()] = snapName
 			local[snapName] = info
 
 			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
@@ -111,7 +111,6 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			if err == nil {
 				info.SnapID = si.SnapID
 				info.Revision = si.Revision
-				info.Channel = opts.Channel
 			}
 		}
 	}
@@ -121,10 +120,39 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	}, nil
 }
 
+func validateNoParallelSnapInstances(snaps []string) error {
+	for _, snapName := range snaps {
+		_, instanceKey := snap.SplitInstanceName(snapName)
+		if instanceKey != "" {
+			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
+		}
+	}
+	return nil
+}
+
+// validateNonLocalSnaps raises an error when snaps that would be pulled from
+// the store use an instance key in their names
+func validateNonLocalSnaps(snaps []string) error {
+	nonLocalSnaps := make([]string, 0, len(snaps))
+	for _, snapName := range snaps {
+		if !strings.HasSuffix(snapName, ".snap") {
+			nonLocalSnaps = append(nonLocalSnaps, snapName)
+		}
+	}
+	return validateNoParallelSnapInstances(nonLocalSnaps)
+}
+
 func Prepare(opts *Options) error {
 	model, err := decodeModelAssertion(opts)
 	if err != nil {
 		return err
+	}
+
+	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
+		return err
+	}
+	if _, err := snap.ParseChannel(opts.Channel, ""); err != nil {
+		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
 	// TODO: might make sense to support this later
@@ -179,6 +207,12 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		if modela.Header(rsvd) != nil {
 			return nil, fmt.Errorf("model assertion cannot have reserved/unsupported header %q set", rsvd)
 		}
+	}
+
+	modelSnaps := modela.RequiredSnaps()
+	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget(), modela.Base())
+	if err := validateNoParallelSnapInstances(modelSnaps); err != nil {
+		return nil, err
 	}
 
 	return modela, nil
@@ -248,6 +282,7 @@ func installCloudConfig(gadgetDir string) error {
 	return err
 }
 
+// defaultCore is used if no base is specified by the model
 const defaultCore = "core"
 
 var trusted = sysdb.Trusted()
@@ -258,6 +293,22 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	return func() {
 		trusted = prevTrusted
 	}
+}
+
+func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use kernel-track %q from model assertion", kernelTrack)
+	kch, err := snap.ParseChannel(kernelTrack, "")
+	if err != nil {
+		return "", fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	if defaultChannel != "" {
+		dch, err := snap.ParseChannel(defaultChannel, "")
+		if err != nil {
+			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
+		}
+		kch.Risk = dch.Risk
+	}
+	return kch.Clean().String(), nil
 }
 
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
@@ -299,20 +350,34 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dlOpts := &DownloadOptions{
-		TargetDir: snapSeedDir,
-		Channel:   opts.Channel,
-	}
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
 	}
 
+	baseName := defaultCore
+	if model.Base() != "" {
+		baseName = model.Base()
+	}
+
 	snaps := []string{}
-	// core,kernel,gadget first
-	snaps = append(snaps, local.PreferLocal(defaultCore))
+	// always add an implicit snapd first when a base is used
+	if model.Base() != "" {
+		snaps = append(snaps, "snapd")
+		// TODO: once we order snaps by what they need this
+		//       can go aways
+		// Here we ensure that "core" is seeded very early
+		// when bases are in use. This fixes the issue
+		// that when people use model assertions with
+		// required snaps like bluez which at this point
+		// still requires core will hang forever in seeding.
+		if strutil.ListContains(opts.Snaps, "core") {
+			snaps = append(snaps, "core")
+		}
+	}
+	// core/base,kernel,gadget first
+	snaps = append(snaps, local.PreferLocal(baseName))
 	snaps = append(snaps, local.PreferLocal(model.Kernel()))
 	snaps = append(snaps, local.PreferLocal(model.Gadget()))
 	// then required and the user requested stuff
@@ -323,7 +388,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	seen := make(map[string]bool)
 	var locals []string
-	downloadedSnapsInfo := map[string]*snap.Info{}
+	downloadedSnapsInfoForBootConfig := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
 		name := local.Name(snapName)
@@ -336,6 +401,19 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
 		} else {
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+		}
+
+		snapChannel := opts.Channel
+		if name == model.Kernel() && model.KernelTrack() != "" {
+			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			snapChannel = kch
+		}
+		dlOpts := &DownloadOptions{
+			TargetDir: snapSeedDir,
+			Channel:   snapChannel,
 		}
 
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
@@ -368,10 +446,12 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			}
 		} else {
 			locals = append(locals, name)
+			// local snaps have no channel
+			snapChannel = ""
 		}
 
-		// kernel/os are required for booting
-		if typ == snap.TypeKernel || typ == snap.TypeOS {
+		// kernel/os/model.base are required for booting
+		if typ == snap.TypeKernel || local.Name(snapName) == baseName {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			// construct a relative symlink from the blob dir
 			// to the seed file
@@ -382,16 +462,16 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			if err := os.Symlink(relSymlink, dst); err != nil {
 				return err
 			}
-			// store the snap.Info for kernel/os so
+			// store the snap.Info for kernel/os/base so
 			// that the bootload can DTRT
-			downloadedSnapsInfo[dst] = info
+			downloadedSnapsInfoForBootConfig[dst] = info
 		}
 
 		// set seed.yaml
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
-			Name:    info.Name(),
+			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
-			Channel: info.Channel,
+			Channel: snapChannel,
 			File:    filepath.Base(fn),
 			DevMode: info.NeedsDevMode(),
 			Contact: info.Contact,
@@ -433,7 +513,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		return err
 	}
 
-	if err := setBootvars(downloadedSnapsInfo); err != nil {
+	if err := setBootvars(downloadedSnapsInfoForBootConfig, model); err != nil {
 		return err
 	}
 
@@ -445,10 +525,14 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	return nil
 }
 
-func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
+func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *asserts.Model) error {
+	if len(downloadedSnapsInfoForBootConfig) != 2 {
+		return fmt.Errorf("setBootvars can only be called with exactly one kernel and exactly one core/base boot info: %v", downloadedSnapsInfoForBootConfig)
+	}
+
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
-	// mounted kernel/core snap, but just the blobs.
+	// mounted kernel/core/base snap, but just the blobs.
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
@@ -464,12 +548,16 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 		"snap_try_core":   "",
 		"snap_try_kernel": "",
 	}
+	if model.DisplayName() != "" {
+		m["snap_menuentry"] = model.DisplayName()
+	}
+
 	for _, fn := range snaps {
 		bootvar := ""
 
-		info := downloadedSnapsInfo[fn]
+		info := downloadedSnapsInfoForBootConfig[fn]
 		switch info.Type {
-		case snap.TypeOS:
+		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"

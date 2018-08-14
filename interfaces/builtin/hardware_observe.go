@@ -52,14 +52,22 @@ capability sys_admin,
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
 
+# power information
+/sys/power/{,**} r,
+
 # interrupts
 @{PROC}/interrupts r,
+
+# libsensors
+/etc/sensors3.conf r,
+/etc/sensors.d/{,*} r,
 
 # Needed for udevadm
 /run/udev/data/** r,
 network netlink raw,
 
 # util-linux
+/{,usr/}bin/lsblk ixr,
 /{,usr/}bin/lscpu ixr,
 /{,usr/}bin/lsmem ixr,
 

@@ -179,12 +179,12 @@ override_dh_install:
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
 
-	# install snapd's systemd units / upstart jobs, done
+	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
 	# ubuntu/14.04 release branch adds/changes bits here
 	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
 		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
-	# we called this apps-bin-path.sh instead of snapd.sh, and
+	# We called this apps-bin-path.sh instead of snapd.sh, and
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
@@ -194,6 +194,10 @@ override_dh_install:
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
 	# trusty doesn't need the .real workaround
+
+	# On Ubuntu and Debian we don't need to install the apparmor helper service.
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
+	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
 	dh_install
 

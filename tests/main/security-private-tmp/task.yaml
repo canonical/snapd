@@ -1,28 +1,30 @@
 summary: Ensure that the security rules for private tmp are in place.
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 
 environment:
     SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
 
 prepare: |
     echo "Given a basic snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
     echo "And another basic snap is installed"
-    mkdir -p $SNAP_INSTALL_DIR
-    cp -ra $TESTSLIB/snaps/test-snapd-tools/* $SNAP_INSTALL_DIR
-    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $SNAP_INSTALL_DIR/meta/snap.yaml
-    snap pack $SNAP_INSTALL_DIR
+    mkdir -p "$SNAP_INSTALL_DIR"
+    cp -ra "$TESTSLIB"/snaps/test-snapd-tools/* "$SNAP_INSTALL_DIR"
+    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' "$SNAP_INSTALL_DIR/meta/snap.yaml"
+    snap pack "$SNAP_INSTALL_DIR"
     snap install --dangerous not-test-snapd-tools_1.0_all.snap
 
 restore: |
-    rm -rf not-test-snapd-tools_1.0_all.snap "$SNAP_INSTALL_DIR" /tmp/foo *stat.error
+    rm -rf not-test-snapd-tools_1.0_all.snap "$SNAP_INSTALL_DIR" /tmp/foo ./*stat.error
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "When a temporary file is created by one snap"
     expect -d -f tmp-create.exp

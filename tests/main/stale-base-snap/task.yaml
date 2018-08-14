@@ -22,7 +22,7 @@ prepare: |
 
     # We will also need to prepare a hacked core snap that just differs from
     # our own in some detail that we can measure.
-    unsquashfs $(ls /var/lib/snapd/snaps/core_*.snap | sort -r -n | head -n 1)
+    unsquashfs -no-progress $(ls /var/lib/snapd/snaps/core_*.snap | sort -r -n | head -n 1)
     touch squashfs-root/customized
     sed -i -e 's/version: .*/version: customized/' squashfs-root/meta/snap.yaml
 

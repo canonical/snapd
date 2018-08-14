@@ -22,6 +22,13 @@ export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 
+# On 18.04 the released version of apt (1.6.1) has a bug that causes
+# problem on "apt purge snapd". To ensure this won't happen add the
+# right dependency on 18.04.
+ifeq (${VERSION_ID},"18.04")
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
+endif
+
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 
@@ -133,7 +140,7 @@ override_dh_auto_build:
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 
 	# this is the main go build
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
@@ -207,12 +214,12 @@ override_dh_install:
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
 
-	# install snapd's systemd units / upstart jobs, done
+	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
 	# ubuntu/14.04 release branch adds/changes bits here
 	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
 		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
-	# we called this apps-bin-path.sh instead of snapd.sh, and
+	# We called this apps-bin-path.sh instead of snapd.sh, and
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
@@ -220,6 +227,10 @@ override_dh_install:
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+
+	# On Ubuntu and Debian we don't need to install the apparmor helper service.
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
+	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
 	dh_install
 
@@ -234,4 +245,4 @@ override_dh_auto_clean:
 	rm -vf snap.8
 
 override_dh_gencontrol:
-	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)"
+	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)" $(SUBSTVARS)

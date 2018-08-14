@@ -145,7 +145,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 
 func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -188,8 +188,8 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	seen := make(map[string]bool)
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		seen[info.Name()] = true
-		if info.Name() == "alias-snap" {
+		seen[info.InstanceName()] = true
+		if info.InstanceName() == "alias-snap" {
 			return map[string]string{
 				"alias1": "cmd1",
 				"alias2": "cmd2",
@@ -237,7 +237,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 
 func (s *snapmgrTestSuite) TestAutoAliasesDeltaOverManual(c *C) {
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -274,7 +274,7 @@ func (s *snapmgrTestSuite) TestRefreshAliases(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
+		c.Check(info.InstanceName(), Equals, "alias-snap")
 		return map[string]string{
 			"alias1": "cmd1",
 			"alias2": "cmd2",
@@ -553,7 +553,7 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.snapmgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -604,8 +604,8 @@ func (s *snapmgrTestSuite) TestAliasNoTarget(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -630,8 +630,8 @@ func (s *snapmgrTestSuite) TestAliasTargetIsDaemon(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -668,7 +668,7 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.snapmgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -764,8 +764,8 @@ func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -816,7 +816,7 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.snapmgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -904,7 +904,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.snapmgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -956,7 +956,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.snapmgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
@@ -1124,7 +1124,7 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.snapmgr.Stop()
+	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 

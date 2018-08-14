@@ -23,7 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -61,10 +65,18 @@ var (
 
 	// ErrNoUpdateAvailable is returned when an update is attempetd for a snap that has no update available.
 	ErrNoUpdateAvailable = errors.New("snap has no updates available")
-
-	// ErrRevisionNotAvailable is returned when an install is attempted for a snap but the/a revision is not available (given install constraints)
-	ErrRevisionNotAvailable = errors.New("no snap revision given constraints")
 )
+
+// RevisionNotAvailableError is returned when an install is attempted for a snap but the/a revision is not available (given install constraints).
+type RevisionNotAvailableError struct {
+	Action   string
+	Channel  string
+	Releases []snap.Channel
+}
+
+func (e *RevisionNotAvailableError) Error() string {
+	return "no snap revision available as specified"
+}
 
 // DownloadError represents a download error
 type DownloadError struct {
@@ -119,6 +131,8 @@ type SnapActionError struct {
 	Refresh map[string]error
 	// Install errors by snap name.
 	Install map[string]error
+	// Download errors by snap name.
+	Download map[string]error
 	// Other errors.
 	Other []error
 }
@@ -126,50 +140,91 @@ type SnapActionError struct {
 func (e SnapActionError) Error() string {
 	nRefresh := len(e.Refresh)
 	nInstall := len(e.Install)
+	nDownload := len(e.Download)
 	nOther := len(e.Other)
 
 	// single error
-	if nRefresh+nInstall+nOther == 1 {
+	switch nRefresh + nInstall + nDownload + nOther {
+	case 0:
+		if e.NoResults {
+			// this is an atypical result
+			return "no install/refresh information results from the store"
+		}
+	case 1:
 		if nOther == 0 {
-			op := "refresh"
-			errs := e.Refresh
-			if nInstall > 0 {
+			var op string
+			var errs map[string]error
+			switch {
+			case nRefresh > 0:
+				op = "refresh"
+				errs = e.Refresh
+			case nInstall > 0:
 				op = "install"
 				errs = e.Install
+			case nDownload > 0:
+				op = "download"
+				errs = e.Download
 			}
 			for name, e := range errs {
 				return fmt.Sprintf("cannot %s snap %q: %v", op, name, e)
 			}
 		} else {
-			return fmt.Sprintf("cannot refresh or install: %v", e.Other[0])
+			return fmt.Sprintf("cannot refresh, install, or download: %v", e.Other[0])
 		}
 	}
 
-	header := "cannot refresh:"
-	if nInstall > 0 {
-		header = "cannot install:"
+	header := "cannot refresh, install, or download:"
+	if nOther == 0 {
+		// at least one of nDownload, nInstall, or nRefresh is > 0
+		switch {
+		case nDownload == 0 && nRefresh == 0:
+			header = "cannot install:"
+		case nDownload == 0 && nInstall == 0:
+			header = "cannot refresh:"
+		case nRefresh == 0 && nInstall == 0:
+			header = "cannot download:"
+		case nDownload == 0:
+			header = "cannot refresh or install:"
+		case nInstall == 0:
+			header = "cannot refresh or download:"
+		case nRefresh == 0:
+			header = "cannot install or download:"
+		}
 	}
-	if nOther > 0 || (nInstall > 0 && nRefresh > 0) {
-		header = "cannot refresh or install:"
-	}
-	es := []string{header}
 
-	for name, e := range e.Refresh {
-		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	// reverse the "snap->error" map to "error->snap", as the
+	// common case is that all snaps fail with the same error
+	// (e.g. "no refresh available")
+	errToSnaps := map[string][]string{}
+	errKeys := []string{} // poorman's ordered map
+
+	for _, m := range []map[string]error{e.Refresh, e.Install, e.Download} {
+		for snapName, err := range m {
+			k := err.Error()
+			v, ok := errToSnaps[k]
+			if !ok {
+				errKeys = append(errKeys, k)
+			}
+			errToSnaps[k] = append(v, snapName)
+		}
 	}
 
-	for name, e := range e.Install {
-		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	es := make([]string, 1, 1+len(errToSnaps)+nOther)
+	es[0] = header
+	for _, k := range errKeys {
+		sort.Strings(errToSnaps[k])
+		es = append(es, fmt.Sprintf("%s: %s", k, strutil.Quoted(errToSnaps[k])))
 	}
 
 	for _, e := range e.Other {
-		es = append(es, fmt.Sprintf("* %v", e))
+		es = append(es, e.Error())
 	}
 
-	if e.NoResults && len(es) == 1 {
-		// this is an atypical result
-		return "no install/refresh information results from the store"
+	if len(es) == 2 {
+		// header + 1 reason
+		return strings.Join(es, " ")
 	}
+
 	return strings.Join(es, "\n")
 }
 
@@ -179,10 +234,26 @@ var (
 	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
 )
 
-func translateSnapActionError(action, code, message string) error {
+func translateSnapActionError(action, channel, code, message string, releases []snapRelease) error {
 	switch code {
 	case "revision-not-found":
-		return ErrRevisionNotAvailable
+		e := &RevisionNotAvailableError{
+			Action:  action,
+			Channel: channel,
+		}
+		if len(releases) != 0 {
+			parsedReleases := make([]snap.Channel, len(releases))
+			for i := 0; i < len(releases); i++ {
+				var err error
+				parsedReleases[i], err = snap.ParseChannel(releases[i].Channel, releases[i].Architecture)
+				if err != nil {
+					// shouldn't happen, return error without Releases
+					return e
+				}
+			}
+			e.Releases = parsedReleases
+		}
+		return e
 	case "id-not-found", "name-not-found":
 		return ErrSnapNotFound
 	case "user-authorization-needs-refresh":

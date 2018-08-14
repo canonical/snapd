@@ -31,6 +31,12 @@ set -o pipefail
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
+
 
 ###
 ### Utility functions reused below.
@@ -48,7 +54,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*|arch-*)
+            debian-*|fedora-*|opensuse-*|arch-*|amazon-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -82,6 +88,10 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        distro=amzn
+        release=2
+    fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
@@ -92,8 +102,8 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
 
     case "$SPREAD_SYSTEM" in
-        fedora-*)
-            extra_tar_args="$extra_tar_args --exclude=vendor/"
+        fedora-*|amazon-*)
+            extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -111,7 +121,11 @@ build_rpm() {
     cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
+    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        # need to build the vendor tree
+        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+    fi
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -232,6 +246,9 @@ prepare_project() {
         exit 1
     fi
 
+    # Prepare the state directories for execution
+    prepare_state
+
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
@@ -278,8 +295,15 @@ prepare_project() {
                 REBOOT
             fi
         fi
-        if [[ "$SPREAD_REBOOT" != 1 ]]; then
-            echo "reboot did not work"
+        # double check we are running the installed kernel
+        # NOTE: LOCALVERSION is set by scripts/setlocalversion and loos like
+        # 4.17.11-arch1, since this may not match pacman -Qi output, we'll list
+        # the files within the package instead
+        # pacman -Ql linux output:
+        # ...
+        # linux /usr/lib/modules/4.17.11-arch1/modules.alias
+        if [[ "$(pacman -Ql linux | cut -f2 -d' ' |grep '/usr/lib/modules/.*/modules'|cut -f5 -d/ | uniq)" != "$(uname -r)" ]]; then
+            echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
     fi
@@ -317,7 +341,7 @@ prepare_project() {
     esac
 
     # update vendoring
-    if [ -z "$(which govendor)" ]; then
+    if [ -z "$(command -v govendor)" ]; then
         rm -rf "$GOPATH/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
@@ -330,7 +354,7 @@ prepare_project() {
             ubuntu-*|debian-*)
                 build_deb
                 ;;
-            fedora-*|opensuse-*)
+            fedora-*|opensuse-*|amazon-*)
                 build_rpm
                 ;;
             arch-*)
@@ -359,23 +383,21 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
-    # disable journald rate limiting
-    mkdir -p /etc/systemd/journald.conf.d/
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
     [Journal]
-    RateLimitIntervalSec=0
+    RateLimitInterval=0
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
 }
 
 prepare_project_each() {
-    # We want to rotate the logs so that when inspecting or dumping them we
-    # will just see logs since the test has started.
-
-    # Reset systemd journal cursor.
-    start_new_journalctl_log
-
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
 
@@ -385,21 +407,27 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-        prepare_all_snap
+    if is_core_system; then
+        prepare_ubuntu_core
     else
         prepare_classic
     fi
 }
 
 prepare_suite_each() {
+    # save the job which is going to be exeuted in the system
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+    # Reset systemd journal cursor.
+    start_new_journalctl_log
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    if is_classic_system; then
         prepare_each_classic
     fi
+    # Check if journalctl is ready to run the test
+    check_journalctl_ready
 }
 
 restore_suite_each() {
@@ -409,9 +437,9 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
-        . $TESTSLIB/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch
@@ -463,10 +491,8 @@ restore_project_each() {
 }
 
 restore_project() {
-    # We use a trick to accelerate prepare/restore code in certain suites. That
-    # code uses a tarball to store the vanilla state. Here we just remove this
-    # tarball.
-    rm -f "$SPREAD_PATH/snapd-state.tar.gz"
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little

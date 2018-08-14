@@ -1,0 +1,275 @@
+-------------------------------------------------------------------
+Fri Jul 27 19:08:44 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34.3
+
+-------------------------------------------------------------------
+Thu Jul 19 12:05:50 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34.2
+
+-------------------------------------------------------------------
+Wed Jul 17 19:46:56 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34.1
+
+-------------------------------------------------------------------
+Fri Jul 06 16:08:17 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.34
+
+-------------------------------------------------------------------
+Fri Jun 22 15:58:54 UTC 2018 - me@zygoon.pl
+
+- Fixed changelog chronology
+
+-------------------------------------------------------------------
+Fri Jun 22 14:25:35 UTC 2018 - me@zygoon.pl
+
+- Sync with snapd upstream packaging
+- Backport support for apparmor on tumbleweed
+- Install polkit files
+- Load snap-confine apparmor profile in post, if apparmor is enabled
+- Adjust badness of polkit-untracked-privlege
+-------------------------------------------------------------------
+Thu Jun 21 17:37:56 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.33.1
+
+-------------------------------------------------------------------
+Fri Jun 08 17:13:47 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.33
+
+-------------------------------------------------------------------
+Mon May 28 08:06:53 UTC 2018 - ngompa13@gmail.com
+
+- Refactor to support openSUSE Tumbleweed and Leap 42.3 and 15.0
+- Enable AppArmor support for openSUSE Tumbleweed (post Leap 15.0)
+- Enable support for handling the proprietary nvidia driver
+- Drop ancient spec stuff that was being ignored by RPM anyway
+- Drop spurious find command that didn't do anything...
+
+-------------------------------------------------------------------
+Wed May 16 10:20:08 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.9
+
+-------------------------------------------------------------------
+Fri May 11 14:36:16 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.8
+
+-------------------------------------------------------------------
+Fri May 11 13:09:32 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.7
+
+-------------------------------------------------------------------
+Sun Apr 29 19:21:53 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.6
+
+-------------------------------------------------------------------
+Mon Apr 16 16:41:48 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.5
+
+-------------------------------------------------------------------
+Wed Apr 11 16:30:45 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.4
+
+-------------------------------------------------------------------
+Wed Apr 11 12:40:09 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.3.2
+
+-------------------------------------------------------------------
+Wed Apr 11 10:34:00 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.3.1
+
+-------------------------------------------------------------------
+Thu Apr 05 22:35:35 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.3
+
+-------------------------------------------------------------------
+Sat Mar 31 21:09:29 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.2
+
+-------------------------------------------------------------------
+Mon Mar 26 21:03:02 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32.1
+
+-------------------------------------------------------------------
+Sat Mar 24 08:50:11 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.32
+
+-------------------------------------------------------------------
+Tue Feb 20 17:32:42 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.31.1
+
+-------------------------------------------------------------------
+Tue Feb 06 09:46:22 UTC 2018 - mvo@fastmail.fm
+
+- Update to upstream release 2.31
+
+-------------------------------------------------------------------
+Sat Nov 18 15:31:24 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.30
+
+-------------------------------------------------------------------
+Fri Nov 17 22:56:09 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.29.4
+
+-------------------------------------------------------------------
+Thu Nov 09 19:16:29 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.29.3
+
+-------------------------------------------------------------------
+Fri Nov 03 17:26:14 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.29.2
+
+-------------------------------------------------------------------
+Fri Nov 03 07:27:08 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.29.1
+
+-------------------------------------------------------------------
+Mon Oct 30 16:24:08 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.29
+
+-------------------------------------------------------------------
+Wed Oct 11 19:46:37 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.28.4
+
+-------------------------------------------------------------------
+Wed Oct 11 08:23:47 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.28.3
+
+-------------------------------------------------------------------
+Tue Oct 10 18:42:45 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.28.2
+
+-------------------------------------------------------------------
+Wed Sep 27 22:04:59 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.28.1
+
+-------------------------------------------------------------------
+Mon Sep 25 16:09:15 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.28
+
+-------------------------------------------------------------------
+Thu Sep 07 10:32:21 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.6
+
+-------------------------------------------------------------------
+Wed Aug 30 07:45:01 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.5
+
+-------------------------------------------------------------------
+Thu Aug 24 09:08:32 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.4
+
+-------------------------------------------------------------------
+Fri Aug 18 15:51:22 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.3
+
+-------------------------------------------------------------------
+Wed Aug 16 12:16:01 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.2
+
+-------------------------------------------------------------------
+Mon Aug 14 08:07:21 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27.1
+
+-------------------------------------------------------------------
+Thu Aug 10 11:25:11 UTC 2017 - mvo@fastmail.fm
+
+- Update to upstream release 2.27
+
+-------------------------------------------------------------------
+Fri May 19 14:35:29 UTC 2017 - morphis@gravedo.de
+
+- Add bind() syscall to default seccomp policy to allow execution
+  of snap hooks.
+- Do not share /etc/ssl with the host but use the one from the core
+  snap.
+
+-------------------------------------------------------------------
+Wed May 10 12:24:44 UTC 2017 - morphis@gravedo.de
+
+- Update to upstream release 2.25
+
+-------------------------------------------------------------------
+Thu Apr 13 14:06:13 UTC 2017 - morphis@gravedo.de
+
+- Update to upstream release 2.24
+
+-------------------------------------------------------------------
+Thu Mar 30 14:14:44 UTC 2017 - morphis@gravedo.de
+
+- Update to upstream release 2.23.6
+
+-------------------------------------------------------------------
+Thu Mar 23 08:53:37 UTC 2017 - morphis@gravedo.de
+
+- Update to upstream release 2.23.5
+- Disable seccomp support to work around bugs in snap-confine
+  (see https://bugs.launchpad.net/snappy/+bug/1674193 for details)
+
+-------------------------------------------------------------------
+Wed Mar 08 16:09:03 UTC 2017 - me@zygoon.pl
+
+- Fix log-out prompt to be displayed only when really necessary.
+- Fix installation of /usr/lib/snapd/info (version information)
+- Install bash completion for "snap"
+
+-------------------------------------------------------------------
+Wed Mar 08 15:53:06 UTC 2017 - me@zygoon.pl
+
+- New upstream release.
+  More details are available at https://github.com/snapcore/snapd/releases/tag/2.23.1
+
+-------------------------------------------------------------------
+Tue Mar 07 23:00:34 UTC 2017 - me@zygoon.pl
+
+- Add PATH integration and post-install message asking the user to logout to
+  see PATH changes.
+
+-------------------------------------------------------------------
+Tue Mar 07 00:45:12 UTC 2017 - me@zygoon.pl
+
+- (hacky) Disable shellcheck as it is missing on Leap 42.1
+
+-------------------------------------------------------------------
+Tue Mar 07 00:43:58 UTC 2017 - me@zygoon.pl
+
+- (hacky) fix the 32bit build
+
+-------------------------------------------------------------------
+Mon Mar 06 18:08:04 UTC 2017 - me@zygoon.pl
+
+- Initial package based on fully vendorized source tarball

@@ -334,7 +334,7 @@ func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 	     Similar case for chnlat*.
 	   So we intetionally skipped modem, rild and chnlat.
 	*/
-	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	spec.TagDevice(`KERNEL=="tun"`)
 	spec.TagDevice(`KERNEL=="dsp"`)
 	return nil
@@ -352,7 +352,7 @@ func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-func (iface *ofonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ofonoInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

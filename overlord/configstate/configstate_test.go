@@ -79,8 +79,9 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(1)},
 		},
-		Current: snap.R(1),
-		Active:  true,
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
 	})
 	s.state.Unlock()
 
@@ -144,6 +145,28 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 	}
 }
 
+func (s *tasksetsSuite) TestConfigureInstalledConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Disable(s.state, "test-snap")
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("other-change", "...")
+	chg.AddAll(ts)
+
+	patch := map[string]interface{}{"foo": "bar"}
+	_, err = configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "other-change" change in progress`)
+}
+
 func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	patch := map[string]interface{}{"foo": "bar"}
 	s.state.Lock()
@@ -157,6 +180,40 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *tasksetsSuite) TestConfigureDenyBases(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "test-base", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-base", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "base",
+	})
+
+	_, err := configstate.ConfigureInstalled(s.state, "test-base", patch, 0)
+	c.Check(err, ErrorMatches, `cannot configure snap "test-base" because it is of type 'base'`)
+}
+
+func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	_, err := configstate.ConfigureInstalled(s.state, "snapd", patch, 0)
+	c.Check(err, ErrorMatches, `cannot configure the "snapd" snap, please use "system" instead`)
+}
+
 type configcoreHijackSuite struct {
 	o     *overlord.Overlord
 	state *state.State
@@ -165,19 +222,16 @@ type configcoreHijackSuite struct {
 func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
-	hookMgr, err := hookstate.Manager(s.state)
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
 	configstate.Init(hookMgr)
+	s.o.AddManager(s.o.TaskRunner())
 }
 
 type witnessManager struct {
 	state     *state.State
 	committed bool
-}
-
-func (m *witnessManager) KnownTaskKinds() []string {
-	return nil
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -190,12 +244,6 @@ func (wm *witnessManager) Ensure() error {
 		wm.committed = true
 	}
 	return nil
-}
-
-func (wm *witnessManager) Stop() {
-}
-
-func (wm *witnessManager) Wait() {
 }
 
 func (s *configcoreHijackSuite) TestHijack(c *C) {
@@ -244,4 +292,21 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 
 	c.Check(chg.Err(), IsNil)
 	c.Check(configcoreRan, Equals, true)
+}
+
+type miscSuite struct{}
+
+var _ = Suite(&miscSuite{})
+
+func (s *miscSuite) TestRemappingFuncs(c *C) {
+	// We don't change those.
+	c.Assert(configstate.RemapSnapFromRequest("foo"), Equals, "foo")
+	c.Assert(configstate.RemapSnapFromRequest("snapd"), Equals, "snapd")
+	c.Assert(configstate.RemapSnapFromRequest("core"), Equals, "core")
+	c.Assert(configstate.RemapSnapToResponse("foo"), Equals, "foo")
+	c.Assert(configstate.RemapSnapToResponse("snapd"), Equals, "snapd")
+
+	// This is the one we alter.
+	c.Assert(configstate.RemapSnapFromRequest("system"), Equals, "core")
+	c.Assert(configstate.RemapSnapToResponse("core"), Equals, "system")
 }

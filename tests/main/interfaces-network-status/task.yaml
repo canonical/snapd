@@ -9,10 +9,12 @@ details: |
     The snap is also declaring a plug on this interface must be able to ask for its status.
 
 # dbus-launch not supported in ubuntu-core
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 prepare: |
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     echo "Given a snap declaring a plug on the network-status interface is installed"
@@ -24,6 +26,7 @@ prepare: |
 restore: |
     rm -f getstate.error
 
+    #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
 
@@ -32,7 +35,7 @@ execute: |
     snap interfaces -i network-status | MATCH "test-snapd-network-status-provider:network-status-test .*test-snapd-network-status-provider:network-status"
 
     echo "Then wait until the dbus name is properly reserved"
-    for i in $(seq 10); do
+    for _ in $(seq 10); do
         if ! test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"; then
             sleep 1
         else
@@ -52,7 +55,7 @@ execute: |
     snap disconnect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
 
     echo "And the snap state cannot be accessed"
-    if test-snapd-network-status-provider.consumer GetState 2>${PWD}/getstate.error; then
+    if test-snapd-network-status-provider.consumer GetState 2>"${PWD}"/getstate.error; then
         echo "Expected permission error trying to introspect state with disconnected plug"
         exit 1
     fi

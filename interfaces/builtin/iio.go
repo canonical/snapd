@@ -126,7 +126,7 @@ func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *iioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *iioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
 }

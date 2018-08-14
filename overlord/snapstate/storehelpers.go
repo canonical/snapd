@@ -88,8 +88,8 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 	}
 
 	action := &store.SnapAction{
-		Action: "install",
-		Name:   name,
+		Action:       "install",
+		InstanceName: name,
 		// the desired channel
 		Channel: channel,
 		// the desired revision
@@ -101,24 +101,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
-	si, err := singleActionResult(name, action.Action, res, err)
-	// TODO: Ideally the store would provide better error reporting
-	//       right now it sends store.ErrRevisionNotAvailable when
-	//       a snap is in a different channel and also when it is
-	//       not available for the given architecture. Once the
-	//       store differentiates between those we can just do
-	//       `return singleActionResult(name, action.Action, res, err)`
-	//       here.
-	if channel != "" && err == store.ErrRevisionNotAvailable {
-		st.Unlock()
-		_, err1 := theStore.SnapInfo(store.SnapSpec{Name: name, AnyChannel: true}, user)
-		st.Lock()
-		if err1 != nil {
-			return nil, store.ErrSnapNotFound
-		}
-	}
-	return si, err
-
+	return singleActionResult(name, action.Action, res, err)
 }
 
 func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
@@ -144,8 +127,9 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 	}
 
 	action := &store.SnapAction{
-		Action: "refresh",
-		SnapID: curInfo.SnapID,
+		Action:       "refresh",
+		InstanceName: curInfo.InstanceName(),
+		SnapID:       curInfo.SnapID,
 		// the desired channel
 		Channel: opts.channel,
 		Flags:   flags,
@@ -153,7 +137,6 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
-		action.Name = curInfo.Name()
 	}
 
 	theStore := Store(st)
@@ -161,7 +144,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
-	return singleActionResult(curInfo.Name(), action.Action, res, err)
+	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
 }
 
 func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
@@ -237,8 +220,9 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 	}
 
 	action := &store.SnapAction{
-		Action: "refresh",
-		SnapID: curInfo.SnapID,
+		Action:       "refresh",
+		SnapID:       curInfo.SnapID,
+		InstanceName: curInfo.InstanceName(),
 		// the desired revision
 		Revision: revision,
 	}
@@ -248,7 +232,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
-	return singleActionResult(curInfo.Name(), action.Action, res, err)
+	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
 }
 
 func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
@@ -264,7 +248,7 @@ func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
 func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState)) (curSnaps []*store.CurrentSnap) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
-	for snapName, snapst := range snapStates {
+	for _, snapst := range snapStates {
 		if snapst.TryMode {
 			// try mode snaps are completely local and
 			// irrelevant for the operation
@@ -284,8 +268,8 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 		}
 
 		installed := &store.CurrentSnap{
-			Name:   snapName,
-			SnapID: snapInfo.SnapID,
+			InstanceName: snapInfo.InstanceName(),
+			SnapID:       snapInfo.SnapID,
 			// the desired channel (not snapInfo.Channel!)
 			TrackingChannel:  snapst.Channel,
 			Revision:         snapInfo.Revision,
@@ -342,7 +326,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			return
 		}
 
-		if len(names) > 0 && !strutil.SortedListContains(names, installed.Name) {
+		if len(names) > 0 && !strutil.SortedListContains(names, installed.InstanceName) {
 			return
 		}
 
@@ -357,8 +341,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			userID = fallbackID
 		}
 		actionsByUserID[userID] = append(actionsByUserID[userID], &store.SnapAction{
-			Action: "refresh",
-			SnapID: installed.SnapID,
+			Action:       "refresh",
+			SnapID:       installed.SnapID,
+			InstanceName: installed.InstanceName,
 		})
 		if snapst.IgnoreValidation {
 			ignoreValidation[installed.SnapID] = true

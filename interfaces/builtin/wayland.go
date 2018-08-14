@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -128,7 +128,8 @@ func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := "snap." + plug.Snap().Name() // forms the snap-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		// TODO parallel-install: use of proper instance/store name
+		new := "snap." + plug.Snap().InstanceName() // forms the snap-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
@@ -151,6 +152,7 @@ func (iface *waylandInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 
 func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
+		spec.TriggerSubsystem("input")
 		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
 		spec.TagDevice(`KERNEL=="mice"`)
 		spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
@@ -160,7 +162,7 @@ func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot 
 	return nil
 }
 
-func (iface *waylandInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *waylandInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

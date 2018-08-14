@@ -1249,7 +1249,7 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotUDev)
-	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	return nil
 }
 
@@ -1266,7 +1266,7 @@ func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifica
 	return nil
 }
 
-func (iface *modemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *modemManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

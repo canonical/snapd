@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 )
 
 var (
@@ -76,13 +77,18 @@ func Available() error {
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
-var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+var jctl = func(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
-	args := make([]string, 0, 2*len(svcs)+6)
-	args = append(args, "-o", "json", "-n", n, "--no-pager") // len(this)+1 == that ^ fixed number
+	args := make([]string, 0, 2*len(svcs)+6)        // the fixed number is 6
+	args = append(args, "-o", "json", "--no-pager") //   3...
+	if n < 0 {
+		args = append(args, "--no-tail") // < 2
+	} else {
+		args = append(args, "-n", strconv.Itoa(n)) // ... + 2 ...
+	}
 	if follow {
-		args = append(args, "-f") // this is the +1 :-)
+		args = append(args, "-f") // ... + 1 == 6
 	}
 
 	for i := range svcs {
@@ -92,7 +98,7 @@ var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	return osutilStreamCommand("journalctl", args...)
 }
 
-func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser, error)) func() {
+func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, error)) func() {
 	oldJctl := jctl
 	jctl = f
 	return func() {
@@ -106,11 +112,12 @@ type Systemd interface {
 	Enable(service string) error
 	Disable(service string) error
 	Start(service ...string) error
+	StartNoBlock(service ...string) error
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
-	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
+	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
 	Unmask(service string) error
@@ -183,8 +190,14 @@ func (*systemd) Start(serviceNames ...string) error {
 	return err
 }
 
+// StartNoBlock starts the given service or services non-blocking
+func (*systemd) StartNoBlock(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"start", "--no-block"}, serviceNames...)...)
+	return err
+}
+
 // LogReader for the given services
-func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
+func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadCloser, error) {
 	return jctl(serviceNames, n, follow)
 }
 
@@ -405,40 +418,6 @@ func (l Log) PID() string {
 	return "-"
 }
 
-// useFuse detects if we should be using squashfuse instead
-var useFuse = realUseFuse
-
-func realUseFuse() bool {
-	if !osutil.FileExists("/dev/fuse") {
-		return false
-	}
-
-	if !osutil.ExecutableExists("squashfuse") && !osutil.ExecutableExists("snapfuse") {
-		return false
-	}
-
-	out, err := exec.Command("systemd-detect-virt", "--container").Output()
-	if err != nil {
-		return false
-	}
-
-	virt := strings.TrimSpace(string(out))
-	if virt != "none" {
-		return true
-	}
-
-	return false
-}
-
-// MockUseFuse is exported so useFuse can be overridden by testing.
-func MockUseFuse(r bool) func() {
-	oldUseFuse := useFuse
-	useFuse = func() bool {
-		return r
-	}
-	return func() { useFuse = oldUseFuse }
-}
-
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
@@ -448,21 +427,16 @@ func MountUnitPath(baseDir string) string {
 func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string) (string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
-		options = append(options, "ro", "x-gdu.hide")
+		newFsType, newOptions, err := squashfs.FsType()
+		if err != nil {
+			return "", err
+		}
+		options = append(options, newOptions...)
+		fstype = newFsType
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		fstype = "none"
-	} else if fstype == "squashfs" && useFuse() {
-		options = append(options, "allow_other")
-		switch {
-		case osutil.ExecutableExists("squashfuse"):
-			fstype = "fuse.squashfuse"
-		case osutil.ExecutableExists("snapfuse"):
-			fstype = "fuse.snapfuse"
-		default:
-			panic("cannot happen because useFuse() ensures one of the two executables is there")
-		}
 	}
 
 	c := fmt.Sprintf(`[Unit]

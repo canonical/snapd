@@ -3,7 +3,7 @@ systems: [-opensuse-*]
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Ensure a snap that requires a unavailable base snap can not be installed"
     if install_local test-snapd-requires-base; then
@@ -35,6 +35,7 @@ execute: |
 
     echo "Ensure the test-snapd-base-bare that test-snapd-busybox-static uses got pulled in"
     snap list | grep test-snapd-base-bare
+    snap info --verbose test-snapd-busybox-static|MATCH "base:[ ]+test-snapd-base-bare"
 
     if test-snapd-busybox-static.busybox-static ls /bin/dd; then
         echo "bare should be empty but it is not:"

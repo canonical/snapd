@@ -5,6 +5,7 @@ systems:
     - -fedora-*
     - -opensuse-*
     - -arch-*
+    - -amazon-*
 details: |
     Users found that a snap that uses "confinement: devmode", even when
     installed with "snap install --jailmode" is effectively in devmode (the

@@ -104,6 +104,10 @@ func (s *xdgOpenSuite) TestOpenMissingFile(c *C) {
 }
 
 func (s *xdgOpenSuite) TestOpenUnreadableFile(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("test will not work for root")
+	}
+
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)

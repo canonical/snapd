@@ -9,7 +9,7 @@ restore: |
         exit
     fi
     #shellcheck source=tests/lib/store.sh
-    . $TESTSLIB/store.sh
+    . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
   
 execute: |
@@ -20,12 +20,17 @@ execute: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
+
+    # Ensure that "core" is installed as it is a pre-requisite of the base but
+    # cannot be fetched from the fake store (important for core18).
+    snap install core
+
     #shellcheck source=tests/lib/store.sh
-    . $TESTSLIB/store.sh
+    . "$TESTSLIB"/store.sh
     setup_fake_store "$BLOB_DIR"
 
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     snap_path=$(make_snap basic)
     make_snap_installable "$BLOB_DIR" "${snap_path}"
 

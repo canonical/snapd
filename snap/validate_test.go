@@ -111,6 +111,49 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateInstanceName(c *C) {
+	validNames := []string{
+		// plain names are also valid instance names
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		// snap instance
+		"foo_bar",
+		"foo_0123456789",
+		"01game_0123456789",
+		"foo_1", "foo_1234abcd",
+	}
+	for _, name := range validNames {
+		err := ValidateInstanceName(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// invalid names are also invalid instance names, just a few
+		// samples
+		"",
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"a--a",
+		"a-",
+		"a ", " a", "a a",
+		"_",
+		"ру́сский_язы́к",
+	}
+	for _, name := range invalidNames {
+		err := ValidateInstanceName(name)
+		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
+	}
+	invalidInstanceKeys := []string{
+		// the snap names are valid, but instance keys are not
+		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
+		"foo__bar",
+	}
+	for _, name := range invalidInstanceKeys {
+		err := ValidateInstanceName(name)
+		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
+	}
+
+}
+
 func (s *ValidateSuite) TestValidateVersion(c *C) {
 	validVersions := []string{
 		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
@@ -396,10 +439,13 @@ func (s *ValidateSuite) TestAppWhitelistWithVars(c *C) {
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "test'me"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar'baz"}}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar baz"}}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
@@ -702,6 +748,12 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/lost\+found" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/media", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/media" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/snap", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/snap" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/lib/snapd" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd/hostfs", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/var/lib/snapd/hostfs" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
@@ -1273,4 +1325,103 @@ base: bar
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+}
+
+func (s *ValidateSuite) TestValidateCommonIDs(c *C) {
+	meta := `
+name: foo
+version: 1.0
+`
+	good := meta + `
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.bar
+  baz:
+`
+	bad := meta + `
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.foo
+  baz:
+`
+	for i, tc := range []struct {
+		meta string
+		err  string
+	}{
+		{good, ""},
+		{bad, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`},
+	} {
+		c.Logf("tc #%v", i)
+		info, err := InfoFromSnapYaml([]byte(tc.meta))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, NotNil)
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
+func (s *validateSuite) TestValidatePlugSlotName(c *C) {
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+	}
+	for _, name := range validNames {
+		c.Assert(ValidatePlugName(name), IsNil)
+		c.Assert(ValidateSlotName(name), IsNil)
+		c.Assert(ValidateInterfaceName(name), IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	}
+	for _, name := range invalidNames {
+		c.Assert(ValidatePlugName(name), ErrorMatches, `invalid plug name: ".*"`)
+		c.Assert(ValidateSlotName(name), ErrorMatches, `invalid slot name: ".*"`)
+		c.Assert(ValidateInterfaceName(name), ErrorMatches, `invalid interface name: ".*"`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateSnapInstanceNameBadSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo_bad
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap name: "foo_bad"`)
+}
+
+func (s *ValidateSuite) TestValidateSnapInstanceNameBadInstanceKey(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	for _, s := range []string{"toolonginstance", "ABCD", "_", "inst@nce", "012345678901"} {
+		info.InstanceKey = s
+		err = Validate(info)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid instance key: %q", s))
+	}
 }

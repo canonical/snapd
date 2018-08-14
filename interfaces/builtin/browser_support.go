@@ -191,7 +191,7 @@ deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 /run/udev/data/b252:[0-9]* r,
 /run/udev/data/b253:[0-9]* r,
 /run/udev/data/b259:[0-9]* r,
-/run/udev/data/c24[2-9]:[0-9]* r,
+/run/udev/data/c24[0-9]:[0-9]* r,
 /run/udev/data/c25[0-4]:[0-9]* r,
 
 /sys/bus/**/devices/ r,
@@ -335,7 +335,7 @@ func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *browserSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 

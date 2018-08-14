@@ -144,6 +144,13 @@ dbus send
      peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="SetLink{DNS,Domains}"
+     peer=(label=unconfined),
+
+dbus (send)
    bus=system
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus
@@ -476,7 +483,7 @@ func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *networkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

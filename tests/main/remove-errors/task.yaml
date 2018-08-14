@@ -1,14 +1,19 @@
 summary: Check remove command errors
 
+# core18: on core18 the "core" snap is removable
+systems: [-ubuntu-core-18-*]
+
 execute: |
     echo "Given a core snap is installed"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
 
+    #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
     echo "Ensure the important snaps can not be removed"
     for sn in core $kernel_name $gadget_name; do
-        if snap remove $sn; then
+        if snap remove "$sn"; then
             echo "It should not be possible to remove $sn"
             exit 1
         fi

@@ -53,22 +53,22 @@ func (s *secureBindMountSuite) TestMount(c *C) {
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_BIND)
 	c.Assert(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 5
-		`fstat 5 <ptr>`,
-		`close 4`, // "/source"
-		`close 3`, // "/"
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 6
-		`fstat 6 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`,
-		`close 6`, // "/target/dir"
-		`close 5`, // "/source/dir"
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/source"
+		{C: `close 3`}, // "/"
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`},
+		{C: `close 6`}, // "/target/dir"
+		{C: `close 5`}, // "/source/dir"
 	})
 }
 
@@ -77,22 +77,22 @@ func (s *secureBindMountSuite) TestMountRecursive(c *C) {
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_REC)
 	c.Assert(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 5
-		`fstat 5 <ptr>`,
-		`close 4`, // "/source"
-		`close 3`, // "/"
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 6
-		`fstat 6 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND|MS_REC ""`,
-		`close 6`, // "/target/dir"
-		`close 5`, // "/source/dir"
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/source"
+		{C: `close 3`}, // "/"
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND|MS_REC ""`},
+		{C: `close 6`}, // "/target/dir"
+		{C: `close 5`}, // "/source/dir"
 	})
 }
 
@@ -102,43 +102,43 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
 	c.Assert(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 5
-		`fstat 5 <ptr>`,
-		`close 4`, // "/source"
-		`close 3`, // "/"
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 6
-		`fstat 6 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 7
-		`fstat 7 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
-		`close 7`, // "/target/dir"
-		`close 6`, // "/target/dir"
-		`close 5`, // "/source/dir"
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/source"
+		{C: `close 3`}, // "/"
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 7},
+		{C: `fstat 7 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`},
+		{C: `close 7`}, // "/target/dir"
+		{C: `close 6`}, // "/target/dir"
+		{C: `close 5`}, // "/source/dir"
 	})
 }
 
 func (s *secureBindMountSuite) TestBindFlagRequired(c *C) {
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_REC)
 	c.Assert(err, ErrorMatches, "cannot perform non-bind mount operation")
-	c.Check(s.sys.Calls(), DeepEquals, []string(nil))
+	c.Check(s.sys.RCalls(), HasLen, 0)
 }
 
 func (s *secureBindMountSuite) TestMountReadOnlyRecursive(c *C) {
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY|syscall.MS_REC)
 	c.Assert(err, ErrorMatches, "cannot use MS_RDONLY and MS_REC together")
-	c.Check(s.sys.Calls(), DeepEquals, []string(nil))
+	c.Check(s.sys.RCalls(), HasLen, 0)
 }
 
 func (s *secureBindMountSuite) TestBindMountFails(c *C) {
@@ -147,22 +147,22 @@ func (s *secureBindMountSuite) TestBindMountFails(c *C) {
 	s.sys.InsertFault(`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`, errTesting)
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
 	c.Assert(err, ErrorMatches, "testing")
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 5
-		`fstat 5 <ptr>`,
-		`close 4`, // "/source"
-		`close 3`, // "/"
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 6
-		`fstat 6 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`,
-		`close 6`, // "/target/dir"
-		`close 5`, // "/source/dir"
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/source"
+		{C: `close 3`}, // "/"
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`, E: errTesting},
+		{C: `close 6`}, // "/target/dir"
+		{C: `close 5`}, // "/source/dir"
 	})
 }
 
@@ -173,30 +173,30 @@ func (s *secureBindMountSuite) TestRemountReadOnlyFails(c *C) {
 	s.sys.InsertFault(`mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`, errTesting)
 	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
 	c.Assert(err, ErrorMatches, "testing")
-	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 5
-		`fstat 5 <ptr>`,
-		`close 4`, // "/source"
-		`close 3`, // "/"
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 6
-		`fstat 6 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,                // -> 7
-		`fstat 7 <ptr>`,
-		`close 4`, // "/target"
-		`close 3`, // "/"
-		`mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
-		`unmount "/proc/self/fd/7" UMOUNT_NOFOLLOW|MNT_DETACH`,
-		`close 7`, // "/target/dir"
-		`close 6`, // "/target/dir"
-		`close 5`, // "/source/dir"
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/source"
+		{C: `close 3`}, // "/"
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 7},
+		{C: `fstat 7 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 4`}, // "/target"
+		{C: `close 3`}, // "/"
+		{C: `mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`, E: errTesting},
+		{C: `unmount "/proc/self/fd/7" UMOUNT_NOFOLLOW|MNT_DETACH`},
+		{C: `close 7`}, // "/target/dir"
+		{C: `close 6`}, // "/target/dir"
+		{C: `close 5`}, // "/source/dir"
 	})
 }

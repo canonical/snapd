@@ -7,7 +7,8 @@ details: |
     kinds of elements that must be correctly handled by the mimic code.
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-content-mimic-plug
     install_local test-snapd-content-mimic-slot
 
@@ -21,11 +22,17 @@ execute: |
     # entries that should be correctly replicated inside the mimic.
     
     check_existing_files() {
+        #shellcheck disable=SC2016
         test-snapd-content-mimic-plug.sh -c 'test -f $SNAP/file'
+        #shellcheck disable=SC2016
         test-snapd-content-mimic-plug.sh -c 'test -d $SNAP/dir'
+        #shellcheck disable=SC2016
         test-snapd-content-mimic-plug.sh -c 'test -h $SNAP/symlink'
+        #shellcheck disable=SC2016
         test-snapd-content-mimic-plug.sh -c 'cat $SNAP/file' | MATCH 'content-of-file'
+        #shellcheck disable=SC2016
         test-snapd-content-mimic-plug.sh -c 'ls $SNAP/dir' | MATCH 'stuff-in-dir'
+        #shellcheck disable=SC2016
         test-snapd-content-mimic-plug.sh -c 'readlink $SNAP/symlink' | MATCH 'symlink-target'
     }
 
@@ -36,17 +43,21 @@ execute: |
     # it's not in the snap! It's added dynamically at runtime). Not only we get
     # access to the new things (we'll check those shortly) but we also retain
     # access to the same old stuff that was there before.
+    #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test ! -e $SNAP/content'
     snap connect "$PLUG" "$SLOT"
     check_existing_files
+    #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test -d $SNAP/content'
 
     # The content connection also means we should see shared content inside the
     # newly created directory. 
+    #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test -e $SNAP/content/canary'
 
     # The content interface is fully undoable so as soon as we disconnect all
     # of that goes away without a trace.
     snap disconnect "$PLUG" "$SLOT"
     check_existing_files
+    #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test ! -e $SNAP/content'

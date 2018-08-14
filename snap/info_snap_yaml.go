@@ -58,7 +58,8 @@ type snapYaml struct {
 type appYaml struct {
 	Aliases []string `yaml:"aliases,omitempty"`
 
-	Command string `yaml:"command"`
+	Command      string   `yaml:"command"`
+	CommandChain []string `yaml:"command-chain,omitempty"`
 
 	Daemon string `yaml:"daemon"`
 
@@ -75,7 +76,8 @@ type appYaml struct {
 	SlotNames   []string         `yaml:"slots,omitempty"`
 	PlugNames   []string         `yaml:"plugs,omitempty"`
 
-	BusName string `yaml:"bus-name,omitempty"`
+	BusName  string `yaml:"bus-name,omitempty"`
+	CommonID string `yaml:"common-id,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 
@@ -90,8 +92,9 @@ type appYaml struct {
 }
 
 type hookYaml struct {
-	PlugNames []string `yaml:"plugs,omitempty"`
-	SlotNames []string `yaml:"slots,omitempty"`
+	PlugNames   []string           `yaml:"plugs,omitempty"`
+	SlotNames   []string           `yaml:"slots,omitempty"`
+	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 }
 
 type layoutYaml struct {
@@ -292,6 +295,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Name:            appName,
 			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
+			CommandChain:    yApp.CommandChain,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
@@ -299,6 +303,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,
+			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
 			StopMode:        yApp.StopMode,
@@ -369,6 +374,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 				Timer: yApp.Timer,
 			}
 		}
+		// collect all common IDs
+		if app.CommonID != "" {
+			snap.CommonIDs = append(snap.CommonIDs, app.CommonID)
+		}
 	}
 	return nil
 }
@@ -381,8 +390,9 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap: snap,
-			Name: hookName,
+			Snap:        snap,
+			Name:        hookName,
+			Environment: yHook.Environment,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)

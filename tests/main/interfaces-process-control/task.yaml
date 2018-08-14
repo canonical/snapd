@@ -13,6 +13,7 @@ summary: |
     extended later.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap declaring a plug on the process-control interface is installed"
@@ -23,7 +24,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i process-control | MATCH "\- +process-control-consumer:process-control"
+    snap interfaces -i process-control | MATCH -- '- +process-control-consumer:process-control'
 
     echo "When the plug is connected"
     snap connect process-control-consumer:process-control
@@ -31,8 +32,10 @@ execute: |
     echo "Then the snap is able to kill an existing process"
     while :; do sleep 1; done &
     pid=$!
+    #shellcheck disable=SC2009
     ps ax | grep -Pq "^ *$pid"
     process-control-consumer.signal "SIGTERM" $pid
+    #shellcheck disable=SC2009
     ! ps ax | grep -Pq "^ *$pid"
 
     if [ "$(snap debug confinement)" = partial ] ; then
@@ -45,11 +48,13 @@ execute: |
     echo "Then the snap is not able to kill an existing process"
     while :; do sleep 1; done &
     pid=$!
-    if process-control-consumer.signal SIGTERM $pid 2>${PWD}/process-kill.error; then
+    if process-control-consumer.signal SIGTERM $pid 2>"${PWD}"/process-kill.error; then
         echo "Expected permission error accessing killing a process with disconnected plug"
         exit 1
     fi
     grep -q "Permission denied" process-kill.error
+    #shellcheck disable=SC2009
     ps ax | grep -Pq "^ *$pid"
     kill -9 $pid
+    #shellcheck disable=SC2009
     ! ps ax | grep -Pq "^ *$pid"

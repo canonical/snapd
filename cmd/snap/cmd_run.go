@@ -55,10 +55,12 @@ var (
 )
 
 type cmdRun struct {
-	Command  string `long:"command" hidden:"yes"`
-	HookName string `long:"hook" hidden:"yes"`
-	Revision string `short:"r" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" `
+	Command          string `long:"command" hidden:"yes"`
+	HookName         string `long:"hook" hidden:"yes"`
+	Revision         string `short:"r" default:"unset" hidden:"yes"`
+	Shell            bool   `long:"shell" `
+	SkipCommandChain bool   `long:"skip-command-chain"`
+
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
 	// "default" and "optional-value" to distinguish this.
@@ -81,14 +83,15 @@ and environment.
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command":    i18n.G("Alternative command to run"),
-			"hook":       i18n.G("Hook to run"),
-			"r":          i18n.G("Use a specific snap revision when running hook"),
-			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
-			"gdb":        i18n.G("Run the command with gdb"),
-			"timer":      i18n.G("Run as a timer service with given schedule"),
-			"parser-ran": "",
+			"command":            i18n.G("Alternative command to run"),
+			"hook":               i18n.G("Hook to run"),
+			"r":                  i18n.G("Use a specific snap revision when running hook"),
+			"shell":              i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"skip-command-chain": i18n.G("Do not run the command chain (useful for debugging)"),
+			"strace":             i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
+			"gdb":                i18n.G("Run the command with gdb"),
+			"timer":              i18n.G("Run as a timer service with given schedule"),
+			"parser-ran":         "",
 		}, nil)
 }
 
@@ -679,21 +682,29 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 
 func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
-	// if we re-exec, we must run the snap-confine from the core snap
+	// if we re-exec, we must run the snap-confine from the core/snapd snap
 	// as well, if they get out of sync, havoc will happen
 	if isReexeced() {
-		// run snap-confine from the core snap. that will work because
-		// snap-confine on the core snap is mostly statically linked
-		// (except libudev and libc)
-		snapConfine = filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, "snap-confine")
+		// exe is something like /snap/{snapd,core}/123/usr/bin/snap
+		exe, err := osReadlink("/proc/self/exe")
+		if err != nil {
+			return err
+		}
+		// snapBase will be "/snap/{core,snapd}/$rev/" because
+		// the snap binary is always at $root/usr/bin/snap
+		snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
+		// Run snap-confine from the core/snapd snap. That
+		// will work because snap-confine on the core/snapd snap is
+		// mostly statically linked (except libudev and libc)
+		snapConfine = filepath.Join(snapBase, dirs.CoreLibExecDir, "snap-confine")
 	}
 
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
-			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
 			return nil
 		}
-		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
+		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
 	if err := createUserDataDirs(info); err != nil {
@@ -740,6 +751,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	if x.Command != "" {
 		cmd = append(cmd, "--command="+x.Command)
+	}
+	if x.SkipCommandChain {
+		cmd = append(cmd, "--skip-command-chain")
 	}
 
 	if hook != "" {

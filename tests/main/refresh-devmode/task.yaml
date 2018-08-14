@@ -1,4 +1,5 @@
 summary: Check that the refresh command works.
+
 details: |
     These tests exercise the refresh command using different store backends.
     The concrete store to be used is controlled with the STORE_TYPE variant,
@@ -16,8 +17,11 @@ environment:
     STORE_TYPE/remote: ${REMOTE_STORE}
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -30,30 +34,39 @@ prepare: |
     snap install --devmode test-snapd-tools
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        . $TESTSLIB/store.sh
-        setup_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        setup_fake_store "$BLOB_DIR"
 
         echo "And a new version of that snap put in the controlled store"
-        . $TESTSLIB/store.sh
-        init_fake_refreshes $BLOB_DIR test-snapd-tools
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        init_fake_refreshes "$BLOB_DIR" test-snapd-tools
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
             exit
         fi
-        . $TESTSLIB/store.sh
-        teardown_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_fake_store "$BLOB_DIR"
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -70,7 +83,7 @@ execute: |
     # echo "================================="
 
     echo "When the snap is refreshed"
-    snap refresh --devmode --channel=edge $SNAP_NAME
+    snap refresh --devmode --channel=edge "$SNAP_NAME"
 
     echo "Then the new version is listed"
     expected="$SNAP_NAME +$SNAP_VERSION_PATTERN .*devmode"

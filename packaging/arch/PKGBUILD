@@ -10,7 +10,7 @@ pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
 optdepends=('bash-completion: bash completion support')
-pkgver=2.32.9.r734.gd79c34ba4
+pkgver=2.34.3
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/snapcore/snapd"
@@ -181,10 +181,12 @@ package() {
   # Remove snappy core specific units
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.system-shutdown.service"
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.autoimport.service"
+  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.apparmor.service"
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.snap-repair.*
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.core-fixup.*
   # and scripts
   rm -fv "$pkgdir/usr/lib/snapd/snapd.core-fixup.sh"
   rm -fv "$pkgdir/usr/bin/ubuntu-core-launcher"
   rm -fv "$pkgdir/usr/lib/snapd/system-shutdown"
+  rm -fv "$pkgdir/usr/lib/snapd/snapd-apparmor"
 }

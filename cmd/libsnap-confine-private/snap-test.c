@@ -30,6 +30,12 @@ static void test_verify_security_tag(void)
 	g_assert_true(verify_security_tag("snap.f00.bar-baz1", "f00"));
 	g_assert_true(verify_security_tag("snap.foo.hook.bar", "foo"));
 	g_assert_true(verify_security_tag("snap.foo.hook.bar-baz", "foo"));
+	g_assert_true(verify_security_tag
+		      ("snap.foo_instance.bar-baz", "foo_instance"));
+	g_assert_true(verify_security_tag
+		      ("snap.foo_instance.hook.bar-baz", "foo_instance"));
+	g_assert_true(verify_security_tag
+		      ("snap.foo_bar.hook.bar-baz", "foo_bar"));
 
 	// Now, test the names we know are bad
 	g_assert_false(verify_security_tag
@@ -62,31 +68,63 @@ static void test_verify_security_tag(void)
 	g_assert_false(verify_security_tag("snap..name.app", ".name"));
 	g_assert_false(verify_security_tag("snap.name..app", "name."));
 	g_assert_false(verify_security_tag("snap.name.app..", "name"));
+	// These contain invalid instance key
+	g_assert_false(verify_security_tag("snap.foo_.bar-baz", "foo"));
+	g_assert_false(verify_security_tag
+		       ("snap.foo_toolonginstance.bar-baz", "foo"));
+	g_assert_false(verify_security_tag
+		       ("snap.foo_inst@nace.bar-baz", "foo"));
+	g_assert_false(verify_security_tag
+		       ("snap.foo_in-stan-ce.bar-baz", "foo"));
+	g_assert_false(verify_security_tag("snap.foo_in stan.bar-baz", "foo"));
 
 	// Test names that are both good, but snap name doesn't match security tag
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
+	g_assert_false(verify_security_tag("snap.foo_instance.bar", "foo_bar"));
 
 	// Regression test 12to8
 	g_assert_true(verify_security_tag("snap.12to8.128to8", "12to8"));
 	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
 	g_assert_true(verify_security_tag
 		      ("snap.123test.hook.configure", "123test"));
-
 }
 
-static void test_sc_snap_name_validate(void)
+static void test_sc_is_hook_security_tag(void)
 {
+	// First, test the names we know are good
+	g_assert_true(sc_is_hook_security_tag("snap.foo.hook.bar"));
+	g_assert_true(sc_is_hook_security_tag("snap.foo.hook.bar-baz"));
+	g_assert_true(sc_is_hook_security_tag
+		      ("snap.foo_instance.hook.bar-baz"));
+	g_assert_true(sc_is_hook_security_tag("snap.foo_bar.hook.bar-baz"));
+
+	// Now, test the names we know are not valid hook security tags
+	g_assert_false(sc_is_hook_security_tag("snap.foo_instance.bar-baz"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app!hook.foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook!foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook.-foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook.f00"));
+}
+
+static void test_sc_snap_or_instance_name_validate(gconstpointer data)
+{
+	typedef void (*validate_func_t) (const char *, struct sc_error **);
+
+	validate_func_t validate = (validate_func_t) data;
+	bool is_instance =
+	    (validate == sc_instance_name_validate) ? true : false;
+
 	struct sc_error *err = NULL;
 
 	// Smoke test, a valid snap name
-	sc_snap_name_validate("hello-world", &err);
+	validate("hello-world", &err);
 	g_assert_null(err);
 
 	// Smoke test: invalid character 
-	sc_snap_name_validate("hello world", &err);
+	validate("hello world", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
@@ -95,7 +133,7 @@ static void test_sc_snap_name_validate(void)
 	sc_error_free(err);
 
 	// Smoke test: no letters
-	sc_snap_name_validate("", &err);
+	validate("", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
@@ -104,7 +142,7 @@ static void test_sc_snap_name_validate(void)
 	sc_error_free(err);
 
 	// Smoke test: leading dash
-	sc_snap_name_validate("-foo", &err);
+	validate("-foo", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
@@ -113,7 +151,7 @@ static void test_sc_snap_name_validate(void)
 	sc_error_free(err);
 
 	// Smoke test: trailing dash
-	sc_snap_name_validate("foo-", &err);
+	validate("foo-", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
@@ -122,7 +160,7 @@ static void test_sc_snap_name_validate(void)
 	sc_error_free(err);
 
 	// Smoke test: double dash
-	sc_snap_name_validate("f--oo", &err);
+	validate("f--oo", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
@@ -131,11 +169,22 @@ static void test_sc_snap_name_validate(void)
 	sc_error_free(err);
 
 	// Smoke test: NULL name is not valid
-	sc_snap_name_validate(NULL, &err);
+	validate(NULL, &err);
 	g_assert_nonnull(err);
-	g_assert_true(sc_error_match
-		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
-	g_assert_cmpstr(sc_error_msg(err), ==, "snap name cannot be NULL");
+	// the only case when instance name validation diverges from snap name
+	// validation
+	if (!is_instance) {
+		g_assert_true(sc_error_match
+			      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+		g_assert_cmpstr(sc_error_msg(err), ==,
+				"snap name cannot be NULL");
+	} else {
+		g_assert_true(sc_error_match
+			      (err, SC_SNAP_DOMAIN,
+			       SC_SNAP_INVALID_INSTANCE_NAME));
+		g_assert_cmpstr(sc_error_msg(err), ==,
+				"snap instance name cannot be NULL");
+	}
 	sc_error_free(err);
 
 	const char *valid_names[] = {
@@ -146,7 +195,7 @@ static void test_sc_snap_name_validate(void)
 	};
 	for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
 		g_test_message("checking valid snap name: %s", valid_names[i]);
-		sc_snap_name_validate(valid_names[i], &err);
+		validate(valid_names[i], &err);
 		g_assert_null(err);
 	}
 	const char *invalid_names[] = {
@@ -175,16 +224,16 @@ static void test_sc_snap_name_validate(void)
 	     ++i) {
 		g_test_message("checking invalid snap name: >%s<",
 			       invalid_names[i]);
-		sc_snap_name_validate(invalid_names[i], &err);
+		validate(invalid_names[i], &err);
 		g_assert_nonnull(err);
 		g_assert_true(sc_error_match
 			      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 		sc_error_free(err);
 	}
 	// Regression test: 12to8 and 123test
-	sc_snap_name_validate("12to8", &err);
+	validate("12to8", &err);
 	g_assert_null(err);
-	sc_snap_name_validate("123test", &err);
+	validate("123test", &err);
 	g_assert_null(err);
 
 	// In case we switch to a regex, here's a test that could break things.
@@ -194,7 +243,7 @@ static void test_sc_snap_name_validate(void)
 		g_assert_nonnull(memcpy(varname, good_bad_name, i));
 		varname[i] = 0;
 		g_test_message("checking valid snap name: >%s<", varname);
-		sc_snap_name_validate(varname, &err);
+		validate(varname, &err);
 		g_assert_null(err);
 		sc_error_free(err);
 	}
@@ -214,11 +263,302 @@ static void test_sc_snap_name_validate__respects_error_protocol(void)
 	    ("snap name must use lower case letters, digits or dashes\n");
 }
 
+static void test_sc_instance_name_validate(void)
+{
+	struct sc_error *err = NULL;
+
+	sc_instance_name_validate("hello-world", &err);
+	g_assert_null(err);
+	sc_instance_name_validate("hello-world_foo", &err);
+	g_assert_null(err);
+
+	// just the separator
+	sc_instance_name_validate("_", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name must contain at least one letter");
+	sc_error_free(err);
+
+	// just name, with separator, missing instance key
+	sc_instance_name_validate("hello-world_", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"instance key must contain at least one letter or digit");
+	sc_error_free(err);
+
+	// only separator and instance key, missing name
+	sc_instance_name_validate("_bar", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name must contain at least one letter");
+	sc_error_free(err);
+
+	sc_instance_name_validate("", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name must contain at least one letter");
+	sc_error_free(err);
+
+	// third separator
+	sc_instance_name_validate("foo_bar_baz", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap instance name can contain only one underscore");
+	sc_error_free(err);
+
+	const char *valid_names[] = {
+		"a", "aa", "aaa", "aaaa",
+		"a_a", "aa_1", "a_123", "a_0123456789",
+	};
+	for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+		g_test_message("checking valid instance name: %s",
+			       valid_names[i]);
+		sc_instance_name_validate(valid_names[i], &err);
+		g_assert_null(err);
+	}
+	const char *invalid_names[] = {
+		// only letters and digits in the instance key
+		"a_--23))", "a_ ", "a_091234#", "a_123_456",
+		// up to 10 characters for the instance key
+		"a_01234567891", "a_0123456789123",
+		// snap name must not be more than 40 characters, regardless of instance
+		// key
+		"01234567890123456789012345678901234567890_foobar",
+		"01234567890123456789-01234567890123456789_foobar",
+		// instance key  must be plain ASCII
+		"foobar_日本語",
+		// way too many underscores
+		"foobar_baz_zed_daz",
+		"foobar______",
+	};
+	for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names;
+	     ++i) {
+		g_test_message("checking invalid instance name: >%s<",
+			       invalid_names[i]);
+		sc_instance_name_validate(invalid_names[i], &err);
+		g_assert_nonnull(err);
+		sc_error_free(err);
+	}
+}
+
+static void test_sc_snap_drop_instance_key_no_dest(void)
+{
+	if (g_test_subprocess()) {
+		sc_snap_drop_instance_key("foo_bar", NULL, 0);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+
+}
+
+static void test_sc_snap_drop_instance_key_short_dest(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_snap_drop_instance_key("foo-foo-foo-foo-foo_bar", dest,
+					  sizeof dest);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_drop_instance_key_short_dest2(void)
+{
+	if (g_test_subprocess()) {
+		char dest[3] = { 0 };	// "foo" sans the nil byte
+		sc_snap_drop_instance_key("foo", dest, sizeof dest);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_drop_instance_key_no_name(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_snap_drop_instance_key(NULL, dest, sizeof dest);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_drop_instance_key_basic(void)
+{
+	char name[41] = { 0xff };
+
+	sc_snap_drop_instance_key("foo_bar", name, sizeof name);
+	g_assert_cmpstr(name, ==, "foo");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_drop_instance_key("foo-bar_bar", name, sizeof name);
+	g_assert_cmpstr(name, ==, "foo-bar");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_drop_instance_key("foo-bar", name, sizeof name);
+	g_assert_cmpstr(name, ==, "foo-bar");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_drop_instance_key("_baz", name, sizeof name);
+	g_assert_cmpstr(name, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_drop_instance_key("foo", name, sizeof name);
+	g_assert_cmpstr(name, ==, "foo");
+}
+
+static void test_sc_snap_split_instance_name_trailing_nil(void)
+{
+	if (g_test_subprocess()) {
+		char dest[3] = { 0 };
+		// pretend there is no place for trailing \0
+		sc_snap_split_instance_name("_", NULL, 0, dest, 0);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_split_instance_name_short_instance_dest(void)
+{
+	if (g_test_subprocess()) {
+		char dest[10] = { 0 };
+		sc_snap_split_instance_name("foo_barbarbarbar", NULL, 0,
+					    dest, sizeof dest);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_split_instance_name_basic(void)
+{
+	char name[41] = { 0xff };
+	char instance[20] = { 0xff };
+
+	sc_snap_split_instance_name("foo_bar", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo");
+	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo-bar_bar", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo-bar");
+	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo-bar", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo-bar");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("_baz", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "baz");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_split_instance_name("foo_bar", name, sizeof name, NULL, 0);
+	g_assert_cmpstr(name, ==, "foo");
+
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo_bar", NULL, 0, instance,
+				    sizeof instance);
+	g_assert_cmpstr(instance, ==, "bar");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("hello_world_surprise", name, sizeof name,
+				    instance, sizeof instance);
+	g_assert_cmpstr(name, ==, "hello");
+	g_assert_cmpstr(instance, ==, "world_surprise");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("_", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "");
+	g_assert_cmpstr(instance, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	memset(instance, 0xff, sizeof instance);
+	sc_snap_split_instance_name("foo_", name, sizeof name, instance,
+				    sizeof instance);
+	g_assert_cmpstr(name, ==, "foo");
+	g_assert_cmpstr(instance, ==, "");
+}
+
 static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
-	g_test_add_func("/snap/sc_snap_name_validate",
-			test_sc_snap_name_validate);
+	g_test_add_func("/snap/sc_is_hook_security_tag",
+			test_sc_is_hook_security_tag);
+
+	g_test_add_data_func("/snap/sc_snap_name_validate",
+			     sc_snap_name_validate,
+			     test_sc_snap_or_instance_name_validate);
 	g_test_add_func("/snap/sc_snap_name_validate/respects_error_protocol",
 			test_sc_snap_name_validate__respects_error_protocol);
+
+	g_test_add_data_func("/snap/sc_instance_name_validate/just_name",
+			     sc_instance_name_validate,
+			     test_sc_snap_or_instance_name_validate);
+	g_test_add_func("/snap/sc_instance_name_validate/full",
+			test_sc_instance_name_validate);
+
+	g_test_add_func("/snap/sc_snap_drop_instance_key/basic",
+			test_sc_snap_drop_instance_key_basic);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/no_dest",
+			test_sc_snap_drop_instance_key_no_dest);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/no_name",
+			test_sc_snap_drop_instance_key_no_name);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest",
+			test_sc_snap_drop_instance_key_short_dest);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest2",
+			test_sc_snap_drop_instance_key_short_dest2);
+
+	g_test_add_func("/snap/sc_snap_split_instance_name/basic",
+			test_sc_snap_split_instance_name_basic);
+	g_test_add_func("/snap/sc_snap_split_instance_name/trailing_nil",
+			test_sc_snap_split_instance_name_trailing_nil);
+	g_test_add_func("/snap/sc_snap_split_instance_name/short_instance_dest",
+			test_sc_snap_split_instance_name_short_instance_dest);
 }

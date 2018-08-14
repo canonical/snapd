@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -220,6 +220,55 @@ func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 	release.OnClassic = false
 	err = cand.CheckAutoConnect()
 	c.Check(err, ErrorMatches, `auto-connection denied by slot rule of interface \"home\"`)
+}
+
+func (s *baseDeclSuite) TestHomeReadAll(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  home:
+    read: all
+`
+	restore := release.MockOnClassic(true)
+	defer restore()
+	cand := s.connectCand(c, "home", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	release.OnClassic = false
+	err = cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestHomeReadDefault(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  home: null
+`
+	restore := release.MockOnClassic(true)
+	defer restore()
+	cand := s.connectCand(c, "home", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	// Same as TestInterimAutoConnectionHome()
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	release.OnClassic = false
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// Same as TestInterimAutoConnectionHome()
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
@@ -510,7 +559,7 @@ var (
 		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
-		"udisks2":                   {"app"},
+		"udisks2":                   {"app", "core"},
 		"uhid":                      {"core"},
 		"unity8":                    {"app"},
 		"unity8-calendar":           {"app"},
@@ -649,7 +698,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
-		"udisks2":                   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
 	}
@@ -723,6 +771,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"udisks2":               true,
 		"unity8":                true,
 		"wayland":               true,
 	}
@@ -812,6 +861,13 @@ authority-id: canonical
 series: 16
 revision: 0
 `)
+}
+
+func (s *baseDeclSuite) TestDoesNotPanic(c *C) {
+	// In case there are any issues in the actual interfaces we'd get a panic
+	// on snapd startup. This test prevents this from happing unnoticed.
+	_, err := policy.ComposeBaseDeclaration(builtin.Interfaces())
+	c.Assert(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {

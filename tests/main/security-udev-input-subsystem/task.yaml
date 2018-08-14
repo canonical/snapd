@@ -1,0 +1,87 @@
+summary: Ensure that /dev/input/event* is allowed to slot snaps that need it
+
+details: |
+        The default policy disallows access to /dev/input/event* and snapd
+        by default uses 'udevadm trigger --subsystem-nomatch=input'. Some slots
+        like mir, wayland and x11 actually need access to /dev/input/event* and
+        request snapd perform 'udevadm trigger --subsystem-match=input'. For
+        this test, use a snap that slots 'mir' since it is allowed on Core and
+        classic distro. Also test that simply plugging 'mir' does not grant the
+        access and that plugging mir with another interface (specifically,
+        time-control) that trigger the device cgroup also does not.
+
+prepare: |
+    echo "Given the test-snapd-udev-input-subsystem is installed"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-udev-input-subsystem
+
+restore: |
+    rm -f call.error
+
+execute: |
+    if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
+        if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+            # ensure the test runs at least on this spread system
+            echo "No /dev/input/by-path but this test cannot be skipped on ubuntu-16.04-64"
+            exit 1
+        fi
+        echo "SKIP: no /dev/input/by-path or keyboard input detected"
+        exit 0
+    fi
+
+    echo "The mir slot and plug are available by default and connected"
+    snap interfaces -i mir | MATCH "test-snapd-udev-input-subsystem:mir-slot +test-snapd-udev-input-subsystem:mir-plug"
+
+    echo "The snap's slot can access an evdev keyboard"
+    test-snapd-udev-input-subsystem.slot
+
+    if [ "$(snap debug confinement)" != "strict" ]; then
+        exit 0
+    fi
+
+    echo "The snap's plug cannot access an evdev keyboard when connected"
+    if test-snapd-udev-input-subsystem.plug 2>"${PWD}"/call.error; then
+        echo "Expected permission error with connected plug"
+        exit 1
+    fi
+    # AppArmor is 'Permission denied' which is expected with default policy
+    MATCH "Permission denied" < call.error
+
+    echo "When the mir plug is disconnected"
+    snap disconnect test-snapd-udev-input-subsystem:mir-plug test-snapd-udev-input-subsystem:mir-slot
+    snap interfaces -i mir | MATCH -- '- +test-snapd-udev-input-subsystem:mir-plug'
+
+    echo "The snap's plug still cannot access an evdev keyboard"
+    if test-snapd-udev-input-subsystem.plug 2>"${PWD}"/call.error; then
+        echo "Expected permission error with disconnected plug"
+        exit 1
+    fi
+    # AppArmor is 'Permission denied' which is expected with default policy
+    MATCH "Permission denied" < call.error
+
+    echo "When the time-control plug is disconnected"
+    snap interfaces -i time-control | MATCH ':time-control +-'
+
+    echo "The snap's time-control plug cannot access an evdev keyboard when disconnected"
+    if test-snapd-udev-input-subsystem.plug-with-time-control 2>"${PWD}"/call.error; then
+        echo "Expected permission error with disconnected time-control plug"
+        exit 1
+    fi
+    # AppArmor is 'Permission denied' which is expected with default policy
+    MATCH "Permission denied" < call.error
+
+    echo "When the time-control plug is connected"
+    snap connect test-snapd-udev-input-subsystem:time-control
+    snap interfaces -i time-control | MATCH ":time-control +test-snapd-udev-input-subsystem"
+
+    echo "The snap's plug still cannot access an evdev keyboard"
+    if test-snapd-udev-input-subsystem.plug-with-time-control 2>"${PWD}"/call.error; then
+        echo "Expected permission error with disconnected time-control plug"
+        exit 1
+    fi
+    # device cgroup is 'Operation not permitted' which is expected since the
+    # device cgroup is in effect (because of rtc) and the device isn't in the
+    # cgroup. DAC is evaluated before AppArmor so since the device wasn't added
+    # to the cgroup, we see a DAC denial.
+    MATCH "Operation not permitted" < call.error

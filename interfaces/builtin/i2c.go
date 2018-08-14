@@ -114,7 +114,7 @@ func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *i2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *i2cInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
 }

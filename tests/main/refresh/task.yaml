@@ -17,8 +17,11 @@ environment:
     STORE_TYPE/strict_remote,classic_remote: ${REMOTE_STORE}
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -28,7 +31,7 @@ prepare: |
     fi
 
     flags=
-    if [[ $SNAP_NAME =~ classic ]]; then
+    if [[ "$SNAP_NAME" =~ classic ]]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-core-*|fedora-*|arch-*)
                 exit
@@ -38,34 +41,43 @@ prepare: |
     fi
 
     echo "Given a snap is installed"
-    snap install $flags $SNAP_NAME
+    snap install $flags "$SNAP_NAME"
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        . $TESTSLIB/store.sh
-        setup_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        setup_fake_store "$BLOB_DIR"
 
         echo "And a new version of that snap put in the controlled store"
-        . $TESTSLIB/store.sh
-        init_fake_refreshes $BLOB_DIR $SNAP_NAME
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        init_fake_refreshes "$BLOB_DIR" "$SNAP_NAME"
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
             exit
         fi
-        . $TESTSLIB/store.sh
-        teardown_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_fake_store "$BLOB_DIR"
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -74,7 +86,7 @@ execute: |
         fi
     fi
 
-    if [[ $SNAP_NAME =~ classic ]]; then
+    if [[ "$SNAP_NAME" =~ classic ]]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-core-*|fedora-*|arch-*)
                 exit
@@ -90,33 +102,34 @@ execute: |
     # echo "================================="
 
     echo "When the snap is refreshed"
-    snap refresh --channel=edge $SNAP_NAME
+    snap refresh --channel=edge "$SNAP_NAME"
 
     echo "Then the new version is listed"
     expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
     snap list | grep -Pzq "$expected"
 
     echo "When a snap is refreshed and has no update it exit 0"
-    snap refresh $SNAP_NAME 2>stderr.out
-    cat stderr.out | MATCH "snap \"$SNAP_NAME\" has no updates available"
+    snap refresh "$SNAP_NAME" 2>stderr.out
+    MATCH "snap \"$SNAP_NAME\" has no updates available" < stderr.out
 
     echo "classic snaps "
 
     echo "When multiple snaps have no update we have a good message"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local basic
-    snap refresh $SNAP_NAME basic 2>&1 | MATCH "All snaps up to date."
+    snap refresh "$SNAP_NAME" basic 2>&1 | MATCH "All snaps up to date."
 
     echo "When moving to stable"
-    snap refresh --stable $SNAP_NAME
-    snap info $SNAP_NAME | MATCH "tracking: +stable"
+    snap refresh --stable "$SNAP_NAME"
+    snap info "$SNAP_NAME" | MATCH "tracking: +stable"
 
-    snap refresh --candidate $SNAP_NAME 2>&1 | MATCH "$SNAP_NAME \(candidate\).*"
-    snap info $SNAP_NAME | MATCH "tracking: +candidate"
+    snap refresh --candidate "$SNAP_NAME" 2>&1 | MATCH "$SNAP_NAME \\(candidate\\).*"
+    snap info "$SNAP_NAME" | MATCH "tracking: +candidate"
 
     echo "When multiple snaps are refreshed we error if we have unknown names"
     if snap refresh core invälid-snap-name 2> out.err; then
         echo "snap refresh invalid-snap-name should fail but it did not?"
         exit 1
     fi
-    cat out.err | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot refresh .* is not installed'
+    tr '\n' ' ' < out.err | tr -s ' ' | MATCH 'cannot refresh .* is not installed'
