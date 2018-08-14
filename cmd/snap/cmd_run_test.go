@@ -317,6 +317,38 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
+func (s *SnapSuite) TestSnapRunHookIntegrationSkipCommandChain(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// Run a hook from the active revision
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--skip-command-chain", "--hook=configure", "snapname"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.hook.configure",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--skip-command-chain", "--hook=configure", "snapname"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+}
+
 func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 

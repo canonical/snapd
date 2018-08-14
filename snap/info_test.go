@@ -186,6 +186,9 @@ apps:
  sample:
    command: foobar
    command-chain: [chain]
+hooks:
+ configure:
+  command-chain: [hookchain]
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
@@ -202,6 +205,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -221,6 +225,7 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
