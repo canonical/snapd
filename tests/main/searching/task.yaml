@@ -12,9 +12,7 @@ restore: |
 
 execute: |
     echo "List all featured snaps"
-    expected='(?s).*Name +Version +Publisher +Notes +Summary *\n
-    (.*?\n)?
-    .*'
+    expected='(?s).*Name +Version +Publisher +Notes +Summary *\n(.*?\n)?.*'
     snap find > featured.txt
     if ! grep -Pzq "$expected" < featured.txt; then
         echo "expected out put $expected not found in:"
@@ -38,18 +36,12 @@ execute: |
     echo "Exact matches"
     for snapName in test-snapd-tools test-snapd-python-webserver
     do
-        expected="(?s)Name +Version +Publisher +Notes +Summary *\\n\
-    (.*?\\n)?\
-    $snapName +.*? *\\n\
-    .*"
+        expected="(?s)Name +Version +Publisher +Notes +Summary *\\n(.*?\\n)?${snapName} +.*? *\\n.*"
         snap find $snapName | grep -Pzq "$expected"
     done
 
     echo "Partial terms work too"
-    expected='(?s)Name +Version +Publisher +Notes +Summary *\n
-    (.*?\n)?
-    test-snapd-tools +.*? *\n
-    .*'
+    expected='(?s)Name +Version +Publisher +Notes +Summary *\n(.*?\n)?test-snapd-tools +.*? *\n.*'
     snap find test-snapd- | grep -Pzq "$expected"
 
     echo "List of snaps in a section works"
