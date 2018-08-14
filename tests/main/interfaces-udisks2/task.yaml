@@ -1,0 +1,52 @@
+summary: Ensure that the udisks2 interface works.
+
+details: |
+    The udisks2 interface allows operating as or interacting with the UDisks2 service
+
+prepare: |
+    snap install test-snapd-udisks2
+
+restore: |
+    rm -f call.error
+    losetup -d /dev/mmcblk-fake0 || true
+    rm -f /dev/mmcblk-fake0 /opt/dev0-fake0
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i udisks2 | MATCH -- "- +test-snapd-udisks2:udisks2"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-udisks2:udisks2
+
+    echo "Check it is possible to see the udisks2 stauts"
+    test-snapd-udisks2.udisksctl status | MATCH "MODEL"
+
+    echo "Check it is possible to dump all the udisks objects info"
+    test-snapd-udisks2.udisksctl dump | MATCH "org.freedesktop.UDisks2.Manager"
+
+    echo "Check we can mount/unmount a block device using the snap"
+    # create a 10M filesystem in /opt
+    dd if=/dev/zero of=/opt/dev0-fake0 bs=1M count=10
+    mkfs.ext4 /opt/dev0-fake0
+    # create the loopback block device
+    mknod /dev/mmcblk-fake0 b 7 200
+    losetup /dev/mmcblk-fake0 /opt/dev0-fake0
+
+    device="$(losetup -j /opt/dev0-fake0 | cut -d: -f1)"
+
+    test-snapd-udisks2.udisksctl mount -b "$device" -t ext4 | MATCH "Mounted /dev/"
+    test-snapd-udisks2.udisksctl unmount -b "$device" | MATCH "Unmounted /dev/"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-udisks2:udisks2
+
+    echo "Then the snap is not able to check udisks2 status"
+    if test-snapd-udisks2.udisksctl status 2>${PWD}/call.error; then
+        echo "Expected permission error calling udisksctl status with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
