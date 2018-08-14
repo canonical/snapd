@@ -1,5 +1,13 @@
 summary: Check that command-chain is properly supported
 
+environment:
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
+    BREADCRUMB: /var/snap/command-chain/current/breadcrumb
+    ENVDUMP: /var/snap/command-chain/current/env
+
 prepare: |
     echo "Build command chain snap"
     snap pack "$TESTSLIB/snaps/command-chain"
@@ -9,7 +17,12 @@ restore: |
     rm -f command-chain_1.0_all.snap
 
 execute: |
-    echo "Test that command-chain actually runs as expected"
+    echo "Test that command-chain runs for hooks"
+    [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]
+    cat "$ENVDUMP" | MATCH '^CHAIN_1_RAN=1$'
+    cat "$ENVDUMP" | MATCH '^CHAIN_2_RAN=1$'
+
+    echo "Test that command-chain runs for apps"
     [ "$(command-chain.hello)" = "chain1 chain2 hello" ]
 
     echo "Ensure that the command-chain is run with 'snap run --shell' as well"
@@ -24,3 +37,10 @@ execute: |
     env="$(snap run --shell --skip-command-chain command-chain.hello -c 'env')"
     echo "$env" | MATCH -v '^CHAIN_1_RAN=1$'
     echo "$env" | MATCH -v '^CHAIN_2_RAN=1$'
+
+    echo "Ensure that 'snap run' supports skipping the command chain for hooks as well"
+    rm -f "$BREADCRUMB"
+    snap run --skip-command-chain --hook configure command-chain
+    [ "$(cat "$BREADCRUMB")" = "configure" ]
+    cat "$ENVDUMP" | MATCH -v '^CHAIN_1_RAN=1$'
+    cat "$ENVDUMP" | MATCH -v '^CHAIN_2_RAN=1$'

@@ -80,6 +80,13 @@ hooks:
  configure:
 `)
 
+var mockHookCommandChainYaml = []byte(`name: snapname
+version: 1.0
+hooks:
+ configure:
+  command-chain: [chain1, chain2]
+`)
+
 var binaryTemplate = `#!/bin/sh
 echo "$(basename $0)" >> %[1]q
 for arg in "$@"; do
@@ -228,10 +235,43 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	defer restore()
 
 	// launch and verify it ran correctly
-	err := snapExec.ExecHook("snapname", "42", "configure")
+	err := snapExec.ExecHook("snapname", "42", "configure", false)
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
+}
+
+func (s *snapExecSuite) TestSnapExecHookCommandChainIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockHookCommandChainYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	restore := snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		return nil
+	})
+	defer restore()
+
+	chain1_path := fmt.Sprintf("%s/snapname/42/chain1", dirs.SnapMountDir)
+	chain2_path := fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir)
+	hook_path := fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir)
+
+	for _, t := range []struct {
+		skipCommandChain bool
+		expected         []string
+	}{
+		{expected: []string{chain1_path, chain2_path, hook_path}},
+		{skipCommandChain: true, expected: []string{hook_path}},
+	} {
+		err := snapExec.ExecHook("snapname", "42", "configure", t.skipCommandChain)
+		c.Assert(err, IsNil)
+		c.Check(execArgv0, Equals, t.expected[0])
+		c.Check(execArgs, DeepEquals, t.expected)
+	}
 }
 
 func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
@@ -240,7 +280,7 @@ func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 		Revision: snap.R("42"),
 	})
 
-	err := snapExec.ExecHook("snapname", "42", "missing-hook")
+	err := snapExec.ExecHook("snapname", "42", "missing-hook", false)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot find hook \"missing-hook\" in \"snapname\"")
 }
