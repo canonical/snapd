@@ -10,13 +10,13 @@ prepare: |
     snap install test-snapd-udisks2
 
 environment:
-    FILESYSTEM: "$(pwd)/dev0-fake0"
-    DEVICE: /dev/mmcblk-fake0
+    FS_PATH: "$(pwd)/dev0-fake0"
+    MMCBLK_PATH: /dev/mmcblk-fake0
 
 restore: |
     rm -f call.error
-    losetup -d "$DEVICE" || true
-    rm -f "$DEVICE" "$FILESYSTEM"
+    losetup -d "$MMCBLK_PATH" || true
+    rm -f "$MMCBLK_PATH" "$FS_PATH"
 
 execute: |
     echo "The interface is not connected by default"
@@ -33,13 +33,13 @@ execute: |
 
     echo "Check we can mount/unmount a block device using the snap"
     # create a 10M filesystem in pwd
-    dd if=/dev/zero of="$FILESYSTEM" bs=1M count=10
-    mkfs.ext4 -F "$FILESYSTEM"
+    dd if=/dev/zero of="$FS_PATH" bs=1M count=10
+    mkfs.ext4 -F "$FS_PATH"
     # create the loopback block device
-    mknod "$DEVICE" b 7 200
-    losetup "$DEVICE" "$FILESYSTEM"
+    mknod "$MMCBLK_PATH" b 7 200
+    losetup "$MMCBLK_PATH" "$FS_PATH"
 
-    device="$(losetup -j "$FILESYSTEM" | cut -d: -f1)"
+    device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
 
     test-snapd-udisks2.udisksctl mount -b "$device" -t ext4 | MATCH "Mounted /dev/"
     test-snapd-udisks2.udisksctl unmount -b "$device" | MATCH "Unmounted /dev/"
@@ -52,7 +52,7 @@ execute: |
     snap disconnect test-snapd-udisks2:udisks2
 
     echo "Then the snap is not able to check udisks2 status"
-    if test-snapd-udisks2.udisksctl status 2>call.error; then
+    if test-snapd-udisks2.udisksctl status 2> call.error; then
         echo "Expected permission error calling udisksctl status with disconnected plug"
         exit 1
     fi
