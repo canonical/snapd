@@ -1,6 +1,13 @@
-snapd (2.35~pre1) xenial; urgency=medium
+snapd (2.35~pre2) xenial; urgency=medium
 
   * New upstream release, LP: #1786438
+    - udev: skip TestParseUdevEvent on ppc
+    - interfaces: miscellaneous policy updates
+    - debian: add tzdata to build-dep to ensure snapd builds correctly
+    - interfaces/builtin: network-manager resolved DBus changes
+    - tests: add spread test for fedora29 base snap
+    - cmd/libsnap: treat distributions with VARIANT_ID=snappy as "core"
+    - dirs: fix SnapMountDir inside a Fedora base snap
     - tests: fix snapd-failover for core18 with external backend
     - overlord/snapstate: always clean SnapState when doing Get()
     - overlod/ifacestate: always use a new SnapState when fetching the
@@ -182,7 +189,7 @@ snapd (2.35~pre1) xenial; urgency=medium
     - cmd/snap-confine: fix snaps running on core18
     - many: expose publisher's validation throughout the API
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 10 Aug 2018 10:56:30 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 14 Aug 2018 17:52:02 +0200
 
 snapd (2.34.3) xenial; urgency=medium
 
