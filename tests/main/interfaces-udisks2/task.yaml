@@ -9,10 +9,14 @@ systems: [-ubuntu-core-*]
 prepare: |
     snap install test-snapd-udisks2
 
+environment:
+    FILESYSTEM: "$(pwd)/dev0-fake0"
+    DEVICE: /dev/mmcblk-fake0
+
 restore: |
     rm -f call.error
-    losetup -d /dev/mmcblk-fake0 || true
-    rm -f /dev/mmcblk-fake0 /opt/dev0-fake0
+    losetup -d "$DEVICE" || true
+    rm -f "$DEVICE" "$FILESYSTEM"
 
 execute: |
     echo "The interface is not connected by default"
@@ -28,14 +32,14 @@ execute: |
     test-snapd-udisks2.udisksctl dump | MATCH "org.freedesktop.UDisks2.Manager"
 
     echo "Check we can mount/unmount a block device using the snap"
-    # create a 10M filesystem in /opt
-    dd if=/dev/zero of=/opt/dev0-fake0 bs=1M count=10
-    mkfs.ext4 /opt/dev0-fake0
+    # create a 10M filesystem in pwd
+    dd if=/dev/zero of="$FILESYSTEM" bs=1M count=10
+    mkfs.ext4 "$FILESYSTEM"
     # create the loopback block device
-    mknod /dev/mmcblk-fake0 b 7 200
-    losetup /dev/mmcblk-fake0 /opt/dev0-fake0
+    mknod "$DEVICE" b 7 200
+    losetup "$DEVICE" "$FILESYSTEM"
 
-    device="$(losetup -j /opt/dev0-fake0 | cut -d: -f1)"
+    device="$(losetup -j "$FILESYSTEM" | cut -d: -f1)"
 
     test-snapd-udisks2.udisksctl mount -b "$device" -t ext4 | MATCH "Mounted /dev/"
     test-snapd-udisks2.udisksctl unmount -b "$device" | MATCH "Unmounted /dev/"
