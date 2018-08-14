@@ -43,6 +43,8 @@ capability sys_resource,
 capability sys_nice,
 
 signal (send),
+/{,usr/}bin/kill ixr,
+/{,usr/}bin/pkill ixr,
 `
 
 const processControlConnectedPlugSecComp = `
