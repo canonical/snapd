@@ -53,11 +53,11 @@ import (
 var (
 	osReadlink               = os.Readlink
 	kernelFeatures           = release.SecCompActions
-	requiresSocketcall       = RequiresSocketcall
 	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
 	kernelVersion            = release.KernelVersion
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
+	requiresSocketcall       = requiresSocketcallImpl
 )
 
 func seccompToBpfPath() string {
@@ -241,7 +241,7 @@ func (b *Backend) SandboxFeatures() []string {
 //     snap), don't force use of socketcall()
 // - if the kernel architecture is not any of the above, force the use of
 //   socketcall()
-func RequiresSocketcall(baseSnap string) bool {
+func requiresSocketcallImpl(baseSnap string) bool {
 	var needed bool
 
 	switch ubuntuKernelArchitecture() {
