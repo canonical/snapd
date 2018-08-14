@@ -63,7 +63,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		hotplugHandler := iface.(hotplug.Definer)
 		key, err := deviceKey(defaultDeviceKey, devinfo, iface)
 		if err != nil {
-			logger.Debugf(err.Error())
+			logger.Noticef(err.Error())
 			continue
 		}
 		if key == "" {
@@ -71,7 +71,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		}
 		spec := hotplug.NewSpecification()
 		if hotplugHandler.HotplugDeviceDetected(devinfo, spec) != nil {
-			logger.Debugf("Failed to process hotplug event by the rule of interface %q: %s", iface.Name(), err)
+			logger.Noticef("Failed to process hotplug event by the rule of interface %q: %s", iface.Name(), err)
 			continue
 		}
 
@@ -108,7 +108,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		}
 
 		if !m.hotplug {
-			logger.Debugf("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
+			logger.Noticef("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
 
