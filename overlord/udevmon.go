@@ -77,18 +77,19 @@ func (m *UDevMonitor) Connect() error {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
-	/*var deviceFilter netlink.Matcher
-	deviceFilter = &netlink.RuleDefinitions{
+	var filter netlink.Matcher
+	// TODO: extend with other criterias based on the hotplug interfaces
+	filter = &netlink.RuleDefinitions{
 		Rules: []netlink.RuleDefinition{
 			{
 				Env: map[string]string{
-					"DEVTYPE": "usb_device",
+					"SUBSYSTEM": "tty",
 				},
 			},
 		},
-	}*/
+	}
 
-	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, filter)
 
 	return nil
 }

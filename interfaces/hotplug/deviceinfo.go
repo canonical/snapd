@@ -21,19 +21,15 @@ package hotplug
 
 import (
 	"fmt"
-	"github.com/snapcore/snapd/dirs"
-	"io/ioutil"
 	"path/filepath"
-	"regexp"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 // HotplugDeviceInfo carries information about added/removed device detected at runtime.
 type HotplugDeviceInfo struct {
 	// map of all attributes returned for given uevent.
-	data                                               map[string]string
-	idVendor, idProduct, product, manufacturer, serial string
-	// attrsPath is the path under /sys/... where idProduct/idVendor/serial files for given device reside
-	attrsPath string
+	data map[string]string
 }
 
 // NewHotplugDeviceInfo creates HotplugDeviceInfo structure related to udev add or remove event.
@@ -41,17 +37,8 @@ func NewHotplugDeviceInfo(env map[string]string) (*HotplugDeviceInfo, error) {
 	if _, ok := env["DEVPATH"]; !ok {
 		return nil, fmt.Errorf("missing device path attribute")
 	}
-	p := filepath.SplitList(env["DEVPATH"])
-
-	var attrsPath string
-	if len(p) > 4 {
-		if ok, _ := regexp.MatchString("%d-%d", p[4]); ok {
-			attrsPath = filepath.Join(p[:3]...)
-		}
-	}
 	return &HotplugDeviceInfo{
-		data:      env,
-		attrsPath: attrsPath,
+		data: env,
 	}, nil
 }
 
@@ -97,37 +84,4 @@ func (h *HotplugDeviceInfo) DeviceType() string {
 func (h *HotplugDeviceInfo) Attribute(name string) (string, bool) {
 	val, ok := h.data[name]
 	return val, ok
-}
-
-func (h *HotplugDeviceInfo) IdVendor() string {
-	return h.readOnceMaybe("idVendor", &h.idVendor)
-}
-
-func (h *HotplugDeviceInfo) IdProduct() string {
-	return h.readOnceMaybe("idProduct", &h.idProduct)
-}
-
-func (h *HotplugDeviceInfo) Product() string {
-	return h.readOnceMaybe("product", &h.product)
-}
-
-func (h *HotplugDeviceInfo) Manufacturer() string {
-	return h.readOnceMaybe("manufacturer", &h.manufacturer)
-}
-
-func (h *HotplugDeviceInfo) Serial() string {
-	return h.readOnceMaybe("serial", &h.serial)
-}
-
-func (h *HotplugDeviceInfo) readOnceMaybe(fileName string, out *string) string {
-	if *out == "" {
-		for _, path := range []string{h.DevicePath(), h.attrsPath} {
-			data, err := ioutil.ReadFile(filepath.Join(path, fileName))
-			if err == nil {
-				*out = string(data)
-				return *out
-			}
-		}
-	}
-	return ""
 }

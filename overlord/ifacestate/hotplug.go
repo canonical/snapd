@@ -41,6 +41,13 @@ func deviceKey(defaultDeviceKey string, devinfo *hotplug.HotplugDeviceInfo, ifac
 	return defaultDeviceKey, nil
 }
 
+func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
+	vendor, _ := devinfo.Attribute("ID_VENDOR_ID")
+	product, _ := devinfo.Attribute("ID_MODEL_ID")
+	serial, _ := devinfo.Attribute("ID_SERIAL_SHORT")
+	return fmt.Sprintf("%s:%s:%s", vendor, product, serial)
+}
+
 func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
 	const coreSnapName = "core"
 	var coreSnapInfo *snap.Info
@@ -55,28 +62,30 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	}
 
 	hotplugIfaces := m.repo.AllHotplugInterfaces()
-	defaultDeviceKey := fmt.Sprintf("%s:%s:%s", devinfo.IdVendor(), devinfo.IdProduct(), devinfo.Serial())
-	logger.Noticef("HotplugDeviceAdded: %s (default key: %q, devicename %s, hotplug ifaces #%d)", devinfo.DevicePath(), defaultDeviceKey, devinfo.DeviceName(), len(hotplugIfaces))
+	defaultKey := defaultDeviceKey(devinfo)
+	logger.Debugf("HotplugDeviceAdded: %s (default key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), defaultKey, devinfo.DeviceName(), devinfo.Subsystem())
 
 	// Iterate over all hotplug interfaces
 	for _, iface := range hotplugIfaces {
 		hotplugHandler := iface.(hotplug.Definer)
-		key, err := deviceKey(defaultDeviceKey, devinfo, iface)
+		key, err := deviceKey(defaultKey, devinfo, iface)
 		if err != nil {
 			logger.Noticef(err.Error())
 			continue
 		}
-		if key == "" {
-			continue
-		}
+
 		spec := hotplug.NewSpecification()
 		if hotplugHandler.HotplugDeviceDetected(devinfo, spec) != nil {
 			logger.Noticef("Failed to process hotplug event by the rule of interface %q: %s", iface.Name(), err)
 			continue
 		}
-
 		slotSpecs := spec.Slots()
 		if len(slotSpecs) == 0 {
+			continue
+		}
+
+		if key == "" || key == "::" {
+			logger.Debugf("No valid device key provided by interface %s, device %q ignored", iface.Name(), devinfo.DeviceName())
 			continue
 		}
 
@@ -105,11 +114,12 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				Name:             ss.Name,
 				Snap:             coreSnapInfo,
 				Interface:        iface.Name(),
+				Attrs:            ss.Attrs,
 				HotplugDeviceKey: key,
 			}
 			if iface, ok := iface.(interfaces.SlotSanitizer); ok {
 				if err := iface.BeforePrepareSlot(slot); err != nil {
-					logger.Noticef("Failed to sanitize hotplug-created slot %q for interface %s", slot.Name, slot.Interface, err)
+					logger.Noticef("Failed to sanitize hotplug-created slot %q for interface %s: %s", slot.Name, slot.Interface, err)
 					continue
 				}
 			}
@@ -147,10 +157,10 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	defaultDeviceKey := fmt.Sprintf("%s:%s:%s", devinfo.IdVendor(), devinfo.IdProduct(), devinfo.Serial())
+	defaultKey := defaultDeviceKey(devinfo)
 
 	for _, iface := range m.repo.AllHotplugInterfaces() {
-		key, err := deviceKey(defaultDeviceKey, devinfo, iface)
+		key, err := deviceKey(defaultKey, devinfo, iface)
 		if err != nil {
 			logger.Debugf(err.Error())
 			continue
@@ -163,7 +173,7 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		// is maintained in connState.
 
 		if !m.hotplug {
-			logger.Debugf("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
+			logger.Noticef("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
 	}
