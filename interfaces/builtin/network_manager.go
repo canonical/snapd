@@ -197,6 +197,13 @@ dbus (receive, send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
+
 dbus(receive, send)
     bus=system
     path=/org/freedesktop/hostname1
