@@ -12,6 +12,7 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/nvidia-uvm wr,
 /dev/nvidiactl wr,
 /{dev,run}/shm/cuda.* rw,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm, 
 `
 
 const cudaSupportConnectedPlugSecComp = `
