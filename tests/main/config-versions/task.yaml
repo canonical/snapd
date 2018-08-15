@@ -7,12 +7,11 @@ details: |
     and is restored on revert.
 
 prepare: |
-    snap pack "$TESTSLIB"/snaps/config-versions
-    snap pack "$TESTSLIB"/snaps/config-versions-v2
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
-restore: |
-    rm -f config-versions_1.0_all.snap
-    rm -f config-versions_2.0_all.snap
+    install_local config-versions
+    install_local config-versions-v2
 
 execute: |
     verify_config_value() {

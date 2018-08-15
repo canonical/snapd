@@ -1,11 +1,8 @@
 summary: Ensures that introspection of login1 of the shutdown interface works.
 
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-    # unity7 implicit classic slot needed (used to access dbus-send) not
-    # available on core
-    - -ubuntu-core-*
+# No confinement (AppArmor, Seccomp) available on these systems
+# unity7 implicit classic slot needed (used to access dbus-send) not available on core
+systems: [-debian-*, -ubuntu-core-*]
 
 details: |
     A snap declaring the shutdown plug is defined, its command just calls

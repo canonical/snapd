@@ -1,12 +1,15 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
+
 prepare: |
-    snap pack $TESTSLIB/snaps/test-snapd-tools
-    snap install --dangerous test-snapd-tools_1.0_all.snap
+    snap install test-snapd-tools
+
 restore: |
     rm -f *.snap
     rm -f *-vars.txt
+
 debug: |
     cat *-vars.txt
+
 execute: |
     echo "Collect SNAP and XDG environment variables"
     test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt
