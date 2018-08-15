@@ -1,20 +1,20 @@
 summary: Check that the core snap can be refreshed on a core device
 
-systems: [ubuntu-core-16-64]
-
 details: |
     This test checks that the core snap can be refreshed from an installed
     revision to a new one. It expects to find a new snap revision in the
     channel pointed by the NEW_CORE_CHANNEL env var.
 
+systems: [ubuntu-core-16-64]
+
 manual: true
+
+prepare: |
+    snap install test-snapd-tools
 
 restore: |
     rm -f prevBoot nextBoot
     rm -f core_*.{assert,snap}
-        
-prepare: |
-    snap install test-snapd-tools
 
 execute: |
     wait_core_pre_boot() {

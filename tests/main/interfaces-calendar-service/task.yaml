@@ -2,10 +2,7 @@ summary: Ensure that the calendar-service interface works
 
 # Only test on classic systems.  Don't test on Ubuntu 14.04, which
 # does not ship a new enough evolution-data-server. Don't test on AMZN2.
-systems:
-    - -ubuntu-core-*
-    - -ubuntu-14.04-*
-    - -amazon-*
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*]
 
 environment:
     XDG: $(pwd)/xdg

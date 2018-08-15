@@ -1,5 +1,7 @@
 summary: Check that snapd can be built without cgo
+
 systems: [-ubuntu-core-*]
+
 execute: |
     CGO_ENABLED=0 go build -o snapd.static github.com/snapcore/snapd/cmd/snapd
     ldd snapd.static && exit 1 || true

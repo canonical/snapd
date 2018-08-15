@@ -7,6 +7,11 @@ kill-timeout: 5m
 #        is merged
 systems: [-ubuntu-14.04-*, -ubuntu-core-18-*]
 
+restore: |
+    rm -f *.pid || true
+    # remove to ensure all services are stopped
+    snap remove test-snapd-service || true
+
 debug: |
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
@@ -60,8 +65,3 @@ execute: |
     for s in $stop_modes; do
         get_journalctl_log | MATCH "stop ${s}"
     done
-
-restore: |
-    rm -f *.pid || true
-    # remove to ensure all services are stopped
-    snap remove test-snapd-service || true
