@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -114,8 +115,8 @@ type jsonRPC struct {
 // readRpc reads a apt json rpc protocol 0.1 message as described in
 // https://salsa.debian.org/apt-team/apt/blob/master/doc/json-hooks-protocol.md#wire-protocol
 func readRpc(r *bufio.Reader) (*jsonRPC, error) {
-	line, _, err := r.ReadLine()
-	if err != nil {
+	line, err := r.ReadBytes('\n')
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("cannot read json-rpc: %v", err)
 	}
 	if osutil.GetenvBool("SNAP_APT_HOOK_DEBUG") {
