@@ -53,6 +53,9 @@ apps:
   core-support:
     command: bin/run
     plugs: [ core-support ]
+  cuda-support:
+    command: bin/run
+    plugs: [ cuda-support ]
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
