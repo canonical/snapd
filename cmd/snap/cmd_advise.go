@@ -108,34 +108,7 @@ type jsonRPC struct {
 		Command         string   `json:"command"`
 		SearchTerms     []string `json:"search-terms"`
 		UnknownPackages []string `json:"unknown-packages"`
-		Packages        []struct {
-			ID           int    `json:"id"`
-			Name         string `json:"name"`
-			Architecture string `json:"architecture"`
-			Mode         string `json:"mode"`
-			Automatic    bool   `json:"automatic"`
-			Versions     struct {
-				Candidate struct {
-					ID           int    `json:"id"`
-					Version      string `json:"version"`
-					Architecture string `json:"architecture"`
-					Pin          int    `json:"pin"`
-				} `json:"candidate"`
-				Install struct {
-					ID           int    `json:"id"`
-					Version      string `json:"version"`
-					Architecture string `json:"architecture"`
-					Pin          int    `json:"pin"`
-				} `json:"install"`
-				Current struct {
-					ID           int    `json:"id"`
-					Version      string `json:"version"`
-					Architecture string `json:"architecture"`
-					Pin          int    `json:"pin"`
-				} `json:"current"`
-			} `json:"versions"`
-		} `json:"packages"`
-	} `json:"params"`
+	}
 }
 
 // readRpc reads a apt json rpc protocol 0.1 message as described in
