@@ -75,12 +75,12 @@ dbus (receive)
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=unconfined),
+    member=Get{,All},
 
 # Allow receiving any signals from the logind service
 dbus (receive)
