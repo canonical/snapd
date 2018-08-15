@@ -1751,3 +1751,17 @@ apps:
 		Equals,
 		true)
 }
+
+func (s *YamlSuite) TestSnapYamlCommandChain(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   command: bin/foo
+   command-chain: [chain1, chain2]
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.CommandChain, DeepEquals, []string{"chain1", "chain2"})
+}

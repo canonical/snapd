@@ -1468,6 +1468,15 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	c.Check(n, check.Equals, total)
 }
 
+func (s *SnapOpSuite) TestInstallZeroEmpty(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"install"})
+	c.Assert(err, check.ErrorMatches, "cannot install zero snaps")
+	_, err = snap.Parser().ParseArgs([]string{"install", ""})
+	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
+	_, err = snap.Parser().ParseArgs([]string{"install", "", "bar"})
+	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
+}
+
 func (s *SnapOpSuite) TestNoWait(c *check.C) {
 	s.srv.checker = func(r *http.Request) {}
 
