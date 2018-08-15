@@ -1331,24 +1331,24 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		File:   "snapd_18.snap",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
-		Name:   "core",
-		SnapID: "core-Id",
-		File:   "core_3.snap",
-	})
-	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
 		Name:   "core18",
 		SnapID: "core18-Id",
 		File:   "core18_18.snap",
 	})
-	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
+	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
 		Name:   "pc-kernel",
 		SnapID: "pc-kernel-Id",
 		File:   "pc-kernel_2.snap",
 	})
-	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
+	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
 		Name:   "pc",
 		SnapID: "pc-Id",
 		File:   "pc_1.snap",
+	})
+	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
+		Name:   "core",
+		SnapID: "core-Id",
+		File:   "core_3.snap",
 	})
 	c.Check(seed.Snaps[5], DeepEquals, &snap.SeedSnap{
 		Name:    "required-snap1",
