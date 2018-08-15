@@ -169,19 +169,12 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Read all properties from UPower and devices
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
-    path=/org/freedesktop/UPower{,/devices/**}
+    path=/org/freedesktop/UPower{,/Wakeups,/devices/**}
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (send)
-    bus=system
-    path=/org/freedesktop/UPower/Wakeups
-    interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=###SLOT_SECURITY_TAGS###),
+    member=Get{,All},
 
 dbus (send)
     bus=system
@@ -213,12 +206,12 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to introspect the service
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     interface=org.freedesktop.DBus.Introspectable
     path=/org/freedesktop/UPower
-    member=Introspect
-    peer=(label=###SLOT_SECURITY_TAGS###),
+    member=Introspect,
 `
 
 type upowerObserveInterface struct{}
