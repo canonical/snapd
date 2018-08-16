@@ -2102,7 +2102,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			// extra hoops to translate instance key -> instance name
 
 			// TODO parallel-install: ensure that instance key is
-			// stable accross refreshes
+			// stable across refreshes
 			instanceKey = fmt.Sprintf("%d-%s", i, curSnap.SnapID)
 		}
 		curSnaps[instanceKey] = curSnap
