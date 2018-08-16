@@ -1489,15 +1489,29 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		removeHook = SetupRemoveHook(st, snapsup.InstanceName())
 	}
 
-	if active { // unlink
-		var prev *state.Task
-
-		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
+	var prev *state.Task
+	var stopSnapServices *state.Task
+	if active {
+		stopSnapServices = st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
+		addNext(state.NewTaskSet(stopSnapServices))
 		prev = stopSnapServices
+	}
 
-		tasks := []*state.Task{stopSnapServices}
+	if removeAll {
+		// run disconnect hooks
+		disconnect := st.NewTask("auto-disconnect", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
+		disconnect.Set("snap-setup", snapsup)
+		if prev != nil {
+			disconnect.WaitFor(prev)
+		}
+		addNext(state.NewTaskSet(disconnect))
+		prev = disconnect
+	}
+
+	if active { // unlink
+		var tasks []*state.Task
 		if removeHook != nil {
 			tasks = append(tasks, removeHook)
 			removeHook.WaitFor(prev)
@@ -1528,15 +1542,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			si := seq[i]
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
-
-		discardConns := st.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
-		discardConns.Set("snap-setup", &SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: snap.InstanceSnap(name),
-			},
-			InstanceKey: snapst.InstanceKey,
-		})
-		addNext(state.NewTaskSet(discardConns))
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}
