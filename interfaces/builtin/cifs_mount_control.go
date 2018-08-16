@@ -44,21 +44,21 @@ const cifsMountControlConnectedPlugAppArmor = `
 capability sys_admin,
 
 # Allow mounts to our snap-specific writable directories
-mount fstype=cifs ** -> @{HOMEDIRS}/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
-mount fstype=cifs ** -> @{HOMEDIRS}/*/snap/@{SNAP_NAME}/common/{,**},
 mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
 mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/common/{,**},
 
-umount fstype=cifs @{HOMEDIRS}/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
-umount fstype=cifs @{HOMEDIRS}/*/snap/@{SNAP_NAME}/common/{,**},
+# NOTE: due to LP: #1613403, fstype is not mediated and as such, these rules
+# allow, for example, unmounting bind mounts from the content interface
 umount fstype=cifs /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
 umount fstype=cifs /var/snap/@{SNAP_NAME}/common/{,**},
 
-# Don't log violations for this file, see discussion here:
+# Due to an unsolved issue with namespace awareness of libmount the unmount tries to access
+# /run/mount/utab but fails. The resulting apparmor warning can be ignored. The log warning
+# was not removed via an explicit deny to not interfere with other interfaces which might
+# decide to allow access (deny rules have precedence).
+#
 #  - https://github.com/snapcore/snapd/pull/5340#issuecomment-398071797
-#  - https://forum.snapcraft.io/t/namespace-awareness-of-run-mount-utab-and-libmount/5987
-deny /run/mount/utab rw,
-`
+#  - https://forum.snapcraft.io/t/namespace-awareness-of-run-mount-utab-and-libmount/5987`
 
 func init() {
 	registerIface(&commonInterface{
