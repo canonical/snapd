@@ -560,7 +560,7 @@ pkg_dependencies_ubuntu_classic(){
 
 pkg_linux_image_extra(){
     if apt-cache policy "linux-image-extra-$(uname -r)" >/dev/null 2>&1; then
-        echo "linuximage-extra-$(uname -r)"
+        echo "linux-image-extra-$(uname -r)"
     elif apt-cache policy "linux-image-extra-$(uname -r | cut -d- -f1)" >/dev/null 2>&1; then
         echo "linux-image-extra-$(uname -r | cut -d- -f1)"
     else
