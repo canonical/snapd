@@ -42,5 +42,5 @@ execute: |
     rm -f "$BREADCRUMB"
     snap run --skip-command-chain --hook configure command-chain
     [ "$(cat "$BREADCRUMB")" = "configure" ]
-    MATCH '^CHAIN_1_RAN=1$' < "$ENVDUMP"
-    MATCH '^CHAIN_2_RAN=1$' < "$ENVDUMP"
+    MATCH -v '^CHAIN_1_RAN=1$' < "$ENVDUMP"
+    MATCH -v '^CHAIN_2_RAN=1$' < "$ENVDUMP"
