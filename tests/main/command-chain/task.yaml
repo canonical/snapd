@@ -19,8 +19,8 @@ restore: |
 execute: |
     echo "Test that command-chain runs for hooks"
     [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]
-    cat "$ENVDUMP" | MATCH '^CHAIN_1_RAN=1$'
-    cat "$ENVDUMP" | MATCH '^CHAIN_2_RAN=1$'
+    MATCH '^CHAIN_1_RAN=1$' < "$ENVDUMP"
+    MATCH '^CHAIN_2_RAN=1$' < "$ENVDUMP"
 
     echo "Test that command-chain runs for apps"
     [ "$(command-chain.hello)" = "chain1 chain2 hello" ]
@@ -42,5 +42,5 @@ execute: |
     rm -f "$BREADCRUMB"
     snap run --skip-command-chain --hook configure command-chain
     [ "$(cat "$BREADCRUMB")" = "configure" ]
-    cat "$ENVDUMP" | MATCH -v '^CHAIN_1_RAN=1$'
-    cat "$ENVDUMP" | MATCH -v '^CHAIN_2_RAN=1$'
+    MATCH '^CHAIN_1_RAN=1$' < "$ENVDUMP"
+    MATCH '^CHAIN_2_RAN=1$' < "$ENVDUMP"
