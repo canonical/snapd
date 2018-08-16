@@ -54,6 +54,8 @@ var (
 	FillerPublisher      = fillerPublisher
 	LongPublisher        = longPublisher
 	ShortPublisher       = shortPublisher
+
+	ReadRpc = readRpc
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
