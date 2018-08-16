@@ -11266,7 +11266,7 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestParallelInstallInstallPathValidateFeatureFlag(c *C) {
+func (s *snapmgrTestSuite) TestParallelInstallInstallPathExperimentalSwitch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
