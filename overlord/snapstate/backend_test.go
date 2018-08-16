@@ -253,6 +253,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
+	case "core18-snap-id":
+		name = "core18"
+		typ = snap.TypeBase
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	case "producer-id":
@@ -342,7 +345,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	if len(currentSnaps) == 0 && len(actions) == 0 {
 		return nil, nil
 	}
-	if len(actions) > 3 {
+	if len(actions) > 4 {
 		panic("fake SnapAction unexpectedly called with more than 3 actions")
 	}
 

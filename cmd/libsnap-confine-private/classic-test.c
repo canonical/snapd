@@ -86,6 +86,30 @@ static void test_is_on_classic_with_long_line(void)
 	unlink("os-release.classic-with-long-line");
 }
 
+const char *os_release_fedora_base = ""
+    "NAME=Fedora\nID=fedora\nVARIANT_ID=snappy\n";
+
+static void test_is_on_fedora_base(void)
+{
+	g_file_set_contents("os-release.core", os_release_fedora_base,
+			    strlen(os_release_fedora_base), NULL);
+	os_release = "os-release.core";
+	g_assert_cmpint(sc_classify_distro(), ==, SC_DISTRO_CORE_OTHER);
+	unlink("os-release.core");
+}
+
+const char *os_release_fedora_ws = ""
+    "NAME=Fedora\nID=fedora\nVARIANT_ID=workstation\n";
+
+static void test_is_on_fedora_ws(void)
+{
+	g_file_set_contents("os-release.core", os_release_fedora_ws,
+			    strlen(os_release_fedora_ws), NULL);
+	os_release = "os-release.core";
+	g_assert_cmpint(sc_classify_distro(), ==, SC_DISTRO_CLASSIC);
+	unlink("os-release.core");
+}
+
 static void test_should_use_normal_mode(void)
 {
 	g_assert_false(sc_should_use_normal_mode(SC_DISTRO_CORE16, "core"));
@@ -106,6 +130,8 @@ static void __attribute__ ((constructor)) init(void)
 	g_test_add_func("/classic/on-core-on16", test_is_on_core_on16);
 	g_test_add_func("/classic/on-core-on18", test_is_on_core_on18);
 	g_test_add_func("/classic/on-core-on20", test_is_on_core_on20);
+	g_test_add_func("/classic/on-fedora-base", test_is_on_fedora_base);
+	g_test_add_func("/classic/on-fedora-ws", test_is_on_fedora_ws);
 	g_test_add_func("/classic/should-use-normal-mode",
 			test_should_use_normal_mode);
 }
