@@ -588,6 +588,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		SideInfo:     &info.SideInfo,
 		Type:         info.Type,
 		PlugsOnly:    len(info.Slots) == 0,
+		InstanceKey:  info.InstanceKey,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -747,6 +748,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			SideInfo:     &update.SideInfo,
 			Type:         update.Type,
 			PlugsOnly:    len(update.Slots) == 0,
+			InstanceKey:  update.InstanceKey,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -844,6 +846,8 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 
 		snapsup := &SnapSetup{
 			SideInfo: &snap.SideInfo{RealName: snapName},
+			// TODO parallel-install: review and update the aliases
+			// code in the context of parallel installs
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
@@ -994,8 +998,9 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo: snapst.CurrentSideInfo(),
-		Channel:  channel,
+		SideInfo:    snapst.CurrentSideInfo(),
+		Channel:     channel,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.InstanceName(), snapsup.Channel))
@@ -1063,8 +1068,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		}
 
 		snapsup := &SnapSetup{
-			SideInfo: snapst.CurrentSideInfo(),
-			Flags:    snapst.Flags.ForSnapSetup(),
+			SideInfo:    snapst.CurrentSideInfo(),
+			Flags:       snapst.Flags.ForSnapSetup(),
+			InstanceKey: snapst.InstanceKey,
 		}
 
 		if snapst.Channel != channel {
@@ -1192,10 +1198,11 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo:  snapst.CurrentSideInfo(),
-		Flags:     snapst.Flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		SideInfo:    snapst.CurrentSideInfo(),
+		Flags:       snapst.Flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.InstanceName(), snapst.Current))
@@ -1249,11 +1256,12 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	snapsup := &SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: name,
+			RealName: snap.InstanceSnap(name),
 			Revision: snapst.Current,
 		},
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.InstanceName(), snapst.Current))
@@ -1454,11 +1462,12 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	// main/current SnapSetup
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: name,
+			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	// trigger remove
@@ -1541,11 +1550,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 }
 
 func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
+	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: name,
+			RealName: snapName,
 			Revision: revision,
 		},
+		InstanceKey: instanceKey,
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
@@ -1636,10 +1647,11 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo:  snapst.Sequence[i],
-		Flags:     flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		SideInfo:    snapst.Sequence[i],
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 	return doInstall(st, &snapst, snapsup, 0)
 }
