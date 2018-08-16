@@ -180,6 +180,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *snapshotstate.SnapshotManager:
+		o.shotMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -429,6 +431,11 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 // jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// SnapshotManager returns the manager responsible for snapshots.
+func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
+	return o.shotMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
