@@ -1874,7 +1874,11 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+				conn, err := repo.Connection(connRef)
+				if err != nil {
+					break
+				}
+				ts, err = ifacestate.Disconnect(st, conn)
 				if err != nil {
 					break
 				}

@@ -5,6 +5,15 @@ summary: Ensure that the contacts-service interface works
 # amazon: no need to run this on amazon
 systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*]
 
+# fails in autopkgtest environment with:
+# [Wed Aug 15 16:08:23 2018] audit: type=1400
+# audit(1534349304.173:1681): apparmor="DENIED" operation="connect"
+# profile="snap.test-snapd-eds.contacts" pid=18321 comm="contacts"
+# family="unix" sock_type="stream" protocol=0 requested_mask="send
+# receive connect" denied_mask="send connect" addr=none
+# peer_addr="@/tmp/dbus-GZTRALrYYm" peer="unconfined"
+backends: [-autopkgtest]
+
 environment:
     XDG: $(pwd)/xdg
     XDG_CONFIG_HOME: $XDG/config
