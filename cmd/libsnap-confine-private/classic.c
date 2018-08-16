@@ -32,6 +32,9 @@ sc_distro sc_classify_distro(void)
 		} else if (sc_streq(buf, "VERSION_ID=\"16\"")
 			   || sc_streq(buf, "VERSION_ID=16")) {
 			core_version = 16;
+		} else if (sc_streq(buf, "VARIANT_ID=\"snappy\"")
+			   || sc_streq(buf, "VARIANT_ID=snappy")) {
+			is_core = true;
 		}
 	}
 

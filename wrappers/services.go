@@ -171,6 +171,10 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) (err error) {
+	if s.SnapName() == "snapd" {
+		return writeSnapdServicesOnCore(s, inter)
+	}
+
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	var written []string
 	var enabled []string

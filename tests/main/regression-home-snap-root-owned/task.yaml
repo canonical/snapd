@@ -4,22 +4,24 @@ prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap
     rm -rf /root/snap
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     # run a snap command via sudo
     output=$(su -l -c "sudo $SNAP_MOUNT_DIR/bin/test-snapd-tools.env" test)
 
     # ensure SNAP_USER_DATA points to the right place
-    echo $output | MATCH SNAP_USER_DATA=/root/snap/test-snapd-tools/x[0-9]+
-    echo $output | MATCH HOME=/root/snap/test-snapd-tools/x[0-9]+
-    echo $output | MATCH SNAP_USER_COMMON=/root/snap/test-snapd-tools/common
+    echo "$output" | MATCH SNAP_USER_DATA=/root/snap/test-snapd-tools/x[0-9]+
+    echo "$output" | MATCH HOME=/root/snap/test-snapd-tools/x[0-9]+
+    echo "$output" | MATCH SNAP_USER_COMMON=/root/snap/test-snapd-tools/common
 
     echo "Verify that the /root/snap directory created and root owned"
-    if [ $(stat -c '%U' /root/snap) != "root" ]; then
+    if [ "$(stat -c '%U' /root/snap)" != "root" ]; then
         echo "The /root/snap directory is not owned by root"
         ls -ld $SNAP_MOUNT_DIR/snap
         exit 1
@@ -27,7 +29,7 @@ execute: |
 
     echo "Verify that there is no /home/test/snap appearing"
     if [ -e /home/test/snap ]; then
-        user=$(stat -c '%U' /home/test/snap)
+        user="$(stat -c '%U' /home/test/snap)"
         echo "An unexpected /home/test/snap directory got created (owner $user)"
         ls -ld /home/test/snap
         exit 1

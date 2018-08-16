@@ -285,14 +285,14 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 			out[i].DesktopFile = fn
 		}
 
-		if app.IsService() {
+		out[i].Daemon = app.Daemon
+		if app.IsService() && app.Snap.IsActive() {
 			// TODO: look into making a single call to Status for all services
 			if sts, err := sysd.Status(app.ServiceName()); err != nil {
 				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
 			} else if len(sts) != 1 {
 				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
 			} else {
-				out[i].Daemon = sts[0].Daemon
 				out[i].Enabled = sts[0].Enabled
 				out[i].Active = sts[0].Active
 			}

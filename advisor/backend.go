@@ -22,12 +22,14 @@ package advisor
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/snapcore/bolt"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -36,6 +38,7 @@ var (
 )
 
 type writer struct {
+	fn        string
 	db        *bolt.DB
 	tx        *bolt.Tx
 	cmdBucket *bolt.Bucket
@@ -61,32 +64,24 @@ type CommandDB interface {
 // these closes the database again.
 func Create() (CommandDB, error) {
 	var err error
-	t := &writer{}
+	t := &writer{
+		fn: dirs.SnapCommandsDB + "." + strutil.MakeRandomString(12) + "~",
+	}
 
-	t.db, err = bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{Timeout: 1 * time.Second})
+	t.db, err = bolt.Open(t.fn, 0644, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, err
 	}
 
 	t.tx, err = t.db.Begin(true)
 	if err == nil {
-		err := t.tx.DeleteBucket(cmdBucketKey)
-		if err == nil || err == bolt.ErrBucketNotFound {
-			t.cmdBucket, err = t.tx.CreateBucket(cmdBucketKey)
+		t.cmdBucket, err = t.tx.CreateBucket(cmdBucketKey)
+		if err == nil {
+			t.pkgBucket, err = t.tx.CreateBucket(pkgBucketKey)
 		}
+
 		if err != nil {
 			t.tx.Rollback()
-
-		}
-
-		if err == nil {
-			err := t.tx.DeleteBucket(pkgBucketKey)
-			if err == nil || err == bolt.ErrBucketNotFound {
-				t.pkgBucket, err = t.tx.CreateBucket(pkgBucketKey)
-			}
-			if err != nil {
-				t.tx.Rollback()
-			}
 		}
 	}
 
@@ -137,11 +132,35 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 }
 
 func (t *writer) Commit() error {
-	return t.done(true)
+	// either everything worked, and therefore this will fail, or something
+	// will fail, and that error is more important than this one if this one
+	// then fails as well. So, ignore the error.
+	defer os.Remove(t.fn)
+
+	if err := t.done(true); err != nil {
+		return err
+	}
+
+	dir, err := os.Open(filepath.Dir(dirs.SnapCommandsDB))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	if err := os.Rename(t.fn, dirs.SnapCommandsDB); err != nil {
+		return err
+	}
+
+	return dir.Sync()
 }
 
 func (t *writer) Rollback() error {
-	return t.done(false)
+	e1 := t.done(false)
+	e2 := os.Remove(t.fn)
+	if e1 == nil {
+		return e2
+	}
+	return e1
 }
 
 func (t *writer) done(commit bool) error {

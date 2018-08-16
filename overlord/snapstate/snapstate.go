@@ -23,6 +23,7 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -349,6 +350,10 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return err
 	}
 
+	if snapsup.InstanceName() == "snapd" && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+		return fmt.Errorf("there was a snapd rollback across the restart")
+	}
+
 	// If not on classic check there was no rollback. A reboot
 	// can be triggered by:
 	// - core (old core16 world, system-reboot)
@@ -597,6 +602,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		SideInfo:     &info.SideInfo,
 		Type:         info.Type,
 		PlugsOnly:    len(info.Slots) == 0,
+		InstanceKey:  info.InstanceKey,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -756,6 +762,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			SideInfo:     &update.SideInfo,
 			Type:         update.Type,
 			PlugsOnly:    len(update.Slots) == 0,
+			InstanceKey:  update.InstanceKey,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -772,16 +779,17 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if update.Type == snap.TypeOS || update.Type == snap.TypeBase {
+		if update.Type == snap.TypeOS || update.Type == snap.TypeBase || update.InstanceName() == "snapd" {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
-			// they would need to wait on core
+			// they would need to wait on core or snapd
 			prereqs[update.InstanceName()] = ts
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
 			// snaps
 			waitPrereq(ts, defaultCoreSnapName)
+			waitPrereq(ts, "snapd")
 			if update.Base != "" {
 				waitPrereq(ts, update.Base)
 			}
@@ -852,6 +860,8 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 
 		snapsup := &SnapSetup{
 			SideInfo: &snap.SideInfo{RealName: snapName},
+			// TODO parallel-install: review and update the aliases
+			// code in the context of parallel installs
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
@@ -1002,8 +1012,9 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo: snapst.CurrentSideInfo(),
-		Channel:  channel,
+		SideInfo:    snapst.CurrentSideInfo(),
+		Channel:     channel,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.InstanceName(), snapsup.Channel))
@@ -1071,8 +1082,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		}
 
 		snapsup := &SnapSetup{
-			SideInfo: snapst.CurrentSideInfo(),
-			Flags:    snapst.Flags.ForSnapSetup(),
+			SideInfo:    snapst.CurrentSideInfo(),
+			Flags:       snapst.Flags.ForSnapSetup(),
+			InstanceKey: snapst.InstanceKey,
 		}
 
 		if snapst.Channel != channel {
@@ -1200,10 +1212,11 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo:  snapst.CurrentSideInfo(),
-		Flags:     snapst.Flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		SideInfo:    snapst.CurrentSideInfo(),
+		Flags:       snapst.Flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.InstanceName(), snapst.Current))
@@ -1257,11 +1270,12 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	snapsup := &SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: name,
+			RealName: snap.InstanceSnap(name),
 			Revision: snapst.Current,
 		},
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.InstanceName(), snapst.Current))
@@ -1294,7 +1308,53 @@ func canDisable(si *snap.Info) bool {
 	return true
 }
 
+// baseInUse returns true if the given base is needed by another snap
+func baseInUse(st *state.State, base *snap.Info) bool {
+	snapStates, err := All(st)
+	if err != nil {
+		return false
+	}
+	for name, snapst := range snapStates {
+		for _, si := range snapst.Sequence {
+			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
+				if snapInfo.Type != snap.TypeApp {
+					continue
+				}
+				if snapInfo.Base == base.SnapName() {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// coreInUse returns true if any snap uses "core" (i.e. does not
+// declare a base
+func coreInUse(st *state.State) bool {
+	snapStates, err := All(st)
+	if err != nil {
+		return false
+	}
+	for name, snapst := range snapStates {
+		for _, si := range snapst.Sequence {
+			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
+				if snapInfo.Type != snap.TypeApp || snapInfo.SnapName() == "snapd" {
+					continue
+				}
+				if snapInfo.Base == "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // canRemove verifies that a snap can be removed.
+//
+// TODO: canRemove should also return the reason why the snap cannot
+//       be removed to the user
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
@@ -1329,13 +1389,18 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return true
 	}
 
+	// do not allow removal of bases that are in use
+	if si.Type == snap.TypeBase && baseInUse(st, si) {
+		return false
+	}
+
 	// Allow snap.TypeOS removals if a different base is in use
 	//
 	// Note that removal of the boot base itself is prevented
 	// via the snapst.Required flag that is set on firstboot.
 	if si.Type == snap.TypeOS {
 		if model, err := Model(st); err == nil {
-			if model.Base() != "" {
+			if model.Base() != "" && !coreInUse(st) {
 				return true
 			}
 		}
@@ -1346,9 +1411,6 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
-
-	// TODO: ensure that you cannot remove bases/core if those are
-	//       needed by one of the installed snaps.
 
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
@@ -1414,11 +1476,12 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	// main/current SnapSetup
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: name,
+			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 
 	// trigger remove
@@ -1483,8 +1546,9 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		discardConns := st.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
 		discardConns.Set("snap-setup", &SnapSetup{
 			SideInfo: &snap.SideInfo{
-				RealName: name,
+				RealName: snap.InstanceSnap(name),
 			},
+			InstanceKey: snapst.InstanceKey,
 		})
 		addNext(state.NewTaskSet(discardConns))
 	} else {
@@ -1495,11 +1559,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 }
 
 func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
+	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: name,
+			RealName: snapName,
 			Revision: revision,
 		},
+		InstanceKey: instanceKey,
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
@@ -1590,10 +1656,11 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 
 	snapsup := &SnapSetup{
-		SideInfo:  snapst.Sequence[i],
-		Flags:     flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		SideInfo:    snapst.Sequence[i],
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
 	}
 	return doInstall(st, &snapst, snapsup, 0)
 }
@@ -1722,6 +1789,17 @@ func CurrentInfo(st *state.State, name string) (*snap.Info, error) {
 
 // Get retrieves the SnapState of the given snap.
 func Get(st *state.State, name string, snapst *SnapState) error {
+	if snapst == nil {
+		return fmt.Errorf("internal error: snapst is nil")
+	}
+	// SnapState is (un-)marshalled from/to JSON, fields having omitempty
+	// tag will not appear in the output (if empty) and subsequently will
+	// not be unmarshalled to (or cleared); if the caller reuses the same
+	// struct though subsequent calls, it is possible that they end up with
+	// garbage inside, clear the destination struct so that we always
+	// unmarshal to a clean state
+	*snapst = SnapState{}
+
 	var snaps map[string]*json.RawMessage
 	err := st.Get("snaps", &snaps)
 	if err != nil {
