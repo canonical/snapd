@@ -490,6 +490,7 @@ pkg_dependencies_ubuntu_generic(){
         pkg-config
         python3-docutils
         udev
+        udisks2
         upower
         uuid-runtime
         "
@@ -588,6 +589,7 @@ pkg_dependencies_fedora(){
         python3-yaml
         redhat-lsb-core
         rpm-build
+        udisks2
         xdg-user-dirs
         "
 }
@@ -609,6 +611,7 @@ pkg_dependencies_amazon(){
         xdg-user-dirs
         grub2-tools
         nc
+        udisks2
         "
 }
 
@@ -628,6 +631,7 @@ pkg_dependencies_opensuse(){
         python3-yaml
         netcat-openbsd
         osc
+        udisks2
         uuidd
         xdg-utils
         xdg-user-dirs
@@ -657,6 +661,7 @@ pkg_dependencies_arch(){
     squashfs-tools
     shellcheck
     strace
+    udisks2
     xdg-user-dirs
     xfsprogs
     "
