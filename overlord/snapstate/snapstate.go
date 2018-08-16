@@ -845,7 +845,8 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 
 		snapsup := &SnapSetup{
 			SideInfo: &snap.SideInfo{RealName: snapName},
-			// TODO parallel-install: include instance key
+			// TODO parallel-install: review and update the aliases
+			// code in the context of parallel installs
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)

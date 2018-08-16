@@ -727,6 +727,11 @@ version: 1
 	err = snapstate.CheckSnap(st, "snap-path", "bar_instance", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, ErrorMatches, `cannot install snap "foo" using instance name "bar_instance"`)
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "other-name", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, `cannot install snap "foo" using instance name "other-name"`)
 }
 
 func (s *checkSnapSuite) TestCheckSnapCheckCallInstanceKeySet(c *C) {
