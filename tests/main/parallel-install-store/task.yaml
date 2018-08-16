@@ -16,6 +16,8 @@ execute: |
 
     # TODO parallel-install: extend the test once we can install more than one
     # instance of a snap from the store
+    ! snap install test-snapd-tools 2> run.err
+    MATCH 'cannot install "test-snapd-tools"' < run.err
 
 restore:
     snap set system experimental.parallel-instances=null
