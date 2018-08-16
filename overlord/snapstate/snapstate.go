@@ -957,18 +957,23 @@ func canSwitchChannel(st *state.State, snapName, newChannel string) error {
 		return nil
 	}
 
-	if snapName != model.Kernel() {
-		return nil
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
+		nch, err := snap.ParseChannel(newChannel, "")
+		if err != nil {
+			return err
+		}
+		if nch.Track != model.KernelTrack() {
+			return fmt.Errorf("cannot switch from kernel-track %q to %q", model.KernelTrack(), nch.String())
+		}
 	}
-	if model.KernelTrack() == "" {
-		return nil
-	}
-	nch, err := snap.ParseChannel(newChannel, "")
-	if err != nil {
-		return err
-	}
-	if nch.Track != model.KernelTrack() {
-		return fmt.Errorf("cannot switch from kernel-track %q to %q", model.KernelTrack(), nch.String())
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
+		nch, err := snap.ParseChannel(newChannel, "")
+		if err != nil {
+			return err
+		}
+		if nch.Track != model.GadgetTrack() {
+			return fmt.Errorf("cannot switch from gadget-track %q to %q", model.GadgetTrack(), nch.String())
+		}
 	}
 
 	return nil

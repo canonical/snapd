@@ -101,6 +101,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.GadgetTrack(), Equals, "")
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "")
 	c.Check(model.Base(), Equals, "core18")
@@ -189,6 +190,16 @@ func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 	model := a.(*asserts.Model)
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "18")
+}
+
+func (mods *modelSuite) TestDecodeGadgetTrack(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget=18\n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.GadgetTrack(), Equals, "18")
 }
 
 const (
