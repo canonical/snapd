@@ -28,6 +28,10 @@ include /etc/os-release
 ifeq (${VERSION_ID},"18.04")
 	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
 endif
+# Same as above for 18.10 just a different version.
+ifeq (${VERSION_ID},"18.10")
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.7.0~alpha2)"
+endif
 
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
