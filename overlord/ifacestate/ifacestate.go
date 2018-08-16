@@ -256,7 +256,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 }
 
 type disconnectOpts struct {
-	AutomaticDisconnect bool
+	AutoDisconnect bool
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -280,16 +280,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 
-	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-
 	disconnectTask.Set("slot-static", conn.Slot.StaticAttrs())
 	disconnectTask.Set("slot-dynamic", conn.Slot.DynamicAttrs())
 	disconnectTask.Set("plug-static", conn.Plug.StaticAttrs())
 	disconnectTask.Set("plug-dynamic", conn.Plug.DynamicAttrs())
 
-	if flags.AutomaticDisconnect {
-		disconnectTask.Set("automatic-disconnect", true)
+	if flags.AutoDisconnect {
+		disconnectTask.Set("auto-disconnect", true)
 	}
 
 	ts := state.NewTaskSet()

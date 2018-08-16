@@ -2417,7 +2417,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	var retryCheck bool
 	for _, t := range st.Tasks() {
 		if t.Kind() == "auto-connect" {
-			c.Assert(strings.Join(t.Log(), ""), Matches, `.*auto-connect of snap .* will be retried because of "other-snap" - "some-snap" conflict`)
+			c.Assert(strings.Join(t.Log(), ""), Matches, `.*Waiting for conflicting change in progress...`)
 			retryCheck = true
 		}
 	}
@@ -2542,6 +2542,12 @@ apps:
 	c.Assert(plugHookCount, Equals, 1)
 	c.Assert(slotHookCount, Equals, 1)
 	c.Assert(disconnectInterfacesCount, Equals, 2)
+
+	var snst snapstate.SnapState
+	err = snapstate.Get(st, "other-snap", &snst)
+	c.Assert(err, Equals, state.ErrNoState)
+	_, err = repo.Connected("other-snap", "media-hub")
+	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "media-hub"`)
 }
 
 func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
