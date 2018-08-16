@@ -1,7 +1,7 @@
 summary: Ensure apt hooks work
 
-# apt hook only available on 18.04+
-systems: [ubuntu-18.04-*, ubuntu-18.10-*]
+# apt hook only available on 18.04+ and aws-cli only for amd64
+systems: [ubuntu-18.04-64, ubuntu-18.10-64]
 
 restore: |
     rm -f expected out
