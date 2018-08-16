@@ -79,15 +79,16 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {}))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
-	c.Assert(err, IsNil)
-	err = interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
 "apparmor-features": ["caps", "dbus"]
 }`))
+	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	c.Assert(err, IsNil)
+	err = interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+
 	s.AddCleanup(snap.MockIsStdoutTTY(false))
 	s.AddCleanup(snap.MockIsStdinTTY(false))
 }

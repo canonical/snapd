@@ -1,6 +1,7 @@
 summary: Simple snap prefer test
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Install the snap with auto-aliases"
     snap install test-snapd-auto-aliases
