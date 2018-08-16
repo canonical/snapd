@@ -27,8 +27,9 @@ static void restore_os_release(gpointer * old)
 	os_release = (const char *)old;
 }
 
-/* mock_os_release replaces the contents of /etc/os-release as seen by classic.c
-   mocked may be NULL to have the code refer to an absent file. */
+/* mock_os_release replaces the presence and contents of /etc/os-release
+   as seen by classic.c. The mocked value may be NULL to have the code refer
+   to an absent file. */
 static void mock_os_release(const char *mocked)
 {
 	const char *old = os_release;
@@ -49,8 +50,9 @@ static void restore_meta_snap_yaml(gpointer * old)
 	meta_snap_yaml = (const char *)old;
 }
 
-/* mock_meta_snap_yaml replaces the contents of /meta/snap.yaml
-   mocked may be NULL to have the code refer to an absent file. */
+/* mock_meta_snap_yaml replaces the presence and contents of /meta/snap.yaml
+   as seen by classic.c. The mocked value may be NULL to have the code refer
+   to an absent file. */
 static void mock_meta_snap_yaml(const char *mocked)
 {
 	const char *old = meta_snap_yaml;
