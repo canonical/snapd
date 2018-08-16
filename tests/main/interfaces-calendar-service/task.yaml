@@ -7,6 +7,15 @@ systems:
     - -ubuntu-14.04-*
     - -amazon-*
 
+# fails in the autopkgtest env with:
+# [Wed Aug 15 16:34:12 2018] audit: type=1400
+# audit(1534350852.923:58499): apparmor="DENIED" operation="connect"
+# profile="snap.test-snapd-eds.calendar" pid=19219 comm="calendar"
+# family="unix" sock_type="stream" protocol=0 requested_mask="send
+# receive connect" denied_mask="send connect" addr=none
+# peer_addr="@/tmp/dbus-5FUilMiW8U" peer="unconfined"
+backends: [-autopkgtest]
+
 environment:
     XDG: $(pwd)/xdg
     XDG_CONFIG_HOME: $XDG/config
