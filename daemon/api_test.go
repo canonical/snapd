@@ -94,7 +94,6 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
-	restoreUDevMon    func()
 
 	systemctlRestorer func()
 	sysctlArgses      [][]string
@@ -225,10 +224,6 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
-	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
-
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
 	s.storeSearch = store.Search{}
@@ -264,7 +259,6 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.trustedRestorer()
 	s.d = nil
 	s.restoreBackends()
-	s.restoreUDevMon()
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")

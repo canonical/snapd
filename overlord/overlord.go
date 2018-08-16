@@ -162,9 +162,19 @@ func New() (*Overlord, error) {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
-	o.udevMon = createUDevMonitor(ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
-
 	return o, nil
+}
+
+func (o *Overlord) EnableHotplug() error {
+	udevMon := createUDevMonitor(o.ifaceMgr.HotplugDeviceAdded, o.ifaceMgr.HotplugDeviceRemoved)
+	if err := udevMon.Connect(); err != nil {
+		return err
+	}
+	if err := udevMon.Run(); err != nil {
+		return err
+	}
+	o.udevMon = udevMon
+	return nil
 }
 
 func (o *Overlord) addManager(mgr StateManager) {
@@ -265,18 +275,6 @@ func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
-		if o.udevMon != nil {
-			err := o.udevMon.Connect()
-			if err == nil {
-				err = o.udevMon.Run()
-				if err != nil {
-					logger.Noticef("Failed to start udev monitor: %s", err)
-				}
-			} else {
-				logger.Noticef("Failed to connect udev monitor: %s", err)
-			}
-		}
-
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
