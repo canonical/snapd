@@ -3516,6 +3516,20 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	c.Check(res.affected, check.DeepEquals, inst.Snaps)
 }
 
+func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
+	snapstateInstallMany = func(_ *state.State, _ []string, _ int) ([]string, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	}
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "install", Snaps: []string{"", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	res, err := snapInstallMany(inst, st)
+	st.Unlock()
+	c.Assert(res, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
+}
+
 func (s *apiSuite) TestRemoveMany(c *check.C) {
 	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
@@ -3541,14 +3555,14 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 	}
 
 	d := s.daemonWithFakeSnapManager(c)
-
+	s.vars = map[string]string{"name": "hello-world"}
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postSnap(snapCmd, req, nil).(*resp)
 
-	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 
 	st := d.overlord.State()
 	st.Lock()
@@ -3661,6 +3675,23 @@ func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
 	defer st.Unlock()
 	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.ErrorMatches, "this system cannot honour the jailmode flag")
+}
+
+func (s *apiSuite) TestInstallEmptyName(c *check.C) {
+	snapstateInstall = func(_ *state.State, _, _ string, _ snap.Revision, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
+		return nil, errors.New("should not be called")
+	}
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		Snaps:  []string{""},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.ErrorMatches, "cannot install snap with empty name")
 }
 
 func (s *apiSuite) TestInstallJailModeDevMode(c *check.C) {

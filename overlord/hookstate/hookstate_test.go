@@ -429,16 +429,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 	defer cmd.Restore()
 
 	s.se.Ensure()
-	completed := make(chan struct{})
-	go func() {
-		s.se.Wait()
-		close(completed)
-	}()
-
-	s.state.Lock()
-	s.state.Unlock()
-	s.se.Ensure()
-	<-completed
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -494,16 +485,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
 	defer cmd.Restore()
 
 	s.se.Ensure()
-	completed := make(chan struct{})
-	go func() {
-		s.se.Wait()
-		close(completed)
-	}()
-
-	s.state.Lock()
-	s.state.Unlock()
-	s.se.Ensure()
-	<-completed
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -525,19 +507,14 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	defer cmd.Restore()
 
 	s.se.Ensure()
-	completed := make(chan struct{})
-	go func() {
-		s.se.Wait()
-		close(completed)
-	}()
 
-	// Abort the change, which should kill the hanging hook, and wait for the
-	// task to complete.
+	// Abort the change, which should kill the hanging hook, and
+	// wait for the task to complete.
 	s.state.Lock()
 	s.change.Abort()
 	s.state.Unlock()
 	s.se.Ensure()
-	<-completed
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
