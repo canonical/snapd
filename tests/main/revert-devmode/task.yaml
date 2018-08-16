@@ -23,12 +23,14 @@ prepare: |
     snap install --devmode test-snapd-tools
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        . $TESTSLIB/store.sh
-        setup_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        setup_fake_store "$BLOB_DIR"
 
         echo "And a new version of that snap put in the controlled store"
-        . $TESTSLIB/store.sh
-        init_fake_refreshes $BLOB_DIR test-snapd-tools
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        init_fake_refreshes "$BLOB_DIR" test-snapd-tools
     fi
 
 restore: |
@@ -43,8 +45,9 @@ restore: |
             echo "This test needs test keys to be trusted"
             exit
         fi
-        . $TESTSLIB/store.sh
-        teardown_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_fake_store "$BLOB_DIR"
     fi
 
 execute: |
@@ -61,7 +64,8 @@ execute: |
         fi
     fi
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "When a refresh is made"
     snap refresh --devmode --edge test-snapd-tools
@@ -80,7 +84,7 @@ execute: |
     snap list|MATCH 'test-snapd-tools .* devmode'
 
     echo "When the latest revision is installed again"
-    snap remove --revision=$LATEST test-snapd-tools
+    snap remove --revision="$LATEST" test-snapd-tools
     snap refresh --edge test-snapd-tools
 
     if [ "$(snap debug confinement)" = strict ] ; then

@@ -466,6 +466,15 @@ func (x *cmdInstall) Execute([]string) error {
 	x.setModes(opts)
 
 	names := remoteSnapNames(x.Positional.Snaps)
+	if len(names) == 0 {
+		return errors.New(i18n.G("cannot install zero snaps"))
+	}
+	for _, name := range names {
+		if len(name) == 0 {
+			return errors.New(i18n.G("cannot install snap with empty name"))
+		}
+	}
+
 	if len(names) == 1 {
 		return x.installOne(names[0], x.Name, opts)
 	}

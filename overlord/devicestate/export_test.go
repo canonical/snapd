@@ -40,7 +40,7 @@ func MockKeyLength(n int) (restore func()) {
 
 func MockBaseStoreURL(url string) (restore func()) {
 	oldURL := baseStoreURL
-	baseStoreURL = url
+	baseStoreURL = mustParse(url).ResolveReference(authRef)
 	return func() {
 		baseStoreURL = oldURL
 	}
@@ -112,6 +112,7 @@ var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
 	CanAutoRefresh           = canAutoRefresh
+	NewEnoughProxy           = newEnoughProxy
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
