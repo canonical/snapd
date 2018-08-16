@@ -599,7 +599,7 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnConnectWithAutoFlag(c *
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
-func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
+func (s *interfaceManagerSuite) TestAutoconnectRetryOnConnect(c *C) {
 	s.state.Lock()
 	task := s.state.NewTask("connect", "")
 	task.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
@@ -3258,7 +3258,8 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 	s.state.Unlock()
 
-	s.settle(c)
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
