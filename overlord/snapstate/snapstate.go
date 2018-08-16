@@ -779,16 +779,17 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if update.Type == snap.TypeOS || update.Type == snap.TypeBase {
+		if update.Type == snap.TypeOS || update.Type == snap.TypeBase || update.InstanceName() == "snapd" {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
-			// they would need to wait on core
+			// they would need to wait on core or snapd
 			prereqs[update.InstanceName()] = ts
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
 			// snaps
 			waitPrereq(ts, defaultCoreSnapName)
+			waitPrereq(ts, "snapd")
 			if update.Base != "" {
 				waitPrereq(ts, update.Base)
 			}
@@ -859,7 +860,8 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 
 		snapsup := &SnapSetup{
 			SideInfo: &snap.SideInfo{RealName: snapName},
-			// TODO parallel-install: include instance key
+			// TODO parallel-install: review and update the aliases
+			// code in the context of parallel installs
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
