@@ -1,7 +1,8 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 
 prepare: |
-    snap install test-snapd-tools
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-tools
 
 restore: |
     rm -f *.snap

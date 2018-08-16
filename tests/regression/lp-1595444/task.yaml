@@ -4,8 +4,8 @@ details: |
     This task checks the behavior of snap-confine when it is started from
     a directory that doesn't exist in the execution environment (chroot).
 
-# This test only applies to classic systems
-# Just available for systems with confinement (AppArmor, Seccomp)
+#ubuntu-core: this test only applies to classic systems
+#debian, fedora, opensuse, arch, amazon-linux-2: just available for systems with confinement (AppArmor, Seccomp)
 systems: [-ubuntu-core-*, -debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 prepare: |

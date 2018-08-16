@@ -1,7 +1,7 @@
 summary: Ensures that introspection of login1 of the shutdown interface works.
 
-# No confinement (AppArmor, Seccomp) available on these systems
-# unity7 implicit classic slot needed (used to access dbus-send) not available on core
+#debian: no confinement (AppArmor, Seccomp) available on these systems
+#ubuntu-core: unity7 implicit classic slot needed (used to access dbus-send) not available on core
 systems: [-debian-*, -ubuntu-core-*]
 
 details: |

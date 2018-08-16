@@ -19,7 +19,6 @@ prepare: |
     fi
 
 restore: |
-    snap remove test-snapd-hello-classic
     if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
         rm -f /snap
     fi
