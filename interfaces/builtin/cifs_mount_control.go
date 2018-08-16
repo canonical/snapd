@@ -49,8 +49,8 @@ mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/common/{,**},
 
 # NOTE: due to LP: #1613403, fstype is not mediated and as such, these rules
 # allow, for example, unmounting bind mounts from the content interface
-umount fstype=cifs /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
-umount fstype=cifs /var/snap/@{SNAP_NAME}/common/{,**},
+umount /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
+umount /var/snap/@{SNAP_NAME}/common/{,**},
 
 # Due to an unsolved issue with namespace awareness of libmount the unmount tries to access
 # /run/mount/utab but fails. The resulting apparmor warning can be ignored. The log warning
