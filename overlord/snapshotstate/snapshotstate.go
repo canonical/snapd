@@ -46,9 +46,7 @@ func newSnapshotSetID(st *state.State) (uint64, error) {
 	var shotState snapshotState
 
 	err := st.Get("snapshots", &shotState)
-	if err == state.ErrNoState {
-		shotState = snapshotState{}
-	} else if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return 0, err
 	}
 
@@ -86,6 +84,7 @@ func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound, filen
 				filenames = append(filenames, r.Name())
 			}
 		}
+
 		return nil
 	})
 	if err != nil {

@@ -112,6 +112,7 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	// updating snapshot-setup with the filename, for use in undo
 	snapshot.Filename = filename(snapshot.SetID, cur)
 	task.Set("snapshot-setup", &snapshot)
 
@@ -282,6 +283,10 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	if err != nil {
 		return taskGetErrMsg(task, err, "snapshot")
+	}
+
+	if snapshot.Filename == "" {
+		return fmt.Errorf("internal error: task %s (%s) snapshot info is missing the filename", task.ID(), task.Kind())
 	}
 
 	return osRemove(snapshot.Filename)

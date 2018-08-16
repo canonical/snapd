@@ -30,10 +30,12 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type snapshotSuite struct{}
@@ -285,6 +287,106 @@ func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
 	c.Check(err, check.ErrorMatches, "bzzt")
 }
 
+func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, restore func()) {
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	c.Assert(err, check.IsNil)
+	shotfile.Close()
+
+	o := overlord.Mock()
+	st = o.State()
+
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 42, Snap: "foo"},
+			File:     shotfile,
+		}), check.IsNil)
+
+		return nil
+	}
+	restoreIter := snapshotstate.MockBackendIter(fakeIter)
+	st.Lock()
+	defer func() {
+		if c.Failed() {
+			// something went wrong
+			st.Unlock()
+		}
+	}()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := st.NewChange("rm foo", "...")
+	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0))
+	c.Assert(err, check.IsNil)
+	c.Assert(rmTasks, check.NotNil)
+	chg.AddAll(rmTasks)
+
+	return st, func() {
+		shotfile.Close()
+		st.Unlock()
+		restoreIter()
+	}
+}
+
+func (s snapshotSuite) TestSaveChecksSnapstateConflict(c *check.C) {
+	st, restore := s.createConflictingChange(c)
+	defer restore()
+
+	_, _, _, err := snapshotstate.Save(st, []string{"foo"}, nil)
+	c.Assert(err, check.NotNil)
+	c.Check(err, check.FitsTypeOf, &snapstate.ChangeConflictError{})
+}
+
+func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
+	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+		return map[string]*snapstate.SnapState{
+			"foo": {Active: true},
+		}, nil
+	}
+
+	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+
+	o := overlord.Mock()
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := st.NewChange("snapshot-save", "...")
+	_, _, saveTasks, err := snapshotstate.Save(st, nil, nil)
+	c.Assert(err, check.IsNil)
+	chg.AddAll(saveTasks)
+
+	_, err = snapstate.Disable(st, "foo")
+	c.Assert(err, check.ErrorMatches, `snap "foo" has "snapshot-save" change in progress`)
+}
+
 func (snapshotSuite) TestSaveChecksSnapstateConflictError(c *check.C) {
 	defer snapshotstate.MockSnapstateCheckChangeConflictMany(func(*state.State, []string, string) error {
 		return errors.New("bzzt")
@@ -389,6 +491,68 @@ func (snapshotSuite) TestRestoreChecksIterError(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
+func (s snapshotSuite) TestRestoreChecksSnapstateConflicts(c *check.C) {
+	st, restore := s.createConflictingChange(c)
+	defer restore()
+
+	_, _, err := snapshotstate.Restore(st, 42, nil, nil)
+	c.Assert(err, check.NotNil)
+	c.Check(err, check.FitsTypeOf, &snapstate.ChangeConflictError{})
+
+}
+
+func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	c.Assert(err, check.IsNil)
+	defer shotfile.Close()
+
+	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+		return map[string]*snapstate.SnapState{
+			"foo": {Active: true},
+		}, nil
+	}
+
+	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 42, Snap: "foo"},
+			File:     shotfile,
+		}), check.IsNil)
+
+		return nil
+	}
+	defer snapshotstate.MockBackendIter(fakeIter)()
+
+	o := overlord.Mock()
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := st.NewChange("snapshot-restore", "...")
+	_, restoreTasks, err := snapshotstate.Restore(st, 42, nil, nil)
+	c.Assert(err, check.IsNil)
+	chg.AddAll(restoreTasks)
+
+	_, err = snapstate.Disable(st, "foo")
+	c.Assert(err, check.ErrorMatches, `snap "foo" has "snapshot-restore" change in progress`)
+}
+
 func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
 	c.Assert(err, check.IsNil)
@@ -415,33 +579,6 @@ func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
 
 	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
-}
-
-func (snapshotSuite) TestRestoreChecksSnapstateConflicts(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
-	c.Assert(err, check.IsNil)
-	defer shotfile.Close()
-	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
-		c.Assert(f(&backend.Reader{
-			// not wanted
-			Snapshot: client.Snapshot{SetID: 42, Snap: "a-snap"},
-			File:     shotfile,
-		}), check.IsNil)
-
-		return nil
-	}
-	defer snapshotstate.MockBackendIter(fakeIter)()
-
-	defer snapshotstate.MockSnapstateCheckChangeConflictMany(func(*state.State, []string, string) error {
-		return errors.New("bzzt")
-	})()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	_, _, err = snapshotstate.Restore(st, 42, []string{"a-snap"}, nil)
-	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
 func (snapshotSuite) TestRestore(c *check.C) {
@@ -491,6 +628,14 @@ func (snapshotSuite) TestCheckChecksIterError(c *check.C) {
 
 	_, _, err := snapshotstate.Check(st, 42, nil, nil)
 	c.Assert(err, check.ErrorMatches, "bzzt")
+}
+
+func (s snapshotSuite) TestCheckDoesNotTriggerSnapstateConflict(c *check.C) {
+	st, restore := s.createConflictingChange(c)
+	defer restore()
+
+	_, _, err := snapshotstate.Check(st, 42, nil, nil)
+	c.Assert(err, check.IsNil)
 }
 
 func (snapshotSuite) TestCheckChecksForgetConflicts(c *check.C) {
@@ -568,6 +713,14 @@ func (snapshotSuite) TestForgetChecksIterError(c *check.C) {
 
 	_, _, err := snapshotstate.Forget(st, 42, nil)
 	c.Assert(err, check.ErrorMatches, "bzzt")
+}
+
+func (s snapshotSuite) TestForgetDoesNotTriggerSnapstateConflict(c *check.C) {
+	st, restore := s.createConflictingChange(c)
+	defer restore()
+
+	_, _, err := snapshotstate.Forget(st, 42, nil)
+	c.Assert(err, check.IsNil)
 }
 
 func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
