@@ -631,7 +631,7 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 	return defaultProviders
 }
 
-func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
+func checkAutoConflicts(st *state.State, plugSnap, slotSnap string, extraCheck func(t *state.Task) error) error {
 	for _, task := range st.Tasks() {
 		if task.Status().Ready() {
 			continue
@@ -665,55 +665,41 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 			continue
 		}
 
+		if err := extraCheck(task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
+	return checkAutoConflicts(st, plugSnap, slotSnap, func(task *state.Task) error {
+		k := task.Kind()
 		// other snap that affects us because of plug or slot
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 			// if snap is getting installed/refreshed - temporary conflict, retry later
 			return &state.Retry{After: connectRetryTimeout}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSnap string) error {
-	for _, task := range st.Tasks() {
-		if task.Status().Ready() {
-			continue
-		}
-
-		k := task.Kind()
-		if k == "connect" || k == "disconnect" {
-			// retry if we found another connect/disconnect affecting same snap; note we can only encounter
-			// connects/disconnects created by doAutoDisconnect / doAutoConnect here as manual interface ops
-			// are rejected by conflict check logic in snapstate.
-			plugRef, slotRef, err := getPlugAndSlotRefs(task)
-			if err != nil {
-				return err
-			}
-			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
-				return &state.Retry{After: connectRetryTimeout}
-			}
-			continue
-		}
-
+	return checkAutoConflicts(st, plugSnap, slotSnap, func(task *state.Task) error {
 		snapsup, err := snapstate.TaskSnapSetup(task)
 		// e.g. hook tasks don't have task snap setup
 		if err != nil {
-			continue
+			return nil
 		}
-
 		otherSnapName := snapsup.InstanceName()
-
-		// different snaps - no conflict
-		if otherSnapName != plugSnap && otherSnapName != slotSnap {
-			continue
-		}
 
 		// another task related to same snap op (unrelated op would be blocked by snapstate conflict logic)
 		if otherSnapName == disconnectingSnap {
-			continue
+			return nil
 		}
 
+		k := task.Kind()
 		// note, don't care about unlink-snap for the opposite end. This relies
 		// on the fact that auto-disconnect will create conflicting "disconnect" tasks that
 		// we will retry with the logic above.
@@ -721,8 +707,8 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 			// other snap is getting installed/refreshed - temporary conflict
 			return &state.Retry{After: connectRetryTimeout}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
