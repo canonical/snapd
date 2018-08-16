@@ -4,6 +4,9 @@ details: |
   Smoke test for checking if we can run hello-world like application against a
   Fedora 29 base snap correctly.
 
+# not available on most arches in autopkgtest
+backends: [-autopkgtest]
+
 # The hello-fedora snap is just available for amd64 architecture
 systems: [-*-32, -*-arm*, -*-ppc64el, -*-s390x]
 
