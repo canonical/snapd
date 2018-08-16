@@ -504,6 +504,7 @@ pkg_dependencies_ubuntu_classic(){
         gnome-keyring
         jq
         man
+        openvswitch-switch
         printer-driver-cups-pdf
         python3-yaml
         upower
@@ -584,6 +585,7 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
+        openvswitch
         python3-yaml
         redhat-lsb-core
         rpm-build
@@ -625,6 +627,7 @@ pkg_dependencies_opensuse(){
         jq
         lsb-release
         man
+        openvswitch
         python3-yaml
         netcat-openbsd
         osc

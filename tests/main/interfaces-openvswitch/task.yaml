@@ -1,9 +1,8 @@
 summary: Ensure that the openvswitch interface works.
 
 # amazon: no openvswitch package
-systems:
-    - -ubuntu-core-*
-    - -amazon-*
+# arch: no openvswitch service
+systems: [-ubuntu-core-*, -amazon-*, -arch-*]
 
 details: |
     The openvswitch interface allows to task to the openvswitch socket (rw mode).
@@ -16,19 +15,11 @@ details: |
     are carried through the socket, in this test we exercise bridge and port creation,
     list and deletion.
 
-# marking as manual due to errors during prepare
-manual: true
-
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-
-    echo "Given openvswitch is installed"
-    distro_install_package --no-install-recommends openvswitch-switch
-
     # Ensure the openvswitch service is started which isn't the case by
     # default on all distributions
-    systemctl enable --now openvswitch
+    systemctl enable openvswitch || true
+    systemctl start openvswitch || true
 
     echo "And a snap declaring a plug on the openvswitch interface is installed"
     snap install --edge test-snapd-openvswitch-consumer
@@ -37,14 +28,8 @@ prepare: |
     ip tuntap add tap1 mode tap
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-
     ovs-vsctl del-port br0 tap1 || true
     ovs-vsctl del-br br0 || true
-
-    distro_purge_package openvswitch-switch
-    distro_auto_remove_packages
 
     rm -f ./*.error
 
@@ -73,7 +58,7 @@ execute: |
     test-snapd-openvswitch-consumer.ovs-vsctl del-br br0
     ovs-vsctl list-br | MATCH -v br0
 
-    if [ "$(snap debug confinement)" = partial ] ; then
+    if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
