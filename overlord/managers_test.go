@@ -573,19 +573,21 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			dec := json.NewDecoder(r.Body)
 			var input struct {
 				Actions []struct {
-					Action string `json:"action"`
-					SnapID string `json:"snap-id"`
-					Name   string `json:"name"`
+					Action      string `json:"action"`
+					SnapID      string `json:"snap-id"`
+					Name        string `json:"name"`
+					InstanceKey string `json:"instance-key"`
 				} `json:"actions"`
 			}
 			if err := dec.Decode(&input); err != nil {
 				panic(err)
 			}
 			type resultJSON struct {
-				Result string          `json:"result"`
-				SnapID string          `json:"snap-id"`
-				Name   string          `json:"name"`
-				Snap   json.RawMessage `json:"snap"`
+				Result      string          `json:"result"`
+				SnapID      string          `json:"snap-id"`
+				Name        string          `json:"name"`
+				Snap        json.RawMessage `json:"snap"`
+				InstanceKey string          `json:"instance-key"`
 			}
 			var results []resultJSON
 			for _, a := range input.Actions {
@@ -598,10 +600,11 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 					continue
 				}
 				results = append(results, resultJSON{
-					Result: a.Action,
-					SnapID: a.SnapID,
-					Name:   name,
-					Snap:   json.RawMessage(fillHit(snapV2, name)),
+					Result:      a.Action,
+					SnapID:      a.SnapID,
+					InstanceKey: a.InstanceKey,
+					Name:        name,
+					Snap:        json.RawMessage(fillHit(snapV2, name)),
 				})
 			}
 			w.WriteHeader(200)

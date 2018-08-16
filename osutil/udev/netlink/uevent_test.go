@@ -1,6 +1,9 @@
 package netlink
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 
 type testingWrapper struct {
 	*testing.T
@@ -62,6 +65,10 @@ func TestParseUEvent(testing *testing.T) {
 }
 
 func TestParseUdevEvent(testing *testing.T) {
+	if runtime.GOARCH == "s390x" || runtime.GOARCH == "ppc" {
+		testing.Skip("This test assumes little-endian architecture")
+	}
+
 	t := testingWrapper{testing}
 
 	// Input samples obtained by running the main testing binary in monitor mode

@@ -4,12 +4,13 @@ summary: Ensure that the wayland interface works
 systems: [ ubuntu-1*-*64 ]
 
 prepare: |
-    . $TESTSLIB/pkgdb.sh
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-wayland
 
 restore: |
     echo "Stop weston compositor"
-    /usr/bin/killall -9 /usr/bin/weston || true
+    pkill -SIGKILL weston || true
 
 execute: |
     echo "The interface is connected by default"
@@ -56,4 +57,4 @@ execute: |
     # If this is in 'restore', execute doesn't exit and spread must timeout
     # the test.
     echo "Stop weston compositor"
-    /usr/bin/killall -9 /usr/bin/weston || true
+    pkill -SIGKILL weston || true

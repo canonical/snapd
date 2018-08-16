@@ -22,6 +22,17 @@ export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 
+# On 18.04 the released version of apt (1.6.1) has a bug that causes
+# problem on "apt purge snapd". To ensure this won't happen add the
+# right dependency on 18.04.
+ifeq (${VERSION_ID},"18.04")
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
+endif
+# Same as above for 18.10 just a different version.
+ifeq (${VERSION_ID},"18.10")
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.7.0~alpha2)"
+endif
+
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 
@@ -238,4 +249,4 @@ override_dh_auto_clean:
 	rm -vf snap.8
 
 override_dh_gencontrol:
-	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)"
+	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)" $(SUBSTVARS)

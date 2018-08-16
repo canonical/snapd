@@ -1,7 +1,7 @@
 summary: Ensure that the alsa interface works.
 
-# Spread system for Fedora, openSUSE doesn't seem to provide any /dev/snd entries
-systems: [-fedora-*, -opensuse-*]
+# Spread system for Fedora, openSUSE and AMZN2 don't seem to provide any /dev/snd entries
+systems: [-fedora-*, -opensuse-*, -amazon-*]
 
 details: |
     The alsa interface allows connected plugs to access raw ALSA devices.
