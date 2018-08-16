@@ -21,10 +21,12 @@ package main_test
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -119,7 +121,7 @@ See 'snap info <snap name>' for additional versions.
 	}
 }
 
-func (s *SnapSuite) TestAdviseFromAptIntegration(c *C) {
+func (s *SnapSuite) TestAdviseFromAptIntegrationNoAptPackage(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
@@ -174,4 +176,68 @@ Try "snap install hello"
 `)
 	c.Assert(s.Stderr(), Equals, "")
 	c.Assert(<-done, Equals, true)
+}
+
+func (s *SnapSuite) TestReadRpc(c *C) {
+	rpc := strings.Replace(`
+{
+    "jsonrpc": "2.0",
+    "method": "org.debian.apt.hooks.install.pre-prompt",
+    "params": {
+        "command": "install",
+        "packages": [
+            {
+                "architecture": "amd64",
+                "automatic": false,
+                "id": 38033,
+                "mode": "install",
+                "name": "hello",
+                "versions": {
+                    "candidate": {
+                        "architecture": "amd64",
+                        "id": 22712,
+                        "pin": 500,
+                        "version": "4:17.12.3-1ubuntu1"
+                    },
+                    "install": {
+                        "architecture": "amd64",
+                        "id": 22712,
+                        "pin": 500,
+                        "version": "4:17.12.3-1ubuntu1"
+                    }
+                }
+            },
+            {
+                "architecture": "amd64",
+                "automatic": true,
+                "id": 38202,
+                "mode": "install",
+                "name": "hello-kpart",
+                "versions": {
+                    "candidate": {
+                        "architecture": "amd64",
+                        "id": 22713,
+                        "pin": 500,
+                        "version": "4:17.12.3-1ubuntu1"
+                    },
+                    "install": {
+                        "architecture": "amd64",
+                        "id": 22713,
+                        "pin": 500,
+                        "version": "4:17.12.3-1ubuntu1"
+                    }
+                }
+            }
+        ],
+        "search-terms": [
+            "hello"
+        ],
+        "unknown-packages": []
+    }
+}`, "\n", "", -1)
+	// all apt rpc ends with \n\n
+	rpc = rpc + "\n\n"
+	// this can be parsed without errors
+	_, err := snap.ReadRpc(bufio.NewReader(bytes.NewBufferString(rpc)))
+	c.Assert(err, IsNil)
 }

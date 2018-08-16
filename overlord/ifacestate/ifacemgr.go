@@ -72,12 +72,13 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	}
 
 	addHandler("connect", m.doConnect, m.undoConnect)
-	addHandler("disconnect", m.doDisconnect, nil)
+	addHandler("disconnect", m.doDisconnect, m.undoDisconnect)
 	addHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	addHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
+	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
 	addHandler("hotplug-connect", m.doHotplugConnect, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 
