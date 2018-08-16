@@ -68,6 +68,7 @@ backends:
             - ubuntu-core-18-64:
                 image: ubuntu-16.04-64
                 workers: 6
+                manual: true
 
             - debian-9-64:
                 workers: 6
