@@ -78,6 +78,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
+	addHandler("hotplug-connect", m.doHotplugConnect, nil)
+	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)

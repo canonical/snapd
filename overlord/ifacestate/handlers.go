@@ -894,3 +894,104 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	task.SetStatus(state.DoneStatus)
 	return nil
 }
+
+// doHotplugConnect creates task(s) to (re)create connections in response to hotplug "add" event.
+func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	conns, err := getConns(st)
+	if err != nil {
+		return fmt.Errorf("failed to read connections data: %s", err)
+	}
+
+	const coreSnapName = "core"
+
+	var ifaceName, deviceKey string
+	if err := task.Get("interface", &ifaceName); err != nil {
+		return fmt.Errorf("internal error: failed to get interface name: %s", err)
+	}
+	if err := task.Get("device-key", &deviceKey); err != nil {
+		return fmt.Errorf("internal error: failed to get device key: %s", err)
+	}
+
+	// find old connections for slots of this device - note we can't ask the repository since we need
+	// to recreate old connections that are only remembered in the state.
+	connsForDevice := findConnsForDeviceKey(&conns, coreSnapName, ifaceName, deviceKey)
+
+	// we see this device for the first time (or it didn't have any connected slots before)
+	if len(connsForDevice) == 0 {
+		// TODO: trigger auto-connects where appropriate
+		return nil
+	}
+
+	// recreate old connections for the device.
+	var recreate []string
+	for _, id := range connsForDevice {
+		conn := conns[id]
+		// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection from scratch.
+		if conn.HotplugRemoved {
+			recreate = append(recreate, id)
+		} else {
+			// TODO: we have never observed remove event for this device: check if any attributes of the slot changed and if so,
+			// disconnect and connect again. if attributes haven't changed, there is nothing to do.
+		}
+	}
+
+	var newconns []*interfaces.ConnRef
+	for _, id := range recreate {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+
+		const auto = true
+		if err := checkConnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap, auto); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				task.Logf("hotplug connect will be retried because of %q - %q conflict", connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				return err // will retry
+			}
+			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
+		}
+		newconns = append(newconns, connRef)
+	}
+
+	// Create connect tasks and interface hooks
+	ts := state.NewTaskSet()
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-hotplug"})
+		if err != nil {
+			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+		}
+		ts.AddAll(ts)
+	}
+
+	if len(ts.Tasks()) > 0 {
+		snapstate.InjectTasks(task, ts)
+		st.EnsureBefore(0)
+	}
+
+	task.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+// doHotplugDisconnect creates task(s) to disconnect connections and remove slots in response to hotplug "remove" event.
+func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var ifaceName, deviceKey string
+	if err := task.Get("interface", &ifaceName); err != nil {
+		return fmt.Errorf("internal error: failed to get interface name: %s", err)
+	}
+	if err := task.Get("device-key", &deviceKey); err != nil {
+		return fmt.Errorf("internal error: failed to get device key: %s", err)
+	}
+
+	// TODO: create tasks once disconnect-hooks land. remove slots via a task.
+
+	return nil
+}

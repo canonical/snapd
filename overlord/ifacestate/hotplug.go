@@ -41,6 +41,13 @@ func deviceKey(defaultDeviceKey string, devinfo *hotplug.HotplugDeviceInfo, ifac
 	return defaultDeviceKey, nil
 }
 
+func validateDeviceKey(key string) bool {
+	if key == "" || key == "::" {
+		return false
+	}
+	return true
+}
+
 func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 	vendor, _ := devinfo.Attribute("ID_VENDOR_ID")
 	product, _ := devinfo.Attribute("ID_MODEL_ID")
@@ -49,16 +56,14 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 }
 
 func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
-	const coreSnapName = "core"
-	var coreSnapInfo *snap.Info
-
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
 
-	conns, err := getConns(st)
+	const coreSnapName = "core"
+	coreSnapInfo, err := snapstate.CurrentInfo(st, coreSnapName)
 	if err != nil {
-		logger.Noticef("Failed to read connections data: %s", err)
+		logger.Noticef("%q snap not available, hotplug events ignored", coreSnapName)
 		return
 	}
 
@@ -66,7 +71,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	defaultKey := defaultDeviceKey(devinfo)
 	logger.Debugf("HotplugDeviceAdded: %s (default key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), defaultKey, devinfo.DeviceName(), devinfo.Subsystem())
 
-	// Iterate over all hotplug interfaces
+	// iterate over all hotplug interfaces
 	for _, iface := range hotplugIfaces {
 		hotplugHandler := iface.(hotplug.Definer)
 		key, err := deviceKey(defaultKey, devinfo, iface)
@@ -85,17 +90,9 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			continue
 		}
 
-		if key == "" || key == "::" {
+		if !validateDeviceKey(key) {
 			logger.Debugf("No valid device key provided by interface %s, device %q ignored", iface.Name(), devinfo.DeviceName())
 			continue
-		}
-
-		if coreSnapInfo == nil {
-			coreSnapInfo, err = snapstate.CurrentInfo(st, coreSnapName)
-			if err != nil {
-				logger.Noticef("%q snap not available, hotplug event ignored", coreSnapName)
-				return
-			}
 		}
 
 		if !m.hotplug {
@@ -129,36 +126,11 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			logger.Noticef("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
 		}
 
-		// find old connections for slots of this device - note we can't ask the repository since we need
-		// to recreate old connections that are only remembered in the state.
-		connsForDevice := findConnsForDeviceKey(&conns, coreSnapName, iface.Name(), key)
-
-		// we see this device for the first time (or it didn't have any connected slots before)
-		if len(connsForDevice) == 0 {
-			// TODO: trigger auto-connects where appropriate
-			continue
-		}
-
-		// recreate old connections for the device.
-		var recreate []string
-		for _, id := range connsForDevice {
-			conn := conns[id]
-			// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection from scratch.
-			if conn.HotplugRemoved {
-				recreate = append(recreate, id)
-			} else {
-				// TODO: we have never observed remove event for this device: check if any attributes of the slot changed and if so,
-				// disconnect and connect again. if attributes haven't changed, there is nothing to do.
-			}
-		}
-
-		if len(recreate) > 0 {
-			chg := st.NewChange(fmt.Sprintf("hotplug-add-%s", iface), fmt.Sprintf("Create hotplug slots of interface %s", iface))
-			hotplugConnect := st.NewTask("hotplug-restore", fmt.Sprintf("Re-establish connections of device $%q", key))
-			hotplugConnect.Set("device-key", key)
-			hotplugConnect.Set("conns", recreate)
-			chg.AddTask(hotplugConnect)
-		}
+		chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slots of interface %s", iface))
+		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Re-establish connections of device $%q", key))
+		hotplugConnect.Set("device-key", key)
+		hotplugConnect.Set("interface", iface)
+		chg.AddTask(hotplugConnect)
 	}
 }
 
@@ -168,14 +140,14 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	defer st.Unlock()
 
 	defaultKey := defaultDeviceKey(devinfo)
-
 	for _, iface := range m.repo.AllHotplugInterfaces() {
 		key, err := deviceKey(defaultKey, devinfo, iface)
 		if err != nil {
 			logger.Debugf(err.Error())
 			continue
 		}
-		if key == "" {
+
+		if !validateDeviceKey(key) {
 			continue
 		}
 
@@ -184,9 +156,8 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 			continue
 		}
 
-		// run the task that removes device's slot for repository and runs disconnect hooks.
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", iface), fmt.Sprintf("Remove hotplug slots of interface %s", iface))
-		hotplugRemove := st.NewTask("hotplug-remove", fmt.Sprintf("Disable connections of device $%q", key))
+		hotplugRemove := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of device $%q", key))
 		hotplugRemove.Set("interface", iface)
 		hotplugRemove.Set("device-key", key)
 		chg.AddTask(hotplugRemove)
