@@ -204,25 +204,26 @@ const (
 )
 
 func interfaceHookType(hookName string) (ifaceHookType, error) {
-	if strings.HasPrefix(hookName, "prepare-plug-") {
+	switch {
+	case strings.HasPrefix(hookName, "prepare-plug-"):
 		return preparePlugHook, nil
-	} else if strings.HasPrefix(hookName, "connect-plug-") {
+	case strings.HasPrefix(hookName, "connect-plug-"):
 		return connectPlugHook, nil
-	} else if strings.HasPrefix(hookName, "prepare-slot-") {
+	case strings.HasPrefix(hookName, "prepare-slot-"):
 		return prepareSlotHook, nil
-	} else if strings.HasPrefix(hookName, "connect-slot-") {
+	case strings.HasPrefix(hookName, "connect-slot-"):
 		return connectSlotHook, nil
-	} else if strings.HasPrefix(hookName, "disconnect-plug-") {
+	case strings.HasPrefix(hookName, "disconnect-plug-"):
 		return disconnectPlugHook, nil
-	} else if strings.HasPrefix(hookName, "disconnect-slot-") {
+	case strings.HasPrefix(hookName, "disconnect-slot-"):
 		return disconnectSlotHook, nil
-	} else if strings.HasPrefix(hookName, "unprepare-slot-") {
+	case strings.HasPrefix(hookName, "unprepare-slot-"):
 		return unprepareSlotHook, nil
-	} else if strings.HasPrefix(hookName, "unprepare-plug-") {
+	case strings.HasPrefix(hookName, "unprepare-plug-"):
 		return unpreparePlugHook, nil
+	default:
+		return unknownHook, fmt.Errorf("unknown hook type")
 	}
-
-	return unknownHook, fmt.Errorf("unknown hook type")
 }
 
 func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string) error {

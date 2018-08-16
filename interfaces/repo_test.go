@@ -2186,7 +2186,6 @@ func (s *RepositorySuite) TestConnection(c *C) {
 	connRef := NewConnRef(s.plug, s.slot)
 
 	conn, err := s.testRepo.Connection(connRef)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `no connection from consumer:plug to producer:slot`)
 
 	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
@@ -2198,11 +2197,9 @@ func (s *RepositorySuite) TestConnection(c *C) {
 	c.Assert(conn.Slot.Name(), Equals, "slot")
 
 	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "a", Name: "b"}, SlotRef: SlotRef{Snap: "producer", Name: "slot"}})
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `snap "a" has no plug named "b"`)
 
 	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: SlotRef{Snap: "a", Name: "b"}})
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `snap "a" has no slot named "b"`)
 }
 

@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -496,11 +497,11 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	// store old connection for undo
 	task.Set("old-conn", conn)
 
-	// "automatic-disconnect" flag indicates it's a disconnect triggered automatically as part of snap removal;
-	// such disconnects should not not set undesired flag and instead just remove the connection.
+	// "auto-disconnect" flag indicates it's a disconnect triggered automatically as part of snap removal;
+	// such disconnects should not set undesired flag and instead just remove the connection.
 	var autoDisconnect bool
-	if err := task.Get("automatic-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
-		return fmt.Errorf("internal error: failed to read 'automatic-disconnect' flag: %s", err)
+	if err := task.Get("auto-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: failed to read 'auto-disconnect' flag: %s", err)
 	}
 	if conn.Auto && !autoDisconnect {
 		conn.Undesired = true
@@ -561,7 +562,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	conn, err := m.repo.Connect(connRef, oldconn.DynamicPlugAttrs, oldconn.DynamicSlotAttrs, nil)
-	if err != nil || conn == nil {
+	if err != nil {
 		return err
 	}
 
@@ -829,7 +830,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 		if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				task.Logf("Waiting for conflicting change in progress...")
 				return err // will retry
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
@@ -880,7 +882,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 				if _, retry := err.(*state.Retry); retry {
-					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					task.Logf("Waiting for conflicting change in progress...")
 					return err // will retry
 				}
 				return fmt.Errorf("auto-connect conflict check failed: %s", err)
@@ -930,10 +933,11 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 		const auto = true
 		if err := checkDisconnectConflicts(st, snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				task.Logf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				task.Logf("Waiting for conflicting change in progress...")
 				return err // will retry
 			}
-			return fmt.Errorf("failed to process conflicts when disconnecting interfaces: %s", err)
+			return fmt.Errorf("cannot check conflicts when disconnecting interfaces: %s", err)
 		}
 	}
 
@@ -943,10 +947,10 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 		if err != nil {
 			break
 		}
-		// "automatic-disconnect" flag indicates it's a disconnect triggered as part of snap removal, in which
+		// "auto-disconnect" flag indicates it's a disconnect triggered as part of snap removal, in which
 		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
 		// them so they can be automatically connected if the snap is installed again.
-		ts, err := disconnectTasks(st, conn, disconnectOpts{AutomaticDisconnect: true})
+		ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
 		if err != nil {
 			return err
 		}

@@ -855,7 +855,7 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	task = ts.Tasks()[2]
 	c.Assert(task.Kind(), Equals, "disconnect")
 	var autoDisconnect bool
-	c.Assert(task.Get("automatic-disconnect", &autoDisconnect), Equals, state.ErrNoState)
+	c.Assert(task.Get("auto-disconnect", &autoDisconnect), Equals, state.ErrNoState)
 	c.Assert(autoDisconnect, Equals, false)
 
 	var plug interfaces.PlugRef
@@ -3268,7 +3268,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 	c.Assert(ht[2].Kind(), Equals, "disconnect")
 	var autoDisconnect bool
-	c.Assert(ht[2].Get("automatic-disconnect", &autoDisconnect), IsNil)
+	c.Assert(ht[2].Get("auto-disconnect", &autoDisconnect), IsNil)
 	c.Assert(autoDisconnect, Equals, true)
 	var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]interface{}
 	c.Assert(ht[2].Get("plug-static", &plugStatic), IsNil)
@@ -3346,7 +3346,7 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*disconnecting interfaces of snap "consumer" will be retried because of "consumer" - "producer" conflict`)
+	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*Waiting for conflicting change in progress...`)
 	c.Assert(t2.Status(), Equals, state.DoingStatus)
 }
 
