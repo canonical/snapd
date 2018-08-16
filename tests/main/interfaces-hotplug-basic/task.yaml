@@ -13,7 +13,7 @@ execute: |
     echo "Ensure feature flag is enabled"
     snap set core experimental.hotplug=true
 
-    if [ $(snap get core experimental.hotplug) != "true" ]; then
+    if [ "$(snap get core experimental.hotplug)" != "true" ]; then
         echo "Expected experimental.hotplug feature to be enabled"
         exit 1
     fi
