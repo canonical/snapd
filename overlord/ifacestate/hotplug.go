@@ -52,10 +52,11 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	const coreSnapName = "core"
 	var coreSnapInfo *snap.Info
 
-	m.state.Lock()
-	defer m.state.Unlock()
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
 
-	conns, err := getConns(m.state)
+	conns, err := getConns(st)
 	if err != nil {
 		logger.Noticef("Failed to read connections data: %s", err)
 		return
@@ -90,7 +91,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		}
 
 		if coreSnapInfo == nil {
-			coreSnapInfo, err = snapstate.CurrentInfo(m.state, coreSnapName)
+			coreSnapInfo, err = snapstate.CurrentInfo(st, coreSnapName)
 			if err != nil {
 				logger.Noticef("%q snap not available, hotplug event ignored", coreSnapName)
 				return
@@ -101,10 +102,6 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			logger.Noticef("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
-
-		// find old connections for slots of this device - note can't ask the repository since we need
-		// to recreate old connections that are only remembered in the state.
-		connsToRecreate := findConnsForDeviceKey(&conns, coreSnapName, iface.Name(), key)
 
 		slots := make(map[string]*hotplug.SlotSpec, len(slotSpecs))
 
@@ -132,30 +129,43 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			logger.Noticef("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
 		}
 
+		// find old connections for slots of this device - note we can't ask the repository since we need
+		// to recreate old connections that are only remembered in the state.
+		connsForDevice := findConnsForDeviceKey(&conns, coreSnapName, iface.Name(), key)
+
 		// we see this device for the first time (or it didn't have any connected slots before)
-		if len(connsToRecreate) == 0 {
+		if len(connsForDevice) == 0 {
 			// TODO: trigger auto-connects where appropriate
 			continue
 		}
 
-		// in typical case given interface creates exactly one slot, so we just re-create old connection
-		// regardless of slot name
-		if len(connsToRecreate) == 1 {
-			// TODO: create connect or autoconnect task to recreate the connection
-		} else {
-			// in rare cases given interface may create multiple slots - we identify (match) old slots by their names
-			for _, oldConn := range connsToRecreate {
-				if _, ok := slots[oldConn.SlotRef.Name]; ok {
-					// TODO: create connect or autoconnect task to recreate the connection
-				}
+		// recreate old connections for the device.
+		var recreate []string
+		for _, id := range connsForDevice {
+			conn := conns[id]
+			// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection from scratch.
+			if conn.HotplugRemoved {
+				recreate = append(recreate, id)
+			} else {
+				// TODO: we have never observed remove event for this device: check if any attributes of the slot changed and if so,
+				// disconnect and connect again. if attributes haven't changed, there is nothing to do.
 			}
+		}
+
+		if len(recreate) > 0 {
+			chg := st.NewChange(fmt.Sprintf("hotplug-add-%s", iface), fmt.Sprintf("Create hotplug slots of interface %s", iface))
+			hotplugConnect := st.NewTask("hotplug-restore", fmt.Sprintf("Re-establish connections of device $%q", key))
+			hotplugConnect.Set("device-key", key)
+			hotplugConnect.Set("conns", recreate)
+			chg.AddTask(hotplugConnect)
 		}
 	}
 }
 
 func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
-	m.state.Lock()
-	defer m.state.Unlock()
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
 
 	defaultKey := defaultDeviceKey(devinfo)
 
@@ -169,32 +179,27 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 			continue
 		}
 
-		// TODO: remove slot, disconnect if connected; mark disconnect as triggered by hotplug event so that the connection
-		// is maintained in connState.
-
 		if !m.hotplug {
 			logger.Noticef("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
+
+		// run the task that removes device's slot for repository and runs disconnect hooks.
+		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", iface), fmt.Sprintf("Remove hotplug slots of interface %s", iface))
+		hotplugRemove := st.NewTask("hotplug-remove", fmt.Sprintf("Disable connections of device $%q", key))
+		hotplugRemove.Set("interface", iface)
+		hotplugRemove.Set("device-key", key)
+		chg.AddTask(hotplugRemove)
 	}
 }
 
-func findConnsForDeviceKey(conns *map[string]connState, coreSnapName, ifaceName, deviceKey string) []*interfaces.ConnRef {
-	var connsForDevice []*interfaces.ConnRef
+func findConnsForDeviceKey(conns *map[string]connState, coreSnapName, ifaceName, deviceKey string) []string {
+	var connsForDevice []string
 	for id, connSt := range *conns {
 		if connSt.Interface != ifaceName || connSt.HotplugDeviceKey != deviceKey {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			logger.Noticef("Failed to parse connection id %q: %s", id, err)
-			continue
-		}
-		if connRef.SlotRef.Snap != coreSnapName {
-			continue
-		}
-		// we found a connection
-		connsForDevice = append(connsForDevice, connRef)
+		connsForDevice = append(connsForDevice, id)
 	}
 	return connsForDevice
 }
