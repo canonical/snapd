@@ -3,7 +3,11 @@ details: |
     Snapd now contains a feature where NFS-mounted /home (or any sub-directory)
     initializes a workaround mode where all snaps gain minimal amount of network
     permissions sufficient for NFS to operate.
-systems: [ubuntu-16.04-64]  # TODO: expand this list
+# ubuntu-core: nfs service not available on core
+# arch: nfs service not available on arch
+# ubuntu-14.04-64: nfs-kernel-server service not available on trusty
+# opensuse: exportfs does not work properly for the test configuration
+systems: [-ubuntu-core-*, -arch-*, -ubuntu-14.04-64, -opensuse-*]
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
@@ -11,19 +15,41 @@ prepare: |
     install_local test-snapd-sh
 execute: |
     ensure_extra_perms() {
-        MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
-        MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+        if [ "$(snap debug confinement)" = strict ]; then
+            MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+            MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+        fi
     }
 
     ensure_normal_perms() {
-        test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
-        MATCH -v 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+        if [ "$(snap debug confinement)" = strict ]; then
+            test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
+            MATCH -v 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+        fi
     }
 
     # Export /home over NFS.
     mkdir -p /etc/exports.d/
     echo '/home localhost(rw,no_subtree_check,no_root_squash)' > /etc/exports.d/test.exports
-    systemctl restart nfs-kernel-server
+    
+    # Make sure the nfs service is running
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            systemctl restart nfs-kernel-server
+            ;;
+        fedora-*)
+            # Enable udp protocol for nfs on fedora which is disable by default           
+            sed -i -e 's/RPCNFSDARGS=.*/RPCNFSDARGS="--udp"/g' /etc/sysconfig/nfs
+            systemctl enable nfs
+            systemctl restart nfs
+            ;;
+        *)
+            systemctl enable nfs
+            systemctl restart nfs
+            ;;
+    esac
+
+    # Synchronize the nfs directories
     exportfs -r
 
     # Ensure that apparmor profiles don't permit network access

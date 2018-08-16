@@ -503,6 +503,7 @@ pkg_dependencies_ubuntu_classic(){
         gnome-keyring
         jq
         man
+        nfs-kernel-server
         printer-driver-cups-pdf
         python3-yaml
         upower
@@ -532,7 +533,6 @@ pkg_dependencies_ubuntu_classic(){
                 kpartx
                 libvirt-bin
                 linux-image-extra-$(uname -r)
-                nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
@@ -583,6 +583,7 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
+        nfs-utils
         python3-yaml
         redhat-lsb-core
         rpm-build
@@ -602,6 +603,7 @@ pkg_dependencies_amazon(){
         man
         mock
         net-tools
+        nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
