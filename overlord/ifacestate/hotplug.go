@@ -42,7 +42,7 @@ func deviceKey(defaultDeviceKey string, devinfo *hotplug.HotplugDeviceInfo, ifac
 }
 
 func validateDeviceKey(key string) bool {
-	if key == "" || key == "::" {
+	if key == "" || key == ":::" {
 		return false
 	}
 	return true
@@ -50,9 +50,10 @@ func validateDeviceKey(key string) bool {
 
 func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 	vendor, _ := devinfo.Attribute("ID_VENDOR_ID")
-	product, _ := devinfo.Attribute("ID_MODEL_ID")
+	model, _ := devinfo.Attribute("ID_MODEL_ID")
+	rev, _ := devinfo.Attribute("ID_REVISION")
 	serial, _ := devinfo.Attribute("ID_SERIAL_SHORT")
-	return fmt.Sprintf("%s:%s:%s", vendor, product, serial)
+	return fmt.Sprintf("%s:%s:%s:%s", vendor, model, rev, serial)
 }
 
 func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
