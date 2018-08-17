@@ -79,7 +79,11 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	st.Lock()
 	defer st.Unlock()
 
-	const coreSnapName = "core"
+	coreSnapName, err := m.repo.GuessSystemSnapName()
+	if err != nil {
+		logger.Noticef("cannot determine system snap name: %s", err)
+		return
+	}
 	coreSnapInfo, err := snapstate.CurrentInfo(st, coreSnapName)
 	if err != nil {
 		logger.Noticef("%q snap not available, hotplug events ignored", coreSnapName)

@@ -1131,7 +1131,10 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("failed to read connections data: %s", err)
 	}
 
-	const coreSnapName = "core"
+	coreSnapName, err := m.repo.GuessSystemSnapName()
+	if err != nil {
+		return err
+	}
 
 	deviceKey, ifaceName, err := hotplugTaskGetAttrs(task)
 	if err != nil {
@@ -1207,7 +1210,10 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	const coreSnapName = "core"
+	coreSnapName, err := m.repo.GuessSystemSnapName()
+	if err != nil {
+		return err
+	}
 
 	deviceKey, ifaceName, err := hotplugTaskGetAttrs(task)
 	if err != nil {
