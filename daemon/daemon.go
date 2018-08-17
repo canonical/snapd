@@ -576,12 +576,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 		// wait for reboot to happen
 		logger.Noticef("Waiting for system reboot")
-		signal.Stop(sigCh)
-		if len(sigCh) > 0 {
-			// a signal arrived in between
-			return nil
-		}
 		if sigCh != nil {
+			signal.Stop(sigCh)
+			if len(sigCh) > 0 {
+				// a signal arrived in between
+				return nil
+			}
 			close(sigCh)
 		}
 		time.Sleep(rebootWaitTimeout)
