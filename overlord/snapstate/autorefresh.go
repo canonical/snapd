@@ -24,8 +24,6 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -373,9 +371,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
-	ctx := auth.EnsureContextTODO()
-	ctx = context.WithValue(ctx, "auto-refresh", true)
-	updated, tasksets, err := AutoRefresh(ctx, m.state)
+	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
