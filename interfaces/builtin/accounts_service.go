@@ -56,12 +56,17 @@ dbus (receive, send)
     peer=(label=unconfined),
 
 # Allow clients to introspect the service
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/gnome/OnlineAccounts{,/**}
+    member="Get{,All}",
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     path=/com/ubuntu/OnlineAccounts{,/**}
-    member=Introspect
-    peer=(label=unconfined),
+    member=Introspect,
 `
 
 func init() {
