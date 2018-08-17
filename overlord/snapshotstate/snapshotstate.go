@@ -38,22 +38,18 @@ var (
 	backendIter                      = backend.Iter
 )
 
-type snapshotState struct {
-	LastSetID uint64 `json:"last-set-id"`
-}
-
 func newSnapshotSetID(st *state.State) (uint64, error) {
-	var shotState snapshotState
+	var lastSetID uint64
 
-	err := st.Get("snapshots", &shotState)
+	err := st.Get("last-snapshot-set-id", &lastSetID)
 	if err != nil && err != state.ErrNoState {
 		return 0, err
 	}
 
-	shotState.LastSetID++
-	st.Set("snapshots", shotState)
+	lastSetID++
+	st.Set("last-snapshot-set-id", lastSetID)
 
-	return shotState.LastSetID, nil
+	return lastSetID, nil
 }
 
 func allActiveSnapNames(st *state.State) ([]string, error) {

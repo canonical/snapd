@@ -404,7 +404,7 @@ func (snapshotSuite) TestSaveChecksSetIDError(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("snapshots", 42)
+	st.Set("last-snapshot-set-id", "3/4")
 
 	_, _, _, err := snapshotstate.Save(st, nil, nil)
 	c.Check(err, check.ErrorMatches, ".* could not unmarshal .*")
