@@ -778,6 +778,40 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 	return conns, nil
 }
 
+// ConnectionsForDeviceKey returns all hotplug connections for given device key and interface name.
+func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*ConnRef, error) {
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return nil, err
+	}
+	var conns []*ConnRef
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.HotplugDeviceKey == deviceKey && slotInfo.Interface == ifaceName {
+			for plugInfo := range r.slotPlugs[slotInfo] {
+				connRef := NewConnRef(plugInfo, slotInfo)
+				conns = append(conns, connRef)
+			}
+		}
+	}
+
+	return conns, nil
+}
+
+// HasHotplugSlots returns true if there is a hotplug-created slot for given deviceKey and interface name
+// (regardless od whether it has connections or not).
+func (r *Repository) HasHotplugSlots(deviceKey, ifaceName string) (bool, error) {
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return false, err
+	}
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.HotplugDeviceKey == deviceKey && slotInfo.Interface == ifaceName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
