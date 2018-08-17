@@ -223,14 +223,12 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"display-name: Baz 3000\n", "display-name:\n  - xyz\n", `"display-name" header must be a string`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
-
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
 		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
 		{"gadget: brand-gadget\n", "gadget: brand-gadget=x/x/x\n", `"gadget" channel selector must be a track name only`},
 		{"gadget: brand-gadget\n", "gadget: brand-gadget=stable\n", `"gadget" channel selector must be a track name`},
 		{"gadget: brand-gadget\n", "gadget: brand-gadget=18/beta\n", `"gadget" channel selector must be a track name only`},
 		{"gadget: brand-gadget\n", "gadget:\n  - xyz \n", `"gadget" header must be a string`},
-
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
 		{"kernel: baz-linux\n", "kernel: baz-linux=x/x/x\n", `"kernel" channel selector must be a track name only`},
