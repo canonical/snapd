@@ -1,10 +1,10 @@
 summary: Ensure apt hooks work
 
-# apt hook only available on 18.04+
-systems: [ubuntu-18.04-*, ubuntu-18.10-*]
+# apt hook only available on 18.04+ and aws-cli only for amd64
+systems: [ubuntu-18.04-64, ubuntu-18.10-64]
 
 restore: |
-    rm -f expected out
+    rm -f expected out apt.stderr
 
 debug: |
     ls -lh /var/cache/snapd
@@ -36,4 +36,11 @@ execute: |
     fi
     echo "Verify the result"
     diff -u out expected
-    
+
+    echo "Ensure that apt install does not show any errors from the hook"
+    apt install -o Apt::Cmd::Disable-Script-Warning=true -qq -s petname 2>apt.stderr
+    if [ "$(cat apt.stderr)" != "" ]; then
+        echo "Errors when doing an apt install"
+        cat apt.stderr
+        exit 1
+    fi
