@@ -202,6 +202,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
@@ -427,13 +428,13 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
+		"auto-disconnect",
 		"run-hook[remove]",
 		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
-		"discard-conns",
 	})
 	verifyStopReason(c, ts, "remove")
 }
@@ -5166,6 +5167,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
 		},
@@ -5193,10 +5199,6 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -5285,6 +5287,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "some-snap_instance",
 		},
@@ -5312,10 +5319,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap_instance",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap_instance",
 		},
 	}
@@ -5414,6 +5417,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
 		},
@@ -5459,10 +5467,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -5625,6 +5629,11 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := fakeOps{
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -5639,10 +5648,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -5666,6 +5671,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		}
 		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
+		}
+		if t.Kind() == "auto-disconnect" {
+			expSnapSetup.PlugsOnly = true
+			expSnapSetup.Type = "app"
 		}
 
 		c.Check(snapsup, DeepEquals, expSnapSetup, Commentf(t.Kind()))
@@ -9189,13 +9198,13 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
+			"auto-disconnect",
 			"run-hook[remove]",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
-			"discard-conns",
 		})
 		verifyStopReason(c, ts, "remove")
 		// check that tasksets are in separate lanes
@@ -9680,6 +9689,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
 		},
@@ -9707,10 +9721,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "ubuntu-core",
 		},
 		{
@@ -9765,6 +9775,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
 		},
@@ -9792,10 +9807,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "ubuntu-core",
 		},
 	}
