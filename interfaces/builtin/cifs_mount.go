@@ -19,17 +19,17 @@
 
 package builtin
 
-const cifsMountControlSummary = `allows mounting and unmounting CIFS filesystems`
+const cifsMountSummary = `allows mounting and unmounting CIFS filesystems`
 
-const cifsMountControlBaseDeclarationSlots = `
-  cifs-mount-control:
+const cifsMountBaseDeclarationSlots = `
+  cifs-mount:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const cifsMountControlConnectedPlugSecComp = `
+const cifsMountConnectedPlugSecComp = `
 # Description: Allow mount and umount syscall access.
 
 mount
@@ -37,15 +37,15 @@ umount
 umount2
 `
 
-const cifsMountControlConnectedPlugAppArmor = `
+const cifsMountConnectedPlugAppArmor = `
 # Description: Allow mounting and unmounting CIFS filesystems.
 
 # Required for mounts and unmounts
 capability sys_admin,
 
 # Allow mounts to our snap-specific writable directories
-mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
-mount fstype=cifs ** -> /var/snap/@{SNAP_NAME}/common/{,**},
+mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
+mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/common/{,**},
 
 # NOTE: due to LP: #1613403, fstype is not mediated and as such, these rules
 # allow, for example, unmounting bind mounts from the content interface
@@ -58,17 +58,20 @@ umount /var/snap/@{SNAP_NAME}/common/{,**},
 # decide to allow access (deny rules have precedence).
 #
 #  - https://github.com/snapcore/snapd/pull/5340#issuecomment-398071797
-#  - https://forum.snapcraft.io/t/namespace-awareness-of-run-mount-utab-and-libmount/5987`
+#  - https://forum.snapcraft.io/t/namespace-awareness-of-run-mount-utab-and-libmount/5987
+#
+#deny /run/mount/utab w,
+`
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "cifs-mount-control",
-		summary:               cifsMountControlSummary,
+		name:                  "cifs-mount",
+		summary:               cifsMountSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  cifsMountControlBaseDeclarationSlots,
-		connectedPlugAppArmor: cifsMountControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  cifsMountControlConnectedPlugSecComp,
+		baseDeclarationSlots:  cifsMountBaseDeclarationSlots,
+		connectedPlugAppArmor: cifsMountConnectedPlugAppArmor,
+		connectedPlugSecComp:  cifsMountConnectedPlugSecComp,
 		reservedForOS:         true,
 	})
 }

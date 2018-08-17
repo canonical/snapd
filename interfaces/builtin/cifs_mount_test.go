@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type CifsMountControlInterfaceSuite struct {
+type CifsMountInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,56 +38,56 @@ type CifsMountControlInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-const cifsMountControlConsumerYaml = `name: consumer
+const cifsMountConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [cifs-mount-control]
+  plugs: [cifs-mount]
 `
 
-const cifsMountControlCoreYaml = `name: core
+const cifsMountCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  cifs-mount-control:
+  cifs-mount:
 `
 
-var _ = Suite(&CifsMountControlInterfaceSuite{
-	iface: builtin.MustInterface("cifs-mount-control"),
+var _ = Suite(&CifsMountInterfaceSuite{
+	iface: builtin.MustInterface("cifs-mount"),
 })
 
-func (s *CifsMountControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, cifsMountControlConsumerYaml, nil, "cifs-mount-control")
-	s.slot, s.slotInfo = MockConnectedSlot(c, cifsMountControlCoreYaml, nil, "cifs-mount-control")
+func (s *CifsMountInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, cifsMountConsumerYaml, nil, "cifs-mount")
+	s.slot, s.slotInfo = MockConnectedSlot(c, cifsMountCoreYaml, nil, "cifs-mount")
 }
 
-func (s *CifsMountControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "cifs-mount-control")
+func (s *CifsMountInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "cifs-mount")
 }
 
-func (s *CifsMountControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *CifsMountInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "cifs-mount-control",
-		Interface: "cifs-mount-control",
+		Name:      "cifs-mount",
+		Interface: "cifs-mount",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"cifs-mount-control slots are reserved for the core snap")
+		"cifs-mount slots are reserved for the core snap")
 }
 
-func (s *CifsMountControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *CifsMountInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *CifsMountControlInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *CifsMountInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/run/mount/utab`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `#deny /run/mount/utab w,`)
 }
 
-func (s *CifsMountControlInterfaceSuite) TestSecCompSpec(c *C) {
+func (s *CifsMountInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -96,14 +96,14 @@ func (s *CifsMountControlInterfaceSuite) TestSecCompSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "umount2\n")
 }
 
-func (s *CifsMountControlInterfaceSuite) TestStaticInfo(c *C) {
+func (s *CifsMountInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows to mount and unmount CIFS shares`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "cifs-mount-control")
+	c.Assert(si.Summary, Equals, `allows mounting and unmounting CIFS filesystems`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "cifs-mount")
 }
 
-func (s *CifsMountControlInterfaceSuite) TestInterfaces(c *C) {
+func (s *CifsMountInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
