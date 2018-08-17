@@ -122,8 +122,6 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 
 		logger.Debugf("HotplugDeviceAdded: %s (default key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), defaultKey, devinfo.DeviceName(), devinfo.Subsystem())
 
-		slots := make(map[string]*hotplug.SlotSpec, len(slotSpecs))
-
 		// add slots to the repo based on the slot specs returned by the interface
 		for _, ss := range slotSpecs {
 			slot := &snap.SlotInfo{
@@ -144,14 +142,14 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				logger.Noticef("Failed to create slot %q for interface %s", slot.Name, slot.Interface)
 				continue
 			}
-			slots[ss.Name] = ss
-			logger.Noticef("Added hotplug slot %q (%s) for device key %q", slot.Name, slot.Interface, key)
+			logger.Noticef("Added hotplug slot %q of interface %s for device key %q", slot.Name, slot.Interface, key)
 		}
 
 		chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slots of interface %s", iface))
-		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Re-establish connections of device $%q", key))
+		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of device %q", key))
 		hotplugTaskSetAttrs(hotplugConnect, key, iface.Name())
 		chg.AddTask(hotplugConnect)
+		st.EnsureBefore(0)
 	}
 }
 
@@ -198,10 +196,11 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		chg.AddTask(hotplugRemove)
 
 		// hotplug-remove-slot will remove this device's slots from the repository.
-		removeSlots := st.NewTask("hotplug-remove-slot", fmt.Sprintf("Remove slots for device %q, interface %q", key, iface))
+		removeSlots := st.NewTask("hotplug-remove-slots", fmt.Sprintf("Remove slots for device %q, interface %q", key, iface))
 		hotplugTaskSetAttrs(removeSlots, key, iface.Name())
 		removeSlots.WaitFor(hotplugRemove)
 		chg.AddTask(removeSlots)
+		st.EnsureBefore(0)
 	}
 }
 

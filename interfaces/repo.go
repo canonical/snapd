@@ -116,19 +116,23 @@ func (r *Repository) AllHotplugInterfaces() []Interface {
 	return ifaces
 }
 
-func (r *Repository) SlotsForDeviceKey(deviceKey string) []*snap.SlotInfo {
+// SlotsForDeviceKey returns all hotplug slots for given device key and interface name.
+func (r *Repository) SlotsForDeviceKey(deviceKey, ifaceName string) ([]*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return nil, err
+	}
+
 	var slots []*snap.SlotInfo
-	for _, snapSlots := range r.slots {
-		for _, slot := range snapSlots {
-			if slot.HotplugDeviceKey == deviceKey {
-				slots = append(slots, slot)
-			}
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.HotplugDeviceKey == deviceKey && slotInfo.Interface == ifaceName {
+			slots = append(slots, slotInfo)
 		}
 	}
-	return slots
+	return slots, nil
 }
 
 // InfoOptions describes options for Info.
@@ -800,6 +804,9 @@ func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*Co
 // HasHotplugSlots returns true if there is a hotplug-created slot for given deviceKey and interface name
 // (regardless od whether it has connections or not).
 func (r *Repository) HasHotplugSlots(deviceKey, ifaceName string) (bool, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	snapName, err := r.guessSystemSnapName()
 	if err != nil {
 		return false, err

@@ -1179,21 +1179,24 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// Create connect tasks and interface hooks
-	ts := state.NewTaskSet()
-	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-hotplug"})
-		if err != nil {
-			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+	if len(newconns) > 0 {
+		ts := state.NewTaskSet()
+		for _, conn := range newconns {
+			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, []string{"auto", "by-hotplug"})
+			if err != nil {
+				return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+			}
+			ts.AddAll(ts)
 		}
-		ts.AddAll(ts)
-	}
 
-	if len(ts.Tasks()) > 0 {
-		snapstate.InjectTasks(task, ts)
-		st.EnsureBefore(0)
-	}
+		if len(ts.Tasks()) > 0 {
+			snapstate.InjectTasks(task, ts)
+			st.EnsureBefore(0)
+		}
 
-	task.SetStatus(state.DoneStatus)
+		// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+		task.SetStatus(state.DoneStatus)
+	}
 
 	return nil
 }
@@ -1229,25 +1232,53 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 		}
 	}
 
-	dts := state.NewTaskSet()
-	for _, connRef := range connections {
-		conn, err := m.repo.Connection(connRef)
-		if err != nil {
-			break
+	if len(connections) > 0 {
+		dts := state.NewTaskSet()
+		for _, connRef := range connections {
+			conn, err := m.repo.Connection(connRef)
+			if err != nil {
+				break
+			}
+			// "auto-disconnect" flag indicates it's a disconnect triggered as part of hotplug removal, in which
+			// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
+			// them so they can be automatically connected if the snap is installed again.
+			ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
+			if err != nil {
+				return err
+			}
+			dts.AddAll(ts)
 		}
-		// "auto-disconnect" flag indicates it's a disconnect triggered as part of hotplug removal, in which
-		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
-		// them so they can be automatically connected if the snap is installed again.
-		ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
-		if err != nil {
-			return err
-		}
-		dts.AddAll(ts)
+
+		snapstate.InjectTasks(task, dts)
+
+		// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+		task.SetStatus(state.DoneStatus)
+	}
+	return nil
+}
+
+// doHotplugRemoveSlots removes all slots of given hotplug device and interface from the repository.
+// Note, this task must neccesarily be run after all affected slots get disconnected.
+func (m *InterfaceManager) doHotplugRemoveSlots(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	deviceKey, ifaceName, err := hotplugTaskGetAttrs(task)
+	if err != nil {
+		return err
 	}
 
-	snapstate.InjectTasks(task, dts)
+	slots, err := m.repo.SlotsForDeviceKey(deviceKey, ifaceName)
+	if err != nil {
+		return fmt.Errorf("cannot determine slots: %s", err)
+	}
 
-	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
-	task.SetStatus(state.DoneStatus)
+	for _, slot := range slots {
+		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
+			return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
+		}
+	}
+
 	return nil
 }
