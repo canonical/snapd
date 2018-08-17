@@ -102,7 +102,7 @@ type apiBaseSuite struct {
 
 	journalctlRestorer func()
 	jctlSvcses         [][]string
-	jctlNs             []string
+	jctlNs             []int
 	jctlFollows        []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
@@ -194,7 +194,7 @@ func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	return buf, err
 }
 
-func (s *apiBaseSuite) journalctl(svcs []string, n string, follow bool) (rc io.ReadCloser, err error) {
+func (s *apiBaseSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
 	s.jctlSvcses = append(s.jctlSvcses, svcs)
 	s.jctlNs = append(s.jctlNs, n)
 	s.jctlFollows = append(s.jctlFollows, follow)
@@ -394,6 +394,10 @@ version: %s
 
 	// Mock the snap on disk
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	if active {
+		dir, rev := filepath.Split(snapInfo.MountDir())
+		c.Assert(os.Symlink(rev, dir+"current"), check.IsNil)
+	}
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -3512,6 +3516,20 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	c.Check(res.affected, check.DeepEquals, inst.Snaps)
 }
 
+func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
+	snapstateInstallMany = func(_ *state.State, _ []string, _ int) ([]string, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	}
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "install", Snaps: []string{"", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	res, err := snapInstallMany(inst, st)
+	st.Unlock()
+	c.Assert(res, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
+}
+
 func (s *apiSuite) TestRemoveMany(c *check.C) {
 	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
@@ -3537,14 +3555,14 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 	}
 
 	d := s.daemonWithFakeSnapManager(c)
-
+	s.vars = map[string]string{"name": "hello-world"}
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postSnap(snapCmd, req, nil).(*resp)
 
-	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 
 	st := d.overlord.State()
 	st.Lock()
@@ -3657,6 +3675,23 @@ func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
 	defer st.Unlock()
 	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.ErrorMatches, "this system cannot honour the jailmode flag")
+}
+
+func (s *apiSuite) TestInstallEmptyName(c *check.C) {
+	snapstateInstall = func(_ *state.State, _, _ string, _ snap.Revision, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
+		return nil, errors.New("should not be called")
+	}
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		Snaps:  []string{""},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.ErrorMatches, "cannot install snap with empty name")
 }
 
 func (s *apiSuite) TestInstallJailModeDevMode(c *check.C) {
@@ -4220,6 +4255,15 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	st.Unlock()
+
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -4241,7 +4285,6 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
-	st := d.overlord.State()
 	st.Lock()
 	chg := st.Change(id)
 	st.Unlock()
@@ -4425,6 +4468,15 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	st.Unlock()
+
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -4446,7 +4498,6 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
-	st := d.overlord.State()
 	st.Lock()
 	chg := st.Change(id)
 	st.Unlock()
@@ -6459,7 +6510,7 @@ func (s *appSuite) SetUpTest(c *check.C) {
 	s.cmd = testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
 	s.daemon(c)
 	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
-	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), true, "apps: {svc3: {daemon: simple}, cmd1: {}}")
+	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")
 	s.infoC = s.mkInstalledInState(c, s.d, "snap-c", "dev", "v1", snap.R(1), true, "")
 	s.infoD = s.mkInstalledInState(c, s.d, "snap-d", "dev", "v1", snap.R(1), true, "apps: {cmd2: {}, cmd3: {}}")
 	s.d.overlord.Loop()
@@ -6513,13 +6564,17 @@ UnitFileState=enabled
 
 	for _, name := range svcNames {
 		snap, app := splitAppName(name)
-		c.Check(apps, testutil.DeepContains, client.AppInfo{
-			Snap:    snap,
-			Name:    app,
-			Daemon:  "simple",
-			Active:  true,
-			Enabled: true,
-		})
+		needle := client.AppInfo{
+			Snap:   snap,
+			Name:   app,
+			Daemon: "simple",
+		}
+		if snap != "snap-b" {
+			// snap-b is not active (all the others are)
+			needle.Active = true
+			needle.Enabled = true
+		}
+		c.Check(apps, testutil.DeepContains, needle)
 	}
 
 	for _, name := range []string{"snap-b.cmd1", "snap-d.cmd2", "snap-d.cmd3"} {
@@ -6587,13 +6642,17 @@ UnitFileState=enabled
 
 	for _, name := range svcNames {
 		snap, app := splitAppName(name)
-		c.Check(svcs, testutil.DeepContains, client.AppInfo{
-			Snap:    snap,
-			Name:    app,
-			Daemon:  "simple",
-			Active:  true,
-			Enabled: true,
-		})
+		needle := client.AppInfo{
+			Snap:   snap,
+			Name:   app,
+			Daemon: "simple",
+		}
+		if snap != "snap-b" {
+			// snap-b is not active (all the others are)
+			needle.Active = true
+			needle.Enabled = true
+		}
+		c.Check(svcs, testutil.DeepContains, needle)
 	}
 
 	appNames := make([]string, len(svcs))
@@ -6777,7 +6836,7 @@ func (s *appSuite) TestLogs(c *check.C) {
 	getLogs(logsCmd, req, nil).ServeHTTP(rec, req)
 
 	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
-	c.Check(s.jctlNs, check.DeepEquals, []string{"42"})
+	c.Check(s.jctlNs, check.DeepEquals, []int{42})
 	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
 
 	c.Check(rec.Code, check.Equals, 200)
@@ -6794,15 +6853,15 @@ func (s *appSuite) TestLogs(c *check.C) {
 func (s *appSuite) TestLogsN(c *check.C) {
 	type T struct {
 		in  string
-		out string
+		out int
 	}
 
 	for _, t := range []T{
-		{in: "", out: "10"},
-		{in: "0", out: "0"},
-		{in: "-1", out: "all"},
-		{in: strconv.Itoa(math.MinInt32), out: "all"},
-		{in: strconv.Itoa(math.MaxInt32), out: strconv.Itoa(math.MaxInt32)},
+		{in: "", out: 10},
+		{in: "0", out: 0},
+		{in: "-1", out: -1},
+		{in: strconv.Itoa(math.MinInt32), out: math.MinInt32},
+		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
 	} {
 
 		s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
@@ -6814,7 +6873,7 @@ func (s *appSuite) TestLogsN(c *check.C) {
 		rec := httptest.NewRecorder()
 		getLogs(logsCmd, req, nil).ServeHTTP(rec, req)
 
-		c.Check(s.jctlNs, check.DeepEquals, []string{t.out})
+		c.Check(s.jctlNs, check.DeepEquals, []int{t.out})
 	}
 }
 

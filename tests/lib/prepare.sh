@@ -184,14 +184,6 @@ EOF
 }
 
 prepare_classic() {
-    # ensure apt is the latest version
-    # https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1776218
-    case "$SPREAD_SYSTEM" in
-        ubuntu-*|debian-*)
-            apt install -y apt
-            ;;
-    esac
-
     distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
@@ -418,7 +410,7 @@ EOF
     fi
 
     # extra_snap should contain only ONE snap
-    if "${#extra_snap[@]}" -ne 1; then
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
         echo "unexpected number of globbed snaps: ${extra_snap[*]}"
         exit 1
     fi

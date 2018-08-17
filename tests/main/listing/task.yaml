@@ -1,7 +1,8 @@
 summary: Check snap listings
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
 # autopkgtest run only a subset of tests that deals with the integration
@@ -16,6 +17,7 @@ execute: |
     # most core versions should be like "16-2", so [0-9]{2}-[0-9.]+
     # but edge will have a timestamp in there, "16.2+201701010932", so add an optional \+[0-9]+ to the end
     # *current* edge also has .git. and a hash snippet, so add an optional .git.[0-9a-f]+ to the already optional timestamp
+    #shellcheck disable=SC2166
     if [ "$SPREAD_BACKEND" = "linode" -o "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
         echo "With customized images the core snap is sideloaded"
         expected='^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +x[0-9]+ +- +- +core *$'
@@ -33,17 +35,18 @@ execute: |
     snap list | MATCH '^test-snapd-tools +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$'
 
     echo "Install test-snapd-tools again"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     echo "And run snap list --all"
     output=$(snap list --all |grep test-snapd-tools)
     if [ "$(grep -c test-snapd-tools <<< "$output")" != "2" ]; then
         echo "Expected two test-snapd-tools in the output, got:"
-        echo $output
+        echo "$output"
         exit 1
     fi
     if [ "$(grep -c disabled <<< "$output")" != "1" ]; then
         echo "Expected one disabled line in in the output, got:"
-        echo $output
+        echo "$output"
         exit 1
     fi

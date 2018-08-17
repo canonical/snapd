@@ -14,7 +14,7 @@ execute: |
         echo "snap refresh should error but did not"
         exit 1
     fi
-    cat stderr.out | MATCH 'local snap "test-snapd-only-in-edge" is unknown to the store'
+    MATCH 'local snap "test-snapd-only-in-edge" is unknown to the store' < stderr.out
 
     echo "A refresh with --amend is not enough, the channel needs to be added"
     if snap refresh --amend test-snapd-only-in-edge 2> stderr.out; then
