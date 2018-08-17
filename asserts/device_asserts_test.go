@@ -101,6 +101,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.GadgetTrack(), Equals, "")
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "")
 	c.Check(model.Base(), Equals, "core18")
@@ -191,6 +192,16 @@ func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 	c.Check(model.KernelTrack(), Equals, "18")
 }
 
+func (mods *modelSuite) TestDecodeGadgetTrack(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget=18\n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.GadgetTrack(), Equals, "18")
+}
+
 const (
 	modelErrPrefix = "assertion model: "
 )
@@ -212,8 +223,14 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"display-name: Baz 3000\n", "display-name:\n  - xyz\n", `"display-name" header must be a string`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
+
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
 		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
+		{"gadget: brand-gadget\n", "gadget: brand-gadget=x/x/x\n", `"gadget" channel selector must be a track name only`},
+		{"gadget: brand-gadget\n", "gadget: brand-gadget=stable\n", `"gadget" channel selector must be a track name`},
+		{"gadget: brand-gadget\n", "gadget: brand-gadget=18/beta\n", `"gadget" channel selector must be a track name only`},
+		{"gadget: brand-gadget\n", "gadget:\n  - xyz \n", `"gadget" header must be a string`},
+
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
 		{"kernel: baz-linux\n", "kernel: baz-linux=x/x/x\n", `"kernel" channel selector must be a track name only`},
