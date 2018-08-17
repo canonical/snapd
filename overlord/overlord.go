@@ -283,12 +283,6 @@ func (o *Overlord) Loop() {
 			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
-				if o.udevMon != nil {
-					err := o.udevMon.Stop()
-					if err != nil {
-						logger.Noticef("Failed to stop udev monitor: %s", err)
-					}
-				}
 				return nil
 			case <-o.ensureTimer.C:
 			case <-o.pruneTicker.C:
@@ -303,6 +297,12 @@ func (o *Overlord) Loop() {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
+	if o.udevMon != nil {
+		err := o.udevMon.Stop()
+		if err != nil {
+			logger.Noticef("Failed to stop udev monitor: %s", err)
+		}
+	}
 	o.loopTomb.Kill(nil)
 	err1 := o.loopTomb.Wait()
 	o.stateEng.Stop()
