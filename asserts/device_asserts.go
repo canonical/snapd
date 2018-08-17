@@ -229,13 +229,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	if err := checkSnapWithTrackHeader("kernel", assert.headers); err != nil {
-		return nil, err
-	}
-	if err := checkSnapWithTrackHeader("gadget", assert.headers); err != nil {
-		return nil, err
-	}
-
 	classic, err := checkOptionalBool(assert.headers, "classic")
 	if err != nil {
 		return nil, err
@@ -261,6 +254,14 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, err := checker(assert.headers, h); err != nil {
 			return nil, err
 		}
+	}
+
+	// kernel/gadget can have (optional) tracks - validate those
+	if err := checkSnapWithTrackHeader("kernel", assert.headers); err != nil {
+		return nil, err
+	}
+	if err := checkSnapWithTrackHeader("gadget", assert.headers); err != nil {
+		return nil, err
 	}
 
 	// store is optional but must be a string, defaults to the ubuntu store
