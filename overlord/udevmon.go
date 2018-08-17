@@ -78,7 +78,7 @@ func (m *UDevMonitor) Connect() error {
 	}
 
 	var filter netlink.Matcher
-	// TODO: extend with other criterias based on the hotplug interfaces
+	// TODO: extend with other criteria based on the hotplug interfaces
 	filter = &netlink.RuleDefinitions{
 		Rules: []netlink.RuleDefinition{
 			{
