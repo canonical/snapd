@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/hotplug"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -80,11 +81,10 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
-	udevMon   UDevMon
+	udevMon   hotplug.UDevMon
 }
 
 var storeNew = store.New
-var createUDevMonitor = NewUDevMonitor
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -166,7 +166,7 @@ func New() (*Overlord, error) {
 }
 
 func (o *Overlord) EnableHotplug() error {
-	udevMon := createUDevMonitor(o.ifaceMgr.HotplugDeviceAdded, o.ifaceMgr.HotplugDeviceRemoved)
+	udevMon := hotplug.CreateUDevMonitor(o.ifaceMgr.HotplugDeviceAdded, o.ifaceMgr.HotplugDeviceRemoved)
 	if err := udevMon.Connect(); err != nil {
 		return err
 	}
@@ -492,11 +492,4 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 
 func (mb mockBackend) RequestRestart(t state.RestartType) {
 	mb.o.requestRestart(t)
-}
-
-func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
-	createUDevMonitor = new
-	return func() {
-		createUDevMonitor = NewUDevMonitor
-	}
 }

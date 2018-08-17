@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/hotplug"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -766,9 +767,9 @@ func (u *udevMonMock) Stop() error {
 	return nil
 }
 
-func (ovs *overlordSuite) TestUDevMonBasic(c *C) {
+func (ovs *overlordSuite) TestEnableHotplugBasic(c *C) {
 	u := udevMonMock{}
-	restore := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
+	restore := hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedCallback, hotplug.DeviceRemovedCallback) hotplug.UDevMon {
 		return &u
 	})
 	defer restore()

@@ -64,6 +64,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/hotplug"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -110,6 +111,7 @@ type apiBaseSuite struct {
 	connectivityResult map[string]bool
 
 	restoreSanitize func()
+	restoreUDevMon  func()
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -175,6 +177,7 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	s.systemctlRestorer()
 	s.journalctlRestorer()
 	s.restoreSanitize()
+	s.restoreUDevMon()
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
@@ -223,6 +226,10 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
+
+	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedCallback, hotplug.DeviceRemovedCallback) hotplug.UDevMon {
+		return &hotplug.UDevMonMock{}
+	})
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""

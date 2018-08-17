@@ -17,7 +17,7 @@
  *
  */
 
-package overlord
+package hotplug
 
 import (
 	"fmt"
@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 )
+
+var CreateUDevMonitor = newUDevMonitor
 
 type UDevMon interface {
 	Connect() error
@@ -51,7 +53,7 @@ type UDevMonitor struct {
 	netlinkEvents chan netlink.UEvent
 }
 
-func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
+func newUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
 	m := &UDevMonitor{
 		deviceAddedCb:   addedCb,
 		deviceRemovedCb: removedCb,
@@ -139,3 +141,16 @@ func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 		m.deviceRemovedCb(di)
 	}
 }
+
+func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
+	CreateUDevMonitor = new
+	return func() {
+		CreateUDevMonitor = newUDevMonitor
+	}
+}
+
+type UDevMonMock struct{}
+
+func (u *UDevMonMock) Connect() error { return nil }
+func (u *UDevMonMock) Run() error     { return nil }
+func (u *UDevMonMock) Stop() error    { return nil }

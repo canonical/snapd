@@ -111,13 +111,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
-	restoreUDevMon := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
-		restoreUDevMon()
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
