@@ -322,7 +322,7 @@ setup_reflash_magic() {
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
         
         # FIXME: fetch directly once its in the assertion service
-        cp "$TESTSLIB/assertions/core-amd64-18.model" "$IMAGE_HOME/pc.model"
+        cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         
         IMAGE=core18-amd64.img
             
@@ -334,7 +334,7 @@ setup_reflash_magic() {
         #
         # We can do this once https://forum.snapcraft.io/t/5947 is
         # answered.
-        echo "Added needed assertions so that core-amd64-18.model works"
+        echo "Added needed assertions so that ubuntu-core-18-amd64.model works"
         # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
         STORE_DIR="$(pwd)/fake-store-blobdir"
