@@ -4255,6 +4255,15 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	st.Unlock()
+
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -4276,7 +4285,6 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
-	st := d.overlord.State()
 	st.Lock()
 	chg := st.Change(id)
 	st.Unlock()
@@ -4460,6 +4468,15 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	st.Unlock()
+
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -4481,7 +4498,6 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
-	st := d.overlord.State()
 	st.Lock()
 	chg := st.Change(id)
 	st.Unlock()
