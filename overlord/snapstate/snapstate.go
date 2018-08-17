@@ -452,7 +452,7 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func getBoolFeatureFlag(tr *config.Transaction, flag string) (bool, error) {
+func getFeatureFlagBool(tr *config.Transaction, flag string) (bool, error) {
 	var v interface{} = false
 	if err := tr.GetMaybe("core", flag, &v); err != nil {
 		return false, err
@@ -474,7 +474,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := getBoolFeatureFlag(tr, "experimental.layouts")
+		flag, err := getFeatureFlagBool(tr, "experimental.layouts")
 		if err != nil {
 			return err
 		}
@@ -484,7 +484,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := getBoolFeatureFlag(tr, "experimental.parallel-instances")
+		flag, err := getFeatureFlagBool(tr, "experimental.parallel-instances")
 		if err != nil {
 			return err
 		}
