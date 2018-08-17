@@ -11169,8 +11169,27 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
+	// check various forms of disabling
 	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", "")
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", nil)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	// enable layouts
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -11268,8 +11287,37 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	err := snapstate.ValidateFeatureFlags(s.state, info)
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 
-	// enable parallel instances
+	// various forms of disabling
 	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", false)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", "")
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", nil)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", "veryfalse")
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `internal error: feature flag experimental.parallel-instances has unexpected value "veryfalse" \(string\)`)
+
+	// enable parallel instances
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", true)
 	tr.Commit()
 
