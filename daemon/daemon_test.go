@@ -754,7 +754,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	d.overlord.State().RequestRestart(state.RestartSystem)
 
 	ch := make(chan os.Signal, 2)
-	go func() { ch <- syscall.SIGTERM }()
+	ch <- syscall.SIGTERM
 	// stop will check if we got a sigterm in between (which we did)
 	err := d.Stop(ch)
 	c.Assert(err, check.IsNil)
