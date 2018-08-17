@@ -963,7 +963,7 @@ func canSwitchChannel(st *state.State, snapName, newChannel string) error {
 			return err
 		}
 		if nch.Track != model.KernelTrack() {
-			return fmt.Errorf("cannot switch from kernel-track %q to %q", model.KernelTrack(), nch.String())
+			return fmt.Errorf("cannot switch from kernel track %q to %q", model.KernelTrack(), nch.String())
 		}
 	}
 	if snapName == model.Gadget() && model.GadgetTrack() != "" {
@@ -972,7 +972,7 @@ func canSwitchChannel(st *state.State, snapName, newChannel string) error {
 			return err
 		}
 		if nch.Track != model.GadgetTrack() {
-			return fmt.Errorf("cannot switch from gadget-track %q to %q", model.GadgetTrack(), nch.String())
+			return fmt.Errorf("cannot switch from gadget track %q to %q", model.GadgetTrack(), nch.String())
 		}
 	}
 

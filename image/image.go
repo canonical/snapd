@@ -295,8 +295,8 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func makeChannelFromTrack(track, defaultChannel string) (string, error) {
-	errPrefix := fmt.Sprintf("cannot use track %q from model assertion", track)
+func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use track %q for %s from model assertion", track, what)
 	mch, err := snap.ParseChannel(track, "")
 	if err != nil {
 		return "", fmt.Errorf("%s: %v", errPrefix, err)
@@ -405,14 +405,14 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 		snapChannel := opts.Channel
 		if name == model.Kernel() && model.KernelTrack() != "" {
-			kch, err := makeChannelFromTrack(model.KernelTrack(), opts.Channel)
+			kch, err := makeChannelFromTrack("kernel", model.KernelTrack(), opts.Channel)
 			if err != nil {
 				return err
 			}
 			snapChannel = kch
 		}
 		if name == model.Gadget() && model.GadgetTrack() != "" {
-			gch, err := makeChannelFromTrack(model.GadgetTrack(), opts.Channel)
+			gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
 			if err != nil {
 				return err
 			}
