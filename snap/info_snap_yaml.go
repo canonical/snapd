@@ -58,7 +58,8 @@ type snapYaml struct {
 type appYaml struct {
 	Aliases []string `yaml:"aliases,omitempty"`
 
-	Command string `yaml:"command"`
+	Command      string   `yaml:"command"`
+	CommandChain []string `yaml:"command-chain,omitempty"`
 
 	Daemon string `yaml:"daemon"`
 
@@ -294,6 +295,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Name:            appName,
 			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
+			CommandChain:    yApp.CommandChain,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,

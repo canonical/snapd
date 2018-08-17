@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -35,6 +36,7 @@ type RepositorySuite struct {
 	testutil.BaseTest
 	iface     Interface
 	plug      *snap.PlugInfo
+	plugSelf  *snap.PlugInfo
 	slot      *snap.SlotInfo
 	emptyRepo *Repository
 	// Repository pre-populated with s.iface
@@ -82,9 +84,13 @@ slots:
         interface: interface
         label: label
         attr: value
+plugs:
+    self:
+        interface: interface
+        label: label
 `, nil)
 	s.slot = producer.Slots["slot"]
-
+	s.plugSelf = producer.Plugs["self"]
 	// NOTE: Each of the snaps below have one slot so that they can be picked
 	// up by the repository. Some tests rename the "slot" slot as appropriate.
 	s.ubuntuCoreSnap = snaptest.MockInfo(c, `
@@ -95,6 +101,9 @@ slots:
     slot:
         interface: interface
 `, nil)
+	// NOTE: The core snap has a slot so that it shows up in the
+	// repository. The repository doesn't record snaps unless they
+	// have at least one interface.
 	s.coreSnap = snaptest.MockInfo(c, `
 name: core
 version: 0
@@ -1355,6 +1364,21 @@ func (s *RepositorySuite) TestConnections(c *C) {
 	c.Assert(conns, HasLen, 0)
 }
 
+func (s *RepositorySuite) TestConnectionsWithSelfConnected(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plugSelf), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plugSelf, s.slot), nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.Connections(s.plugSelf.Snap.InstanceName())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plugSelf, s.slot)})
+
+	conns, err = s.testRepo.Connections(s.slot.Snap.InstanceName())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plugSelf, s.slot)})
+}
+
 // Tests for Repository.DisconnectAll()
 
 func (s *RepositorySuite) TestDisconnectAll(c *C) {
@@ -2153,4 +2177,54 @@ func (s *RepositorySuite) TestBeforeConnectValidationPolicyCheckFailure(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `policy check failed`)
 	c.Assert(conn, IsNil)
+}
+
+func (s *RepositorySuite) TestConnection(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+
+	connRef := NewConnRef(s.plug, s.slot)
+
+	conn, err := s.testRepo.Connection(connRef)
+	c.Assert(err, ErrorMatches, `no connection from consumer:plug to producer:slot`)
+
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conn, err = s.testRepo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Assert(conn.Plug.Name(), Equals, "plug")
+	c.Assert(conn.Slot.Name(), Equals, "slot")
+
+	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "a", Name: "b"}, SlotRef: SlotRef{Snap: "producer", Name: "slot"}})
+	c.Assert(err, ErrorMatches, `snap "a" has no plug named "b"`)
+
+	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: SlotRef{Snap: "a", Name: "b"}})
+	c.Assert(err, ErrorMatches, `snap "a" has no slot named "b"`)
+}
+
+type hotplugTestInterface struct{ InterfaceName string }
+
+func (h *hotplugTestInterface) Name() string {
+	return h.InterfaceName
+}
+
+func (h *hotplugTestInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
+	return true
+}
+
+func (h *hotplugTestInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+	return nil
+}
+
+func (s *RepositorySuite) TestAllHotplugInterfaces(c *C) {
+	repo := NewRepository()
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface1"}), IsNil)
+	c.Assert(repo.AddInterface(&hotplugTestInterface{InterfaceName: "iface2"}), IsNil)
+	c.Assert(repo.AddInterface(&hotplugTestInterface{InterfaceName: "iface3"}), IsNil)
+
+	hi := repo.AllHotplugInterfaces()
+	c.Assert(hi, HasLen, 2)
+	c.Assert(hi[0].Name(), Equals, "iface2")
+	c.Assert(hi[1].Name(), Equals, "iface3")
 }

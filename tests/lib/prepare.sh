@@ -205,6 +205,17 @@ prepare_classic() {
         exit 1
     fi
 
+    # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
+    # unit. Stop the broken unit to not confuse the "degraded-boot" test.
+    #
+    # FIXME: fix the ubuntu-16.04-64 image
+    if systemctl list-unit-files | grep sshguard.service; then
+        if ! systemctl status sshguard.service; then
+            systemctl stop sshguard.service
+	    systemctl reset-failed sshguard.service
+        fi
+    fi
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -399,7 +410,7 @@ EOF
     fi
 
     # extra_snap should contain only ONE snap
-    if "${#extra_snap[@]}" -ne 1; then
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
         echo "unexpected number of globbed snaps: ${extra_snap[*]}"
         exit 1
     fi

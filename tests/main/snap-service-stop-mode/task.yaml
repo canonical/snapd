@@ -3,7 +3,9 @@ summary: "Check that stop-modes works"
 kill-timeout: 5m
 
 # journald in ubuntu-14.04 not reliable
-systems: [-ubuntu-14.04-*]
+# FIXME: enable core18 once https://github.com/snapcore/snapd/pull/5526
+#        is merged
+systems: [-ubuntu-14.04-*, -ubuntu-core-18-*]
 
 debug: |
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
@@ -64,4 +66,3 @@ restore: |
     rm -f *.pid || true
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
-    killall sleep || true

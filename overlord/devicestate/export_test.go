@@ -38,19 +38,11 @@ func MockKeyLength(n int) (restore func()) {
 	}
 }
 
-func MockRequestIDURL(url string) (restore func()) {
-	oldURL := requestIDURL
-	requestIDURL = url
+func MockBaseStoreURL(url string) (restore func()) {
+	oldURL := baseStoreURL
+	baseStoreURL = mustParse(url).ResolveReference(authRef)
 	return func() {
-		requestIDURL = oldURL
-	}
-}
-
-func MockSerialRequestURL(url string) (restore func()) {
-	oldURL := serialRequestURL
-	serialRequestURL = url
-	return func() {
-		serialRequestURL = oldURL
+		baseStoreURL = oldURL
 	}
 }
 
@@ -120,6 +112,7 @@ var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
 	CanAutoRefresh           = canAutoRefresh
+	NewEnoughProxy           = newEnoughProxy
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts

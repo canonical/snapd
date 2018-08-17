@@ -45,7 +45,6 @@ import (
 type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
-	runner     *state.TaskRunner
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
@@ -59,10 +58,8 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner) (*DeviceManager, error) {
 	delayedCrossMgrInit()
-
-	runner := state.NewTaskRunner(s)
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
@@ -70,7 +67,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner, reg: make(chan struct{})}
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, reg: make(chan struct{})}
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
@@ -250,8 +247,9 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	// if there's a gadget specified wait for it
 	var gadgetInfo *snap.Info
+	var hasPrepareDeviceHook bool
+	// if there's a gadget specified wait for it
 	if gadget != "" {
 		var err error
 		gadgetInfo, err = snapstate.GadgetInfo(m.state)
@@ -262,6 +260,16 @@ func (m *DeviceManager) ensureOperational() error {
 		if err != nil {
 			return err
 		}
+		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
+	}
+
+	// When the prepare-device hook is used we need a fully seeded system
+	// to ensure the prepare-device hook has access to the things it
+	// needs
+	if !seeded && hasPrepareDeviceHook {
+		// this will be run again, so eventually when the system is
+		// seeded the code below runs
+		return nil
 	}
 
 	// have some backoff between full retries
@@ -278,7 +286,7 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks := []*state.Task{}
 
 	var prepareDevice *state.Task
-	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
+	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
 			Snap: gadgetInfo.InstanceName(),
@@ -434,10 +442,6 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
-func (m *DeviceManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
@@ -457,23 +461,11 @@ func (m *DeviceManager) Ensure() error {
 		errs = append(errs, err)
 	}
 
-	m.runner.Ensure()
-
 	if len(errs) > 0 {
 		return &ensureError{errs}
 	}
 
 	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *DeviceManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *DeviceManager) Stop() {
-	m.runner.Stop()
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
