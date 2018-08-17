@@ -1215,7 +1215,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "new-channel")
-	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
@@ -1251,7 +1251,7 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
 	})
 
 	_, err := snapstate.Switch(s.state, "brand-gadget", "new-channel")
-	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
@@ -4793,7 +4793,7 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 
 	// switching tracks is not ok
 	_, err := snapstate.Update(s.state, "kernel", "new-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel/stable"`)
 
 	// no change to the channel is ok
 	_, err = snapstate.Update(s.state, "kernel", "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -4825,7 +4825,7 @@ func (s *snapmgrTestSuite) TestUpdateGadgetTrackChecksSwitchingTracks(c *C) {
 
 	// switching tracks is not ok
 	_, err := snapstate.Update(s.state, "brand-gadget", "new-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel/stable"`)
 
 	// no change to the channel is ok
 	_, err = snapstate.Update(s.state, "brand-gadget", "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -11227,7 +11227,7 @@ version: 1.0`)
 		Channel:  "some-channel",
 	}
 	_, err := snapstate.InstallPath(s.state, si, someSnap, "some-channel", snapstate.Flags{Required: true})
-	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" to "some-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "some-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchGadget(c *C) {
@@ -11257,7 +11257,7 @@ version: 1.0`)
 		Channel:  "some-channel",
 	}
 	_, err := snapstate.InstallPath(s.state, si, someSnap, "some-channel", snapstate.Flags{Required: true})
-	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" to "some-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "some-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
