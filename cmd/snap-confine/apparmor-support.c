@@ -118,7 +118,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		if (errno == EACCES) {
 			apparmor->mode = SC_AA_NOT_APPLICABLE;
 		} else {
-			die("open() failed");
+			die("cannot open /sys/kernel/security/apparmor/profiles");
 		}
 	}
 	close(fd);

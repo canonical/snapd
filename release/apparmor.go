@@ -130,7 +130,9 @@ func probeAppArmor() (AppArmorLevelType, string) {
 		if os.IsPermission(err) {
 			return NoAppArmor, "apparmor detected but insufficient permissions to use it"
 		}
-		f.Close()
+		if f != nil {
+			f.Close()
+		}
 	}
 
 	// Check apparmor features
