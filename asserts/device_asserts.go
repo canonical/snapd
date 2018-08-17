@@ -73,25 +73,40 @@ func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
 }
 
-// Gadget returns the gadget snap the model uses.
-func (mod *Model) Gadget() string {
-	return mod.HeaderString("gadget")
+// snapWithTrack represents a snap that includes optional track
+// information like `snapName=trackName`
+type snapWithTrack string
+
+func (s snapWithTrack) Snap() string {
+	return strings.SplitN(string(s), "=", 2)[0]
 }
 
-// Kernel returns the kernel snap the model uses.
-func (mod *Model) Kernel() string {
-	kernel := mod.HeaderString("kernel")
-	return strings.SplitN(kernel, "=", 2)[0]
-}
-
-// KernelTrack returns the kernel track the model uses.
-func (mod *Model) KernelTrack() string {
-	kernel := mod.HeaderString("kernel")
-	l := strings.SplitN(kernel, "=", 2)
+func (s snapWithTrack) Track() string {
+	l := strings.SplitN(string(s), "=", 2)
 	if len(l) > 1 {
 		return l[1]
 	}
 	return ""
+}
+
+// Gadget returns the gadget snap the model uses.
+func (mod *Model) Gadget() string {
+	return snapWithTrack(mod.HeaderString("gadget")).Snap()
+}
+
+// GadgetTrack returns the gadget track the model uses.
+func (mod *Model) GadgetTrack() string {
+	return snapWithTrack(mod.HeaderString("gadget")).Track()
+}
+
+// Kernel returns the kernel snap the model uses.
+func (mod *Model) Kernel() string {
+	return snapWithTrack(mod.HeaderString("kernel")).Snap()
+}
+
+// KernelTrack returns the kernel track the model uses.
+func (mod *Model) KernelTrack() string {
+	return snapWithTrack(mod.HeaderString("kernel")).Track()
 }
 
 // Base returns the base snap the model uses.
