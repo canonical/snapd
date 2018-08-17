@@ -20,12 +20,16 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <libgen.h>
 
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/snap.h"
 
 void setup_user_data(void)
 {
-	const char *user_data = getenv("SNAP_USER_DATA");
+	const char *user_data = getenv("SNAP_INSTANCE_USER_DATA");
 
 	if (user_data == NULL)
 		return;
@@ -38,7 +42,41 @@ void setup_user_data(void)
 	debug("creating user data directory: %s", user_data);
 	if (sc_nonfatal_mkpath(user_data, 0755) < 0) {
 		die("cannot create user data directory: %s", user_data);
-	};
+	}
+}
+
+void setup_user_snap_instance(const char *snap_instance)
+{
+	// Parallel installed snaps have their user data stored in
+	// $HOME/snap/foo_bar/ but for seamless support in applications we map that
+	// to $HOME/snap/foo. We need to make sure that $HOME/snap/foo exists
+	// otherwise the bind mounts will fail.
+
+	char instance_key[11] = { 0 };
+	sc_snap_split_instance_name(snap_instance, NULL, 0, instance_key,
+				    sizeof instance_key);
+	if (strlen(instance_key) == 0) {
+		// not a snap instance, nothing to do
+		return;
+	}
+
+	const char *user_data = getenv("SNAP_USER_DATA");
+	if (user_data == NULL) {
+		return;
+	}
+	// need to make a copy, dirname() modifies its argument
+	char *user_data_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+	user_data_copy = strdup(user_data);
+	if (user_data_copy == NULL) {
+		die("cannot allocate memory for user data path copy");
+	}
+	char *user_data_root = dirname(user_data_copy);
+
+	debug("creating root of snap user data: %s", user_data);
+	if (sc_nonfatal_mkpath(user_data_root, 0755) < 0) {
+		die("cannot create root of user data directory: %s",
+		    user_data_root);
+	}
 }
 
 void setup_user_xdg_runtime_dir(void)
