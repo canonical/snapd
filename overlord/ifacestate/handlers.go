@@ -1264,7 +1264,7 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 }
 
 // doHotplugRemoveSlots removes all slots of given hotplug device and interface from the repository.
-// Note, this task must neccesarily be run after all affected slots get disconnected.
+// Note, this task must necessarily be run after all affected slots get disconnected.
 func (m *InterfaceManager) doHotplugRemoveSlots(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
