@@ -581,7 +581,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// a signal arrived in between
 			return nil
 		}
-		close(sigCh)
+		if sigCh != nil {
+			close(sigCh)
+		}
 		time.Sleep(rebootWaitTimeout)
 		return fmt.Errorf("expected reboot did not happen")
 	}

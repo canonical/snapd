@@ -461,8 +461,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
-	ch := make(chan os.Signal, 2)
-	err = d.Stop(ch)
+	err = d.Stop(nil)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1", "STOPPING=1"})
@@ -482,9 +481,8 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
-	ch := make(chan os.Signal, 2)
 	d.Start()
-	defer d.Stop(ch)
+	defer d.Stop(nil)
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -593,9 +591,8 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 		doRespond <- true
 	}()
 
-	ch := make(chan os.Signal, 2)
 	<-responding
-	err = d.Stop(ch)
+	err = d.Stop(nil)
 	doRespond <- false
 	c.Check(err, check.IsNil)
 
@@ -620,9 +617,8 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
-	ch := make(chan os.Signal, 2)
 	d.Start()
-	defer d.Stop(ch)
+	defer d.Stop(nil)
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -686,7 +682,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	c.Check(delays, check.HasLen, 1)
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
 
-	err = d.Stop(ch)
+	err = d.Stop(nil)
 
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
 	c.Check(delays, check.HasLen, 2)
