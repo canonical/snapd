@@ -22,14 +22,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 var shortGetHelp = i18n.G("Print configuration options")
@@ -176,10 +174,6 @@ func (x *cmdGet) outputList(conf map[string]interface{}) error {
 	return nil
 }
 
-var isTerminal = func() bool {
-	return terminal.IsTerminal(int(os.Stdin.Fd()))
-}
-
 // outputDefault will be used when no commandline switch to override the
 // output where used. The output follows the following rules:
 // - a single key with a string value is printed directly
@@ -204,7 +198,7 @@ func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, con
 
 	// conf looks like a map
 	if cfg, ok := confToPrint.(map[string]interface{}); ok {
-		if isTerminal() {
+		if isStdinTTY {
 			return x.outputList(cfg)
 		}
 
