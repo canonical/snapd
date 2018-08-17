@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdAdviseSnap struct {
@@ -107,16 +109,18 @@ type jsonRPC struct {
 		Command         string   `json:"command"`
 		SearchTerms     []string `json:"search-terms"`
 		UnknownPackages []string `json:"unknown-packages"`
-		Packages        []string `json:"packages"`
-	} `json:"params"`
+	}
 }
 
 // readRpc reads a apt json rpc protocol 0.1 message as described in
 // https://salsa.debian.org/apt-team/apt/blob/master/doc/json-hooks-protocol.md#wire-protocol
 func readRpc(r *bufio.Reader) (*jsonRPC, error) {
-	line, _, err := r.ReadLine()
-	if err != nil {
+	line, err := r.ReadBytes('\n')
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("cannot read json-rpc: %v", err)
+	}
+	if osutil.GetenvBool("SNAP_APT_HOOK_DEBUG") {
+		fmt.Fprintf(os.Stderr, "%s\n", line)
 	}
 
 	var rpc jsonRPC
