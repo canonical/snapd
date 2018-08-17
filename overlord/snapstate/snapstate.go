@@ -452,14 +452,30 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
+func getFeatureFlagBool(tr *config.Transaction, flag string) (bool, error) {
+	var v interface{} = false
+	if err := tr.GetMaybe("core", flag, &v); err != nil {
+		return false, err
+	}
+	switch value := v.(type) {
+	case string:
+		if value == "" {
+			return false, nil
+		}
+	case bool:
+		return value, nil
+	}
+	return false, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
+}
+
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		var flag bool
-		if err := tr.GetMaybe("core", "experimental.layouts", &flag); err != nil {
+		flag, err := getFeatureFlagBool(tr, "experimental.layouts")
+		if err != nil {
 			return err
 		}
 		if !flag {
@@ -468,8 +484,8 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		var flag bool
-		if err := tr.GetMaybe("core", "experimental.parallel-instances", &flag); err != nil {
+		flag, err := getFeatureFlagBool(tr, "experimental.parallel-instances")
+		if err != nil {
 			return err
 		}
 		if !flag {
