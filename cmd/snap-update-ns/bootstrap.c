@@ -24,6 +24,7 @@
 
 #include "bootstrap.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -247,6 +248,82 @@ int validate_snap_name(const char* snap_name)
     return 0;
 }
 
+static int instance_key_validate(const char *instance_key)
+{
+    // NOTE: see snap.ValidateInstanceName for reference of a valid instance key
+    // format
+
+    // Ensure that name is not NULL
+    if (instance_key == NULL) {
+        bootstrap_msg = "instance key cannot be NULL";
+        return -1;
+    }
+
+    // This is a regexp-free routine hand-coding the following pattern:
+    //
+    // "^[a-z]{1,10}$"
+    //
+    // The only motivation for not using regular expressions is so that we don't
+    // run untrusted input against a potentially complex regular expression
+    // engine.
+    int i = 0;
+    for (i = 0; instance_key[i] != '\0'; i++) {
+        if (islower(instance_key[i]) || isdigit(instance_key[i])) {
+            continue;
+        }
+        bootstrap_msg = "instance key must use lower case letters or digits";
+        return -1;
+    }
+
+    if (i == 0) {
+        bootstrap_msg = "instance key must contain at least one letter or digit";
+        return -1;
+    } else if (i > 10) {
+        bootstrap_msg = "instance key must be shorter than 10 characters";
+        return -1;
+    }
+    return 0;
+}
+
+// validate_instance_name performs full validation of the given snap instance name.
+int validate_instance_name(const char* instance_name)
+{
+    // NOTE: This function should be synchronized with the two other
+    // implementations: sc_instance_name_validate and snap.ValidateInstanceName.
+
+    if (instance_name == NULL) {
+        bootstrap_msg = "snap instance name cannot be NULL";
+        return -1;
+    }
+
+    // 40 char snap_name + '_' + 10 char instance_key + 1 extra overflow + 1
+    // NULL
+    char s[53] = {0};
+    strncpy(s, instance_name, sizeof(s)-1);
+
+    char *t = s;
+    const char *snap_name = strsep(&t, "_");
+    const char *instance_key = strsep(&t, "_");
+    const char *third_separator = strsep(&t, "_");
+    if (third_separator != NULL) {
+        bootstrap_msg = "snap instance name can contain only one underscore";
+        return -1;
+    }
+
+    if (validate_snap_name(snap_name) < 0) {
+        return -1;
+    }
+
+    // When the instance_name is a normal snap name, instance_key will be
+    // NULL, so only validate instance_key when we found one.
+    if (instance_key != NULL && instance_key_validate(instance_key) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out, bool* process_user_fstab)
@@ -312,11 +389,11 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
         return;
     }
 
-    // Ensure that the snap name is valid so that we don't blindly setns into
+    // Ensure that the snap instance name is valid so that we don't blindly setns into
     // something that is controlled by a potential attacker.
-    if (validate_snap_name(snap_name) < 0) {
+    if (validate_instance_name(snap_name) < 0) {
         bootstrap_errno = 0;
-        // bootstap_msg is set by validate_snap_name;
+        // bootstap_msg is set by validate_instance_name;
         return;
     }
     // We have a valid snap name now so let's store it.

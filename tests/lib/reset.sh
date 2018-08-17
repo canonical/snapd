@@ -37,7 +37,7 @@ reset_classic() {
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*|opensuse-*|arch-*)
+        fedora-*|opensuse-*|arch-*|amazon-*)
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
@@ -87,7 +87,7 @@ reset_classic() {
 
         # wait for snapd listening
         EXTRA_NC_ARGS="-q 1"
-        if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        if [[ "$SPREAD_SYSTEM" = fedora-* || "$SPREAD_SYSTEM" = amazon-* ]]; then
             EXTRA_NC_ARGS=""
         fi
         while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
@@ -98,6 +98,9 @@ reset_all_snap() {
     # remove all leftover snaps
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
+
+    remove_bases=""
+    # remove all app snaps first
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
@@ -109,11 +112,19 @@ reset_all_snap() {
                     systemctl start snapd.service snapd.socket
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
-                    snap remove "$snap"
+                    if snap info "$snap" | egrep '^type: +(base|core)'; then
+                        remove_bases="$remove_bases $snap"
+                    else
+                        snap remove "$snap"
+                    fi
                 fi
                 ;;
         esac
     done
+    # remove all base/os snaps at the end
+    if [ -n "$remove_bases" ]; then
+        snap remove "$remove_bases"
+    fi
 
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket

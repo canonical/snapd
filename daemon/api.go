@@ -1013,6 +1013,11 @@ func verifySnapInstructions(inst *snapInstruction) error {
 }
 
 func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	for _, name := range inst.Snaps {
+		if len(name) == 0 {
+			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+		}
+	}
 	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
@@ -1038,6 +1043,10 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if len(inst.Snaps[0]) == 0 {
+		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+	}
+
 	flags, err := inst.installFlags()
 	if err != nil {
 		return "", nil, err
@@ -1865,7 +1874,11 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+				conn, err := repo.Connection(connRef)
+				if err != nil {
+					break
+				}
+				ts, err = ifacestate.Disconnect(st, conn)
 				if err != nil {
 					break
 				}
@@ -2744,17 +2757,13 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
-	n := "10"
+	n := 10
 	if s := query.Get("n"); s != "" {
 		m, err := strconv.ParseInt(s, 0, 32)
 		if err != nil {
 			return BadRequest(`invalid value for n: %q: %v`, s, err)
 		}
-		if m < 0 {
-			n = "all"
-		} else {
-			n = s
-		}
+		n = int(m)
 	}
 	follow := false
 	if s := query.Get("follow"); s != "" {

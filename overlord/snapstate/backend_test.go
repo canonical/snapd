@@ -30,6 +30,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -95,6 +96,7 @@ func (ops fakeOps) First(op string) *fakeOp {
 type fakeDownload struct {
 	name     string
 	macaroon string
+	target   string
 }
 
 type byName []store.CurrentSnap
@@ -102,7 +104,7 @@ type byName []store.CurrentSnap
 func (bna byName) Len() int      { return len(bna) }
 func (bna byName) Swap(i, j int) { bna[i], bna[j] = bna[j], bna[i] }
 func (bna byName) Less(i, j int) bool {
-	return bna[i].Name < bna[j].Name
+	return bna[i].InstanceName < bna[j].InstanceName
 }
 
 type byAction []*store.SnapAction
@@ -114,7 +116,7 @@ func (ba byAction) Less(i, j int) bool {
 		if ba[i].Action == "refresh" {
 			return ba[i].SnapID < ba[j].SnapID
 		} else {
-			return ba[i].Name < ba[j].Name
+			return ba[i].InstanceName < ba[j].InstanceName
 		}
 	}
 	return ba[i].Action < ba[j].Action
@@ -141,6 +143,10 @@ func (f *fakeStore) pokeStateLock() {
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
+	_, instanceKey := snap.SplitInstanceName(spec.Name)
+	if instanceKey != "" {
+		return nil, fmt.Errorf("internal error: unexpected instance name: %q", spec.Name)
+	}
 	sspec := snapSpec{
 		Name: spec.Name,
 	}
@@ -247,6 +253,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
+	case "core18-snap-id":
+		name = "core18"
+		typ = snap.TypeBase
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	case "producer-id":
@@ -336,14 +345,14 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	if len(currentSnaps) == 0 && len(actions) == 0 {
 		return nil, nil
 	}
-	if len(actions) > 3 {
+	if len(actions) > 4 {
 		panic("fake SnapAction unexpectedly called with more than 3 actions")
 	}
 
 	curByID := make(map[string]*store.CurrentSnap, len(currentSnaps))
 	curSnaps := make(byName, len(currentSnaps))
 	for i, cur := range currentSnaps {
-		if cur.Name == "" || cur.SnapID == "" || cur.Revision.Unset() {
+		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
 		curByID[cur.SnapID] = cur
@@ -371,16 +380,21 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if a.Action != "install" && a.Action != "refresh" {
 			panic("not supported")
 		}
+		if a.InstanceName == "" {
+			return nil, fmt.Errorf("internal error: action without instance name")
+		}
+
+		snapName, instanceKey := snap.SplitInstanceName(a.InstanceName)
 
 		if a.Action == "install" {
-			sspec := snapSpec{
-				Name:     a.Name,
+			spec := snapSpec{
+				Name:     snapName,
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.snap(sspec, user)
+			info, err := f.snap(spec, user)
 			if err != nil {
-				installErrors[a.Name] = err
+				installErrors[a.InstanceName] = err
 				continue
 			}
 			f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
@@ -392,6 +406,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			if !a.Revision.Unset() {
 				info.Channel = ""
 			}
+			info.InstanceKey = instanceKey
 			res = append(res, info)
 			continue
 		}
@@ -431,7 +446,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			userID: userID,
 		})
 		if err == store.ErrNoUpdateAvailable {
-			refreshErrors[cur.Name] = err
+			refreshErrors[cur.InstanceName] = err
 			continue
 		}
 		if err != nil {
@@ -440,6 +455,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if !a.Revision.Unset() {
 			info.Channel = ""
 		}
+		info.InstanceKey = instanceKey
 		res = append(res, info)
 	}
 
@@ -469,6 +485,9 @@ func (f *fakeStore) SuggestedCurrency() string {
 func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
+	if _, key := snap.SplitInstanceName(name); key != "" {
+		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
+	}
 	var macaroon string
 	if user != nil {
 		macaroon = user.StoreMacaroon
@@ -476,6 +495,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
 		name:     name,
+		target:   targetFn,
 	})
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 
@@ -527,16 +547,34 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		op.sinfo = *si
 	}
 
-	name := filepath.Base(snapFilePath)
-	if idx := strings.IndexByte(name, '_'); idx > -1 {
-		name = name[:idx]
+	var name string
+	if !osutil.IsDirectory(snapFilePath) {
+		name = filepath.Base(snapFilePath)
+		split := strings.Split(name, "_")
+		if len(split) >= 2 {
+			// <snap>_<rev>.snap
+			// <snap>_<instance-key>_<rev>.snap
+			name = split[0]
+		}
+	} else {
+		// for snap try only
+		snapf, err := snap.Open(snapFilePath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		info, err := snap.ReadInfoFromSnapFile(snapf, si)
+		if err != nil {
+			return nil, nil, err
+		}
+		name = info.SuggestedName
 	}
 
 	f.ops = append(f.ops, op)
 	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
@@ -544,6 +582,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 	}
 	f.ops = append(f.ops, fakeOp{
 		op:    "setup-snap",
+		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
 	})
@@ -564,17 +603,19 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
+	snapName, instanceKey := snap.SplitInstanceName(name)
 	// naive emulation for now, always works
 	info := &snap.Info{
-		SuggestedName: name,
+		SuggestedName: snapName,
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		Type:          snap.TypeApp,
 	}
-	if strings.Contains(name, "alias-snap") {
-		name = "alias-snap"
+	if strings.Contains(snapName, "alias-snap") {
+		// only for the switch below
+		snapName = "alias-snap"
 	}
-	switch name {
+	switch snapName {
 	case "gadget":
 		info.Type = snap.TypeGadget
 	case "core":
@@ -610,6 +651,7 @@ apps:
 		info.SideInfo = *si
 	}
 
+	info.InstanceKey = instanceKey
 	return info, nil
 }
 
@@ -697,6 +739,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p pro
 	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
 		op:    "undo-setup-snap",
+		name:  s.InstanceName(),
 		path:  s.MountDir(),
 		stype: typ,
 	})

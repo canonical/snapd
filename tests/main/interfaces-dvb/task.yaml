@@ -1,0 +1,52 @@
+summary: Ensure that the dvb interface works.
+
+details: |
+    The dvb interface allows access to all DVB (Digital Video Broadcasting) devices and APIs.
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-dvb
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    ensure_dir_exists_backup_real /dev/dvb/adapter9
+    ensure_file_exists_backup_real /dev/dvb/adapter9/video9
+    ensure_file_exists_backup_real /run/udev/data/c212:9
+
+restore: |
+    rm -f call.error
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    # Delete the created device files and restore backed up files
+    clean_file /run/udev/data/c212:9
+    clean_file /dev/dvb/adapter9/video9
+    clean_dir /dev/dvb/adapter9
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i dvb | MATCH -- '- +test-snapd-dvb:dvb'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-dvb:dvb
+
+    echo "Then the snap is able to access the device input"
+    test-snapd-dvb.sh -c "echo test >> /dev/dvb/adapter9/video9"
+    test-snapd-dvb.sh -c "cat /run/udev/data/c212:9"
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-dvb:dvb
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "Then the snap is not able to read the input device"
+    if test-snapd-dvb.sh -c 'cat /dev/dvb/adapter9/video9' 2>call.error; then
+        echo "Expected permission error accessing to input device"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

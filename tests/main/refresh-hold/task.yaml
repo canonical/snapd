@@ -1,7 +1,16 @@
 summary: Check that the refresh hold works
 
-# ubuntu-14.04 date prints differently and cannto be parsed by golang
-systems: [-ubuntu-14.04-*]
+# date had a bug where extended format would not be used for --iso-8601, this
+# got fixed in 2015 (released in 8.25), see
+# https://git.savannah.gnu.org/cgit/coreutils.git/commit/src/date.c?id=17bbf6ce44eb543a95695fa9d2cbd70fb52c6f42 for details
+#
+# the manifestation is running `date --iso-8601=seconds -d 'tomorrow 8:05 UTC'`
+# would produce:
+# - buggy version: 2018-07-27T08:05:00+0000
+# - fixed version: 2018-07-27T08:05:00+00:00
+
+# ubuntu-14.04 and amazon are shipped with buggy date
+systems: [-ubuntu-14.04-*, -amazon-*]
 
 execute: |
     echo "Ensure snap set core refresh.hold works"

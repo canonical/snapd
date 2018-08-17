@@ -49,9 +49,14 @@ type fakeStore struct {
 
 func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if len(actions) == 1 && actions[0].Action == "install" {
+		snapName, instanceKey := snap.SplitInstanceName(actions[0].InstanceName)
+		if instanceKey != "" {
+			panic(fmt.Sprintf("unexpected instance name %q in snap install action", actions[0].InstanceName))
+		}
+
 		return []*snap.Info{{
 			SideInfo: snap.SideInfo{
-				RealName: actions[0].Name,
+				RealName: snapName,
 				Revision: snap.R(2),
 			},
 			Architectures: []string{"all"},

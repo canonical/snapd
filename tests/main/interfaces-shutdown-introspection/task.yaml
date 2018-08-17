@@ -12,14 +12,15 @@ details: |
     the Introspect method on org.freedesktop.login1.
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Given a snap declaring a plug on the shutdown interface is installed"
     install_local shutdown-introspection-consumer
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i shutdown | MATCH "\- +shutdown-introspection-consumer:shutdown"
+    snap interfaces -i shutdown | MATCH -- '- +shutdown-introspection-consumer:shutdown'
 
     echo "When the plug is connected"
     snap connect shutdown-introspection-consumer:shutdown
