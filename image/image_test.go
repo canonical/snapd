@@ -74,6 +74,7 @@ type imageSuite struct {
 
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
+	storeActions    []*store.SnapAction
 	tsto            *image.ToolingStore
 
 	storeSigning *assertstest.StoreStack
@@ -175,6 +176,7 @@ func (s *imageSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
 	image.Stdout = os.Stdout
 	image.Stderr = os.Stderr
+	s.storeActions = nil
 }
 
 // interface for the store
@@ -190,6 +192,8 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
 		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
 	}
+	// record
+	s.storeActions = append(s.storeActions, actions[0])
 
 	if info, ok := s.storeSnapInfo[actions[0].InstanceName]; ok {
 		info.Channel = actions[0].Channel
@@ -479,6 +483,42 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 		fn := filepath.Join(gadgetUnpackDir, t.file)
 		c.Check(fn, testutil.FileEquals, t.content)
 	}
+}
+
+func (s *imageSuite) TestDownloadUnpackGadgetFromTrack(c *C) {
+	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, nil)
+	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1818))
+
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
+	opts := &image.Options{
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.DownloadUnpackGadget(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	c.Check(s.storeActions, HasLen, 1)
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		Channel:      "18/stable",
+		InstanceName: "pc",
+	})
+
 }
 
 func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[string]string) {
