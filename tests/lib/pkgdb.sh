@@ -559,14 +559,16 @@ pkg_dependencies_ubuntu_classic(){
     esac
 }
 
-pkg_linux_image_extra(){
-    if apt-cache policy "linux-image-extra-$(uname -r)" >/dev/null 2>&1; then
-        echo "linux-image-extra-$(uname -r)"
-    elif apt-cache policy "linux-image-extra-$(uname -r | cut -d- -f1)" >/dev/null 2>&1; then
-        echo "linux-image-extra-$(uname -r | cut -d- -f1)"
+pkg_linux_image_extra (){
+    if apt-cache show "linux-image-extra-$(uname -r)" > /dev/null 2>&1; then
+        echo "linux-image-extra-$(uname -r)";
     else
-        echo "cannot find a matching kernel modules package"
-        exit 1
+        if apt-cache show "linux-modules-extra-$(uname -r)" > /dev/null 2>&1; then
+            echo "linux-modules-extra-$(uname -r)";
+        else
+            echo "cannot find a matching kernel modules package";
+            exit 1;
+        fi;
     fi
 }
 
