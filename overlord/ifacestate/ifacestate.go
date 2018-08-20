@@ -78,6 +78,11 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 	return false, nil
 }
 
+type connectOpts struct {
+	ByGadget    bool
+	AutoConnect bool
+}
+
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
@@ -85,10 +90,10 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 		return nil, err
 	}
 
-	return connect(st, plugSnap, plugName, slotSnap, slotName, nil)
+	return connect(st, plugSnap, plugName, slotSnap, slotName, connectOpts{})
 }
 
-func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, flags []string) (*state.TaskSet, error) {
+func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, flags connectOpts) (*state.TaskSet, error) {
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
@@ -160,8 +165,11 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	for _, flag := range flags {
-		connectInterface.Set(flag, true)
+	if flags.AutoConnect {
+		connectInterface.Set("auto", true)
+	}
+	if flags.ByGadget {
+		connectInterface.Set("by-gadget", true)
 	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
