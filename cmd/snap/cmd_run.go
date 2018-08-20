@@ -303,9 +303,18 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	userData := info.UserDataDir(usr.HomeDir)
-	commonUserData := info.UserCommonDataDir(usr.HomeDir)
-	for _, d := range []string{userData, commonUserData} {
+	instanceUserData := info.UserDataDir(usr.HomeDir)
+	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
+	createDirs := []string{instanceUserData, instanceCommonUserData}
+	if info.InstanceKey != "" {
+		// parallel instance snaps get additional mapping in their mount
+		// namespace, namely /home/joe/snap/foo_bar ->
+		// /home/joe/snap/foo, make sure that the mount point exists and
+		// is owned by the user
+		snapUserDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir, info.SnapName())
+		createDirs = append(createDirs, snapUserDir)
+	}
+	for _, d := range createDirs {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
