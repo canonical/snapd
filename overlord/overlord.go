@@ -170,9 +170,7 @@ func (o *Overlord) EnableHotplug() error {
 	if err := udevMon.Connect(); err != nil {
 		return err
 	}
-	if err := udevMon.Run(); err != nil {
-		return err
-	}
+	udevMon.Run()
 	o.udevMon = udevMon
 	return nil
 }

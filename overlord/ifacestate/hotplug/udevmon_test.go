@@ -40,7 +40,7 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 	mon := hp.CreateUDevMonitor(nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
-	c.Assert(mon.Run(), IsNil)
+	mon.Run()
 	c.Assert(mon.Stop(), IsNil)
 }
 
@@ -68,7 +68,7 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	hp.MockUDevMonitorStopChannel(udevmon, mstop)
 	hp.MockUDevMonitorChannel(udevmon, event)
 
-	c.Assert(udevmon.Run(), IsNil)
+	udevmon.Run()
 
 	event <- netlink.UEvent{
 		Action: netlink.ADD,
