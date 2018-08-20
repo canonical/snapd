@@ -34,6 +34,7 @@ var CreateUDevMonitor = newUDevMonitor
 
 type UDevMon interface {
 	Connect() error
+	Disconnect() error
 	Run() error
 	Stop() error
 }
@@ -83,6 +84,11 @@ func (m *UDevMonitor) Connect() error {
 	return nil
 }
 
+func (m *UDevMonitor) Disconnect() error {
+	close(m.monitorStop)
+	return m.netlinkConn.Close()
+}
+
 // Run enumerates existing USB devices and starts a new goroutine that
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
@@ -96,8 +102,7 @@ func (m *UDevMonitor) Run() error {
 				m.udevEvent(&ev)
 			case <-m.tmb.Dying():
 				close(m.monitorStop)
-				m.netlinkConn.Close()
-				return nil
+				return m.netlinkConn.Close()
 			}
 		}
 	})
@@ -153,6 +158,7 @@ func MockCreateUDevMonitor(new newMonitorFn) (restore func()) {
 
 type UDevMonMock struct{}
 
-func (u *UDevMonMock) Connect() error { return nil }
-func (u *UDevMonMock) Run() error     { return nil }
-func (u *UDevMonMock) Stop() error    { return nil }
+func (u *UDevMonMock) Connect() error    { return nil }
+func (u *UDevMonMock) Disconnect() error { return nil }
+func (u *UDevMonMock) Run() error        { return nil }
+func (u *UDevMonMock) Stop() error       { return nil }

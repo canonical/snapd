@@ -757,6 +757,10 @@ func (u *udevMonMock) Connect() error {
 	return nil
 }
 
+func (u *udevMonMock) Disconnect() error {
+	return nil
+}
+
 func (u *udevMonMock) Run() error {
 	u.RunCalled = true
 	return nil
