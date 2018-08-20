@@ -306,8 +306,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
 		if (mnt->is_optional) {
-			sc_do_optional_mount(mnt->path, dst, NULL,
-					     MS_REC | MS_BIND, NULL);
+			bool ok = sc_do_optional_mount(mnt->path, dst, NULL,
+						       MS_REC | MS_BIND, NULL);
+			if (!ok) {
+				// If we cannot mount it, just continue.
+				continue;
+			}
 		} else {
 			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
 				    NULL);

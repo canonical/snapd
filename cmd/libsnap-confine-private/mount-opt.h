@@ -18,6 +18,7 @@
 #ifndef SNAP_CONFINE_MOUNT_OPT_H
 #define SNAP_CONFINE_MOUNT_OPT_H
 
+#include <stdbool.h>
 #include <stddef.h>
 
 /**
@@ -73,8 +74,10 @@ void sc_do_mount(const char *source, const char *target,
  * This variant is allowed to silently fail when mount fails with ENOENT.
  * That is, it can be used to perform mount operations and if either the source
  * or the destination is not present, carry on as if nothing had happened.
+ *
+ * The return value indicates if the operation was successful or not.
  **/
-void sc_do_optional_mount(const char *source, const char *target,
+bool sc_do_optional_mount(const char *source, const char *target,
 			  const char *fs_type, unsigned long mountflags,
 			  const void *data);
 

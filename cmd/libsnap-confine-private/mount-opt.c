@@ -256,7 +256,7 @@ static const char *use_debug_build =
     "(disabled) use debug build to see details";
 #endif
 
-static void sc_do_mount_ex(const char *source, const char *target,
+static bool sc_do_mount_ex(const char *source, const char *target,
 			   const char *fs_type,
 			   unsigned long mountflags, const void *data,
 			   bool optional)
@@ -278,7 +278,7 @@ static void sc_do_mount_ex(const char *source, const char *target,
 		int saved_errno = errno;
 		if (optional && saved_errno == ENOENT) {
 			// The special-cased value that is allowed to fail.
-			return;
+			return false;
 		}
 		// Drop privileges so that we can compute our nice error message
 		// without risking an attack on one of the string functions there.
@@ -291,16 +291,17 @@ static void sc_do_mount_ex(const char *source, const char *target,
 		errno = saved_errno;
 		die("cannot perform operation: %s", mount_cmd);
 	}
+	return true;
 }
 
 void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
 		 const void *data)
 {
-	return sc_do_mount_ex(source, target, fs_type, mountflags, data, false);
+	(void)sc_do_mount_ex(source, target, fs_type, mountflags, data, false);
 }
 
-void sc_do_optional_mount(const char *source, const char *target,
+bool sc_do_optional_mount(const char *source, const char *target,
 			  const char *fs_type, unsigned long mountflags,
 			  const void *data)
 {
