@@ -275,6 +275,20 @@ static void test_sc_do_umount(gconstpointer snap_debug)
 	}
 }
 
+static bool missing_mount(struct sc_fault_state *state, void *ptr)
+{
+	errno = ENOENT;
+	return true;
+}
+
+static void test_sc_do_optional_mount(void)
+{
+	sc_break("mount", missing_mount);
+	bool ok = sc_do_optional_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
+	g_assert_false(ok);
+	sc_reset_faults();
+}
+
 static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/mount/sc_mount_opt2str", test_sc_mount_opt2str);
@@ -288,4 +302,6 @@ static void __attribute__ ((constructor)) init(void)
 			     GINT_TO_POINTER(1), test_sc_do_mount);
 	g_test_add_data_func("/mount/sc_do_umount_with_debug",
 			     GINT_TO_POINTER(1), test_sc_do_umount);
+	g_test_add_func("/mount/sc_do_optional_mount",
+			test_sc_do_optional_mount);
 }
