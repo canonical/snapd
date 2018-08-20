@@ -595,7 +595,6 @@ func New() (*Daemon, error) {
 	}
 	err = ovld.EnableHotplug()
 	if err != nil {
-		logger.Noticef("Failed to enable hotplug: %s", err)
 		return nil, err
 	}
 	return &Daemon{

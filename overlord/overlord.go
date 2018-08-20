@@ -297,16 +297,20 @@ func (o *Overlord) Loop() {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
+	o.loopTomb.Kill(nil)
+	finalErr := o.loopTomb.Wait()
+	o.stateEng.Stop()
 	if o.udevMon != nil {
 		err := o.udevMon.Stop()
 		if err != nil {
 			logger.Noticef("Failed to stop udev monitor: %s", err)
+			if finalErr == nil {
+				finalErr = err
+			}
 		}
 	}
-	o.loopTomb.Kill(nil)
-	err1 := o.loopTomb.Wait()
-	o.stateEng.Stop()
-	return err1
+
+	return finalErr
 }
 
 func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
