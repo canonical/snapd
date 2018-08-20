@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,9 +17,28 @@
  *
  */
 
-package release
+package osutil_test
 
-var (
-	GetKernelRelease = getKernelRelease
-	GetMachineName   = getMachineName
+import (
+	"bytes"
+	"os/exec"
+
+	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
+
+type unameSuite struct{}
+
+var _ = check.Suite(unameSuite{})
+
+func ucmd1(c *check.C, arg string) string {
+	out, err := exec.Command("uname", arg).CombinedOutput()
+	c.Assert(err, check.IsNil)
+	return string(bytes.TrimSpace(out))
+}
+
+func (unameSuite) TestUname(c *check.C) {
+	c.Check(osutil.KernelVersion(), check.Equals, ucmd1(c, "-r"))
+	c.Check(osutil.MachineName(), check.Equals, ucmd1(c, "-m"))
+}
