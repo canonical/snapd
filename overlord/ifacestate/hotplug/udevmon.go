@@ -142,7 +142,9 @@ func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 	}
 }
 
-func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
+type newMonitorFn func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon
+
+func MockCreateUDevMonitor(new newMonitorFn) (restore func()) {
 	CreateUDevMonitor = new
 	return func() {
 		CreateUDevMonitor = newUDevMonitor
