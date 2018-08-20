@@ -255,9 +255,7 @@
     # parallel instances, allow remapping of SNAP_ paths
     mount options=(rw rbind) /snap/*_*/ -> /snap/*/,
     mount options=(rw rbind) /var/snap/*_*/ -> /var/snap/*/,
-    # workaround https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/1612393
-    mount options=(rw rbind) /home/*/snap/*_*/ -> /home/*/snap/*/,
-    mount options=(rw rbind) /root/snap/*_*/ -> /root/snap/*/,
+    mount options=(rw rbind) @{HOME}/snap/*_*/ -> @{HOME}/snap/*/,
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
