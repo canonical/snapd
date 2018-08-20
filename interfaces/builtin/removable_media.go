@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,11 @@ const removableMediaConnectedPlugAppArmor = `
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /{,run/}media/*/ r,
 /{,run/}media/*/** rwk,
+
+# Allow read-only access to /mnt to enumerate items.
+/mnt/ r,
+# Allow write access to anything under /mnt
+/mnt/*/** rwk,
 `
 
 func init() {

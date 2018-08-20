@@ -662,7 +662,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR
 			{"/run/netns", true},	// access to the 'ip netns' network namespaces
-			{"/mnt",.is_optional = true},	// to support the legacy-mnt interface
+			{"/mnt",.is_optional = true},	// to support the removable-media interface
 			{},
 		};
 		char rootfs_dir[PATH_MAX] = { 0 };
