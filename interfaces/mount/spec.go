@@ -21,8 +21,10 @@ package mount
 
 import (
 	"fmt"
+	"path"
 	"sort"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -205,4 +207,36 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		return iface.MountPermanentSlot(spec, slot)
 	}
 	return nil
+}
+
+// AddParallelInstanceMapping records mappings of snap instance directories
+//
+// When the snap is installed with an instance key, set up it's mount namespace
+// such that it appears as a non-instance key snap. This ensures compatibility
+// with code making assumptions about
+// $SNAP{,_DATA,_COMMON,_USER_DATA,_USER_COMMON} locations. That is, given a
+// snap foo_bar, the mappings added are:
+//
+// - /snap/foo_bar -> /snap/foo
+// - /var/snap/foo_bar -> /var/snap/foo
+// - $HOME/snap/foo_bar -> $HOME/snap/foo
+func (spec *Specification) AddParallelInstanceMapping(info *snap.Info) {
+	// /snap/foo_bar -> /snap/foo
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    path.Join(dirs.CoreSnapMountDir, info.InstanceName()),
+		Dir:     path.Join(dirs.CoreSnapMountDir, info.SnapName()),
+		Options: []string{"rbind", osutil.XSnapdOriginLayout()},
+	})
+	// /var/snap/foo_bar -> /var/snap/foo
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    path.Join(dirs.SnapDataDir, info.InstanceName()),
+		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
+		Options: []string{"rbind", osutil.XSnapdOriginLayout()},
+	})
+	// $HOME/snap/foo_bar -> $HOME/snap/foo
+	spec.AddUserMountEntry(osutil.MountEntry{
+		Name:    path.Join("$USER_HOME_SNAP_DIR", info.InstanceName()),
+		Dir:     path.Join("$USER_HOME_SNAP_DIR", info.SnapName()),
+		Options: []string{"rbind", osutil.XSnapdOriginLayout()},
+	})
 }
