@@ -47,7 +47,7 @@ execute: |
     }
 
     echo "Install lxd"
-    snap install lxd
+    snap install --candidate lxd
 
     echo "Create a trivial container using the lxd snap"
     wait_for_lxd

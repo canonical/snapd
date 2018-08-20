@@ -123,5 +123,5 @@ func run() error {
 		// something called Stop()
 	}
 
-	return d.Stop()
+	return d.Stop(ch)
 }

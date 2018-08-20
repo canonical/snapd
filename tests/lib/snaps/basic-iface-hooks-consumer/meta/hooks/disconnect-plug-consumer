@@ -1,11 +1,10 @@
 #!/bin/sh
+set -x
 
-set -ue
-
-echo "Getting attributes from connect-plug-consumer hook"
+echo "Getting attributes from disconnect-plug-consumer hook"
 
 if ! output=$(snapctl get --slot :consumer producer-attr-1); then
-    echo "Expected connect-plug-consumer to be able to read the value of 'producer-attr-1' attribute of the slot"
+    echo "Expected disconnect-plug-consumer to be able to read the value of 'producer-attr-1' attribute of the slot"
     exit 1
 fi
 expected_output="producer-value-1"
@@ -16,7 +15,7 @@ fi
 
 # Read 'before-connect' attribute of the slot
 if ! output=$(snapctl get --slot :consumer before-connect); then
-    echo "Expected connect-plug-consumer be able to read the value of the 'producer-attr-3' attribute of the slot"
+    echo "Expected disconnect-plug-consumer be able to read the value of the 'before-connect' attribute of the slot"
     exit 1
 fi
 expected_output="slot-changed(producer-value)"
@@ -38,7 +37,7 @@ fi
 
 # Read own 'before-connect' attribute
 if ! output=$(snapctl get :consumer before-connect); then
-    echo "Expected connect-plug-consumer be able to read the value of own 'before-connect' attribute"
+    echo "Expected disconnect-plug-consumer be able to read the value of own 'before-connect' attribute"
     exit 1
 fi
 expected_output="plug-changed(consumer-value)"
@@ -53,16 +52,10 @@ if snapctl get :unknown target; then
     exit 1
 fi
 
-# Attributes cannot be set in connect- hooks
+# Attributes cannot be set in connect- or disconnect- hooks
 if snapctl set :consumer consumer-attr-4=foo; then
-    echo "Expected snapctl set to fail when run from connect-plug hook"
+    echo "Expected snapctl set to fail when run from connect-plug or disconnect-plug hook"
     exit 1
 fi
 
-output=$(snapctl get fail)
-if [ "$output" = "connect" ]; then
-    echo "Failing connect hook as requested"
-    exit 1
-fi
-
-touch "$SNAP_COMMON/connect-plug-consumer-done"
+touch "$SNAP_COMMON/disconnect-plug-consumer-done"
