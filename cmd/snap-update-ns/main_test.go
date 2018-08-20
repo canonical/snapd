@@ -316,9 +316,17 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 func (s *mainSuite) TestApplyUserFstab(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
+	restore := update.MockOsGetenv(func(what string) string {
+		switch what {
+		case "SNAP_INSTANCE_USER_DATA":
+			return "/home/joe/snap/foo/123"
+		}
+		return ""
+	})
+	defer restore()
 
 	var changes []update.Change
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore = update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
 		changes = append(changes, *chg)
 		return nil, nil
 	})
@@ -340,6 +348,52 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 
 	c.Assert(changes, HasLen, 1)
 	c.Assert(changes[0].Action, Equals, update.Mount)
-	c.Assert(changes[0].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
-	c.Assert(changes[0].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+	c.Assert(changes[0].Entry.Name, Equals, filepath.Join(xdgRuntimeDir, "doc/by-app/snap.foo"))
+	c.Assert(changes[0].Entry.Dir, Matches, filepath.Join(xdgRuntimeDir, "doc"))
+
+}
+
+func (s *mainSuite) TestParallelInstanceApplyUserFstab(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	userDir := "/home/joe"
+	restore := update.MockOsGetenv(func(what string) string {
+		switch what {
+		case "SNAP_INSTANCE_USER_DATA":
+			return filepath.Join(userDir, dirs.UserHomeSnapDir, "foo_bar/123")
+		}
+		return ""
+	})
+	defer restore()
+
+	var changes []update.Change
+	restore = update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+		changes = append(changes, *chg)
+		return nil, nil
+	})
+	defer restore()
+
+	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo_bar $XDG_RUNTIME_DIR/doc none bind,rw 0 0
+$USER_HOME_SNAP_DIR/foo_bar $USER_HOME_SNAP_DIR/foo none bind,rw 0 0`
+
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, "foo_bar")
+	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
+	c.Assert(err, IsNil)
+
+	err = update.ApplyUserFstab("foo_bar")
+	c.Assert(err, IsNil)
+
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+
+	c.Assert(changes, HasLen, 2)
+	c.Assert(changes[0].Action, Equals, update.Mount)
+	c.Assert(changes[0].Entry.Name, Equals, filepath.Join(userDir, dirs.UserHomeSnapDir, "foo_bar"))
+	c.Assert(changes[0].Entry.Dir, Matches, filepath.Join(userDir, dirs.UserHomeSnapDir, "foo"))
+
+	c.Assert(changes[1].Action, Equals, update.Mount)
+	c.Assert(changes[1].Entry.Name, Equals, filepath.Join(xdgRuntimeDir, "doc/by-app/snap.foo_bar"))
+	c.Assert(changes[1].Entry.Dir, Matches, filepath.Join(xdgRuntimeDir, "doc"))
+
 }

@@ -231,6 +231,8 @@ func debugShowChanges(changes []*Change, header string) {
 	}
 }
 
+var osGetenv = os.Getenv
+
 func applyUserFstab(snapName string) error {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
@@ -238,15 +240,32 @@ func applyUserFstab(snapName string) error {
 		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
 	}
 
+	userHomeSnapDir := ""
+	if ud := osGetenv("SNAP_INSTANCE_USER_DATA"); ud != "" {
+		// /home/joe/snap/foo_bar/123 -> /home/joe/snap
+		if split := strings.SplitN(ud, "/"+snapName+"/", 2); len(split) == 2 {
+			userHomeSnapDir = split[0]
+		}
+	}
+	if userHomeSnapDir == "" {
+		return fmt.Errorf("cannot determine user %v home snap dir", os.Getuid())
+	}
+
 	// Replace XDG_RUNTIME_DIR in mount profile
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+
+	f := func(what string) string {
+		switch what {
+		case "XDG_RUNTIME_DIR":
+			return xdgRuntimeDir
+		case "USER_HOME_SNAP_DIR":
+			return userHomeSnapDir
+		}
+		return what
+	}
 	for i := range desired.Entries {
-		if strings.HasPrefix(desired.Entries[i].Name, "$XDG_RUNTIME_DIR/") {
-			desired.Entries[i].Name = strings.Replace(desired.Entries[i].Name, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)
-		}
-		if strings.HasPrefix(desired.Entries[i].Dir, "$XDG_RUNTIME_DIR/") {
-			desired.Entries[i].Dir = strings.Replace(desired.Entries[i].Dir, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)
-		}
+		desired.Entries[i].Name = os.Expand(desired.Entries[i].Name, f)
+		desired.Entries[i].Dir = os.Expand(desired.Entries[i].Dir, f)
 	}
 
 	debugShowProfile(desired, "desired mount profile")

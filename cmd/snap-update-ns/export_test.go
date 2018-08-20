@@ -165,3 +165,11 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 		osReadlink = old
 	}
 }
+
+func MockOsGetenv(f func(string) string) (restore func()) {
+	osGetenvOrig := osGetenv
+	osGetenv = f
+	return func() {
+		osGetenv = osGetenvOrig
+	}
+}
