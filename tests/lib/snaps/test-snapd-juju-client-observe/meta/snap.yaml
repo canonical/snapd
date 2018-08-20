@@ -1,0 +1,9 @@
+name: test-snapd-juju-client-observe
+version: 1.0
+summary: Basic juju-client-observe snap
+description: A basic snap which allows reading juju client configuration
+
+apps:
+  sh:
+    command: bin/sh
+    plugs: [juju-client-observe]
