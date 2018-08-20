@@ -91,7 +91,7 @@ func (m *UDevMonitor) Run() error {
 	udevadmErrors := make(chan error)
 
 	if err := hotplug.EnumerateExistingDevices(existingDevices, udevadmErrors); err != nil {
-		return fmt.Errorf("failed to enumerate existing devices: %s", err)
+		return fmt.Errorf("cannot enumerate existing devices: %s", err)
 	}
 
 	m.tmb.Go(func() error {
