@@ -295,6 +295,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddSnapLayout(snapInfo)
 
+	if snapInfo.InstanceKey != "" {
+		// Add snippets for parallel snap installation mapping
+		spec.(*Specification).AddParallelInstanceMapping(snapInfo)
+	}
+
 	// core on classic is special
 	//
 	// TODO: we need to deal with the "snapd" snap here soon
