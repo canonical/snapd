@@ -54,7 +54,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
 /dev/dri/ r,
 /dev/dri/card0 rw,
@@ -74,6 +74,12 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 @{PROC}/devices r,
 /sys/devices/system/memory/block_size_bytes r,
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
+/dev/nvidia-uvm rw,
+/dev/nvidia-uvm-tools rw,
+/dev/nvidiactl rw,
+/dev/nvidia* rw,
+/{dev,run}/shm/cuda.* rw,
+
 
 # Parallels guest tools 3D acceleration (video toolgate)
 @{PROC}/driver/prl_vtg rw,
@@ -108,6 +114,12 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="vchiq"`,
 }
 
+const openglConnectedPlugSecComp = `
+# Description: allow running operations on GPU devices
+# necessary as cuda tries to create /dev/nvidia-uvm-tools with mknod
+mknod - |S_IFCHR
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "opengl",
@@ -116,6 +128,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  openglBaseDeclarationSlots,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
+		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		connectedPlugUDev:     openglConnectedPlugUDev,
 		reservedForOS:         true,
 	})
