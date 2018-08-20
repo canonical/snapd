@@ -29,6 +29,11 @@ func PatchesForTest() map[int]func(*state.State) error {
 	return patches
 }
 
+// SublevelPatchesForTest returns the registered set of sublevel patches for testing purposes.
+func SublevelPatchesForTest() map[int]func(*state.State) error {
+	return sublevelPatches
+}
+
 // MockPatch1ReadType replaces patch1ReadType.
 func MockPatch1ReadType(f func(name string, rev snap.Revision) (snap.Type, error)) (restore func()) {
 	old := patch1ReadType
