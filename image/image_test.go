@@ -1098,7 +1098,7 @@ func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 	c.Assert(err, ErrorMatches, `cannot use channel: channel name has too many components: x/x/x/x`)
 }
 
-func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
+func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1109,7 +1109,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 		"brand-id":     "my-brand",
 		"model":        "my-model",
 		"architecture": "amd64",
-		"gadget":       "pc",
+		"gadget":       "pc=18",
 		"kernel":       "pc-kernel=18",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
@@ -1151,9 +1151,10 @@ func (s *imageSuite) TestBootstrapWithKernelTrack(c *C) {
 		Channel: "18/stable",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
-		Name:   "pc",
-		SnapID: "pc-Id",
-		File:   "pc_1.snap",
+		Name:    "pc",
+		SnapID:  "pc-Id",
+		File:    "pc_1.snap",
+		Channel: "18/stable",
 	})
 }
 

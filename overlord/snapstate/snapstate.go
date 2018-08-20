@@ -452,14 +452,30 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
+func getFeatureFlagBool(tr *config.Transaction, flag string) (bool, error) {
+	var v interface{} = false
+	if err := tr.GetMaybe("core", flag, &v); err != nil {
+		return false, err
+	}
+	switch value := v.(type) {
+	case string:
+		if value == "" {
+			return false, nil
+		}
+	case bool:
+		return value, nil
+	}
+	return false, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
+}
+
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		var flag bool
-		if err := tr.GetMaybe("core", "experimental.layouts", &flag); err != nil {
+		flag, err := getFeatureFlagBool(tr, "experimental.layouts")
+		if err != nil {
 			return err
 		}
 		if !flag {
@@ -468,8 +484,8 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		var flag bool
-		if err := tr.GetMaybe("core", "experimental.parallel-instances", &flag); err != nil {
+		flag, err := getFeatureFlagBool(tr, "experimental.parallel-instances")
+		if err != nil {
 			return err
 		}
 		if !flag {
@@ -975,18 +991,23 @@ func canSwitchChannel(st *state.State, snapName, newChannel string) error {
 		return nil
 	}
 
-	if snapName != model.Kernel() {
-		return nil
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
+		nch, err := snap.ParseChannel(newChannel, "")
+		if err != nil {
+			return err
+		}
+		if nch.Track != model.KernelTrack() {
+			return fmt.Errorf("cannot switch from kernel track %q as specified for the (device) model to %q", model.KernelTrack(), nch.String())
+		}
 	}
-	if model.KernelTrack() == "" {
-		return nil
-	}
-	nch, err := snap.ParseChannel(newChannel, "")
-	if err != nil {
-		return err
-	}
-	if nch.Track != model.KernelTrack() {
-		return fmt.Errorf("cannot switch from kernel-track %q to %q", model.KernelTrack(), nch.String())
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
+		nch, err := snap.ParseChannel(newChannel, "")
+		if err != nil {
+			return err
+		}
+		if nch.Track != model.GadgetTrack() {
+			return fmt.Errorf("cannot switch from gadget track %q as specified for the (device) model to %q", model.GadgetTrack(), nch.String())
+		}
 	}
 
 	return nil
@@ -1503,15 +1524,29 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		removeHook = SetupRemoveHook(st, snapsup.InstanceName())
 	}
 
-	if active { // unlink
-		var prev *state.Task
-
-		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
+	var prev *state.Task
+	var stopSnapServices *state.Task
+	if active {
+		stopSnapServices = st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
+		addNext(state.NewTaskSet(stopSnapServices))
 		prev = stopSnapServices
+	}
 
-		tasks := []*state.Task{stopSnapServices}
+	if removeAll {
+		// run disconnect hooks
+		disconnect := st.NewTask("auto-disconnect", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
+		disconnect.Set("snap-setup", snapsup)
+		if prev != nil {
+			disconnect.WaitFor(prev)
+		}
+		addNext(state.NewTaskSet(disconnect))
+		prev = disconnect
+	}
+
+	if active { // unlink
+		var tasks []*state.Task
 		if removeHook != nil {
 			tasks = append(tasks, removeHook)
 			removeHook.WaitFor(prev)
@@ -1542,15 +1577,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			si := seq[i]
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
-
-		discardConns := st.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
-		discardConns.Set("snap-setup", &SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: snap.InstanceSnap(name),
-			},
-			InstanceKey: snapst.InstanceKey,
-		})
-		addNext(state.NewTaskSet(discardConns))
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}
