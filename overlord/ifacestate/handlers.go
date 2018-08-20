@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -488,7 +489,21 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
+	conn, ok := conns[cref.ID()]
+	if !ok {
+		return fmt.Errorf("internal error: connection %q not found in state", cref.ID())
+	}
+
+	// store old connection for undo
+	task.Set("old-conn", conn)
+
+	// "auto-disconnect" flag indicates it's a disconnect triggered automatically as part of snap removal;
+	// such disconnects should not set undesired flag and instead just remove the connection.
+	var autoDisconnect bool
+	if err := task.Get("auto-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: failed to read 'auto-disconnect' flag: %s", err)
+	}
+	if conn.Auto && !autoDisconnect {
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
 		conn.DynamicSlotAttrs = nil
@@ -499,6 +514,70 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		delete(conns, cref.ID())
 	}
 	setConns(st, conns)
+	return nil
+}
+
+func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldconn connState
+	err := task.Get("old-conn", &oldconn)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	plugRef, slotRef, err := getPlugAndSlotRefs(task)
+	if err != nil {
+		return err
+	}
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+		return err
+	}
+	var slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+		return err
+	}
+
+	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	if plug == nil {
+		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if slot == nil {
+		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	_, err = m.repo.Connect(connRef, oldconn.DynamicPlugAttrs, oldconn.DynamicSlotAttrs, nil)
+	if err != nil {
+		return err
+	}
+
+	slotOpts := confinementOptions(slotSnapst.Flags)
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
+		return err
+	}
+	plugOpts := confinementOptions(plugSnapst.Flags)
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
+		return err
+	}
+
+	conns[connRef.ID()] = oldconn
+	setConns(st, conns)
+
 	return nil
 }
 
@@ -550,6 +629,100 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 		}
 	}
 	return defaultProviders
+}
+
+func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
+	for _, task := range st.Tasks() {
+		if task.Status().Ready() {
+			continue
+		}
+
+		k := task.Kind()
+		if k == "connect" || k == "disconnect" {
+			// retry if we found another connect/disconnect affecting same snap; note we can only encounter
+			// connects/disconnects created by doAutoDisconnect / doAutoConnect here as manual interface ops
+			// are rejected by conflict check logic in snapstate.
+			plugRef, slotRef, err := getPlugAndSlotRefs(task)
+			if err != nil {
+				return err
+			}
+			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
+				return &state.Retry{After: connectRetryTimeout}
+			}
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		// e.g. hook tasks don't have task snap setup
+		if err != nil {
+			continue
+		}
+
+		otherSnapName := snapsup.InstanceName()
+
+		// different snaps - no conflict
+		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+			continue
+		}
+
+		// other snap that affects us because of plug or slot
+		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
+			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
+			// if snap is getting installed/refreshed - temporary conflict, retry later
+			return &state.Retry{After: connectRetryTimeout}
+		}
+	}
+	return nil
+}
+
+func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slotSnap string) error {
+	for _, task := range st.Tasks() {
+		if task.Status().Ready() {
+			continue
+		}
+
+		k := task.Kind()
+		if k == "connect" || k == "disconnect" {
+			// retry if we found another connect/disconnect affecting same snap; note we can only encounter
+			// connects/disconnects created by doAutoDisconnect / doAutoConnect here as manual interface ops
+			// are rejected by conflict check logic in snapstate.
+			plugRef, slotRef, err := getPlugAndSlotRefs(task)
+			if err != nil {
+				return err
+			}
+			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
+				return &state.Retry{After: connectRetryTimeout}
+			}
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		// e.g. hook tasks don't have task snap setup
+		if err != nil {
+			continue
+		}
+
+		otherSnapName := snapsup.InstanceName()
+
+		// different snaps - no conflict
+		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+			continue
+		}
+
+		// another task related to same snap op (unrelated op would be blocked by snapstate conflict logic)
+		if otherSnapName == disconnectingSnap {
+			continue
+		}
+
+		// note, don't care about unlink-snap for the opposite end. This relies
+		// on the fact that auto-disconnect will create conflicting "disconnect" tasks that
+		// we will retry with the logic above.
+		if k == "link-snap" || k == "setup-profiles" {
+			// other snap is getting installed/refreshed - temporary conflict
+			return &state.Retry{After: connectRetryTimeout}
+		}
+	}
+	return nil
 }
 
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
@@ -646,7 +819,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
 		if err != nil {
 			return err
 		}
@@ -655,10 +828,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		const auto = true
-		if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+		if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				task.Logf("Waiting for conflicting change in progress...")
 				return err // will retry
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
@@ -698,7 +871,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 
-			ignore, err := findSymmetricAutoconnect(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+			ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
 			if err != nil {
 				return err
 			}
@@ -707,10 +880,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 
-			const auto = true
-			if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 				if _, retry := err.(*state.Retry); retry {
-					task.Logf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					task.Logf("Waiting for conflicting change in progress...")
 					return err // will retry
 				}
 				return fmt.Errorf("auto-connect conflict check failed: %s", err)
@@ -734,6 +907,59 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		st.EnsureBefore(0)
 	}
 
+	task.SetStatus(state.DoneStatus)
+	return nil
+}
+
+// doAutoDisconnect creates tasks for disconnecting all interfaces of a snap and running its interface hooks.
+func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	snapName := snapsup.InstanceName()
+	connections, err := m.repo.Connections(snapName)
+	if err != nil {
+		return err
+	}
+
+	// check for conflicts on all connections first before creating disconnect hooks
+	for _, connRef := range connections {
+		const auto = true
+		if err := checkDisconnectConflicts(st, snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				task.Logf("Waiting for conflicting change in progress...")
+				return err // will retry
+			}
+			return fmt.Errorf("cannot check conflicts when disconnecting interfaces: %s", err)
+		}
+	}
+
+	hookTasks := state.NewTaskSet()
+	for _, connRef := range connections {
+		conn, err := m.repo.Connection(connRef)
+		if err != nil {
+			break
+		}
+		// "auto-disconnect" flag indicates it's a disconnect triggered as part of snap removal, in which
+		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
+		// them so they can be automatically connected if the snap is installed again.
+		ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
+		if err != nil {
+			return err
+		}
+		hookTasks.AddAll(ts)
+	}
+
+	snapstate.InjectTasks(task, hookTasks)
+
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
 	task.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -864,8 +1090,7 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 			continue
 		}
 
-		const auto = true
-		if err := checkConnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), auto); err != nil {
+		if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("gadget connect will be retried because of %q - %q conflict", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 				return err // will retry
