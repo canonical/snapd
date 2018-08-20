@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 	if (snap_name == NULL) {
 		die("SNAP_NAME is not set");
 	}
-	sc_instance_name_validate(snap_name, NULL);
+	sc_snap_name_validate(snap_name, NULL);
 
 	// Collect and validate the security tag and a few other things passed on
 	// command line.
