@@ -37,7 +37,7 @@ type patchSuite struct{}
 var _ = Suite(&patchSuite{})
 
 func (s *patchSuite) TestInit(c *C) {
-	restore := patch.Mock(2, nil)
+	restore := patch.Mock(2, nil, 1, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -49,10 +49,14 @@ func (s *patchSuite) TestInit(c *C) {
 	err := st.Get("patch-level", &patchLevel)
 	c.Assert(err, IsNil)
 	c.Check(patchLevel, Equals, 2)
+
+	var patchSublevel int
+	c.Assert(st.Get("patch-sublevel", &patchSublevel), IsNil)
+	c.Check(patchSublevel, Equals, 1)
 }
 
 func (s *patchSuite) TestNothingToDo(c *C) {
-	restore := patch.Mock(2, nil)
+	restore := patch.Mock(2, nil, 0, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -64,7 +68,7 @@ func (s *patchSuite) TestNothingToDo(c *C) {
 }
 
 func (s *patchSuite) TestNoDowngrade(c *C) {
-	restore := patch.Mock(2, nil)
+	restore := patch.Mock(2, nil, 0, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -88,15 +92,25 @@ func (s *patchSuite) TestApply(c *C) {
 		st.Set("n", n*10)
 		return nil
 	}
+	sp12 := func(st *state.State) error {
+		var o int
+		st.Get("o", &o)
+		st.Set("o", o+1)
+		return nil
+	}
+
 	restore := patch.Mock(3, map[int]func(*state.State) error{
 		2: p12,
 		3: p23,
+	}, 2, map[int]func(*state.State) error{
+		2: sp12,
 	})
 	defer restore()
 
 	st := state.New(nil)
 	st.Lock()
 	st.Set("patch-level", 1)
+	st.Set("patch-sublevel", 1)
 	st.Unlock()
 	err := patch.Apply(st)
 	c.Assert(err, IsNil)
@@ -109,16 +123,23 @@ func (s *patchSuite) TestApply(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(level, Equals, 3)
 
-	var n int
+	var sublevel int
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(sublevel, Equals, 2)
+
+	var n, o int
 	err = st.Get("n", &n)
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 10)
+
+	c.Assert(st.Get("o", &o), IsNil)
+	c.Assert(o, Equals, 1)
 }
 
 func (s *patchSuite) TestMissing(c *C) {
 	restore := patch.Mock(3, map[int]func(*state.State) error{
 		3: func(s *state.State) error { return nil },
-	})
+	}, 0, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -127,6 +148,20 @@ func (s *patchSuite) TestMissing(c *C) {
 	st.Unlock()
 	err := patch.Apply(st)
 	c.Assert(err, ErrorMatches, `cannot upgrade: snapd is too new for the current system state \(patch level 1\)`)
+}
+
+func (s *patchSuite) TestMissingSublevel(c *C) {
+	restore := patch.Mock(0, nil, 3, map[int]func(*state.State) error{
+		3: func(s *state.State) error { return nil },
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-sublevel", 1)
+	st.Unlock()
+	err := patch.Apply(st)
+	c.Assert(err, ErrorMatches, `cannot upgrade: snapd is too new for the current system state \(patch sublevel 1\)`)
 }
 
 func (s *patchSuite) TestError(c *C) {
@@ -152,7 +187,7 @@ func (s *patchSuite) TestError(c *C) {
 		2: p12,
 		3: p23,
 		4: p34,
-	})
+	}, 0, nil)
 	defer restore()
 
 	st := state.New(nil)
