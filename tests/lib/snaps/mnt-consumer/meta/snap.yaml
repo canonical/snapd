@@ -1,7 +1,0 @@
-name: mnt-consumer
-version: 1.0
-summary: A snap using the mnt interface
-apps:
-    sh:
-        command: bin/sh
-        plugs: [mnt]
