@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
@@ -514,7 +515,7 @@ var (
 )
 
 // Stop shuts down the Daemon
-func (d *Daemon) Stop() error {
+func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(nil)
 
 	d.mu.Lock()
@@ -532,7 +533,7 @@ func (d *Daemon) Stop() error {
 			hookMgr.GracefullyWaitRunningHooks()
 			logger.Noticef("done waiting for running hooks")
 		}
-		hookMgr.Stop()
+		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
 
@@ -575,6 +576,14 @@ func (d *Daemon) Stop() error {
 		}
 		// wait for reboot to happen
 		logger.Noticef("Waiting for system reboot")
+		if sigCh != nil {
+			signal.Stop(sigCh)
+			if len(sigCh) > 0 {
+				// a signal arrived in between
+				return nil
+			}
+			close(sigCh)
+		}
 		time.Sleep(rebootWaitTimeout)
 		return fmt.Errorf("expected reboot did not happen")
 	}

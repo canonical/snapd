@@ -185,6 +185,7 @@ apps:
    command: bar
  sample:
    command: foobar
+   command-chain: [chain]
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
@@ -200,6 +201,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -218,6 +220,7 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 	c.Check(snapInfo2.Summary(), Equals, "instance summary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -523,7 +526,7 @@ apps:
 	})
 }
 
-func (s *infoSuite) TestHookTakesGlobalEnv(c *C) {
+func (s *infoSuite) TestHookEnvSimple(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app
@@ -531,6 +534,8 @@ environment:
  global-k: global-v
 hooks:
  foo:
+  environment:
+   app-k: app-v
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
@@ -538,6 +543,32 @@ hooks:
 	env := info.Hooks["foo"].Env()
 	sort.Strings(env)
 	c.Check(env, DeepEquals, []string{
+		"app-k=app-v",
+		"global-k=global-v",
+	})
+}
+
+func (s *infoSuite) TestHookEnvOverrideGlobal(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+ global-and-local: global-v
+hooks:
+ foo:
+  environment:
+   app-k: app-v
+   global-and-local: local-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Hooks["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"app-k=app-v",
+		"global-and-local=local-v",
 		"global-k=global-v",
 	})
 }
@@ -1178,16 +1209,6 @@ func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
 	}
 }
 
-func (s *infoSuite) TestNickname(c *C) {
-	c.Check(snap.UseNick("core"), Equals, "system")
-	c.Check(snap.UseNick("system"), Equals, "system")
-	c.Check(snap.UseNick("foo"), Equals, "foo")
-
-	c.Check(snap.DropNick("core"), Equals, "core")
-	c.Check(snap.DropNick("system"), Equals, "core")
-	c.Check(snap.DropNick("foo"), Equals, "foo")
-}
-
 func (s *infoSuite) TestSplitInstanceName(c *C) {
 	snapName, instanceKey := snap.SplitInstanceName("foo_bar")
 	c.Check(snapName, Equals, "foo")
@@ -1232,4 +1253,44 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 	info.InstanceKey = ""
 	c.Check(info.InstanceName(), Equals, "snap-name")
 	c.Check(info.SnapName(), Equals, "snap-name")
+}
+
+func (s *infoSuite) TestIsActive(c *C) {
+	info1 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1)})
+	info2 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(2)})
+	// no current -> not active
+	c.Check(info1.IsActive(), Equals, false)
+	c.Check(info2.IsActive(), Equals, false)
+
+	mountdir := info1.MountDir()
+	dir, rev := filepath.Split(mountdir)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	cur := filepath.Join(dir, "current")
+	c.Assert(os.Symlink(rev, cur), IsNil)
+
+	// is current -> is active
+	c.Check(info1.IsActive(), Equals, true)
+	c.Check(info2.IsActive(), Equals, false)
+}
+
+func (s *infoSuite) TestDirAndFileHelpers(c *C) {
+	dirs.SetRootDir("")
+
+	c.Check(snap.MountDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
+	c.Check(snap.MountFile("name", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(snap.HooksDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
+	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
+	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1)), Equals, "/home/bob/snap/name/1")
+	c.Check(snap.UserCommonDataDir("/home/bob", "name"), Equals, "/home/bob/snap/name/common")
+	c.Check(snap.UserXdgRuntimeDir(12345, "name"), Equals, "/run/user/12345/snap.name")
+
+	c.Check(snap.MountDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
+	c.Check(snap.MountFile("name_instance", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(snap.HooksDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(snap.DataDir("name_instance", snap.R(1)), Equals, "/var/snap/name_instance/1")
+	c.Check(snap.CommonDataDir("name_instance"), Equals, "/var/snap/name_instance/common")
+	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1)), Equals, "/home/bob/snap/name_instance/1")
+	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance"), Equals, "/home/bob/snap/name_instance/common")
+	c.Check(snap.UserXdgRuntimeDir(12345, "name_instance"), Equals, "/run/user/12345/snap.name_instance")
 }

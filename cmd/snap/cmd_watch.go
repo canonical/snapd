@@ -46,6 +46,9 @@ func (x *cmdWatch) Execute(args []string) error {
 	cli := Client()
 	id, err := x.GetChangeID(cli)
 	if err != nil {
+		if err == noChangeFoundOK {
+			return nil
+		}
 		return err
 	}
 

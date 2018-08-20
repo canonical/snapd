@@ -105,7 +105,7 @@ update_core_snap_for_classic_reexec() {
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
-    unsquashfs "$snap"
+    unsquashfs -no-progress "$snap"
     # clean the old snapd binaries, just in case
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
     # and copy in the current libexec
@@ -203,6 +203,17 @@ prepare_classic() {
                 ;;
         esac
         exit 1
+    fi
+
+    # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
+    # unit. Stop the broken unit to not confuse the "degraded-boot" test.
+    #
+    # FIXME: fix the ubuntu-16.04-64 image
+    if systemctl list-unit-files | grep sshguard.service; then
+        if ! systemctl status sshguard.service; then
+            systemctl stop sshguard.service
+	    systemctl reset-failed sshguard.service
+        fi
     fi
 
     setup_systemd_snapd_overrides
@@ -306,12 +317,12 @@ setup_reflash_magic() {
     if is_core18_system; then
         # modify the snapd snap so that it has our snapd
         UNPACK_DIR="/tmp/snapd-snap"
-        unsquashfs -d "$UNPACK_DIR" snapd_*.snap
+        unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
         
         # FIXME: fetch directly once its in the assertion service
-        cp "$TESTSLIB/assertions/core-amd64-18.model" "$IMAGE_HOME/pc.model"
+        cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         
         IMAGE=core18-amd64.img
             
@@ -323,7 +334,7 @@ setup_reflash_magic() {
         #
         # We can do this once https://forum.snapcraft.io/t/5947 is
         # answered.
-        echo "Added needed assertions so that core-amd64-18.model works"
+        echo "Added needed assertions so that ubuntu-core-18-amd64.model works"
         # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
         STORE_DIR="$(pwd)/fake-store-blobdir"
@@ -341,7 +352,7 @@ setup_reflash_magic() {
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
         UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -399,7 +410,7 @@ EOF
     fi
 
     # extra_snap should contain only ONE snap
-    if "${#extra_snap[@]}" -ne 1; then
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
         echo "unexpected number of globbed snaps: ${extra_snap[*]}"
         exit 1
     fi
@@ -436,7 +447,7 @@ EOF
     # now modify the image
     if is_core18_system; then
         UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
     fi
 
     # create test user and ubuntu user inside the writable partition
@@ -521,7 +532,7 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
-    (cd /tmp ; unsquashfs -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
+    (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
     umount /mnt
     kpartx -d  "$IMAGE_HOME/$IMAGE"

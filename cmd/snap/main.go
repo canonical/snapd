@@ -286,12 +286,14 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	return parser
 }
 
+var isStdinTTY = terminal.IsTerminal(0)
+
 // ClientConfig is the configuration of the Client used by all commands.
 var ClientConfig = client.Config{
 	// we need the powerful snapd socket
 	Socket: dirs.SnapdSocket,
 	// Allow interactivity if we have a terminal
-	Interactive: terminal.IsTerminal(0),
+	Interactive: isStdinTTY,
 }
 
 // Client returns a new client using ClientConfig as configuration.
@@ -386,6 +388,19 @@ func (e *exitStatus) Error() string {
 	return fmt.Sprintf("internal error: exitStatus{%d} being handled as normal error", e.code)
 }
 
+var wrongDashes = string([]rune{
+	0x2010, // hyphen
+	0x2011, // non-breaking hyphen
+	0x2012, // figure dash
+	0x2013, // en dash
+	0x2014, // em dash
+	0x2015, // horizontal bar
+	0xfe58, // small em dash
+	0x2015, // figure dash
+	0x2e3a, // two-em dash
+	0x2e3b, // three-em dash
+})
+
 func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
@@ -404,6 +419,19 @@ func run() error {
 		}
 
 		msg, err := errorToCmdMessage("", err, nil)
+
+		if cmdline := strings.Join(os.Args, " "); strings.ContainsAny(cmdline, wrongDashes) {
+			// TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.
+			fmt.Fprintf(Stderr, i18n.G(`Your command included some characters that look like dashes but are not:
+    %+q
+in some situations you might find that when copying from an online source such
+as a blog you need to replace “typographic” dashes and quotes with their ASCII
+equivalent.  Dashes in particular are homoglyphs on most terminals and in most
+fixed-width fonts, so it can be hard to tell.
+
+`), cmdline)
+		}
+
 		if err != nil {
 			return err
 		}
