@@ -19,7 +19,6 @@
 #define SNAP_CONFINE_USER_SUPPORT_H
 
 void setup_user_data(void);
-void setup_user_snap_instance(const char *snap_instance);
 void setup_user_xdg_runtime_dir(void);
 void mkpath(const char *const path);
 

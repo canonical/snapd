@@ -66,13 +66,4 @@ void sc_ensure_shared_snap_mount(void);
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const char *snap_name);
 
-/**
- * Set up mappings for snap instance.
- *
- * Perform setup of snap directory mappings of the snap being run is a parallel
- * installed one. This ensures that snap directories appear the same for snaps
- * with instance key and the ones without.
- */
-void sc_setup_snap_instance_mapping(const char *snap_instance);
-
 #endif
