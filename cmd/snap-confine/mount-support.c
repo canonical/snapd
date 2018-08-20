@@ -305,30 +305,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
-		// NOTE: we are not using sc_do_mount because we want non-fatal errors.
-		if (mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL) < 0) {
-			if (errno == ENOENT && mnt->is_optional) {
-				// When an optional mount entry fails with ENOENT then just
-				// carry on. This represents a missing mount point in the base
-				// snap or missing mount source on the host.
-				continue;
-			}
-			// Non-optional mount failed. Create a useful error message.
-			char mount_cmd_buf[10000] = { 0 };
-			const char *mount_cmd = NULL;
-			// Save errno as ensure can clobber it.
-			int saved_errno = errno;
-			// Drop privileges so that we can compute our nice error message
-			// without risking an attack on one of the string functions there.
-			sc_privs_drop();
-			// Compute the equivalent mount command.
-			mount_cmd =
-			    sc_mount_cmd(mount_cmd_buf, sizeof(mount_cmd_buf),
-					 mnt->path, dst, NULL, MS_REC | MS_BIND,
-					 NULL);
-			// Restore errno and die.
-			errno = saved_errno;
-			die("cannot perform operation: %s", mount_cmd);
+		if (mnt->is_optional) {
+			sc_do_optional_mount(mnt->path, dst, NULL,
+					     MS_REC | MS_BIND, NULL);
+		} else {
+			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
+				    NULL);
 		}
 		if (!mnt->is_bidirectional) {
 			// Mount events will only propagate inwards to the namespace. This

@@ -68,6 +68,17 @@ void sc_do_mount(const char *source, const char *target,
 		 const void *data);
 
 /**
+ * A thin wrapper around mount(2) with logging and error checks.
+ *
+ * This variant is allowed to silently fail when mount fails with ENOENT.
+ * That is, it can be used to perform mount operations and if either the source
+ * or the destination is not present, carry on as if nothing had happened.
+ **/
+void sc_do_optional_mount(const char *source, const char *target,
+			  const char *fs_type, unsigned long mountflags,
+			  const void *data);
+
+/**
  * A thin wrapper around umount(2) with logging and error checks.
  **/
 void sc_do_umount(const char *target, int flags);
