@@ -753,6 +753,53 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+		},
+		Current:     snap.R(3),
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	// task sets order is already stable, but we need to ensure stable ordering
+	// of updates list
+	if updates[0] != "some-snap" {
+		updates[1], updates[0] = updates[0], updates[1]
+	}
+
+	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
+
+	ts := tts[0]
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+
+	ts = tts[1]
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
