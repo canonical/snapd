@@ -85,13 +85,21 @@ func Apply(s *state.State) error {
 		return err
 	}
 
-	if stateLevel == Level && stateSublevel >= Sublevel {
-		// at the right level and sublevel, or at a higher sublevel within same level (a downgrade) - nothing to do.
+	if stateLevel > Level {
+		return fmt.Errorf("cannot downgrade: snapd is too old for the current system state (patch level %d)", stateLevel)
+	}
+
+	if stateLevel == Level && stateSublevel == Sublevel {
 		return nil
 	}
 
-	if stateLevel > Level {
-		return fmt.Errorf("cannot downgrade: snapd is too old for the current system state (patch level %d)", stateLevel)
+	if stateLevel == Level && stateSublevel > Sublevel {
+		// downgrade within same level; update sublevel in the state so that sublevel patches
+		// are re-applied if the user refreshes to a newer patch sublevel again.
+		s.Lock()
+		s.Set("patch-sublevel", Sublevel)
+		s.Unlock()
+		return nil
 	}
 
 	// apply any missing sublevel patches for current state level.
