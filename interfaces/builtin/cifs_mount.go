@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,7 +31,6 @@ const cifsMountBaseDeclarationSlots = `
 
 const cifsMountConnectedPlugSecComp = `
 # Description: Allow mount and umount syscall access.
-
 mount
 umount
 umount2
@@ -56,10 +55,8 @@ umount /var/snap/@{SNAP_NAME}/common/{,**},
 # /run/mount/utab but fails. The resulting apparmor warning can be ignored. The log warning
 # was not removed via an explicit deny to not interfere with other interfaces which might
 # decide to allow access (deny rules have precedence).
-#
 #  - https://github.com/snapcore/snapd/pull/5340#issuecomment-398071797
 #  - https://forum.snapcraft.io/t/namespace-awareness-of-run-mount-utab-and-libmount/5987
-#
 #deny /run/mount/utab w,
 `
 

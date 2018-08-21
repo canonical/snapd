@@ -91,8 +91,6 @@ func (s *CifsMountInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount\n")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "umount\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "umount2\n")
 }
 
