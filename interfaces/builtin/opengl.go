@@ -74,10 +74,6 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 @{PROC}/devices r,
 /sys/devices/system/memory/block_size_bytes r,
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
-/dev/nvidia-uvm rw,
-/dev/nvidia-uvm-tools rw,
-/dev/nvidiactl rw,
-/dev/nvidia* rw,
 /{dev,run}/shm/cuda.* rw,
 
 
