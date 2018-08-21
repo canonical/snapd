@@ -90,3 +90,8 @@ execute: |
         test-snapd-layout.sh -c 'test -w $SNAP/bin-very-weird-place'
         test-snapd-layout.sh -c 'test -w /bin/very-weird-place'
     done
+
+restore:
+    # cleanup after the trespassing bug
+    # TODO: remove this once the problem is addressed
+    rm -rf /etc/demo /etc/demo.conf /etc/demo.cfg
