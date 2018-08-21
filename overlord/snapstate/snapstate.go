@@ -501,14 +501,17 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags Flags) (*state.TaskSet, error) {
-	name := si.RealName
-	if name == "" {
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags) (*state.TaskSet, error) {
+	if si.RealName == "" {
 		return nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
 	}
 
+	if instanceName == "" {
+		instanceName = si.RealName
+	}
+
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err := Get(st, instanceName, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -519,7 +522,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
-	if err := canSwitchChannel(st, name, channel); err != nil {
+	if err := canSwitchChannel(st, instanceName, channel); err != nil {
 		return nil, err
 	}
 
@@ -540,19 +543,30 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	if err := validateContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
+	if err := snap.ValidateInstanceName(instanceName); err != nil {
+		return nil, err
+	}
+
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	if info.SnapName() != snapName {
+		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
+	}
+	info.InstanceKey = instanceKey
+
 	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
-		Base:      info.Base,
-		Prereq:    defaultContentPlugProviders(st, info),
-		SideInfo:  si,
-		SnapPath:  path,
-		Channel:   channel,
-		Flags:     flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Base:        info.Base,
+		Prereq:      defaultContentPlugProviders(st, info),
+		SideInfo:    si,
+		SnapPath:    path,
+		Channel:     channel,
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -563,7 +577,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	return InstallPath(st, &snap.SideInfo{RealName: name}, path, "", flags)
+	return InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags)
 }
 
 // Install returns a set of tasks for installing snap.
