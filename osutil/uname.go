@@ -23,11 +23,22 @@ import (
 	"syscall"
 )
 
+var syscallUname = syscall.Uname
+
 var KernelVersion = kernelVersion
+
+// We have to implement separate functions for the kernel version and the
+// machine name at the moment as the utsname struct is either using int8
+// or uint8 depending on the architecture the code is built for. As there
+// is no easy way to generalise this implements the same code twice (other
+// than going via unsafe.Pointer, or interfaces, which are overkill). The
+// way to get this solved is by using []byte inside the utsname struct
+// instead of []int8/[]uint8. See https://github.com/golang/go/issues/20753
+// for details.
 
 func kernelVersion() string {
 	var u syscall.Utsname
-	if err := syscall.Uname(&u); err != nil {
+	if err := syscallUname(&u); err != nil {
 		return "unknown"
 	}
 
@@ -38,7 +49,7 @@ func kernelVersion() string {
 			buf = buf[:i]
 			break
 		}
-		// c can be uint8 or int8 depending on arch
+		// c can be uint8 or int8 depending on arch (see comment above)
 		buf[i] = byte(c)
 	}
 
@@ -47,7 +58,7 @@ func kernelVersion() string {
 
 func MachineName() string {
 	var u syscall.Utsname
-	if err := syscall.Uname(&u); err != nil {
+	if err := syscallUname(&u); err != nil {
 		return "unknown"
 	}
 
@@ -57,7 +68,7 @@ func MachineName() string {
 			buf = buf[:i]
 			break
 		}
-		// c can be uint8 or int8 depending on arch
+		// c can be uint8 or int8 depending on arch (see comment above)
 		buf[i] = byte(c)
 	}
 
