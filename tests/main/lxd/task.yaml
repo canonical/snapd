@@ -2,8 +2,7 @@ summary: Ensure that lxd works
 
 # only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# ubuntu-16.04-32: temporarily disable until container detection issues are resolved
-systems: [ubuntu-16.04-64, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -48,7 +47,7 @@ execute: |
     }
 
     echo "Install lxd"
-    snap install lxd
+    snap install --candidate lxd
 
     echo "Create a trivial container using the lxd snap"
     wait_for_lxd
