@@ -167,11 +167,11 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 	defer st.Unlock()
 
 	var level, sublevel int
+	c.Assert(applied, Equals, 1)
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Check(level, Equals, 6)
 	c.Check(sublevel, Equals, 2)
-	c.Assert(applied, Equals, 1)
 }
 
 func (s *patchSuite) TestApplyFromSublevel(c *C) {
@@ -235,7 +235,7 @@ func (s *patchSuite) TestMissing(c *C) {
 	c.Assert(err, ErrorMatches, `cannot upgrade: snapd is too new for the current system state \(patch level 1\)`)
 }
 
-func (s *patchSuite) TestMissingSublevel(c *C) {
+func (s *patchSuite) TestDowngradeSublevel(c *C) {
 	restore := patch.Mock(3, 1, map[int][]patch.PatchFunc{
 		3: {func(s *state.State) error { return nil }},
 	})
@@ -246,6 +246,8 @@ func (s *patchSuite) TestMissingSublevel(c *C) {
 	st.Set("patch-level", 3)
 	st.Set("patch-sublevel", 6)
 	st.Unlock()
+
+	// we're at patch level 3, sublevel 6 according to state, but the implemented level is 3,1
 	c.Assert(patch.Apply(st), IsNil)
 
 	st.Lock()
@@ -254,7 +256,7 @@ func (s *patchSuite) TestMissingSublevel(c *C) {
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Check(level, Equals, 3)
-	c.Check(sublevel, Equals, 6)
+	c.Check(sublevel, Equals, 1)
 }
 
 func (s *patchSuite) TestError(c *C) {
