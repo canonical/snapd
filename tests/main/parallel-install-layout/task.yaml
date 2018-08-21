@@ -1,0 +1,91 @@
+summary: Ensure that snap layouts work with parallel installed snaps
+details: |
+    This test installs a test snap that uses layout declarations. The snap is
+    installed under its regular name as well as a parallel instance. The test
+    verifies that the layout requested by snap works and operates only on the
+    data owned by given snap instance.
+prepare: |
+    echo "Ensure feature flags are enabled"
+    snap set system experimental.layouts=true
+    snap set system experimental.parallel-instances=true
+debug: |
+    ls -ld /etc || :
+    ls -ld /etc/demo || :
+    ls -ld /etc/demo.conf || :
+    ls -ld /etc/demo.cfg || :
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    path="$(make_snap test-snapd-layout)"
+
+    echo "Sideload the regular snap"
+    snap install --dangerous "$path"
+
+    echo "Sideload the parallel installed snap"
+    snap install --dangerous --name test-snapd-layout_foo "$path"
+
+    for name in test-snapd-layout test-snapd-layout_foo; do
+        # workaround trespassing bug
+        rm -rf /etc/demo /etc/demo.conf /etc/demo.cfg
+
+        echo "snap declaring layouts doesn't explode on startup"
+        $name.sh -c "true"
+
+        echo "layout declarations are honored"
+
+        $name.sh -c "test -d /etc/demo"
+        $name.sh -c "test -f /etc/demo.conf"
+        $name.sh -c "test -h /etc/demo.cfg"
+        #shellcheck disable=SC2016
+        test "$($name.sh -c "readlink /etc/demo.cfg")" = "$($name.sh -c 'echo $SNAP_INSTANCE_COMMON/etc/demo.conf')"
+        $name.sh -c "test -d /usr/share/demo"
+        $name.sh -c "test -d /var/lib/demo"
+        $name.sh -c "test -d /var/cache/demo"
+        $name.sh -c "test -d /opt/demo"
+        $name.sh -c "test -d /bin/very-weird-place"
+        # Ideally we'd perform this test but the rsyslog directory has mode 700 and user mode 108:4
+        # test-snapd-layout.sh -c "test -d /var/spool/rsyslog/demo"
+
+        echo "layout locations pointing to SNAP_DATA and SNAP_COMMON of $name are writable"
+        echo "and the writes go to the right place in the backing store"
+
+        $name.sh -c "echo $name foo-1 > /etc/demo/writable"
+        #shellcheck disable=SC2016
+        $name.sh -c 'cat $SNAP_COMMON/etc/demo/writable' | MATCH "$name foo-1"
+
+        $name.sh -c "echo $name foo-2 > /etc/demo.conf"
+        #shellcheck disable=SC2016
+        $name.sh -c 'cat $SNAP_COMMON/etc/demo.conf' | MATCH "$name foo-2"
+
+        # NOTE: this is a symlink to demo.conf, effectively
+        $name.sh -c "echo $name foo-3 > /etc/demo.cfg"
+        #shellcheck disable=SC2016
+        $name.sh -c 'cat $SNAP_COMMON/etc/demo.conf' | MATCH "$name foo-3"
+
+        $name.sh -c "echo $name foo-4 > /var/lib/demo/writable"
+        #shellcheck disable=SC2016
+        $name.sh -c 'cat $SNAP_DATA/var/lib/demo/writable' | MATCH "$name foo-4"
+
+        $name.sh -c "echo $name foo-5 > /var/cache/demo/writable"
+        #shellcheck disable=SC2016
+        $name.sh -c 'cat $SNAP_DATA/var/cache/demo/writable' | MATCH "$name foo-5"
+
+        echo "layout locations pointing to $name \$SNAP are readable"
+
+        $name.sh -c "test -r /usr/share/demo/file"
+        $name.sh -c "test -r /opt/demo/file"
+
+        echo "layout locations in dynamically created $name \$SNAP directories are writable"
+        # shellcheck disable=SC2016
+        $name.sh -c 'test -w $SNAP/bin-very-weird-place'
+        $name.sh -c 'test -w /bin/very-weird-place'
+    done
+
+    echo "verify snap data is correct on the outside of snap mount namespace"
+    for name in test-snapd-layout test-snapd-layout_foo; do
+        MATCH "$name foo-1" < "/var/snap/$name/common/etc/demo/writable"
+        # demo.cfg was a symlink to demo.conf
+        MATCH "$name foo-3" < "/var/snap/$name/common/etc/demo.conf"
+        MATCH "$name foo-4" < "/var/snap/$name/x1/var/lib/demo/writable"
+        MATCH "$name foo-5" < "/var/snap/$name/x1/var/cache/demo/writable"
+    done
