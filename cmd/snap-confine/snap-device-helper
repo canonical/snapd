@@ -15,9 +15,19 @@ MAJMIN="$4"
 [ -n "$DEVPATH" ] || { echo "no devpath given" >&2; exit 1; }
 [ -n "$MAJMIN" ] || { echo "no major/minor given" >&2; exit 0; }
 
-APPNAME="$( echo "$APPNAME" | tr '_' '.' )"
+NOSNAP="${APPNAME#snap_}"
+[ "$NOSNAP" != "$APPNAME" ] || { echo "malformed appname $APPNAME" >&2; exit 1; }
+
+if [ "${NOSNAP#*_*_}" = "${NOSNAP}" ]; then
+    # snap_<snap>_<app> -> snap.<snap>.<app>
+    SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_}"
+else
+    # snap_<snap>_<instance>_<app> -> snap.<snap>_<instance>.<app>
+    SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_*_}"
+fi
+
 DEVICES_CGROUP=${DEVICES_CGROUP:="/sys/fs/cgroup/devices"}
-app_dev_cgroup="$DEVICES_CGROUP/$APPNAME"
+app_dev_cgroup="$DEVICES_CGROUP/$SNAPAPP"
 
 # The cgroup is only present after snap start so ignore any cgroup changes
 # (eg, 'add' on boot, hotplug, hotunplug) when the cgroup doesn't exist

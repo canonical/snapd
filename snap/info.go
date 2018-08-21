@@ -685,6 +685,7 @@ type AppInfo struct {
 	Name          string
 	LegacyAliases []string // FIXME: eventually drop this
 	Command       string
+	CommandChain  []string
 	CommonID      string
 
 	Daemon          string

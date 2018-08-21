@@ -14,7 +14,8 @@ prepare: |
     fi
 
     echo "Given a snap declaring a plug on framebuffer is installed in devmode"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local_devmode test-devmode-cgroup
 
 restore: |
@@ -23,7 +24,8 @@ restore: |
     fi
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "And the framebuffer plug is connected"
     snap connect test-devmode-cgroup:framebuffer
@@ -31,7 +33,7 @@ execute: |
     "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the devmode snap can access other devices"
-    test "`$SNAP_MOUNT_DIR/bin/test-devmode-cgroup.read-kmsg`"
+    test "$($SNAP_MOUNT_DIR/bin/test-devmode-cgroup.read-kmsg)"
 
     echo "And the framebuffer plug is disconnected"
     snap disconnect test-devmode-cgroup:framebuffer
@@ -39,4 +41,4 @@ execute: |
     "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the devmode snap can access other devices"
-    test "`$SNAP_MOUNT_DIR/bin/test-devmode-cgroup.read-kmsg`"
+    test "$($SNAP_MOUNT_DIR/bin/test-devmode-cgroup.read-kmsg)"

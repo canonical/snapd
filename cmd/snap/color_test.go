@@ -108,7 +108,7 @@ func (s *SnapSuite) TestColorTable(c *check.C) {
 		{isTTY: true, term: "linux-m", expected: cmdsnap.MonoColorTable, desc: "is a tty, but TERM=linux-m"},
 		{isTTY: true, term: "xterm-mono", expected: cmdsnap.MonoColorTable, desc: "is a tty, but TERM=xterm-mono"},
 	} {
-		restoreIsTTY := cmdsnap.MockIsTTY(t.isTTY)
+		restoreIsTTY := cmdsnap.MockIsStdoutTTY(t.isTTY)
 		restoreEnv := setEnviron(map[string]string{"NO_COLOR": t.noColor, "TERM": t.term})
 		c.Check(cmdsnap.ColorTable("never"), check.DeepEquals, cmdsnap.NoEscColorTable, check.Commentf(t.desc))
 		c.Check(cmdsnap.ColorTable("always"), check.DeepEquals, cmdsnap.ColorColorTable, check.Commentf(t.desc))
