@@ -79,6 +79,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	st.Lock()
 	defer st.Unlock()
 
+	// FIXME: agreement needed how to find about system snap and where to attach interfaces.
 	coreSnapName, err := m.repo.GuessSystemSnapName()
 	if err != nil {
 		logger.Noticef("cannot determine system snap name: %s", err)

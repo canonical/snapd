@@ -787,6 +787,7 @@ func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*Co
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// FIXME: agreement needed how to find about system snap and where to attach interfaces.
 	snapName, err := r.GuessSystemSnapName()
 	if err != nil {
 		return nil, err
@@ -810,6 +811,7 @@ func (r *Repository) HasHotplugSlots(deviceKey, ifaceName string) (bool, error) 
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// FIXME: agreement needed how to find about system snap and where to attach interfaces.
 	snapName, err := r.GuessSystemSnapName()
 	if err != nil {
 		return false, err
