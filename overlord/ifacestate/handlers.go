@@ -1128,7 +1128,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	conns, err := getConns(st)
 	if err != nil {
-		return fmt.Errorf("failed to read connections data: %s", err)
+		return err
 	}
 
 	coreSnapName, err := m.repo.GuessSystemSnapName()

@@ -784,6 +784,9 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 
 // ConnectionsForDeviceKey returns all hotplug connections for given device key and interface name.
 func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*ConnRef, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	snapName, err := r.GuessSystemSnapName()
 	if err != nil {
 		return nil, err
