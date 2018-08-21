@@ -2270,7 +2270,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, "", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -2281,7 +2281,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	restore := release.MockForcedDevmode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
-	chgSummary := s.sideloadCheck(c, body, head, "", flags)
+	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -2300,7 +2300,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	flags.DevMode = true
-	chgSummary := s.sideloadCheck(c, body, head, "", flags)
+	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
@@ -2322,7 +2322,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true}
-	chgSummary := s.sideloadCheck(c, body, head, "", flags)
+	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
@@ -2335,10 +2335,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		ensureStateSoonImpl(st)
 	}
 
-	mockedName := "local"
-	if expectedInstanceName == "" {
-		expectedInstanceName = mockedName
-	}
+	c.Assert(expectedInstanceName != "", check.Equals, true, check.Commentf("expected instance name must be set"))
+	mockedName, _ := snap.SplitInstanceName(expectedInstanceName)
+
 	// setup done
 	installQueue := []string{}
 	unsafeReadSnapInfo = func(path string) (*snap.Info, error) {
