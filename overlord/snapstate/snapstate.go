@@ -1868,11 +1868,6 @@ func NumSnaps(st *state.State) (int, error) {
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.
 func Set(st *state.State, name string, snapst *SnapState) {
-	if snapst != nil {
-		if _, key := snap.SplitInstanceName(name); key != snapst.InstanceKey {
-			panic(fmt.Sprintf("internal error: instance key %q and snap %q do not match", snapst.InstanceKey, name))
-		}
-	}
 	var snaps map[string]*json.RawMessage
 	err := st.Get("snaps", &snaps)
 	if err != nil && err != state.ErrNoState {
