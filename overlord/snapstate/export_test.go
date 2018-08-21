@@ -142,8 +142,8 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
-func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
-	sort.Sort(byKind(snaps))
+func ByKindAndNameOrder(snaps ...*snap.Info) []*snap.Info {
+	sort.Sort(byKindAndName(snaps))
 	return snaps
 }
 

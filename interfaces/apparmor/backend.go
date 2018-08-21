@@ -471,7 +471,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		// so the meaning of the template would change across kernel
 		// versions and we have not validated that the current template
 		// is operational on older kernels.
-		if cmp, _ := strutil.VersionCompare(release.KernelVersion(), "4.16"); cmp >= 0 && release.DistroLike("opensuse-tumbleweed") {
+		if cmp, _ := strutil.VersionCompare(osutil.KernelVersion(), "4.16"); cmp >= 0 && release.DistroLike("opensuse-tumbleweed") {
 			// As a special exception, for openSUSE Tumbleweed which ships Linux
 			// 4.16, do not downgrade the confinement template.
 		} else {
