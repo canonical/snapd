@@ -135,7 +135,7 @@ func (s *patchSuite) TestApply(c *C) {
 }
 
 func (s *patchSuite) TestApplyLevel6(c *C) {
-	var applied bool
+	var applied int
 	p50 := func(st *state.State) error {
 		c.Fatalf("patch p50 should not be applied")
 		return nil
@@ -145,7 +145,7 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 		return nil
 	}
 	p61 := func(st *state.State) error {
-		applied = true
+		applied++
 		return nil
 	}
 
@@ -171,7 +171,7 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Check(level, Equals, 6)
 	c.Check(sublevel, Equals, 2)
-	c.Assert(applied, Equals, true)
+	c.Assert(applied, Equals, 1)
 }
 
 func (s *patchSuite) TestApplyFromSublevel(c *C) {
