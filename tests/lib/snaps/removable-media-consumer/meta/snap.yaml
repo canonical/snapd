@@ -1,7 +1,0 @@
-name: removable-meida-consumer
-version: 1.0
-summary: A snap using the removable-media interface
-apps:
-    sh:
-        command: bin/sh
-        plugs: [removable-media]
