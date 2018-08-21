@@ -311,7 +311,7 @@ func createUserDataDirs(info *snap.Info) error {
 		// namespace, namely /home/joe/snap/foo_bar ->
 		// /home/joe/snap/foo, make sure that the mount point exists and
 		// is owned by the user
-		snapUserDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir, info.SnapName())
+		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
 		createDirs = append(createDirs, snapUserDir)
 	}
 	for _, d := range createDirs {

@@ -13,9 +13,16 @@ execute: |
 
     echo "The snap is listed"
     snap list | MATCH '^test-snapd-tools_foo '
+    # TODO parallel-install: extend the test to run a snap when the remaining
+    # bits land.
 
     # TODO parallel-install: extend the test once we can install more than one
     # instance of a snap from the store
+    ! snap install test-snapd-tools 2> run.err
+    # exact error message:
+    # error: cannot install "test-snapd-tools": cannot refresh, install, or download: The Snap is present
+    #   more than once in the request.
+    MATCH 'cannot install "test-snapd-tools"' < run.err
 
 restore:
-    snap set system experimental.parallel-instances=null
+    snap set system experimental.parallel-instances=
