@@ -259,6 +259,33 @@ func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestSnapstateSetInstanceKeyMismatch(c *C) {
+	c.Assert(func() {
+		// no instance key in SnapState{}
+		snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+			Active: true,
+			Sequence: []*snap.SideInfo{
+				{RealName: "some-snap", Revision: snap.R(1)},
+			},
+			Current:  snap.R(1),
+			SnapType: "app",
+		})
+	}, Panics, `internal error: instance key "" and snap "some-snap_instance" do not match`)
+
+	c.Assert(func() {
+		// no instance key in name
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Active: true,
+			Sequence: []*snap.SideInfo{
+				{RealName: "some-snap", Revision: snap.R(1)},
+			},
+			Current:     snap.R(1),
+			SnapType:    "app",
+			InstanceKey: "instance",
+		})
+	}, Panics, `internal error: instance key "instance" and snap "some-snap" do not match`)
+}
+
 func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
