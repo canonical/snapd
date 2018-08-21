@@ -37,7 +37,7 @@ type patchSuite struct{}
 var _ = Suite(&patchSuite{})
 
 func (s *patchSuite) TestInit(c *C) {
-	restore := patch.Mock(2, nil, 1, nil)
+	restore := patch.Mock(2, 1, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -56,7 +56,7 @@ func (s *patchSuite) TestInit(c *C) {
 }
 
 func (s *patchSuite) TestNothingToDo(c *C) {
-	restore := patch.Mock(2, nil, 0, nil)
+	restore := patch.Mock(2, 1, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -68,7 +68,7 @@ func (s *patchSuite) TestNothingToDo(c *C) {
 }
 
 func (s *patchSuite) TestNoDowngrade(c *C) {
-	restore := patch.Mock(2, nil, 0, nil)
+	restore := patch.Mock(2, 0, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -86,31 +86,29 @@ func (s *patchSuite) TestApply(c *C) {
 		st.Set("n", n+1)
 		return nil
 	}
+	p121 := func(st *state.State) error {
+		var o int
+		st.Get("o", &o)
+		st.Set("o", o+1)
+		return nil
+	}
 	p23 := func(st *state.State) error {
 		var n int
 		st.Get("n", &n)
 		st.Set("n", n*10)
 		return nil
 	}
-	sp12 := func(st *state.State) error {
-		var o int
-		st.Get("o", &o)
-		st.Set("o", o+1)
-		return nil
-	}
 
-	restore := patch.Mock(3, map[int]func(*state.State) error{
-		2: p12,
-		3: p23,
-	}, 2, map[int]func(*state.State) error{
-		2: sp12,
+	// patch level 3, sublevel 1
+	restore := patch.Mock(3, 1, map[int][]patch.PatchFunc{
+		2: {p12, p121},
+		3: {p23},
 	})
 	defer restore()
 
 	st := state.New(nil)
 	st.Lock()
 	st.Set("patch-level", 1)
-	st.Set("patch-sublevel", 1)
 	st.Unlock()
 	err := patch.Apply(st)
 	c.Assert(err, IsNil)
@@ -125,7 +123,7 @@ func (s *patchSuite) TestApply(c *C) {
 
 	var sublevel int
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
-	c.Check(sublevel, Equals, 2)
+	c.Check(sublevel, Equals, 1)
 
 	var n, o int
 	err = st.Get("n", &n)
@@ -136,10 +134,97 @@ func (s *patchSuite) TestApply(c *C) {
 	c.Assert(o, Equals, 1)
 }
 
+func (s *patchSuite) TestApplyLevel6(c *C) {
+	var applied bool
+	p50 := func(st *state.State) error {
+		c.Fatalf("patch p50 should not be applied")
+		return nil
+	}
+	p60 := func(st *state.State) error {
+		c.Fatalf("patch p60 should not be applied")
+		return nil
+	}
+	p61 := func(st *state.State) error {
+		applied = true
+		return nil
+	}
+
+	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+		5: {p50},
+		6: {p60, p61},
+	})
+	defer restore()
+
+	// simulate the special case where sublevel is introduced for system that's already on patch level 6.
+	// only p61 patch should be applied.
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-level", 6)
+	st.Unlock()
+	c.Assert(patch.Apply(st), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var level, sublevel int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 6)
+	c.Check(sublevel, Equals, 2)
+	c.Assert(applied, Equals, true)
+}
+
+func (s *patchSuite) TestApplyFromSublevel(c *C) {
+	var sequence []int
+	p60 := func(st *state.State) error {
+		c.Fatalf("patch p60 shouldn't be applied")
+		return nil
+	}
+	p61 := func(st *state.State) error {
+		sequence = append(sequence, 61)
+		return nil
+	}
+	p62 := func(st *state.State) error {
+		sequence = append(sequence, 62)
+		return nil
+	}
+	p70 := func(st *state.State) error {
+		sequence = append(sequence, 70)
+		return nil
+	}
+	p71 := func(st *state.State) error {
+		sequence = append(sequence, 71)
+		return nil
+	}
+
+	restore := patch.Mock(7, 2, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62},
+		7: {p70, p71},
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-level", 6)
+	st.Set("patch-sublevel", 1)
+	st.Unlock()
+	c.Assert(patch.Apply(st), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var level, sublevel int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 7)
+	c.Check(sublevel, Equals, 2)
+	c.Assert(sequence, DeepEquals, []int{61, 62, 70, 71})
+}
+
 func (s *patchSuite) TestMissing(c *C) {
-	restore := patch.Mock(3, map[int]func(*state.State) error{
-		3: func(s *state.State) error { return nil },
-	}, 0, nil)
+	restore := patch.Mock(3, 0, map[int][]patch.PatchFunc{
+		3: {func(s *state.State) error { return nil }},
+	})
 	defer restore()
 
 	st := state.New(nil)
@@ -151,17 +236,25 @@ func (s *patchSuite) TestMissing(c *C) {
 }
 
 func (s *patchSuite) TestMissingSublevel(c *C) {
-	restore := patch.Mock(0, nil, 3, map[int]func(*state.State) error{
-		3: func(s *state.State) error { return nil },
+	restore := patch.Mock(3, 1, map[int][]patch.PatchFunc{
+		3: {func(s *state.State) error { return nil }},
 	})
 	defer restore()
 
 	st := state.New(nil)
 	st.Lock()
-	st.Set("patch-sublevel", 1)
+	st.Set("patch-level", 3)
+	st.Set("patch-sublevel", 6)
 	st.Unlock()
-	err := patch.Apply(st)
-	c.Assert(err, ErrorMatches, `cannot upgrade: snapd is too new for the current system state \(patch sublevel 1\)`)
+	c.Assert(patch.Apply(st), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	var level, sublevel int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 3)
+	c.Check(sublevel, Equals, 6)
 }
 
 func (s *patchSuite) TestError(c *C) {
@@ -183,11 +276,11 @@ func (s *patchSuite) TestError(c *C) {
 		st.Set("n", n*100)
 		return nil
 	}
-	restore := patch.Mock(3, map[int]func(*state.State) error{
-		2: p12,
-		3: p23,
-		4: p34,
-	}, 0, nil)
+	restore := patch.Mock(3, 0, map[int][]patch.PatchFunc{
+		2: {p12},
+		3: {p23},
+		4: {p34},
+	})
 	defer restore()
 
 	st := state.New(nil)
@@ -195,7 +288,7 @@ func (s *patchSuite) TestError(c *C) {
 	st.Set("patch-level", 1)
 	st.Unlock()
 	err := patch.Apply(st)
-	c.Assert(err, ErrorMatches, `cannot patch system state from level 2 to 3: boom`)
+	c.Assert(err, ErrorMatches, `cannot patch system state to level 3, sublevel 1: boom`)
 
 	st.Lock()
 	defer st.Unlock()
@@ -224,4 +317,7 @@ func (s *patchSuite) TestSanity(c *C) {
 	}
 	// ends at implemented patch level
 	c.Check(levels[len(levels)-1], Equals, patch.Level)
+
+	// Sublevel matches the number of patches for last Level.
+	c.Check(len(patches[patch.Level]), Equals, patch.Sublevel)
 }
