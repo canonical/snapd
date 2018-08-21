@@ -19,12 +19,6 @@
 
 package osutil
 
-import (
-	"syscall"
-)
-
-var syscallUname = syscall.Uname
-
 var KernelVersion = kernelVersion
 
 // We have to implement separate functions for the kernel version and the
@@ -37,8 +31,8 @@ var KernelVersion = kernelVersion
 // for details.
 
 func kernelVersion() string {
-	var u syscall.Utsname
-	if err := syscallUname(&u); err != nil {
+	u, err := uname()
+	if err != nil {
 		return "unknown"
 	}
 
@@ -57,8 +51,8 @@ func kernelVersion() string {
 }
 
 func MachineName() string {
-	var u syscall.Utsname
-	if err := syscallUname(&u); err != nil {
+	u, err := uname()
+	if err != nil {
 		return "unknown"
 	}
 
