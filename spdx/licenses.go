@@ -484,7 +484,7 @@ var allLicenses = []string{
 
 	// FIXME: non SPDX licenses that the snapstore uses
 	"Proprietary",
-	"Other Open Source",
+	"Other-Open-Source",
 }
 
 // from https://www.google.com/url?q=https://docs.google.com/a/s.sfusd.edu/document/d/1wE_zvLU4c291ACi9wIJmQoE4ltKRW4rzM1TYiIvEVOs/edit?pli%3D1%23heading%3Dh.ruv3yl8g6czd&sa=D&ust=1473291615601000&usg=AFQjCNFyLcPLdEarX1TOesGWxg9Afb57mA
