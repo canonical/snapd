@@ -549,8 +549,9 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	return targetPath, nil
 }
 
-func activateXdgDocumentPortal(info *snap.Info) error {
-	// Don't do anything for snaps that don't plug the desktop interface
+func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
+	// Don't do anything for apps or hooks that don't plug the
+	// desktop interface
 	//
 	// NOTE: This check is imperfect because we don't really know
 	// if the interface is connected or not but this is an
@@ -559,8 +560,15 @@ func activateXdgDocumentPortal(info *snap.Info) error {
 	// document portal can be in use by many applications, not
 	// just by snaps, so this is at most, pre-emptively using some
 	// extra memory.
+	var plugs map[string]*snap.PlugInfo
+	if hook != "" {
+		plugs = info.Hooks[hook].Plugs
+	} else {
+		_, appName := snap.SplitSnapApp(snapApp)
+		plugs = info.Apps[appName].Plugs
+	}
 	plugsDesktop := false
-	for _, plug := range info.Plugs {
+	for _, plug := range plugs {
 		if plug.Interface == "desktop" {
 			plugsDesktop = true
 			break
@@ -788,7 +796,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	if err := activateXdgDocumentPortal(info); err != nil {
+	if err := activateXdgDocumentPortal(info, snapApp, hook); err != nil {
 		logger.Noticef("WARNING: cannot start document portal: %s", err)
 	}
 
