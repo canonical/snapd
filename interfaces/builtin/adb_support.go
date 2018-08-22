@@ -173,6 +173,5 @@ func init() {
 		summary:               adbSupportSummary,
 		baseDeclarationSlots:  adbSupportBaseDeclarationSlots,
 		connectedPlugAppArmor: adbSupportConnectedPlugAppArmor,
-		reservedForOS:         true,
 	}})
 }

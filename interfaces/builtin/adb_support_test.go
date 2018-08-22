@@ -74,8 +74,7 @@ func (s *adbSupportSuite) TestSanitizeSlot(c *C) {
 		Name:      "adb-support",
 		Interface: "adb-support",
 	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"adb-support slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *adbSupportSuite) TestSanitizePlug(c *C) {
