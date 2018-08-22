@@ -416,6 +416,20 @@ func isReexeced() bool {
 	return strings.HasPrefix(exe, dirs.SnapMountDir)
 }
 
+func isMountPoint(mountPoint string) bool {
+	mounts, err := osutil.LoadMountInfo("/proc/self/mountinfo")
+	if err != nil {
+		logger.Noticef("can not read /proc/self/mountinfo: %v", err)
+		return false
+	}
+	for _, mi := range mounts {
+		if mi.MountDir == mountPoint {
+			return true
+		}
+	}
+	return false
+}
+
 func migrateXauthority(info *snap.Info) (string, error) {
 	u, err := userCurrent()
 	if err != nil {
@@ -578,6 +592,13 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
+	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
+	// that the document portal is up and running.
+	expectedMountPoint := fmt.Sprintf("%s/%d/doc", dirs.XdgRuntimeDirBase, os.Getuid())
+	if isMountPoint(expectedMountPoint) {
+		return nil
+	}
+
 	// If there is no session bus, our job is done.  We check this
 	// manually to avoid dbus.SessionBus() auto-launching a new
 	// bus.
@@ -606,7 +627,6 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	// Sanity check to make sure the document portal is exposed
 	// where we think it is.
 	actualMountPoint := strings.TrimRight(string(mountPoint), "\x00")
-	expectedMountPoint := fmt.Sprintf("%s/%d/doc", dirs.XdgRuntimeDirBase, os.Getuid())
 	if actualMountPoint != expectedMountPoint {
 		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
 	}
