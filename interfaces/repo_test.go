@@ -705,15 +705,17 @@ func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
 
 func (s *RepositorySuite) TestAddSlotParallelInstance(c *C) {
 	c.Assert(s.testRepo.AllSlots(""), HasLen, 0)
+
 	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.AllSlots(""), HasLen, 1)
+
 	producer := snaptest.MockInfo(c, producerYaml, nil)
 	producer.InstanceKey = "instance"
-
 	err = s.testRepo.AddSlot(producer.Slots["slot"])
 	c.Assert(err, IsNil)
-
 	c.Assert(s.testRepo.AllSlots(""), HasLen, 2)
+
 	c.Assert(s.testRepo.Slot(s.slot.Snap.InstanceName(), s.slot.Name), DeepEquals, s.slot)
 	c.Assert(s.testRepo.Slot(producer.InstanceName(), "slot"), DeepEquals, producer.Slots["slot"])
 }
