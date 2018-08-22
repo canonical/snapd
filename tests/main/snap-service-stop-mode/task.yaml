@@ -3,9 +3,7 @@ summary: "Check that stop-modes works"
 kill-timeout: 5m
 
 # journald in ubuntu-14.04 not reliable
-# FIXME: enable core18 once https://github.com/snapcore/snapd/pull/5526
-#        is merged
-systems: [-ubuntu-14.04-*, -ubuntu-core-18-*]
+systems: [-ubuntu-14.04-*]
 
 restore: |
     rm -f *.pid || true
@@ -51,7 +49,7 @@ execute: |
 
         echo "and it got the right signal"
         echo "checking that the right signal was sent"
-        get_journalctl_log -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
+        test -f /var/snap/test-snapd-service/common/${s}-${s%%-all}
     done
 
     echo "Regular services are restarted normally"
@@ -65,3 +63,5 @@ execute: |
     for s in $stop_modes; do
         get_journalctl_log | MATCH "stop ${s}"
     done
+
+    rm -f /var/snap/test-snapd-service/common/*
