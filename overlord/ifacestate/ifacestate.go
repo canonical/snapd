@@ -389,3 +389,9 @@ func delayedCrossMgrInit() {
 		snapstate.AddAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
 	})
 }
+
+func MockConnectRetryTimeout(d time.Duration) (restore func()) {
+	old := connectRetryTimeout
+	connectRetryTimeout = d
+	return func() { connectRetryTimeout = old }
+}
