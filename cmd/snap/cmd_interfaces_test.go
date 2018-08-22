@@ -278,7 +278,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 			"result": client.Connections{
 				Slots: []client.Slot{
 					{
-						Snap:      "core",
+						Snap:      "system",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
@@ -302,7 +302,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "core",
+								Snap: "system",
 								Name: "network-listening",
 							},
 						},
@@ -314,7 +314,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "core",
+								Snap: "system",
 								Name: "network-listening",
 							},
 						},
@@ -423,6 +423,61 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 		"wake-up-alarm:toggle  -\n" +
 		"wake-up-alarm:snooze  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Connections{
+				Slots: []client.Slot{
+					{
+						Snap:        "system",
+						Name:        "core-support",
+						Interface:   "some-iface",
+						Connections: []client.PlugRef{{Snap: "core", Name: "core-support-plug"}},
+					}, {
+						Snap:      "foo",
+						Name:      "foo-slot",
+						Interface: "foo-slot-iface",
+					},
+				},
+				Plugs: []client.Plug{
+					{
+						Snap:        "core",
+						Name:        "core-support-plug",
+						Interface:   "some-iface",
+						Connections: []client.SlotRef{{Snap: "system", Name: "core-support"}},
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "system"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Slot           Plug\n" +
+		":core-support  core:core-support-plug\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	// when called with system nickname we get the same output
+	rest, err = Parser().ParseArgs([]string{"interfaces", "system"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdoutSystem := "" +
+		"Slot           Plug\n" +
+		":core-support  core:core-support-plug\n"
+	c.Assert(s.Stdout(), Equals, expectedStdoutSystem)
 	c.Assert(s.Stderr(), Equals, "")
 }
 

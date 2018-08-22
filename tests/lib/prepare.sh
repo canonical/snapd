@@ -12,6 +12,11 @@ set -eux
 . "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/spread-funcs.sh
 . "$TESTSLIB/spread-funcs.sh"
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
+
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -22,11 +27,22 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
-disable_refreshes() {
-    echo "Ensure jq is available"
-    if ! which jq; then
+ensure_jq() {
+    if command -v jq; then
+        return
+    fi
+
+    if is_core18_system; then
+        snap install --devmode jq-core18
+        snap alias jq-core18.jq jq
+    else
         snap install --devmode jq
     fi
+}
+
+disable_refreshes() {
+    echo "Ensure jq is available"
+    ensure_jq
 
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
@@ -39,7 +55,7 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove jq
+    snap remove jq jq-core18
 }
 
 setup_systemd_snapd_overrides() {
@@ -55,7 +71,7 @@ setup_systemd_snapd_overrides() {
 [Unit]
 $START_LIMIT_INTERVAL
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
@@ -89,13 +105,18 @@ update_core_snap_for_classic_reexec() {
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
-    unsquashfs "$snap"
-    # clean the old snapd libexec binaries, just in case
-    rm squashfs-root/usr/lib/snapd/*
-    # and copy in the current ones
+    unsquashfs -no-progress "$snap"
+    # clean the old snapd binaries, just in case
+    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
+    # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    # make sure bin/snapctl is a symlink to lib/
+    if [ ! -L squashfs-root/usr/bin/snapctl ]; then
+        mv squashfs-root/usr/bin/snapctl squashfs-root/usr/lib/snapd
+        ln -s ../lib/snapd/snapctl squashfs-root/usr/bin/snapctl
+    fi
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -118,6 +139,7 @@ update_core_snap_for_classic_reexec() {
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
+    chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
@@ -183,6 +205,17 @@ prepare_classic() {
         exit 1
     fi
 
+    # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
+    # unit. Stop the broken unit to not confuse the "degraded-boot" test.
+    #
+    # FIXME: fix the ubuntu-16.04-64 image
+    if systemctl list-unit-files | grep sshguard.service; then
+        if ! systemctl status sshguard.service; then
+            systemctl stop sshguard.service
+	    systemctl reset-failed sshguard.service
+        fi
+    fi
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -196,7 +229,7 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
+    if ! is_snapd_state_saved; then
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -237,26 +270,7 @@ prepare_classic() {
         fi
 
         systemctl stop snapd.{service,socket}
-        systemctl daemon-reload
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
-        for unit in $units; do
-            systemctl stop "$unit"
-        done
-        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
-        # shellcheck disable=SC2086
-        tar cf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
-        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
-        # on 14.04 it is possible that the core snap is still mounted at this point, unmount
-        # to prevent errors starting the mount unit
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
-            umount "$core" || true
-        fi
-        for unit in $units; do
-            systemctl start "$unit"
-        done
+        save_snapd_state
         systemctl start snapd.socket
     fi
 
@@ -272,38 +286,83 @@ prepare_classic() {
 }
 
 setup_reflash_magic() {
-        # install the stuff we need
-        distro_install_package kpartx busybox-static
-        distro_install_local_package "$GOHOME"/snapd_*.deb
-        distro_clean_package_cache
+    # install the stuff we need
+    distro_install_package kpartx busybox-static
+    distro_install_local_package "$GOHOME"/snapd_*.deb
+    distro_clean_package_cache
 
-        snap install "--${CORE_CHANNEL}" core
+    # we cannot use "names.sh" here because no snaps are installed yet
+    core_name="core"
+    if is_core18_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+        core_name="core18"
+    fi
+    snap install "--channel=${CORE_CHANNEL}" "$core_name"
 
-        # install ubuntu-image
-        snap install --classic --edge ubuntu-image
+    # install ubuntu-image
+    snap install --classic --edge ubuntu-image
 
-        # needs to be under /home because ubuntu-device-flash
-        # uses snap-confine and that will hide parts of the hostfs
-        IMAGE_HOME=/home/image
-        mkdir -p "$IMAGE_HOME"
+    # needs to be under /home because ubuntu-device-flash
+    # uses snap-confine and that will hide parts of the hostfs
+    IMAGE_HOME=/home/image
+    mkdir -p "$IMAGE_HOME"
 
+    # ensure that ubuntu-image is using our test-build of snapd with the
+    # test keys and not the bundled version of usr/bin/snap from the snap.
+    # Note that we can not put it into /usr/bin as '/usr' is different
+    # when the snap uses confinement.
+    cp /usr/bin/snap "$IMAGE_HOME"
+    export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
+
+    if is_core18_system; then
+        # modify the snapd snap so that it has our snapd
+        UNPACK_DIR="/tmp/snapd-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
+        
+        # FIXME: fetch directly once its in the assertion service
+        cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
+        
+        IMAGE=core18-amd64.img
+            
+        # TODO: once we have a real "canonical" signed core18 model
+        # use this and remove the extra assertions setup below.
+        #
+        # Note we don't need teardown, once the image is written
+        # the system reboots anyway.
+        #
+        # We can do this once https://forum.snapcraft.io/t/5947 is
+        # answered.
+        echo "Added needed assertions so that ubuntu-core-18-amd64.model works"
+        # shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB/store.sh"
+        STORE_DIR="$(pwd)/fake-store-blobdir"
+        export STORE_DIR
+        STORE_ADDR="localhost:11028"
+        export STORE_ADDR
+        setup_fake_store "$STORE_DIR"
+        cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR"/asserts
+        cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR"/asserts
+        # have snap use the fakestore for assertions (but nothing else)
+        SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
+        export SNAPPY_FORCE_SAS_URL
+        # -----------------------8<----------------------------
+    else
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
-        UNPACKD="/tmp/core-snap"
-        unsquashfs -d "$UNPACKD" /var/lib/snapd/snaps/core_*.snap
-
-        # FIXME: netplan workaround
-        mkdir -p "$UNPACKD/etc/netplan"
+        UNPACK_DIR="/tmp/core-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: install would be better but we don't have dpkg on
         #        the image
-        # unpack our freshly build snapd into the new core snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACKD"
+        # unpack our freshly build snapd into the new snapd snap
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
         # ensure any new timer units are available
-        cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACKD/etc/systemd/system/timers.target.wants"
+        cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
 
         # add gpio and iio slots
-        cat >> "$UNPACKD/meta/snap.yaml" <<-EOF
+        cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
 slots:
     gpio-pin:
         interface: gpio
@@ -315,89 +374,126 @@ slots:
 EOF
 
         # build new core snap for the image
-        snap pack "$UNPACKD" "$IMAGE_HOME"
+        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         IMAGE=all-snap-amd64.img
+    fi
 
-        # ensure that ubuntu-image is using our test-build of snapd with the
-        # test keys and not the bundled version of usr/bin/snap from the snap.
-        # Note that we can not put it into /usr/bin as '/usr' is different
-        # when the snap uses confinement.
-        cp /usr/bin/snap "$IMAGE_HOME"
-        export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
+    EXTRA_FUNDAMENTAL=
+    IMAGE_CHANNEL=edge
+    if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
+        IMAGE_CHANNEL="$KERNEL_CHANNEL"
+    else
+        # download pc-kernel snap for the specified channel and set
+        # ubuntu-image channel to that of the gadget, so that we don't
+        # need to download it
+        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+        
+        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+        IMAGE_CHANNEL="$GADGET_CHANNEL"
+    fi
 
-        EXTRA_FUNDAMENTAL=
-        IMAGE_CHANNEL=edge
-        if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
-            IMAGE_CHANNEL="$KERNEL_CHANNEL"
-        else
-            # download pc-kernel snap for the specified channel and set ubuntu-image channel
-            # to gadget, so that we don't need to download it
-            snap download --channel="$KERNEL_CHANNEL" pc-kernel
+    # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
+    # maybe we should fix one or both of those, but for now this'll do
+    chmod 0600 "$IMAGE_HOME"/*.snap
 
-            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
-            IMAGE_CHANNEL="$GADGET_CHANNEL"
-        fi
+    # on core18 we need to use the modified snapd snap and on core16
+    # it is the modified core that contains our freshly build snapd
+    if is_core18_system; then
+        extra_snap=("$IMAGE_HOME"/snapd_*.snap)
+    else
+        extra_snap=("$IMAGE_HOME"/core_*.snap)
+    fi
 
-        /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
-                               --channel "$IMAGE_CHANNEL" \
-                               "$EXTRA_FUNDAMENTAL" \
-                               --extra-snaps "$IMAGE_HOME"/core_*.snap \
-                               --output "$IMAGE_HOME/$IMAGE"
-        rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
+    # extra_snap should contain only ONE snap
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
+        echo "unexpected number of globbed snaps: ${extra_snap[*]}"
+        exit 1
+    fi
 
-        # mount fresh image and add all our SPREAD_PROJECT data
-        kpartx -avs "$IMAGE_HOME/$IMAGE"
-        # FIXME: hardcoded mapper location, parse from kpartx
+    /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
+                           --channel "$IMAGE_CHANNEL" \
+                           "$EXTRA_FUNDAMENTAL" \
+                           --extra-snaps "${extra_snap[0]}" \
+                           --output "$IMAGE_HOME/$IMAGE"
+    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
+
+    # mount fresh image and add all our SPREAD_PROJECT data
+    kpartx -avs "$IMAGE_HOME/$IMAGE"
+    # FIXME: hardcoded mapper location, parse from kpartx
+    if is_core18_system; then
+        mount /dev/mapper/loop3p3 /mnt
+    else
         mount /dev/mapper/loop2p3 /mnt
-        mkdir -p /mnt/user-data/
-        cp -ar /home/gopath /mnt/user-data/
+    fi
+    mkdir -p /mnt/user-data/
+    # copy over everything from gopath to user-data, exclude:
+    # - VCS files
+    # - built debs
+    # - golang archive files and built packages dir
+    # - govendor .cache directory and the binary,
+    rsync -a -C \
+          --exclude '*.a' \
+          --exclude '*.deb' \
+          --exclude /gopath/.cache/ \
+          --exclude /gopath/bin/govendor \
+          --exclude /gopath/pkg/ \
+          /home/gopath /mnt/user-data/
+        
+    # now modify the image
+    if is_core18_system; then
+        UNPACK_DIR="/tmp/core18-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
+    fi
 
-        # create test user and ubuntu user inside the writable partition
-        # so that we can use a stock core in tests
-        mkdir -p /mnt/user-data/test
+    # create test user and ubuntu user inside the writable partition
+    # so that we can use a stock core in tests
+    mkdir -p /mnt/user-data/test
 
-        # create test user, see the comment in spread.yaml about 12345
-        mkdir -p /mnt/system-data/etc/sudoers.d/
-        echo 'test ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-test-user
-        echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
-        # modify sshd so that we can connect as root
-        mkdir -p /mnt/system-data/etc/ssh
-        cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
-        sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
+    # create test user, see the comment in spread.yaml about 12345
+    mkdir -p /mnt/system-data/etc/sudoers.d/
+    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-test-user
+    echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
+    # modify sshd so that we can connect as root
+    mkdir -p /mnt/system-data/etc/ssh
+    cp -a "$UNPACK_DIR"/etc/ssh/* /mnt/system-data/etc/ssh/
+    # core18 is different here than core16
+    sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
+    # ensure the setting is correct
+    grep '^PermitRootLogin yes' /mnt/system-data/etc/ssh/sshd_config
 
-        # build the user database - this is complicated because:
-        # - spread on linode wants to login as "root"
-        # - "root" login on the stock core snap is disabled
-        # - uids between classic/core differ
-        # - passwd,shadow on core are read-only
-        # - we cannot add root to extrausers as system passwd is searched first
-        # - we need to add our ubuntu and test users too
-        # So we create the user db we need in /root/test-etc/*:
-        # - take core passwd without "root"
-        # - append root
-        # - make sure the group matches
-        # - bind mount /root/test-etc/* to /etc/* via custom systemd job
-        # We also create /var/lib/extrausers/* and append ubuntu,test there
-        mkdir -p /mnt/system-data/root/test-etc
-        mkdir -p /mnt/system-data/var/lib/extrausers/
-        touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
-        mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
-        for f in group gshadow passwd shadow; do
-            # the passwd from core without root
-            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/"$f"
-            # append this systems root user so that linode can connect
-            grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
-
-            # make sure the group is as expected
-            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/"$f"
-            # now bind mount read-only those passwd files on boot
-            cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
-[Unit]
+    # build the user database - this is complicated because:
+    # - spread on linode wants to login as "root"
+    # - "root" login on the stock core snap is disabled
+    # - uids between classic/core differ
+    # - passwd,shadow on core are read-only
+    # - we cannot add root to extrausers as system passwd is searched first
+    # - we need to add our ubuntu and test users too
+    # So we create the user db we need in /root/test-etc/*:
+    # - take core passwd without "root"
+    # - append root
+    # - make sure the group matches
+    # - bind mount /root/test-etc/* to /etc/* via custom systemd job
+    # We also create /var/lib/extrausers/* and append ubuntu,test there
+    mkdir -p /mnt/system-data/root/test-etc
+    mkdir -p /mnt/system-data/var/lib/extrausers/
+    touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
+    mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
+    for f in group gshadow passwd shadow; do
+        # the passwd from core without root
+        grep -v "^root:" "$UNPACK_DIR/etc/$f" > /mnt/system-data/root/test-etc/"$f"
+        # append this systems root user so that linode can connect
+        grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
+        
+        # make sure the group is as expected
+        chgrp --reference "$UNPACK_DIR/etc/$f" /mnt/system-data/root/test-etc/"$f"
+        # now bind mount read-only those passwd files on boot
+        cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
+[Unit]  
 Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
 
@@ -410,41 +506,40 @@ Options=bind,ro
 [Install]
 WantedBy=multi-user.target
 EOF
-            ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
+        ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
+        
+        # create /var/lib/extrausers/$f
+        # append ubuntu, test user for the testing
+        grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
+        grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
+        # check test was copied
+        MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
+        MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
+    done
 
-            # create /var/lib/extrausers/$f
-            # append ubuntu, test user for the testing
-            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/"$f"
-            tail -n2 /etc/"$f" >> /mnt/system-data/var/lib/extrausers/"$f"
-            # check test was copied
-            MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
+    # ensure spread -reuse works in the core image as well
+    if [ -e /.spread.yaml ]; then
+        cp -av /.spread.yaml /mnt/system-data
+    fi
 
-        done
+    # using symbolic names requires test:test have the same ids
+    # inside and outside which is a pain (see 12345 above), but
+    # using the ids directly is the wrong kind of fragile
+    chown --verbose test:test /mnt/user-data/test
+    
+    # we do what sync-dirs is normally doing on boot, but because
+    # we have subdirs/files in /etc/systemd/system (created below)
+    # the writeable-path sync-boot won't work
+    mkdir -p /mnt/system-data/etc/systemd
 
-        # ensure spread -reuse works in the core image as well
-        if [ -e /.spread.yaml ]; then
-            cp -av /.spread.yaml /mnt/system-data
-        fi
+    (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
+    cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
+    umount /mnt
+    kpartx -d  "$IMAGE_HOME/$IMAGE"
 
-        # using symbolic names requires test:test have the same ids
-        # inside and outside which is a pain (see 12345 above), but
-        # using the ids directly is the wrong kind of fragile
-        chown --verbose test:test /mnt/user-data/test
-
-        # we do what sync-dirs is normally doing on boot, but because
-        # we have subdirs/files in /etc/systemd/system (created below)
-        # the writeable-path sync-boot won't work
-        mkdir -p /mnt/system-data/etc/systemd
-        (cd /tmp ; unsquashfs -v "$IMAGE_HOME"/core_*.snap etc/systemd/system)
-        cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
-
-
-        umount /mnt
-        kpartx -d  "$IMAGE_HOME/$IMAGE"
-
-        # the reflash magic
-        # FIXME: ideally in initrd, but this is good enough for now
-        cat > "$IMAGE_HOME/reflash.sh" << EOF
+    # the reflash magic
+    # FIXME: ideally in initrd, but this is good enough for now
+    cat > "$IMAGE_HOME/reflash.sh" << EOF
 #!/bin/sh -ex
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
@@ -456,11 +551,11 @@ sync
 /tmp/busybox sync
 /tmp/busybox echo b > /proc/sysrq-trigger
 EOF
-        chmod +x "$IMAGE_HOME/reflash.sh"
+    chmod +x "$IMAGE_HOME/reflash.sh"
 
-        # extract ROOT from /proc/cmdline
-        ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
-        cat >/boot/grub/grub.cfg <<EOF
+    # extract ROOT from /proc/cmdline
+    ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
+    cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
@@ -470,14 +565,15 @@ initrd /initrd.img
 EOF
 }
 
-prepare_all_snap() {
+# prepare_ubuntu_core will prepare ubuntu-core 16 and 18
+prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
         setup_reflash_magic
         REBOOT
     fi
 
-    # verify after the first reboot that we are now in the all-snap world
+    # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Ensure we are now in an all-snap world"
         if [ -e /var/lib/dpkg/status ]; then
@@ -496,7 +592,7 @@ prepare_all_snap() {
     echo "Ensure fundamental snaps are still present"
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-    for name in "$gadget_name" "$kernel_name" core; do
+    for name in "$gadget_name" "$kernel_name" "$core_name"; do
         if ! snap list "$name"; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -505,26 +601,32 @@ prepare_all_snap() {
         fi
     done
 
+    echo "Ensure the snapd snap is available"
+    if is_core18_system; then
+        if ! snap list snapd; then
+            echo "snapd snap on core18 is missing"
+            snap list
+            exit 1
+        fi
+    fi
+
+    echo "Ensure rsync is available"
+    if ! command -v rsync; then
+        rsync_snap="test-snapd-rsync"
+        if is_core18_system; then
+            rsync_snap="test-snapd-rsync-core18"
+        fi
+        snap install --devmode "$rsync_snap"
+        snap alias "$rsync_snap".rsync rsync
+    fi
+
     disable_refreshes
     setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
-    if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
-        # we need to ensure that we also restore the boot environment
-        # fully for tests that break it
-        BOOT=""
-        if ls /boot/uboot/*; then
-            BOOT=/boot/uboot/
-        elif ls /boot/grub/*; then
-            BOOT=/boot/grub/
-        else
-            echo "Cannot determine bootdir in /boot:"
-            ls /boot
-            exit 1
-        fi
-
+    if ! is_snapd_state_saved; then
         systemctl stop snapd.service snapd.socket
-        tar cf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
+        save_snapd_state
         systemctl start snapd.socket
     fi
 

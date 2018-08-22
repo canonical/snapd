@@ -15,11 +15,13 @@ environment:
 
 prepare: |
     echo "Given a good (v1) and a bad (v2) snap"
-    snap pack $TESTSLIB/snaps/$SNAP_NAME_GOOD
-    snap pack $TESTSLIB/snaps/$SNAP_NAME_BAD
+    snap pack "$TESTSLIB/snaps/$SNAP_NAME_GOOD"
+    snap pack "$TESTSLIB/snaps/$SNAP_NAME_BAD"
 
 debug: |
-    journalctl -u snap.test-snapd-service.service.service
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh
+    get_journalctl_log -u snap.test-snapd-service.service.service
 
 execute: |
     wait_for_service_status() {
@@ -35,12 +37,12 @@ execute: |
         done
     }
     echo "When we install v1"
-    snap install --dangerous ${SNAP_FILE_GOOD}
+    snap install --dangerous "${SNAP_FILE_GOOD}"
     echo "The v1 service started correctly"
     wait_for_service_status "service v1"
 
     echo "When we refresh to v2"
-    if snap install --dangerous ${SNAP_FILE_BAD}; then
+    if snap install --dangerous "${SNAP_FILE_BAD}"; then
        echo "The ${SNAP_FILE_BAD} snap should not install cleanly, test broken"
        exit 1
     fi

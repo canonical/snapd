@@ -11,10 +11,12 @@ details: |
     The broadcom-asic-control interface allow access to broadcom asic kernel module.
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-broadcom-asic-control
 
-    . $TESTSLIB/files.sh
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
     ensure_file_exists_backup_real /dev/linux-user-bde
     ensure_file_exists_backup_real /dev/linux-kernel-bde
     ensure_file_exists_backup_real /dev/linux-bcm-knet
@@ -24,7 +26,8 @@ prepare: |
 restore: |
     rm -f call.error
 
-    . $TESTSLIB/files.sh
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
     clean_file /dev/linux-user-bde
     clean_file /dev/linux-kernel-bde
     clean_file /dev/linux-bcm-knet
@@ -57,7 +60,7 @@ execute: |
         subsystem_device="$(find /sys/devices/pci0000:00/ -name subsystem_device | head -n1)"
 
         for file in "$config" "$vendor" "$device" "$subsystem_vendor" "$subsystem_device"; do
-            if ! [ -z $file ]; then
+            if ! [ -z "$file" ]; then
                 test-snapd-broadcom-asic-control.sh -c "cat $file"
             fi
         done
@@ -76,7 +79,7 @@ execute: |
     snap disconnect test-snapd-broadcom-asic-control:broadcom-asic-control
 
     echo "Then the snap is not able to read the device"
-    if test-snapd-broadcom-asic-control.sh -c "cat /dev/linux-bcm-knet" 2>${PWD}/call.error; then
+    if test-snapd-broadcom-asic-control.sh -c "cat /dev/linux-bcm-knet" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to device"
         exit 1
     fi

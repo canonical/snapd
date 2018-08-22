@@ -6,6 +6,7 @@ systems:
     - -fedora-*
     - -opensuse-*
     - -arch-*
+    - -amazon-*
 
 details: |
     snap-confine is setuid root but is only confined with an apparmor profile
@@ -13,30 +14,32 @@ details: |
     the usual location (/usr/lib/snapd/snap-confine). As a security precaution
     it should detect and refuse to run if invoked from the core snap.
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     echo "Ensure the snap-confine profiles on core are not loaded"
-    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+    for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
         apparmor_parser -R "$p"
     done
 restore: |
     echo "Ensure the snap-confine profiles are restored"
-    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
-        apparmor_parser -r $p
+    for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
+        apparmor_parser -r "$p"
     done
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     # NOTE: This has to run as the test user because the protection is only
     # active if user gains elevated permissions as a result of using setuid
     # root snap-confine.
-    if su test -c "sh -c \"SNAP_NAME=test-snapd-tools $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>/dev/null\""; then
+    if su test -c "sh -c \"SNAP_NAME=test-snapd-tools SNAP_INSTANCE_NAME=test-snapd-tools $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>/dev/null\""; then
         echo "snap-confine didn't refuse to run!"
         exit 1
     fi
-    su test -c "sh -c \"SNAP_NAME=test-snapd-tools $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>&1\"" | MATCH "Refusing to continue to avoid permission escalation attacks"
+    su test -c "sh -c \"SNAP_NAME=test-snapd-tools SNAP_INSTANCE_NAME=test-snapd-tools $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>&1\"" | MATCH "Refusing to continue to avoid permission escalation attacks"
 debug: |
-    ls -ld $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine || true
-    ls -ld $SNAP_MOUNT_DIR/ubuntu-core/current/usr/lib/snapd/snap-confine || true
+    ls -ld "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine" || true
+    ls -ld "$SNAP_MOUNT_DIR/ubuntu-core/current/usr/lib/snapd/snap-confine" || true
     ls -ld /usr/lib/snapd/snap-confine || true
     snap list

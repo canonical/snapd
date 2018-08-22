@@ -81,6 +81,24 @@ func (cs *clientSuite) TestClientChangeData(c *check.C) {
 	c.Assert(err, check.Equals, client.ErrNoData)
 }
 
+func (cs *clientSuite) TestClientChangeRestartingState(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Do",
+  "ready": false
+},
+ "maintenance": {"kind": "system-restart", "message": "system is restarting"}
+}`
+
+	chg, err := cs.cli.Change("uno")
+	c.Check(chg, check.NotNil)
+	c.Check(chg.ID, check.Equals, "uno")
+	c.Check(err, check.IsNil)
+	c.Check(cs.cli.Maintenance(), check.ErrorMatches, `system is restarting`)
+}
+
 func (cs *clientSuite) TestClientChangeError(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": {
   "id":   "uno",

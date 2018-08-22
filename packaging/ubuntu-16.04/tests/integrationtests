@@ -18,7 +18,7 @@ fi
 systemctl daemon-reload
 
 # ensure we are not get killed too easily
-printf "%s\n" "-950" > /proc/$$/oom_score_adj
+printf '%s\n' "-950" > /proc/$$/oom_score_adj
 
 # see what mem we have (for debugging)
 cat /proc/meminfo
@@ -36,11 +36,14 @@ elif apt -qq list snapd | grep -q -- -updates; then
     export SPREAD_CORE_CHANNEL=stable
 fi
 
+# Spread will only buid with recent go
+snap install --classic go
+
 # and now run spread against localhost
 # shellcheck disable=SC1091
 . /etc/os-release
 export GOPATH=/tmp/go
-go get -u github.com/snapcore/spread/cmd/spread
+/snap/bin/go get -u github.com/snapcore/spread/cmd/spread
 /tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)"
 
 # store journal info for inspectsion

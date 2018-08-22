@@ -25,6 +25,10 @@ import (
 	"gopkg.in/retry.v1"
 )
 
+var (
+	HardLinkCount = hardLinkCount
+)
+
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
 func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	originalDefaultRetryStrategy := defaultRetryStrategy
@@ -38,4 +42,18 @@ func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }
 
-var GetStructFields = getStructFields
+func (cm *CacheManager) Cleanup() error {
+	return cm.cleanup()
+}
+
+func (cm *CacheManager) Count() int {
+	return cm.count()
+}
+
+func MockOsRemove(f func(name string) error) func() {
+	oldOsRemove := osRemove
+	osRemove = f
+	return func() {
+		osRemove = oldOsRemove
+	}
+}

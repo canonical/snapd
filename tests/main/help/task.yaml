@@ -4,8 +4,8 @@ execute: |
     bad=""
     for CMD in $( GO_FLAGS_COMPLETION=1 snap | grep -vFx help ); do
         printf "Checking help for command %-16s" "'$CMD':"
-        expected="Usage:\n\\s+snap $CMD\\b.*\n\nThe $CMD command (?s).*\.\n"
-        actual="$( snap $CMD --help )"
+        expected="Usage:\\n\\s+snap $CMD\\b.*\\n\\nThe $CMD command (?s).*\\.\\n"
+        actual="$( snap "$CMD" --help )"
         if ! grep -Pzq "$expected" <<<"$actual"; then
             bad=1
             echo

@@ -11,24 +11,33 @@ environment:
     XDG_CACHE_HOME: $(pwd)/cache
 
 prepare: |
-    . $TESTSLIB/pkgdb.sh
-    echo "Ensure we have a working goa-daemon"
-    distro_install_package gnome-online-accounts
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-accounts-service
-    mkdir -p $XDG_CONFIG_HOME $XDG_DATA_HOME $XDG_CACHE_HOME
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
 restore: |
-    . $TESTSLIB/pkgdb.sh
-    kill $(cat dbus-launch.pid)
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    # this will also kill the "gdbus monitor" command
+    kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
-    rm -rf $XDG_CONFIG_HOME $XDG_DATA_HOME $XDG_CACHE_HOME
+    rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+    # usually not needed, this should die when dbus goes down
+    kill "$(cat gdbus-monitor.pid)" || true
+
+debug: |
+    cat gdbus.log || true
 
 execute: |
     echo "Ensure things run"
-    eval $(dbus-launch --sh-syntax)
+    eval "$(dbus-launch --sh-syntax)"
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
-    eval $(printf password|gnome-keyring-daemon --login)
-    eval $(gnome-keyring-daemon --start)
+    eval "$(printf password|gnome-keyring-daemon --login)"
+    eval "$(gnome-keyring-daemon --start)"
+    # add debug
+    gdbus monitor --session --dest org.gnome.OnlineAccounts >gdbus.log 2>&1 &
+    echo "$!" > gdbus-monitor.pid
 
     echo "Creating account"
     # We set a long timeout here because goa-daemon will be activated
@@ -45,7 +54,8 @@ execute: |
       "{'Enabled': 'true', 'EmailAddress': 'test@example.com', 'Name': 'Test User', 'ImapHost': 'imap.example.com', 'SmtpHost': 'mail.example.com'}"
 
     echo "The interface is initially disconnected"
-    snap interfaces -i accounts-service | MATCH "\- +test-snapd-accounts-service:accounts-service"
+    snap interfaces -i accounts-service | MATCH '\- +test-snapd-accounts-service:accounts-service'
+    #shellcheck disable=SC2015
     test-snapd-accounts-service.list-accounts && exit 1 || true
 
     echo "When the plug is connected"

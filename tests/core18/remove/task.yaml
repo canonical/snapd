@@ -1,0 +1,25 @@
+summary: Check that removal of essential snaps does not work
+
+execute: |
+    echo "Ensure snapd cannot be removed"
+    if snap remove snapd; then
+        echo "The snapd snap should not be removable"
+        exit 1
+    fi
+    echo "Ensure core18 cannot be removed"
+    if snap remove core18; then
+        echo "The core18 snap should not removable"
+        exit 1
+    fi
+
+    echo "Install a snap that requires core as the base"
+    snap install test-snapd-tools
+    snap list | MATCH core
+    if snap remove core; then
+        echo "core should not be removalble because test-snapd-tools needs it"
+        exit 1
+    fi
+
+    echo "But core can be removed again once nothing on the system needs it"
+    snap remove test-snapd-tools
+    snap remove core

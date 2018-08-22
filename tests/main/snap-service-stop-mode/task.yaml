@@ -1,9 +1,11 @@
 summary: "Check that stop-modes works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 # journald in ubuntu-14.04 not reliable
-systems: [-ubuntu-14.04-*]
+# FIXME: enable core18 once https://github.com/snapcore/snapd/pull/5526
+#        is merged
+systems: [-ubuntu-14.04-*, -ubuntu-core-18-*]
 
 debug: |
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
@@ -12,9 +14,17 @@ debug: |
     done
 
 execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-service
+    # Because we cannot use daemon: notify easily yet just wait for a "ready"
+    # file to show up.  The file is removed when the service is stopped. This
+    # pattern repeats around the test without additional comments.
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
@@ -27,6 +37,7 @@ execute: |
 
     echo "When it is re-installed"
     install_local test-snapd-service
+    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     # note that sigterm{,-all} is tested separately
     for s in $stop_modes; do
@@ -35,12 +46,11 @@ execute: |
 
         echo "and it got the right signal"
         echo "checking that the right signal was sent"
-        sleep 1
-        journalctl -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
+        get_journalctl_log -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
     done
 
     echo "Regular services are restarted normally"
-    journalctl -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
+    get_journalctl_log -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > new-main.pid
     test -e new-main.pid && test -e old-main.pid
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
@@ -48,11 +58,10 @@ execute: |
     echo "Once the snap is removed, all services are stopped"
     snap remove test-snapd-service
     for s in $stop_modes; do
-        journalctl | MATCH "stop ${s}"
+        get_journalctl_log | MATCH "stop ${s}"
     done
 
 restore: |
     rm -f *.pid || true
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
-    killall sleep || true

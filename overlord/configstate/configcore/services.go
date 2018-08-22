@@ -30,6 +30,18 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var services = []struct{ configName, systemdName string }{
+	{"ssh", "ssh.service"},
+	{"rsyslog", "rsyslog.service"},
+}
+
+func init() {
+	for _, service := range services {
+		s := fmt.Sprintf("core.service.%s.disable", service.configName)
+		supportedConfigurations[s] = true
+	}
+}
+
 type sysdLogger struct{}
 
 func (l *sysdLogger) Notify(status string) {
@@ -97,10 +109,6 @@ func switchDisableService(serviceName, value string) error {
 
 // services that can be disabled
 func handleServiceDisableConfiguration(tr Conf) error {
-	var services = []struct{ configName, systemdName string }{
-		{"ssh", "ssh.service"},
-		{"rsyslog", "rsyslog.service"},
-	}
 	for _, service := range services {
 		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
 		if err != nil {

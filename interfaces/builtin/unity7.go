@@ -96,7 +96,6 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # interface.
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
-/usr/bin/dbus-send ixr,
 
 # This allow access to the first version of the snapd-xdg-open
 # version which was shipped outside of snapd
@@ -117,7 +116,6 @@ dbus (send)
 
 # Allow use of snapd's internal 'xdg-settings'
 /usr/bin/xdg-settings ixr,
-/usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
     path=/io/snapcraft/Settings
@@ -641,7 +639,8 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
 	// with the snap name, perform this conversion on the snap name.
-	new := strings.Replace(plug.Snap().Name(), "-", "_", -1)
+	// TODO parallel-install: use of proper instance/store name
+	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -657,7 +656,7 @@ func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity7Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

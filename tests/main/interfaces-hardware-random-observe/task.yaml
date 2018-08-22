@@ -10,10 +10,12 @@ summary: |
     A snap declaring a plug on this interface must be able to read files in
     /sys/class/misc/hw_random/{rng_available,rng_current} and /dev/hwrng
 
-# Execution skipped on debian and arch due to device /dev/hwrng not created by default
-systems: [-debian-*, -arch-*]
+# Execution skipped on debian, arch and amazon due to device /dev/hwrng not
+# created by default
+systems: [-debian-*, -arch-*, -amazon-*]
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a snap declaring a plug on the hardware-random-observe interface is installed"
@@ -24,7 +26,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i hardware-random-observe | MATCH "\- +test-snapd-hardware-random-observe:hardware-random-observe"
+    snap interfaces -i hardware-random-observe | MATCH '^- +test-snapd-hardware-random-observe:hardware-random-observe'
 
     echo "When the plug is connected"
     snap connect test-snapd-hardware-random-observe:hardware-random-observe

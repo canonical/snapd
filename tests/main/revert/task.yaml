@@ -6,8 +6,11 @@ environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -20,30 +23,39 @@ prepare: |
     snap install test-snapd-tools
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        . $TESTSLIB/store.sh
-        setup_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        setup_fake_store "$BLOB_DIR"
 
         echo "And a new version of that snap put in the controlled store"
-        . $TESTSLIB/store.sh
-        init_fake_refreshes $BLOB_DIR test-snapd-tools
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        init_fake_refreshes "$BLOB_DIR" test-snapd-tools
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
             exit
         fi
-        . $TESTSLIB/store.sh
-        teardown_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_fake_store "$BLOB_DIR"
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -58,13 +70,14 @@ execute: |
         exit 1
     fi
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "When a refresh is made"
     snap refresh --edge test-snapd-tools
 
     echo "Then the new version is installed"
-    snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
+    snap list | MATCH --  'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
 
     echo "And the snap runs"
     test-snapd-tools.echo hello|MATCH hello
@@ -73,11 +86,11 @@ execute: |
     snap revert test-snapd-tools
 
     echo "Then the old version is active"
-    snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+ "
+    snap list | MATCH -- 'test-snapd-tools +[0-9]+\.[0-9]+ '
 
     echo "And the data directories are present"
-    ls $SNAP_MOUNT_DIR/test-snapd-tools | MATCH current
-    ls /var/snap/test-snapd-tools | MATCH current
+    find $SNAP_MOUNT_DIR/test-snapd-tools -maxdepth 1 | MATCH current
+    find /var/snap/test-snapd-tools -maxdepth 1 | MATCH current
 
     echo "And the snap runs confined"
     snap list|MATCH 'test-snapd-tools.* -$'
@@ -93,8 +106,8 @@ execute: |
 
     echo "And a refresh doesn't update the snap"
     snap refresh
-    snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+ "
+    snap list | MATCH -- 'test-snapd-tools +[0-9]+\.[0-9]+ '
 
     echo "Unless the snap is asked for explicitly"
     snap refresh --edge test-snapd-tools
-    snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
+    snap list | MATCH -- 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'

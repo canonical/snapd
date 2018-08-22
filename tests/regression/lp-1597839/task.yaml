@@ -1,6 +1,6 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1597839
 # This test only applies to classic systems
-systems: [-ubuntu-core-16-*, -fedora-*, -arch-*]
+systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 details: |
     The snappy execution environment should contain the /lib/modules directory
     from the host filesystem when running on a classic distribution

@@ -34,7 +34,7 @@ var defaultTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected) {
+###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
@@ -106,6 +106,8 @@ var defaultTemplate = `
   # Common utilities for shell scripts
   /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
+  /{,usr/}bin/base32 ixr,
+  /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
   /{,usr/}bin/bzcat ixr,
@@ -121,6 +123,7 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,
@@ -134,6 +137,7 @@ var defaultTemplate = `
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/fold ixr,
   /{,usr/}bin/getconf ixr,
   /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
@@ -253,6 +257,7 @@ var defaultTemplate = `
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
+  /usr/lib/snapd/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
@@ -282,6 +287,15 @@ var defaultTemplate = `
   # Per man(5) proc, the kernel enforces that a thread may only modify its comm
   # value or those in its thread group.
   owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
+  # Allow reading and writing to our file descriptors in /proc which, for
+  # example, allow access to /dev/std{in,out,err} which are all symlinks to
+  # /proc/self/fd/{0,1,2} respectively. To support the open(..., O_TMPFILE)
+  # linkat() temporary file technique, allow all fds. Importantly, access to
+  # another's task's fd via this proc interface is mediated via 'ptrace (read)'
+  # (readonly) and 'ptrace (trace)' (read/write) which is denied by default, so
+  # this rule by itself doesn't allow opening another snap's fds via proc.
+  owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,
 
   # Miscellaneous accesses
   /dev/{,u}random w,
@@ -398,6 +412,13 @@ var defaultTemplate = `
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
 
+  # Allow receiving signals from all snaps (and focus on mediating sending of
+  # signals)
+  signal (receive) peer=snap.*,
+
+  # Allow receiving signals from unconfined (eg, systemd)
+  signal (receive) peer=unconfined,
+
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
@@ -461,7 +482,7 @@ var classicTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected) {
+###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,
@@ -545,7 +566,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
-  /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 
   # Allow reading the dynamic linker cache.
@@ -609,11 +630,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   umount /snap/###SNAP_NAME###/*/**,
 
   # set up user mount namespace
-  # FIXME: this should be moved to the desktop interface when
-  # xdg-desktop-portal support is integrated
   mount options=(rslave) -> /,
-  mount options=(ro bind) /run/user/*/** -> /run/user/*/**,
-  mount options=(rw bind) /run/user/*/** -> /run/user/*/**,
 
   # Allow traversing from the root directory and several well-known places.
   # Specific directory permissions are added by snippets below.

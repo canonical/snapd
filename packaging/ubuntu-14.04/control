@@ -33,6 +33,8 @@ Build-Depends: autoconf,
                squashfs-tools,
                udev,
                xfslibs-dev
+Recommends: gnupg1 | gnupg
+Suggests: zenity | kdialog
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/snapcore/snapd
@@ -84,8 +86,7 @@ Description: Daemon and tooling that enable snap packages
  enabling secure distribution of the latest apps and utilities for
  cloud, servers, desktops and the internet of things.
  .
- This is the CLI for snapd, a background service that takes care of
- snaps on the system. Start with 'snap list' to see installed snaps.
+ Start with 'snap list' to see installed snaps.
 
 Package: ubuntu-snappy
 Architecture: all

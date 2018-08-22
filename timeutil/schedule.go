@@ -137,11 +137,15 @@ func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Tim
 	// move to the beginning of the month
 	t = t.AddDate(0, 0, -t.Day()+1)
 
-	for nth := uint(0); t.Weekday() != weekday || nth != nthInMonth; {
-		t = t.Add(24 * time.Hour)
+	var nth uint
+	for {
 		if t.Weekday() == weekday {
 			nth++
+			if nth == nthInMonth {
+				break
+			}
 		}
+		t = t.Add(24 * time.Hour)
 	}
 	return t
 }

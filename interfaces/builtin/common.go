@@ -99,7 +99,7 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 // candidate and declaration-based checks allow.
 //
 // By default we allow what declarations allowed.
-func (iface *commonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *commonInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return !iface.rejectAutoConnectPairs
 }
 

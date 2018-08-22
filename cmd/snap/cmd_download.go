@@ -100,6 +100,9 @@ func (x *cmdDownload) Execute(args []string) error {
 	if x.Revision == "" {
 		revision = snap.R(0)
 	} else {
+		if x.Channel != "" {
+			return fmt.Errorf(i18n.G("cannot specify both channel and revision"))
+		}
 		var err error
 		revision, err = snap.ParseRevision(x.Revision)
 		if err != nil {

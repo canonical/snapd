@@ -75,12 +75,12 @@ dbus (receive)
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=unconfined),
+    member=Get{,All},
 
 # Allow receiving any signals from the logind service
 dbus (receive)
@@ -96,7 +96,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.login1.Manager
-    member={CanPowerOff,CanSuspend,CanHibernate,CanHybridSleep,PowerOff,Suspend,Hibernate,HybrisSleep}
+    member={CanPowerOff,CanSuspend,CanHibernate,CanHybridSleep,PowerOff,Suspend,Hibernate,HybridSleep}
     peer=(label=unconfined),
 `
 
@@ -169,19 +169,12 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Read all properties from UPower and devices
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
-    path=/org/freedesktop/UPower{,/devices/**}
+    path=/org/freedesktop/UPower{,/Wakeups,/devices/**}
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (send)
-    bus=system
-    path=/org/freedesktop/UPower/Wakeups
-    interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=###SLOT_SECURITY_TAGS###),
+    member=Get{,All},
 
 dbus (send)
     bus=system
@@ -213,12 +206,12 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to introspect the service
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     interface=org.freedesktop.DBus.Introspectable
     path=/org/freedesktop/UPower
-    member=Introspect
-    peer=(label=###SLOT_SECURITY_TAGS###),
+    member=Introspect,
 `
 
 type upowerObserveInterface struct{}
@@ -274,7 +267,7 @@ func (iface *upowerObserveInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 
-func (iface *upowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *upowerObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

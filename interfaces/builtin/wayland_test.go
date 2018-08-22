@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -104,7 +104,7 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
-	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/wayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,")
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
@@ -182,6 +182,7 @@ KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
+	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 
 	// on a classic system with wayland slot coming from the core snap.
 	restore = release.MockOnClassic(true)
@@ -190,6 +191,7 @@ KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
 	spec = &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
+	c.Assert(spec.TriggeredSubsystems(), IsNil)
 }
 
 func (s *WaylandInterfaceSuite) TestStaticInfo(c *C) {
@@ -201,9 +203,8 @@ func (s *WaylandInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME fix AutoConnect methods to use ConnectedPlug/Slot
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.coreSlotInfo}), Equals, true)
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.classicSlotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.classicSlotInfo), Equals, true)
 }
 
 func (s *WaylandInterfaceSuite) TestInterfaces(c *C) {

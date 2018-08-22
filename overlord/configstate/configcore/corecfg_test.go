@@ -34,19 +34,26 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type mockConf struct {
-	state *state.State
-	conf  map[string]interface{}
-	err   error
+	state   *state.State
+	conf    map[string]interface{}
+	changes map[string]interface{}
+	err     error
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
 	}
-	if cfg.conf[key] != nil {
+
+	var value interface{}
+	value = cfg.changes[key]
+	if value == nil {
+		value = cfg.conf[key]
+	}
+	if value != nil {
 		v1 := reflect.ValueOf(result)
 		v2 := reflect.Indirect(v1)
-		v2.Set(reflect.ValueOf(cfg.conf[key]))
+		v2.Set(reflect.ValueOf(value))
 	}
 	return cfg.err
 }
@@ -60,6 +67,14 @@ func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	}
 	cfg.conf[key] = v
 	return nil
+}
+
+func (cfg *mockConf) Changes() []string {
+	out := make([]string, 0, len(cfg.changes))
+	for k := range cfg.changes {
+		out = append(out, "core."+k)
+	}
+	return out
 }
 
 func (cfg *mockConf) State() *state.State {
@@ -100,23 +115,60 @@ type runCfgSuite struct {
 var _ = Suite(&runCfgSuite{})
 
 func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
+	for setting, value := range map[string]interface{}{
+		"experimental.layouts":            "foo",
+		"experimental.parallel-instances": "foo",
+		"experimental.hotplug":            "foo",
+	} {
+		conf := &mockConf{
+			state: r.state,
+			changes: map[string]interface{}{
+				setting: value,
+			},
+		}
+
+		err := configcore.Run(conf)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, setting))
+	}
+}
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
+	for _, setting := range []string{"experimental.layouts", "experimental.parallel-instances", "experimental.hotplug"} {
+		for _, t := range []string{"true", "false"} {
+			conf := &mockConf{
+				state: r.state,
+				conf: map[string]interface{}{
+					setting: t,
+				},
+			}
+
+			err := configcore.Run(conf)
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 	conf := &mockConf{
 		state: r.state,
-		conf: map[string]interface{}{
-			"experimental.layouts": "foo",
+		changes: map[string]interface{}{
+			"unknown.option": "1",
 		},
 	}
 
 	err := configcore.Run(conf)
-	c.Check(err, ErrorMatches, `experimental.layouts can only be set to 'true' or 'false'`)
+	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }
 
-func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, t := range []string{"true", "false"} {
+func (r *runCfgSuite) TestConfigureKnownOption(c *C) {
+	for setting, value := range map[string]interface{}{
+		"experimental.layouts":            true,
+		"experimental.parallel-instances": false,
+	} {
 		conf := &mockConf{
 			state: r.state,
-			conf: map[string]interface{}{
-				"experimental.layouts": t,
+			changes: map[string]interface{}{
+				setting: value,
 			},
 		}
 

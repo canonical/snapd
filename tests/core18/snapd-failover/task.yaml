@@ -1,0 +1,36 @@
+summary: Check that snapd failure handling works
+
+restore: |
+    rm -rf ./snapd-broken
+
+debug: |
+    # dump failure data
+    journalctl -u snapd.failure.service
+
+execute: |
+    echo "Testing failover handling of the snapd snap"
+    current=$(readlink /snap/snapd/current)
+    SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_"$current".snap)
+
+    echo "Verify that a random signal does not trigger the failure handling"
+    echo "and snapd is just restarted"
+    systemctl kill --signal=SIGSEGV snapd.service
+    systemctl status snapd.failure.service | MATCH inactive
+    echo "Snap list is working still"
+    snap list | MATCH "^snapd .* $current .*"
+
+    echo "Break snapd"
+    unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
+    echo "" > ./snapd-broken/usr/lib/snapd/snapd
+    (cd ./snapd-broken && snap pack .)
+    echo "Now install the broken snapd"
+    if snap install --dangerous ./snapd-broken/snapd_*.snap; then
+        echo "installing a broken snapd should not work, test broken"
+        exit 1
+    fi
+
+    echo "And verify that snap commands still work and snapd is reverted"
+    snap list | MATCH "^snapd .* $current .*"
+
+    echo "Verify we got the expected error message"
+    snap change --last=install|MATCH "there was a snapd rollback across the restart"
