@@ -78,28 +78,41 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 	if err != nil {
 		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
 	}
+	presentableBuf := string(buf)
 	if exact {
 		switch content := content.(type) {
 		case string:
-			return string(buf) == content, ""
+			result = string(buf) == content
 		case []byte:
-			return bytes.Equal(buf, content), ""
+			result = bytes.Equal(buf, content)
+			presentableBuf = "<binary data>"
 		case fmt.Stringer:
-			return string(buf) == content.String(), ""
+			result = string(buf) == content.String()
+		default:
+			error = fmt.Sprintf("Can't compare file contents with something of type %T", content)
 		}
 	} else {
 		switch content := content.(type) {
 		case string:
-			return strings.Contains(string(buf), content), ""
+			result = strings.Contains(string(buf), content)
 		case []byte:
-			return bytes.Contains(buf, content), ""
+			result = bytes.Contains(buf, content)
+			presentableBuf = "<binary data>"
 		case *regexp.Regexp:
-			return content.Match(buf), ""
+			result = content.Match(buf)
 		case fmt.Stringer:
-			return strings.Contains(string(buf), content.String()), ""
+			result = strings.Contains(string(buf), content.String())
+		default:
+			error = fmt.Sprintf("Can't compare file contents with something of type %T", content)
 		}
 	}
-	return false, fmt.Sprintf("Can't compare file contents with something of type %T", content)
+	if !result {
+		if error == "" {
+			error = fmt.Sprintf("Failed to match with file contents:\n%v", presentableBuf)
+		}
+		return result, error
+	}
+	return result, ""
 }
 
 type containsChecker struct {
