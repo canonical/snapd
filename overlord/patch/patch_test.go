@@ -23,9 +23,12 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 
 	. "gopkg.in/check.v1"
 )
@@ -180,22 +183,10 @@ func (s *patchSuite) TestApplyFromSublevel(c *C) {
 		c.Fatalf("patch p60 shouldn't be applied")
 		return nil
 	}
-	p61 := func(st *state.State) error {
-		sequence = append(sequence, 61)
-		return nil
-	}
-	p62 := func(st *state.State) error {
-		sequence = append(sequence, 62)
-		return nil
-	}
-	p70 := func(st *state.State) error {
-		sequence = append(sequence, 70)
-		return nil
-	}
-	p71 := func(st *state.State) error {
-		sequence = append(sequence, 71)
-		return nil
-	}
+	p61 := generatePatchFunc(61, &sequence)
+	p62 := generatePatchFunc(62, &sequence)
+	p70 := generatePatchFunc(70, &sequence)
+	p71 := generatePatchFunc(71, &sequence)
 
 	restore := patch.Mock(7, 2, map[int][]patch.PatchFunc{
 		6: {p60, p61, p62},
@@ -206,7 +197,7 @@ func (s *patchSuite) TestApplyFromSublevel(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	st.Set("patch-level", 6)
-	st.Set("patch-sublevel", 1)
+	st.Set("patch-sublevel", 0)
 	st.Unlock()
 	c.Assert(patch.Apply(st), IsNil)
 
@@ -306,6 +297,46 @@ func (s *patchSuite) TestError(c *C) {
 	c.Check(n, Equals, 10)
 }
 
+func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
+	var sequence []int
+
+	p60 := func(st *state.State) error {
+		c.Fatalf("patch p60 shouldn't be applied")
+		return nil
+	}
+	p61 := generatePatchFunc(61, &sequence)
+	p62 := generatePatchFunc(62, &sequence)
+
+	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62},
+	})
+
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+
+	// simulate the situation where core was refreshed
+	// from a revision with patch level 6 that's not sublevel-aware back to 6.2.
+	st.Set("last-refresh", time.Now().Add(-23*time.Hour))
+	st.Set("patch-level", 6)
+	st.Set("patch-sublevel", 2)
+
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(5142)}
+	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(5144)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1, siCore2},
+		Current:  siCore2.Revision,
+	})
+	st.Unlock()
+
+	c.Assert(patch.Apply(st), IsNil)
+
+	c.Assert(sequence, DeepEquals, []int{61, 62})
+}
+
 func (s *patchSuite) TestSanity(c *C) {
 	patches := patch.PatchesForTest()
 	levels := make([]int, 0, len(patches))
@@ -321,5 +352,12 @@ func (s *patchSuite) TestSanity(c *C) {
 	c.Check(levels[len(levels)-1], Equals, patch.Level)
 
 	// Sublevel matches the number of patches for last Level.
-	c.Check(len(patches[patch.Level]), Equals, patch.Sublevel)
+	c.Check(len(patches[patch.Level])-1, Equals, patch.Sublevel)
+}
+
+func generatePatchFunc(testValue int, sequence *[]int) patch.PatchFunc {
+	return func(st *state.State) error {
+		*sequence = append(*sequence, testValue)
+		return nil
+	}
 }
