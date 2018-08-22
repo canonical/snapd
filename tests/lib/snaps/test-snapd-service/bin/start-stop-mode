@@ -20,11 +20,11 @@ def sd_notify(unset_environment: bool, state: str) -> bool:
         os.unsetenv("NOTIFY_SOCKET")
     return True
 
-def write_ready_file() -> bool:
+def write_file(name: str) -> bool:
     SNAP_COMMON = os.getenv("SNAP_COMMON")
     if SNAP_COMMON is None:
         return False
-    with open(os.path.join(SNAP_COMMON, "ready"), "w") as stream:
+    with open(os.path.join(SNAP_COMMON, name), "w") as stream:
         pass
     return True
 
@@ -50,7 +50,7 @@ def main() -> None:
     # $SNAP_COMMON/ready that conveys the same message. The tests can use that
     # to synchronize.
     try:
-        sd_notify(False, "READY=1\n") or write_ready_file()
+        sd_notify(False, "READY=1\n") or write_file("ready")
     except PermissionError:
         raise SystemExit("cannot send systemd notification message")
 
@@ -59,7 +59,9 @@ def main() -> None:
         print("running {} process".format(sys.argv[1] if len(sys.argv) > 1 else "???"))
         time.sleep(1)
         if incoming_signum is not None:
-            print("got {}".format(signal.Signals(incoming_signum).name.lower()))
+            signame = signal.Signals(incoming_signum).name.lower()
+            print("got {}".format(signame))
+            write_file("{}-{}".format(sys.argv[1],signame))
 
 
 if __name__ == "__main__":
