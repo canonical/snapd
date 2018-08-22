@@ -259,6 +259,12 @@ name: required-snap1
 version: 1.0
 `
 
+const snapReqOtherBase = `
+name: snap-req-other-base
+version: 1.0
+base: other-base
+`
+
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
 	_, err := image.DecodeModelAssertion(&image.Options{})
 	c.Assert(err, ErrorMatches, "cannot read model assertion: open : no such file or directory")
@@ -555,6 +561,10 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
 	s.storeSnapInfo["required-snap1"].Contact = "foo@example.com"
 	s.addSystemSnapAssertions(c, "required-snap1", "other")
+
+	s.downloadedSnaps["snap-req-other-base"] = snaptest.MakeTestSnapWithFiles(c, snapReqOtherBase, nil)
+	s.storeSnapInfo["snap-req-other-base"] = infoFromSnapYaml(c, snapReqOtherBase, snap.R(5))
+	s.addSystemSnapAssertions(c, "snap-req-other-base", "other")
 }
 
 func (s *imageSuite) TestBootstrapToRootDir(c *C) {
@@ -1397,6 +1407,47 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		File:    "required-snap1_3.snap",
 		Contact: "foo@example.com",
 	})
+}
+
+func (s *imageSuite) TestBootstrapWithMissingBase(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"snap-req-other-base"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core18":    "canonical",
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		Snaps:           []string{"core"},
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without seeding base "other-base", please add the missing base`)
 }
 
 type toolingAuthContextSuite struct {
