@@ -1306,9 +1306,7 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "kernel1", Type: "kernel"},
 		{SuggestedName: "app2", Type: "app"},
 		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
-			RealName: "snapd",
-		}},
+		{SuggestedName: "snapd", Type: "snapd"},
 		{SuggestedName: "base2", Type: "base"},
 		{SuggestedName: "gadget2", Type: "gadget"},
 		{SuggestedName: "kernel2", Type: "kernel"},
@@ -1316,9 +1314,7 @@ func (s *infoSuite) TestSortByType(c *C) {
 	sort.Stable(snap.ByType(infos))
 
 	c.Check(infos, DeepEquals, []*snap.Info{
-		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
-			RealName: "snapd",
-		}},
+		{SuggestedName: "snapd", Type: "snapd"},
 		{SuggestedName: "os1", Type: "os"},
 		{SuggestedName: "os2", Type: "os"},
 		{SuggestedName: "kernel1", Type: "kernel"},

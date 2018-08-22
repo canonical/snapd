@@ -64,6 +64,15 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(info.Type, Equals, snap.TypeApp)
 }
 
+func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
+version: 1.0`))
+	c.Assert(err, IsNil)
+	c.Assert(info.InstanceName(), Equals, "snapd")
+	c.Assert(info.Version, Equals, "1.0")
+	c.Assert(info.Type, Equals, snap.TypeSnapd)
+}
+
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte("random-crap"))
 	c.Assert(err, ErrorMatches, "(?m)cannot parse snap.yaml:.*")

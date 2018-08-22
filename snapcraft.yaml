@@ -11,6 +11,7 @@ version: set-by-version-script-thxbye
 version-script: |
   ./mkversion.sh --output-only
 grade: devel
+type: snapd
 
 parts:
   snapd:
