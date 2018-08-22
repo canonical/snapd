@@ -103,8 +103,8 @@ var (
 )
 
 const (
-	aggresiveSettleTimeout = 50 * time.Millisecond
-	connectRetryTimeout    = 70 * time.Millisecond
+	aggressiveSettleTimeout = 50 * time.Millisecond
+	connectRetryTimeout     = 70 * time.Millisecond
 )
 
 func (ms *mgrsSuite) SetUpTest(c *C) {
@@ -2421,17 +2421,17 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	// it always hits given timeout before we carry on with the test. We're
 	// interested in hitting the retry condition on auto-connect task, so
 	// instead of passing a generous timeout to Settle(), repeat Settle() a number
-	// of times with an aggresive timeout and break as soon as we reach the desired
+	// of times with an aggressive timeout and break as soon as we reach the desired
 	// state of auto-connect task.
 	var retryCheck bool
 	var autoconnectLog string
 	for i := 0; i < 2000 && !retryCheck; i++ {
 		st.Unlock()
-		ms.o.Settle(aggresiveSettleTimeout)
+		ms.o.Settle(aggressiveSettleTimeout)
 		st.Lock()
 
 		for _, t := range st.Tasks() {
-			if t.Kind() == "auto-connect" && t.Status() == state.DoingStatus {
+			if t.Kind() == "auto-connect" && t.Status() == state.DoingStatus && strings.Contains(strings.Join(t.Log(), ""), "Waiting") {
 				autoconnectLog = strings.Join(t.Log(), "")
 				retryCheck = true
 				break
