@@ -427,6 +427,11 @@ func XSnapdOriginLayout() string {
 	return "x-snapd.origin=layout"
 }
 
+// XSnapdOriginLayout returns the string "x-snapd.origin=parallel-instance"
+func XSnapdOriginParallelInstance() string {
+	return "x-snapd.origin=parallel-instance"
+}
+
 // XSnapdUser returns the string "x-snapd.user=%d".
 func XSnapdUser(uid uint32) string {
 	return fmt.Sprintf("x-snapd.user=%d", uid)
