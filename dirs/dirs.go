@@ -63,6 +63,7 @@ var (
 	SnapCookieDir         string
 	SnapTrustedAccountKey string
 	SnapAssertsSpoolDir   string
+	SnapSeqDir            string
 
 	SnapStateFile     string
 	SnapSystemKeyFile string
@@ -80,6 +81,7 @@ var (
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
+	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapBusPolicyDir    string
 
@@ -103,6 +105,10 @@ var (
 	SystemFontconfigCacheDir string
 
 	FreezerCgroupDir string
+	SnapshotsDir     string
+
+	ErrtrackerDbDir string
+	SysfsDir        string
 )
 
 const (
@@ -167,6 +173,21 @@ func SupportsClassicConfinement() bool {
 	return false
 }
 
+var metaSnapPath = "/meta/snap.yaml"
+
+// isInsideBaseSnap returns true if the process is inside a base snap environment.
+//
+// The things that count as a base snap are:
+// - any base snap mounted at /
+// - any os snap mounted at /
+func isInsideBaseSnap() (bool, error) {
+	_, err := os.Stat(metaSnapPath)
+	if err != nil && os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -175,7 +196,8 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	if release.DistroLike("fedora", "arch", "manjaro") {
+	isInsideBase, _ := isInsideBaseSnap()
+	if !isInsideBase && release.DistroLike("fedora", "arch", "manjaro", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -204,6 +226,7 @@ func SetRootDir(rootdir string) {
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
 	SnapCookieDir = filepath.Join(rootdir, snappyDir, "cookie")
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
+	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
@@ -224,6 +247,7 @@ func SetRootDir(rootdir string) {
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
@@ -259,4 +283,8 @@ func SetRootDir(rootdir string) {
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
+	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
+
+	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
+	SysfsDir = filepath.Join(rootdir, "/sys")
 }

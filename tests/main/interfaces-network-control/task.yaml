@@ -20,30 +20,34 @@ environment:
     ARP_ENTRY_ADDR: "30.30.30.30"
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     echo "Given a snap declaring a plug on the network-control interface is installed"
     install_local network-control-consumer
 
     echo "And a network service is up"
-    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT; done" > $SERVICE_FILE
-    chmod a+x $SERVICE_FILE
-    systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
-
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
 
 restore: |
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
+    #shellcheck source=tests/lib/network.sh
     . "$TESTSLIB/network.sh"
 
-    systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f *.output $SERVICE_FILE
-    arp -d $ARP_ENTRY_ADDR -i $(get_default_iface) || true
+    #shellcheck disable=SC2153
+    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    rm -f ./*.output "$SERVICE_FILE"
+    arp -d "$ARP_ENTRY_ADDR" -i "$(get_default_iface)" || true
 
     ip netns delete test-ns || true
     ip link delete veth0 || true
 
 execute: |
+    #shellcheck source=tests/lib/network.sh
     . "$TESTSLIB/network.sh"
 
     INTERFACE=$(get_default_iface)
@@ -55,38 +59,40 @@ execute: |
     snap connect network-control-consumer:network-control
 
     echo "Then the snap command can query network status information"
-    network-control-consumer.cmd netstat -lnt | MATCH "0.0.0.0:$PORT.*?LISTEN"
+    network-control-consumer.cmd ss -lnt | MATCH "LISTEN.*:$PORT"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect network-control-consumer:network-control
 
         echo "Then the snap command can not query network status information"
-        if network-control-consumer.cmd netstat -lnt 2>net-query.output; then
+        if network-control-consumer.cmd ss -lnt 2>net-query.output; then
             echo "Expected error caling command with disconnected plug"
             exit 1
         fi
-        cat net-query.output | MATCH "Permission denied"
+        MATCH "Permission denied" < net-query.output
     fi
 
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
 
-    echo "Then the snap command can modify the network configuration"
-    network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
-    expected="(?s)br0.*?state UP.*?bridge.*?foo@bar.*?veth.*?bar@foo.*?veth"
-    arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
+    # core18 has no "arp" utility
+    if [ "$(comamnd -v arp)" != "" ]; then
+        echo "Then the snap command can modify the network configuration"
+        network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
+        arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect network-control-consumer:network-control
+        if [ "$(snap debug confinement)" = strict ] ; then
+            echo "When the plug is disconnected"
+            snap disconnect network-control-consumer:network-control
 
-        echo "Then the snap command can not modify the network configuration"
-        if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
-            echo "Expected error calling command with disconnected plug"
-            exit 1
+            echo "Then the snap command can not modify the network configuration"
+            if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
+                echo "Expected error calling command with disconnected plug"
+                exit 1
+            fi
+            MATCH "Permission denied" < net-command.output
         fi
-        cat net-command.output | MATCH "Permission denied"
     fi
 
     echo "When the plug is connected"
@@ -117,7 +123,7 @@ execute: |
         if network-control-consumer.cmd ip netns add test-ns-2 2>ns-create.output; then
             echo "Expected error calling ns create command with disconnected plug"
         fi
-        cat ns-create.output | MATCH "Permission denied"
+        MATCH "Permission denied" < ns-create.output
 
         echo "And the snap can't add a veth interface to an existing namespace"
         # first, move veth1 back to the root namespace
@@ -126,7 +132,7 @@ execute: |
             echo "Expected error trying to move veth to network namespace with disconnected plug"
             exit 1
         fi
-        cat ns-move.output | MATCH "Permission denied"
+        MATCH "Permission denied" < ns-move.output
 
 
         echo "And the snap can't execute a command in the context of the namespace"
@@ -134,5 +140,5 @@ execute: |
             echo "Expected error trying to execute command in a network namespace context with disconnected plug"
             exit 1
         fi
-        cat ns-exec.output | MATCH "Permission denied"
+        MATCH "Permission denied" < ns-exec.output
     fi

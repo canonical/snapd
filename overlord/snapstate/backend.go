@@ -36,9 +36,7 @@ import (
 type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
-	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 
-	ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
 	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
 
 	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
@@ -51,13 +49,14 @@ type StoreService interface {
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
+	ConnectivityCheck() (map[string]bool, error)
 }
 
 type managerBackend interface {
 	// install releated
-	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
+	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	LinkSnap(info *snap.Info) error
+	LinkSnap(info *snap.Info, model *asserts.Model) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error
 

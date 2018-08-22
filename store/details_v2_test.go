@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,7 +65,8 @@ const (
   "publisher": {
      "id": "canonical",
      "username": "canonical",
-     "display-name": "Canonical"
+     "display-name": "Canonical",
+     "validation": "verified"
   },
   "revision": 3887,
   "snap-id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
@@ -82,6 +84,7 @@ const (
   "base": "base-18",
   "confinement": "strict",
   "contact": "https://thingy.com",
+  "common-ids": ["org.thingy"],
   "created-at": "2018-01-26T11:38:35.536410+00:00",
   "description": "Useful thingy for thinging",
   "download": {
@@ -110,7 +113,8 @@ const (
   "publisher": {
      "id": "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
      "username": "thingyinc",
-     "display-name": "Thingy Inc."
+     "display-name": "Thingy Inc.",
+     "validation": "unproven"
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
@@ -162,8 +166,12 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 		Type:        snap.TypeOS,
 		Version:     "16-2.30",
 		Confinement: snap.StrictConfinement,
-		PublisherID: "canonical",
-		Publisher:   "canonical",
+		Publisher: snap.StoreAccount{
+			ID:          "canonical",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "verified",
+		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/99T7MUlRhtI3U0QFgl5mXXESAiSwt776_3887.snap",
 			Sha3_384:    "b691f6dde3d8022e4db563840f0ef82320cb824b6292ffd027dbc838535214dac31c3512c619beaf73f1aeaf35ac62d5",
@@ -210,8 +218,12 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		Version:     "9.50",
 		Confinement: snap.StrictConfinement,
 		License:     "Proprietary",
-		PublisherID: "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
-		Publisher:   "thingyinc",
+		Publisher: snap.StoreAccount{
+			ID:          "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
+			Username:    "thingyinc",
+			DisplayName: "Thingy Inc.",
+			Validation:  "unproven",
+		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap",
 			Sha3_384:    "a29f8d894c92ad19bb943764eb845c6bd7300f555ee9b9dbb460599fecf712775c0f3e2117b5c56b08fcb9d78fc8ae4d",
@@ -235,6 +247,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
 			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
+		CommonIDs: []string{"org.thingy"},
 	})
 
 	// validate the plugs/slots
@@ -265,6 +278,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	// check that up to few exceptions info is filled
 	expectedZeroFields := []string{
 		"SuggestedName",
+		"InstanceKey",
 		"Assumes",
 		"OriginalTitle",
 		"OriginalSummary",
@@ -278,8 +292,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"BadInterfaces",
 		"Broken",
 		"MustBuy",
-		"Channels", // TODO: support coming later
-		"Tracks",   // TODO: support coming later
+		"Channels", // handled at a different level (see TestInfo)
+		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
@@ -302,4 +316,92 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	}
 	x := reflect.ValueOf(info).Elem()
 	checker("", x)
+}
+
+// arg must be a pointer to a struct
+func fillStruct(a interface{}, c *C) {
+	if t := reflect.TypeOf(a); t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
+		k := t.Kind()
+		if k == reflect.Ptr {
+			k = t.Elem().Kind()
+		}
+		c.Fatalf("first argument must be expected a pointer to a struct, not %s", k)
+	}
+	va := reflect.ValueOf(a)
+	n := va.Elem().NumField()
+	for i := 0; i < n; i++ {
+		field := va.Elem().Field(i)
+		var x interface{}
+		switch field.Interface().(type) {
+		case string:
+			x = "foo"
+		case []string:
+			x = []string{"foo"}
+		case safejson.String:
+			var s safejson.String
+			c.Assert(json.Unmarshal([]byte(`"foo"`), &s), IsNil)
+			x = s
+		case safejson.Paragraph:
+			var p safejson.Paragraph
+			c.Assert(json.Unmarshal([]byte(`"foo"`), &p), IsNil)
+			x = p
+		case storeSnapDownload:
+			x = storeSnapDownload{
+				URL:      "http://example.com/foo",
+				Size:     42,
+				Sha3_384: "foo",
+			}
+		case snap.Epoch:
+			x = *snap.E("1")
+		case map[string]string:
+			x = map[string]string{"foo": "bar"}
+		case bool:
+			x = true
+		case snap.StoreAccount:
+			x = snap.StoreAccount{
+				ID:          "foo-id",
+				Username:    "foo",
+				DisplayName: "Foo Bar",
+				Validation:  "VALIDATION",
+			}
+		case int:
+			x = 42
+		case snap.Type:
+			x = snap.Type("invalid")
+		case []storeSnapMedia:
+			x = []storeSnapMedia{{
+				Type: "potato",
+				URL:  "http://example.com/foo.pot",
+			}}
+		default:
+			c.Fatalf("unhandled field type %T", field.Interface())
+		}
+		field.Set(reflect.ValueOf(x))
+	}
+}
+
+func (s *detailsV2Suite) TestCopyNonZero(c *C) {
+	// a is a storeSnap with everything non-zero
+	a := storeSnap{}
+	fillStruct(&a, c)
+	// b is all zeros
+	b := storeSnap{}
+
+	aCopy := a
+	bCopy := b
+
+	// sanity check
+	c.Check(a, DeepEquals, aCopy)
+	c.Check(b, DeepEquals, bCopy)
+	c.Check(a, Not(DeepEquals), b)
+
+	// copying from b to a does nothing:
+	copyNonZeroFrom(&b, &a)
+	c.Check(a, DeepEquals, aCopy)
+	c.Check(b, DeepEquals, bCopy)
+
+	// copying from a to b does its thing:
+	copyNonZeroFrom(&a, &b)
+	c.Check(a, DeepEquals, b)
+	c.Check(b, Not(DeepEquals), bCopy)
 }

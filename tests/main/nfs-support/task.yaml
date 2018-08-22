@@ -5,11 +5,9 @@ details: |
     permissions sufficient for NFS to operate.
 systems: [ubuntu-16.04-64]  # TODO: expand this list
 prepare: |
-    . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
-    # Install NFS server and a simple shell snap.
-    distro_install_package nfs-kernel-server
     install_local test-snapd-sh
 execute: |
     ensure_extra_perms() {
@@ -42,6 +40,7 @@ execute: |
     ensure_extra_perms
 
     # As a non-root user perform a write over NFS-mounted /home
+    #shellcheck disable=SC2016
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-tcp"' test
 
     # Unmount /home and restart snapd so that we can check another thing.
@@ -62,6 +61,7 @@ execute: |
     ensure_extra_perms
 
     # As a non-root user perform a write over NFS-mounted /home
+    #shellcheck disable=SC2016
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-udp"' test
 
     # Unmount /home and restart snapd so that we can check another thing.
@@ -82,6 +82,7 @@ execute: |
     ensure_extra_perms
 
     # As a non-root user perform a write over NFS-mounted /home
+    #shellcheck disable=SC2016
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs4"' test
 
     # Unmount /home and restart snapd so that we can check another thing.
@@ -103,6 +104,7 @@ execute: |
     systemctl restart snapd
     ensure_extra_perms
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
     # Unmount NFS mount over /home if one exists.
@@ -117,7 +119,6 @@ restore: |
     rm -f /etc/exports.d/test.exports
     rm -f -d /etc/exports.d
     exportfs -r
-    distro_purge_package nfs-kernel-server bsdgames
 
-    # Restart snapd in to ensure it doesn't know about NFS anymore.
+    # Restart snapd in to ensure it doesn't know about NFS configuration anymore.
     systemctl restart snapd.service

@@ -25,15 +25,24 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// HookTask returns a task that will run the specified hook. Note that the
-// initial context must properly marshal and unmarshal with encoding/json.
-func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
+// HookTaskWithUndo returns a task that will run the specified hook. On error the undo hook will be executed.
+// Note that the initial context must properly marshal and unmarshal with encoding/json.
+func HookTaskWithUndo(st *state.State, summary string, setup *HookSetup, undo *HookSetup, contextData map[string]interface{}) *state.Task {
 	task := st.NewTask("run-hook", summary)
 	task.Set("hook-setup", setup)
+	if undo != nil {
+		task.Set("undo-hook-setup", undo)
+	}
 
 	// Initial data for Context.Get/Set.
 	if len(contextData) > 0 {
 		task.Set("hook-context", contextData)
 	}
 	return task
+}
+
+// HookTask returns a task that will run the specified hook. Note that the
+// initial context must properly marshal and unmarshal with encoding/json.
+func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
+	return HookTaskWithUndo(st, summary, setup, nil, contextData)
 }

@@ -256,12 +256,12 @@ dbus (receive)
 
 # Don't allow introspection since it reveals too much (path is not service
 # specific for unconfined)
+# do not use peer=(label=unconfined) here since this is DBus activated
 #dbus (send)
 #    bus=system
 #    path=/
 #    interface=org.freedesktop.DBus.Introspectable
-#    member=Introspect
-#    peer=(label=unconfined),
+#    member=Introspect,
 
 # These allows tampering with other snap's browsers, so don't autoconnect for
 # now.
@@ -460,7 +460,7 @@ func (iface *avahiObserveInterface) DBusPermanentSlot(spec *dbus.Specification, 
 	return nil
 }
 
-func (iface *avahiObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *avahiObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

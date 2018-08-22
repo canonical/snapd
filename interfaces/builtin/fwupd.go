@@ -264,7 +264,7 @@ func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-func (iface *fwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *fwupdInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

@@ -66,6 +66,18 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change, *Secure) ([]*Change, error)
 
+// mimicRequired provides information if an error warrants a writable mimic.
+//
+// The returned path is the location where a mimic should be constructed.
+func mimicRequired(err error) (needsMimic bool, path string) {
+	switch err.(type) {
+	case *ReadOnlyFsError:
+		rofsErr := err.(*ReadOnlyFsError)
+		return true, rofsErr.Path
+	}
+	return false, ""
+}
+
 func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
 	// If we've been asked to create a missing path, and the mount
 	// entry uses the ignore-missing option, return an error.
@@ -98,26 +110,19 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	case "file":
 		err = sec.MkfileAll(path, mode, uid, gid)
 	case "symlink":
-		target := c.Entry.XSnapdSymlink()
-		if target == "" {
-			err = fmt.Errorf("cannot create symlink with empty target")
-		} else {
-			err = sec.MksymlinkAll(path, mode, uid, gid, target)
-		}
+		err = sec.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
 	}
-	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
-		// If the writing failed because the underlying file-system is read-only
-		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path, path, sec)
+	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
+		// If the error can be recovered by using a writable mimic
+		// then construct one and try again.
+		changes, err = createWritableMimic(mimicPath, path, sec)
 		if err != nil {
-			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+			err = fmt.Errorf("cannot create writable mimic over %q: %s", mimicPath, err)
 		} else {
 			// Try once again. Note that we care *just* about the error. We have already
 			// performed the hole poking and thus additional changes must be nil.
 			_, err = c.createPath(path, false, sec)
 		}
-	} else if err != nil {
-		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
 }
@@ -165,12 +170,14 @@ func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 	return changes, err
 }
 
-func (c *Change) ensureSource(sec *Secure) error {
+func (c *Change) ensureSource(sec *Secure) ([]*Change, error) {
+	var changes []*Change
+
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
 	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
-		return nil
+		return nil, nil
 	}
 
 	kind := c.Entry.XSnapdKind()
@@ -192,17 +199,31 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false, sec)
+		// NOTE: This createPath is using pokeHoles, to make read-only places
+		// writable, but only for layouts and not for other (typically content
+		// sharing) mount entries.
+		//
+		// This is done because the changes made with pokeHoles=true are only
+		// visible in this current mount namespace and are not generally
+		// visible from other snaps because they inhabit different namespaces.
+		//
+		// In other words, changes made here are only observable by the single
+		// snap they apply to. As such they are useless for content sharing but
+		// very much useful to layouts.
+		pokeHoles := c.Entry.XSnapdOrigin() == "layout"
+		changes, err = c.createPath(path, pokeHoles, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
 	}
-	return err
+
+	return changes, err
 }
 
 // changePerformImpl is the real implementation of Change.Perform
 func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 	if c.Action == Mount {
+		var changesSource, changesTarget []*Change
 		// We may be asked to bind mount a file, bind mount a directory, mount
 		// a filesystem over a directory, or create a symlink (which is abusing
 		// the "mount" concept slightly). That actual operation is performed in
@@ -211,7 +232,10 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// As a result of this ensure call we may need to make the medium writable
 		// and that's why we may return more changes as a result of performing this
 		// one.
-		changes, err = c.ensureTarget(sec)
+		changesTarget, err = c.ensureTarget(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
+		changes = append(changes, changesTarget...)
 		if err != nil {
 			return changes, err
 		}
@@ -222,7 +246,10 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// This property holds as long as we don't interact with locations that
 		// are under the control of regular (non-snap) processes that are not
 		// suspended and may be racing with us.
-		err = c.ensureSource(sec)
+		changesSource, err = c.ensureSource(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
+		changes = append(changes, changesSource...)
 		if err != nil {
 			return changes, err
 		}

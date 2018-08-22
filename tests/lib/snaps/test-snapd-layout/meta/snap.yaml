@@ -3,7 +3,7 @@ version: 1.0
 summary: Sample illustrating very basic layout support
 apps:
     sh:
-        command: ../../../bin/sh
+        command: bin/sh
 layout:
   # Layouts can be used to inject configuration files and directories.
   /etc/demo:
@@ -27,3 +27,6 @@ layout:
   # notably /var/spool/rsyslog is owned by syslog:adm and has mode 700
   /var/spool/rsyslog/demo:
     bind: $SNAP_DATA/var/spool/rsyslog/demo
+  # Layout can refer to non-existing source path.
+  /bin/very-weird-place:
+    bind: $SNAP/bin-very-weird-place

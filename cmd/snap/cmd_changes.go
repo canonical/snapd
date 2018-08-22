@@ -69,6 +69,17 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
+func queryChanges(cli *client.Client, opts *client.ChangesOptions) ([]*client.Change, error) {
+	chgs, err := cli.Changes(opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := warnMaintenance(cli); err != nil {
+		return nil, err
+	}
+	return chgs, nil
+}
+
 func (c *cmdChanges) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -90,7 +101,7 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	cli := Client()
-	changes, err := cli.Changes(&opts)
+	changes, err := queryChanges(cli, &opts)
 	if err != nil {
 		return err
 	}
@@ -123,10 +134,28 @@ func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
 	chid, err := c.GetChangeID(cli)
 	if err != nil {
+		if err == noChangeFoundOK {
+			return nil
+		}
 		return err
 	}
 
+	return c.showChange(cli, chid)
+}
+
+func queryChange(cli *client.Client, chid string) (*client.Change, error) {
 	chg, err := cli.Change(chid)
+	if err != nil {
+		return nil, err
+	}
+	if err := warnMaintenance(cli); err != nil {
+		return nil, err
+	}
+	return chg, nil
+}
+
+func (c *cmdTasks) showChange(cli *client.Client, chid string) error {
+	chg, err := queryChange(cli, chid)
 	if err != nil {
 		return err
 	}
@@ -168,3 +197,14 @@ func (c *cmdTasks) Execute([]string) error {
 }
 
 const line = "......................................................................"
+
+func warnMaintenance(cli *client.Client) error {
+	if maintErr := cli.Maintenance(); maintErr != nil {
+		msg, err := errorToCmdMessage("", maintErr, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stderr, "WARNING: %s\n", msg)
+	}
+	return nil
+}

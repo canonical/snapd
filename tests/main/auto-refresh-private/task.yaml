@@ -1,7 +1,7 @@
 summary: Check that auto-refresh works with private snaps.
 
 # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 details: |
     These tests rely on the existence of a snap in the remote store set to private.

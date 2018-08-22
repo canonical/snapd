@@ -19,6 +19,7 @@
 #define SNAP_CONFINE_SNAP_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "error.h"
 
@@ -30,6 +31,10 @@
 enum {
 	/** The name of the snap is not valid. */
 	SC_SNAP_INVALID_NAME = 1,
+	/** The instance key of the snap is not valid. */
+	SC_SNAP_INVALID_INSTANCE_KEY = 2,
+	/** The instance of the snap is not valid. */
+	SC_SNAP_INVALID_INSTANCE_NAME = 3,
 };
 
 /**
@@ -42,6 +47,31 @@ enum {
  * error pointer the function will die on any error.
  **/
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
+
+/**
+ * Validate the given instance key.
+ *
+ * Valid instance key cannot be NULL and must match a regular expression
+ * describing the strict naming requirements. Please refer to snapd source code
+ * for details.
+ *
+ * The error protocol is observed so if the caller doesn't provide an outgoing
+ * error pointer the function will die on any error.
+ **/
+void sc_instance_key_validate(const char *instance_key,
+			      struct sc_error **errorp);
+
+/**
+ * Validate the given snap instance name.
+ *
+ * Valid instance name must be composed of a valid snap name and a valid
+ * instance key.
+ *
+ * The error protocol is observed so if the caller doesn't provide an outgoing
+ * error pointer the function will die on any error.
+ **/
+void sc_instance_name_validate(const char *instance_name,
+			       struct sc_error **errorp);
 
 /**
  * Validate security tag against strict naming requirements and snap name.
@@ -57,5 +87,33 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
 bool verify_security_tag(const char *security_tag, const char *snap_name);
 
 bool sc_is_hook_security_tag(const char *security_tag);
+
+/**
+ * Extract snap name out of an instance name.
+ *
+ * A snap may be installed multiple times in parallel under distinct instance names.
+ * This function extracts the snap name out of a name that possibly contains a snap
+ * instance key.
+ *
+ * For example: snap_instance => snap, just-snap => just-snap
+ **/
+void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
+			       size_t snap_name_size);
+
+/**
+ * Extract snap name and instance key out of an instance name.
+ *
+ * A snap may be installed multiple times in parallel under distinct instance
+ * names. This function extracts the snap name and instance key out of the
+ * instance name. One of snap_name, instance_key must be non-NULL.
+ *
+ * For example:
+ *   name_instance => "name" & "instance"
+ *   just-name     => "just-name" & ""
+ *
+ **/
+void sc_snap_split_instance_name(const char *instance_name, char *snap_name,
+				 size_t snap_name_size, char *instance_key,
+				 size_t instance_key_size);
 
 #endif

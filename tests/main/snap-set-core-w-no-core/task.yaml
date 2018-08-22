@@ -1,6 +1,6 @@
 summary: Ensure core can be configure before being installed
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -13,4 +13,10 @@ execute: |
     distro_install_build_snapd
 
     echo "Check that we can set core config nevertheless"
-    snap set core test-config=true
+    snap set core system.power-key-action="ignore"
+
+    echo "Ensure that unknown options are rejected"
+    if snap set core unknown.option=1; then
+        echo "snap set core must error for unknown options"
+        exit 1
+    fi

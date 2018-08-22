@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -38,16 +39,28 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	snaps, err := snapsWithSecurityProfiles(m.state)
+	if err != nil {
+		return err
+	}
+	// Before deciding about adding implicit slots to any snap we need to scan
+	// the set of snaps we know about. If any of those is "snapd" then for the
+	// duration of this process always add implicit slots to snapd and not to
+	// any other type: os snap and use a mapper to use names core-snapd-system
+	// on state, in memory and in API responses, respectively.
+	m.selectInterfaceMapper(snaps)
+
 	if err := m.addInterfaces(extraInterfaces); err != nil {
 		return err
 	}
 	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
-	if err := m.addSnaps(); err != nil {
+	m.addSnaps(snaps)
+	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
-	if err := m.renameCorePlugConnection(); err != nil {
+	if err := removeStaleConnections(m.state); err != nil {
 		return err
 	}
 	if _, err := m.reloadConnections(""); err != nil {
@@ -59,6 +72,15 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 		}
 	}
 	return nil
+}
+
+func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
+	for _, snapInfo := range snaps {
+		if snapInfo.SnapName() == "snapd" {
+			mapper = &CoreSnapdSystemMapper{}
+			break
+		}
+	}
 }
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
@@ -95,18 +117,13 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps() error {
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
+func (m *InterfaceManager) addSnaps(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.Name(), err)
+			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
 	}
-	return nil
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
@@ -135,7 +152,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 
 	// For each snap:
 	for _, snapInfo := range snaps {
-		snapName := snapInfo.Name()
+		snapName := snapInfo.InstanceName()
 		// Get the state of the snap so we can compute the confinement option
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
@@ -194,6 +211,46 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 	return nil
 }
 
+// removeStaleConnections removes stale connections left by some older versions of snapd.
+// Connection is considered stale if the snap on either end of the connection doesn't exist anymore.
+// XXX: this code should eventually go away.
+var removeStaleConnections = func(st *state.State) error {
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	var staleConns []string
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
+			if err != state.ErrNoState {
+				return err
+			}
+			staleConns = append(staleConns, id)
+			continue
+		}
+		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
+			if err != state.ErrNoState {
+				return err
+			}
+			staleConns = append(staleConns, id)
+			continue
+		}
+	}
+	if len(staleConns) > 0 {
+		for _, id := range staleConns {
+			delete(conns, id)
+		}
+		setConns(st, conns)
+		logger.Noticef("removed stale connections: %s", strings.Join(staleConns, ", "))
+	}
+	return nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -206,6 +263,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 	affected := make(map[string]bool)
 	for id, conn := range conns {
+		if conn.Undesired {
+			continue
+		}
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
@@ -238,7 +298,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
@@ -267,8 +327,12 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 }
 
 type connState struct {
-	Auto             bool                   `json:"auto,omitempty"`
-	Interface        string                 `json:"interface,omitempty"`
+	Auto      bool   `json:"auto,omitempty"`
+	ByGadget  bool   `json:"by-gadget,omitempty"`
+	Interface string `json:"interface,omitempty"`
+	// Undesired tracks connections that were manually disconnected after being auto-connected,
+	// so that they are not automatically reconnected again in the future.
+	Undesired        bool                   `json:"undesired,omitempty"`
 	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
@@ -312,7 +376,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		var err error
 		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
 			return false, nil
 		}
 	}
@@ -322,7 +386,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		var err error
 		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
 			return false, nil
 		}
 	}
@@ -361,7 +425,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		var err error
 		plugDecl, err = assertstate.SnapDeclaration(c.st, plug.Snap().SnapID)
 		if err != nil {
-			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
 		}
 	}
 
@@ -370,7 +434,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		var err error
 		slotDecl, err = assertstate.SnapDeclaration(c.st, slot.Snap().SnapID)
 		if err != nil {
-			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
 		}
 	}
 
@@ -406,21 +470,46 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 	return plugRef, slotRef, nil
 }
 
-func getConns(st *state.State) (map[string]connState, error) {
-	// Get information about connections from the state
-	var conns map[string]connState
-	err := st.Get("conns", &conns)
+// getConns returns information about connections from the state.
+//
+// Connections are transparently re-mapped according to remapIncomingConnRef
+func getConns(st *state.State) (conns map[string]connState, err error) {
+	err = st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
 		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
 	}
-	return conns, nil
+	remapped := make(map[string]connState, len(conns))
+	for id, cstate := range conns {
+		cref, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return nil, err
+		}
+		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
+		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
+		remapped[cref.ID()] = cstate
+	}
+	return remapped, nil
 }
 
+// setConns sets information about connections in the state.
+//
+// Connections are transparently re-mapped according to remapOutgoingConnRef
 func setConns(st *state.State, conns map[string]connState) {
-	st.Set("conns", conns)
+	remapped := make(map[string]connState, len(conns))
+	for id, cstate := range conns {
+		cref, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			// We cannot fail here
+			panic(err)
+		}
+		cref.PlugRef.Snap = RemapSnapToState(cref.PlugRef.Snap)
+		cref.SlotRef.Snap = RemapSnapToState(cref.SlotRef.Snap)
+		remapped[cref.ID()] = cstate
+	}
+	st.Set("conns", remapped)
 }
 
 // snapsWithSecurityProfiles returns all snaps that have active
@@ -433,7 +522,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 	}
 	seen := make(map[string]bool, len(infos))
 	for _, info := range infos {
-		seen[info.Name()] = true
+		seen[info.InstanceName()] = true
 	}
 	for _, t := range st.Tasks() {
 		if t.Kind() != "link-snap" || t.Status().Ready() {
@@ -443,7 +532,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		snapName := snapsup.Name()
+		snapName := snapsup.InstanceName()
 		if seen[snapName] {
 			continue
 		}
@@ -455,7 +544,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				if err != nil {
 					return nil, err
 				}
-				if snapsup1.Name() == snapName {
+				if snapsup1.InstanceName() == snapName {
 					doneProfiles = true
 					break
 				}
@@ -475,4 +564,185 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 	}
 
 	return infos, nil
+}
+
+func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {
+	if snapID == "system" {
+		// Resolve the system nickname to a concrete snap.
+		return mapper.RemapSnapFromRequest(snapID), nil
+	}
+	decl, err := assertstate.SnapDeclaration(st, snapID)
+	if asserts.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return decl.SnapName(), nil
+}
+
+// SnapMapper offers APIs for re-mapping snap names in interfaces and the
+// configuration system. The mapper is designed to apply transformations around
+// the edges of snapd (state interactions and API interactions) to offer one
+// view on the inside of snapd and another view on the outside.
+type SnapMapper interface {
+	// re-map functions for loading and saving objects in the state.
+	RemapSnapFromState(snapName string) string
+	RemapSnapToState(snapName string) string
+	// re-map functions for API requests/responses.
+	RemapSnapFromRequest(snapName string) string
+	RemapSnapToResponse(snapName string) string
+}
+
+// IdentityMapper implements SnapMapper and performs no transformations at all.
+type IdentityMapper struct{}
+
+// RemapSnapFromState doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapFromState(snapName string) string {
+	return snapName
+}
+
+// RemapSnapToState doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapToState(snapName string) string {
+	return snapName
+}
+
+// RemapSnapFromRequest  doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapFromRequest(snapName string) string {
+	return snapName
+}
+
+// RemapSnapToResponse doesn't change the snap name in any way.
+func (m *IdentityMapper) RemapSnapToResponse(snapName string) string {
+	return snapName
+}
+
+// CoreCoreSystemMapper implements SnapMapper and makes implicit slots
+// appear to be on "core" in the state and in memory but as "system" in the API.
+//
+// NOTE: This mapper can be used to prepare, as an intermediate step, for the
+// transition to "snapd" mapper. Using it the state and API layer will look
+// exactly the same as with the "snapd" mapper. This can be used to make any
+// necessary adjustments the test suite.
+type CoreCoreSystemMapper struct {
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
+}
+
+// RemapSnapFromRequest renames the "system" snap to the "core" snap.
+//
+// This allows us to accept connection and disconnection requests that
+// explicitly refer to "core" or using the "system" nickname.
+func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
+// RemapSnapToResponse renames the "core" snap to the "system" snap.
+//
+// This allows us to make all the implicitly defined slots, that are really
+// associated with the "core" snap to seemingly occupy the "system" snap
+// instead.
+func (m *CoreCoreSystemMapper) RemapSnapToResponse(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
+}
+
+// CoreSnapdSystemMapper implements SnapMapper and makes implicit slots
+// appear to be on "core" in the state and on "system" in the API while they
+// are on "snapd" in memory.
+type CoreSnapdSystemMapper struct {
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
+}
+
+// RemapSnapFromState renames the "core" snap to the "snapd" snap.
+//
+// This allows modern snapd to load an old state that remembers connections
+// between slots on the "core" snap and other snaps. In memory we are actually
+// using "snapd" snap for hosting those slots and this lets us stay compatible.
+func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
+	if snapName == "core" {
+		return "snapd"
+	}
+	return snapName
+}
+
+// RemapSnapToState renames the "snapd" snap to the "core" snap.
+//
+// This allows the state to stay backwards compatible as all the connections
+// seem to refer to the "core" snap, as in pre core{16,18} days where there was
+// only one core snap.
+func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
+	if snapName == "snapd" {
+		return "core"
+	}
+	return snapName
+}
+
+// RemapSnapFromRequest renames the "core" or "system" snaps to the "snapd" snap.
+//
+// This allows us to accept connection and disconnection requests that
+// explicitly refer to "core" or "system" even though we really want them to
+// refer to "snapd". Note that this is not fully symmetric with
+// RemapSnapToResponse as we explicitly always talk about "system" snap,
+// even if the request used "core".
+func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" || snapName == "core" {
+		return "snapd"
+	}
+	return snapName
+}
+
+// RemapSnapToResponse renames the "snapd" snap to the "system" snap.
+//
+// This allows us to make all the implicitly defined slots, that are really
+// associated with the "snapd" snap to seemingly occupy the "system" snap
+// instead. This ties into the concept of using "system" as a nickname (e.g. in
+// gadget snap connections).
+func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
+	if snapName == "snapd" {
+		return "system"
+	}
+	return snapName
+}
+
+// mapper contains the currently active snap mapper.
+var mapper SnapMapper = &CoreCoreSystemMapper{}
+
+// MockSnapMapper mocks the currently used snap mapper.
+func MockSnapMapper(new SnapMapper) (restore func()) {
+	old := mapper
+	mapper = new
+	return func() { mapper = old }
+}
+
+// RemapSnapFromState renames a snap when loaded from state according to the current mapper.
+func RemapSnapFromState(snapName string) string {
+	return mapper.RemapSnapFromState(snapName)
+}
+
+// RemapSnapToState renames a snap when saving to state according to the current mapper.
+func RemapSnapToState(snapName string) string {
+	return mapper.RemapSnapToState(snapName)
+}
+
+// RemapSnapFromRequest  renames a snap as received from an API request according to the current mapper.
+func RemapSnapFromRequest(snapName string) string {
+	return mapper.RemapSnapFromRequest(snapName)
+}
+
+// RemapSnapToResponse renames a snap as about to be sent from an API response according to the current mapper.
+func RemapSnapToResponse(snapName string) string {
+	return mapper.RemapSnapToResponse(snapName)
+}
+
+func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
+	plugRef, slotRef, err := getPlugAndSlotRefs(t)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", t.Summary())
+	}
+	return []string{plugRef.Snap, slotRef.Snap}, nil
 }

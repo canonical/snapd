@@ -6,12 +6,13 @@ details: |
 
 systems:
     # This test only applies to classic systems
-    - -ubuntu-core-16-*
+    - -ubuntu-core-*
     # No confinement (AppArmor, Seccomp) available on these systems
     - -debian-*
     - -fedora-*
     - -opensuse-*
     - -arch-*
+    - -amazon-*
 
 prepare: |
     echo "Having installed the test snap"

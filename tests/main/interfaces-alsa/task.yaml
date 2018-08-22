@@ -1,7 +1,7 @@
 summary: Ensure that the alsa interface works.
 
-# Spread system for Fedora, openSUSE doesn't seem to provide any /dev/snd entries
-systems: [-fedora-*, -opensuse-*]
+# Spread system for Fedora, openSUSE and AMZN2 don't seem to provide any /dev/snd entries
+systems: [-fedora-*, -opensuse-*, -amazon-*]
 
 details: |
     The alsa interface allows connected plugs to access raw ALSA devices.
@@ -18,11 +18,12 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a plug on the alsa interface is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_generic_consumer alsa
 
 restore: |
-    rm -f *.error /dev/snd/mysnd-dev
+    rm -f ./*.error /dev/snd/mysnd-dev
 
 execute: |
     echo "When the plug is connected"

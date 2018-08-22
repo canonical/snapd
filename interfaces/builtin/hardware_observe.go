@@ -52,15 +52,30 @@ capability sys_admin,
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
 
+# power information
+/sys/power/{,**} r,
+
 # interrupts
 @{PROC}/interrupts r,
+
+# libsensors
+/etc/sensors3.conf r,
+/etc/sensors.d/{,*} r,
 
 # Needed for udevadm
 /run/udev/data/** r,
 network netlink raw,
 
 # util-linux
+/{,usr/}bin/lsblk ixr,
 /{,usr/}bin/lscpu ixr,
+/{,usr/}bin/lsmem ixr,
+
+# lsmem
+/sys/devices/system/memory/block_size_bytes r,
+/sys/devices/system/memory/memory[0-9]*/removable r,
+/sys/devices/system/memory/memory[0-9]*/state r,
+/sys/devices/system/memory/memory[0-9]*/valid_zones r,
 
 # lsusb
 # Note: lsusb and its database have to be shipped in the snap if not on classic

@@ -35,15 +35,11 @@ import (
 // system states. It manipulates the observed system state to ensure
 // nothing in it violates existing assertions, or misses required
 // ones.
-type AssertManager struct {
-	runner *state.TaskRunner
-}
+type AssertManager struct{}
 
 // Manager returns a new assertion manager.
-func Manager(s *state.State) (*AssertManager, error) {
+func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
 	delayedCrossMgrInit()
-
-	runner := state.NewTaskRunner(s)
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)
 
@@ -56,27 +52,12 @@ func Manager(s *state.State) (*AssertManager, error) {
 	ReplaceDB(s, db)
 	s.Unlock()
 
-	return &AssertManager{runner: runner}, nil
-}
-
-func (m *AssertManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
+	return &AssertManager{}, nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *AssertManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *AssertManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *AssertManager) Stop() {
-	m.runner.Stop()
 }
 
 type cachedDBKey struct{}
@@ -119,9 +100,9 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	})
 	if notFound, ok := err.(*asserts.NotFoundError); ok {
 		if notFound.Type == asserts.SnapRevisionType {
-			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.Name())
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.InstanceName())
 		} else {
-			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.InstanceName(), notFound)
 		}
 	}
 	if err != nil {
@@ -129,7 +110,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(t.State())
-	err = snapasserts.CrossCheck(snapsup.Name(), sha3_384, snapSize, snapsup.SideInfo, db)
+	err = snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, snapSize, snapsup.SideInfo, db)
 	if err != nil {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this

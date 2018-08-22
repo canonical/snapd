@@ -24,6 +24,7 @@ import (
 	"crypto/md5"
 	"crypto/sha512"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/bolt"
 	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
@@ -66,6 +68,106 @@ var (
 	osGetenv = os.Getenv
 	timeNow  = time.Now
 )
+
+type reportsDB struct {
+	db *bolt.DB
+
+	// map of hash(dupsig) -> time-of-report
+	reportedBucket *bolt.Bucket
+
+	// time until an error report is cleaned from the database,
+	// usually 7 days
+	cleanupTime time.Duration
+}
+
+func hashString(s string) string {
+	h := sha512.New()
+	io.WriteString(h, s)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func newReportsDB(fname string) (*reportsDB, error) {
+	if err := os.MkdirAll(filepath.Dir(fname), 0755); err != nil {
+		return nil, err
+	}
+	bdb, err := bolt.Open(fname, 0600, &bolt.Options{
+		Timeout: 10 * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	bdb.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("reported"))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+		return nil
+	})
+
+	db := &reportsDB{
+		db:          bdb,
+		cleanupTime: time.Duration(7 * 24 * time.Hour),
+	}
+
+	return db, nil
+}
+
+func (db *reportsDB) Close() error {
+	return db.db.Close()
+}
+
+// AlreadyReported returns true if an identical report has been sent recently
+func (db *reportsDB) AlreadyReported(dupSig string) bool {
+	// robustness
+	if db == nil {
+		return false
+	}
+	var reported []byte
+	db.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("reported"))
+		reported = b.Get([]byte(hashString(dupSig)))
+		return nil
+	})
+	return len(reported) > 0
+}
+
+func (db *reportsDB) cleanupOldRecords() {
+	db.db.Update(func(tx *bolt.Tx) error {
+		now := time.Now()
+
+		b := tx.Bucket([]byte("reported"))
+		b.ForEach(func(dupSigHash, reportTime []byte) error {
+			var t time.Time
+			t.UnmarshalBinary(reportTime)
+
+			if now.After(t.Add(db.cleanupTime)) {
+				if err := b.Delete(dupSigHash); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		return nil
+	})
+}
+
+// MarkReported marks an error report as reported to the error tracker
+func (db *reportsDB) MarkReported(dupSig string) error {
+	// robustness
+	if db == nil {
+		return fmt.Errorf("cannot mark error report as reported with an uninitialized reports database")
+	}
+	db.cleanupOldRecords()
+
+	return db.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("reported"))
+		tb, err := time.Now().MarshalBinary()
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(hashString(dupSig)), tb)
+	})
+}
 
 func whoopsieEnabled() bool {
 	cmd := exec.Command("systemctl", "is-enabled", "whoopsie.service")
@@ -133,7 +235,27 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 	extra["ProblemType"] = "Snap"
 	extra["Snap"] = snap
 
-	return report(errMsg, dupSig, extra)
+	// check if we haven't already reported this error
+	db, err := newReportsDB(dirs.ErrtrackerDbDir)
+	if err != nil {
+		logger.Noticef("cannot open error reports database: %v", err)
+	}
+	defer db.Close()
+
+	if db.AlreadyReported(dupSig) {
+		return "already-reported", nil
+	}
+
+	// do the actual report
+	oopsID, err := report(errMsg, dupSig, extra)
+	if err != nil {
+		return "", err
+	}
+	if err := db.MarkReported(dupSig); err != nil {
+		logger.Noticef("cannot mark %s as reported", oopsID)
+	}
+
+	return oopsID, nil
 }
 
 // ReportRepair reports an error with the given repair assertion script
@@ -313,7 +435,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 		"HostSnapdBuildID":   hostBuildID,
 		"CoreSnapdBuildID":   coreBuildID,
 		"Date":               timeNow().Format(time.ANSIC),
-		"KernelVersion":      release.KernelVersion(),
+		"KernelVersion":      osutil.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
 

@@ -135,7 +135,7 @@ func (s *getSuite) TestGetTests(c *C) {
 
 		state.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args))
+		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -146,16 +146,39 @@ func (s *getSuite) TestGetTests(c *C) {
 	}
 }
 
+func (s *getSuite) TestGetRegularUser(c *C) {
+	state := state.New(nil)
+	state.Lock()
+
+	task := state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+	// Initialize configuration
+	tr := config.NewTransaction(state)
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Commit()
+
+	state.Unlock()
+
+	mockHandler := hooktest.NewMockHandler()
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "test-key1"}, 1000)
+	c.Assert(err, IsNil)
+	c.Assert(string(stdout), Equals, "test-value1\n")
+	c.Assert(string(stderr), Equals, "")
+}
+
 func (s *getSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"})
+	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0)
 	c.Check(err, ErrorMatches, ".*cannot get without a context.*")
 }
 
 func (s *setSuite) TestNull(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"}, 0)
 	c.Check(err, IsNil)
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`})
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`}, 0)
 	c.Check(err, IsNil)
 
 	// Notify the context that we're done. This should save the config.
@@ -276,7 +299,7 @@ func (s *getAttrSuite) TestPlugHookTests(c *C) {
 	for _, test := range getPlugAttributesTests {
 		c.Logf("Test: %s", test.args)
 
-		stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, strings.Fields(test.args))
+		stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, strings.Fields(test.args), 0)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -317,7 +340,7 @@ func (s *getAttrSuite) TestSlotHookTests(c *C) {
 	for _, test := range getSlotAttributesTests {
 		c.Logf("Test: %s", test.args)
 
-		stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, strings.Fields(test.args))
+		stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, strings.Fields(test.args), 0)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {

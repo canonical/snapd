@@ -22,6 +22,7 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -66,6 +67,25 @@ Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestChangeSimpleRebooting(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if n < 2 {
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, strings.Replace(mockChangeJSON, `"type": "sync"`, `"type": "sync", "maintenance": {"kind": "system-restart", "message": "system is restarting"}`, 1))
+		} else {
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"change", "42"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "WARNING: snapd is about to reboot the system\n")
 }
 
 var mockChangesJSON = `{"type": "sync", "result": [
@@ -133,6 +153,39 @@ Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 	_, err = snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=foobar"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
+}
+
+func (s *SnapSuite) TestTasksLastQuestionmark(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		c.Check(r.Method, check.Equals, "GET")
+		c.Assert(r.URL.Path, check.Equals, "/v2/changes")
+		switch n {
+		case 1, 2:
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
+		case 3, 4:
+			fmt.Fprintln(w, mockChangesJSON)
+		default:
+			c.Errorf("expected 4 calls, now on %d", n)
+		}
+	})
+	for i := 0; i < 2; i++ {
+		rest, err := snap.Parser().ParseArgs([]string{"tasks", "--last=foobar?"})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{})
+		c.Check(s.Stdout(), check.Matches, "")
+		c.Check(s.Stderr(), check.Equals, "")
+
+		_, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
+		if i == 0 {
+			c.Assert(err, check.ErrorMatches, `no changes found`)
+		} else {
+			c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
+		}
+	}
+
+	c.Check(n, check.Equals, 4)
 }
 
 func (s *SnapSuite) TestTasksSyntaxError(c *check.C) {

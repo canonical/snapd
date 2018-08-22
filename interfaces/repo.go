@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -33,6 +34,8 @@ type Repository struct {
 	// Protects the internals from concurrent access.
 	m      sync.Mutex
 	ifaces map[string]Interface
+	// subset of ifaces that implement HotplugDeviceAdded method
+	hotplugIfaces map[string]Interface
 	// Indexed by [snapName][plugName]
 	plugs map[string]map[string]*snap.PlugInfo
 	slots map[string]map[string]*snap.SlotInfo
@@ -46,12 +49,13 @@ type Repository struct {
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	repo := &Repository{
-		ifaces:    make(map[string]Interface),
-		plugs:     make(map[string]map[string]*snap.PlugInfo),
-		slots:     make(map[string]map[string]*snap.SlotInfo),
-		slotPlugs: make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
-		plugSlots: make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
-		backends:  make(map[SecuritySystem]SecurityBackend),
+		ifaces:        make(map[string]Interface),
+		hotplugIfaces: make(map[string]Interface),
+		plugs:         make(map[string]map[string]*snap.PlugInfo),
+		slots:         make(map[string]map[string]*snap.SlotInfo),
+		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
+		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
+		backends:      make(map[SecuritySystem]SecurityBackend),
 	}
 
 	return repo
@@ -71,14 +75,45 @@ func (r *Repository) AddInterface(i Interface) error {
 	defer r.m.Unlock()
 
 	interfaceName := i.Name()
-	if err := ValidateName(interfaceName); err != nil {
+	if err := snap.ValidateInterfaceName(interfaceName); err != nil {
 		return err
 	}
 	if _, ok := r.ifaces[interfaceName]; ok {
 		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
 	r.ifaces[interfaceName] = i
+
+	if _, ok := i.(hotplug.Definer); ok {
+		r.hotplugIfaces[interfaceName] = i
+	}
+
 	return nil
+}
+
+// AllInterfaces returns all the interfaces added to the repository, ordered by name.
+func (r *Repository) AllInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.ifaces))
+	for _, iface := range r.ifaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
+}
+
+// AllHotplugInterfaces returns all interfaces that handle hotplug events.
+func (r *Repository) AllHotplugInterfaces() []Interface {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	ifaces := make([]Interface, 0, len(r.hotplugIfaces))
+	for _, iface := range r.hotplugIfaces {
+		ifaces = append(ifaces, iface)
+	}
+	sort.Sort(byInterfaceName(ifaces))
+	return ifaces
 }
 
 // InfoOptions describes options for Info.
@@ -242,6 +277,29 @@ func (r *Repository) Plug(snapName, plugName string) *snap.PlugInfo {
 	return r.plugs[snapName][plugName]
 }
 
+// Connection returns the specified Connection object or an error.
+func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
+	// Ensure that such plug exists
+	plug := r.plugs[connRef.PlugRef.Snap][connRef.PlugRef.Name]
+	if plug == nil {
+		return nil, fmt.Errorf("snap %q has no plug named %q", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	// Ensure that such slot exists
+	slot := r.slots[connRef.SlotRef.Snap][connRef.SlotRef.Name]
+	if slot == nil {
+		return nil, fmt.Errorf("snap %q has no slot named %q", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+	// Ensure that slot and plug are connected
+	conn, ok := r.slotPlugs[slot][plug]
+	if !ok {
+		return nil, fmt.Errorf("no connection from %s:%s to %s:%s",
+			connRef.PlugRef.Snap, connRef.PlugRef.Name,
+			connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	return conn, nil
+}
+
 // AddPlug adds a plug to the repository.
 // Plug names must be valid snap names, as defined by ValidateName.
 // Plug name must be unique within a particular snap.
@@ -249,14 +307,14 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := plug.Snap.Name()
+	snapName := plug.Snap.InstanceName()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := ValidateName(plug.Name); err != nil {
+	// Reject plugs with invalid names
+	if err := snap.ValidatePlugName(plug.Name); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -344,14 +402,14 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := slot.Snap.Name()
+	snapName := slot.Snap.InstanceName()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
-	// Reject plug with invalid names
-	if err := ValidateName(slot.Name); err != nil {
+	// Reject slots with invalid names
+	if err := snap.ValidateSlotName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct
@@ -397,27 +455,27 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 
 // ResolveConnect resolves potentially missing plug or slot names and returns a
 // fully populated connection reference.
-func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotName string) (ConnRef, error) {
+func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotName string) (*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	ref := ConnRef{}
-
 	if plugSnapName == "" {
-		return ref, fmt.Errorf("cannot resolve connection, plug snap name is empty")
+		return nil, fmt.Errorf("cannot resolve connection, plug snap name is empty")
 	}
 	if plugName == "" {
-		return ref, fmt.Errorf("cannot resolve connection, plug name is empty")
+		return nil, fmt.Errorf("cannot resolve connection, plug name is empty")
 	}
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return ref, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
+		return nil, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
 	}
 
 	if slotSnapName == "" {
 		// Use the core snap if the slot-side snap name is empty
 		switch {
+		case r.slots["snapd"] != nil:
+			slotSnapName = "snapd"
 		case r.slots["core"] != nil:
 			slotSnapName = "core"
 		case r.slots["ubuntu-core"] != nil:
@@ -425,7 +483,7 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 		default:
 			// XXX: perhaps this should not be an error and instead it should
 			// silently assume "core" now?
-			return ref, fmt.Errorf("cannot resolve connection, slot snap name is empty")
+			return nil, fmt.Errorf("cannot resolve connection, slot snap name is empty")
 		}
 	}
 	if slotName == "" {
@@ -439,27 +497,26 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 		}
 		switch len(candidates) {
 		case 0:
-			return ref, fmt.Errorf("snap %q has no %q interface slots", slotSnapName, plug.Interface)
+			return nil, fmt.Errorf("snap %q has no %q interface slots", slotSnapName, plug.Interface)
 		case 1:
 			slotName = candidates[0]
 		default:
 			sort.Strings(candidates)
-			return ref, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotSnapName, plug.Interface, strings.Join(candidates, ", "))
+			return nil, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotSnapName, plug.Interface, strings.Join(candidates, ", "))
 		}
 	}
 
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return ref, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
+		return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
-		return ref, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
+		return nil, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
-	ref = *NewConnRef(plug, slot)
-	return ref, nil
+	return NewConnRef(plug, slot), nil
 }
 
 // ResolveDisconnect resolves potentially missing plug or slot names and
@@ -477,11 +534,11 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 // In both cases the snap name can be omitted to implicitly refer to the core
 // snap. If there's no core snap it is simply assumed to be called "core" to
 // provide consistent error messages.
-func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]ConnRef, error) {
+func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	coreSnapName, _ := r.guessCoreSnapName()
+	coreSnapName, _ := r.guessSystemSnapName()
 	if coreSnapName == "" {
 		// This is not strictly speaking true BUT when there's no core snap the
 		// produced error messages are consistent to when the is a core snap
@@ -517,7 +574,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
-		return []ConnRef{*NewConnRef(plug, slot)}, nil
+		return []*ConnRef{NewConnRef(plug, slot)}, nil
 	// 2: <snap>:<plug or slot> (through 1st pair)
 	// Return a list of connections involving specified plug or slot.
 	case plugName != "" && slotName == "" && slotSnapName == "":
@@ -554,7 +611,7 @@ type PolicyFunc func(*ConnectedPlug, *ConnectedSlot) (bool, error)
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 // When connections are reloaded policyCheck is null (we don't check policy again).
-func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
+func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -591,12 +648,12 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 	if policyCheck != nil {
 		if i, ok := iface.(plugValidator); ok {
 			if err := i.BeforeConnectPlug(cplug); err != nil {
-				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.InstanceName(), err)
 			}
 		}
 		if i, ok := iface.(slotValidator); ok {
 			if err := i.BeforeConnectSlot(cslot); err != nil {
-				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.InstanceName(), err)
 			}
 		}
 
@@ -665,21 +722,21 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 
 // Connected returns references for all connections that are currently
 // established with the provided plug or slot.
-func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
+func (r *Repository) Connected(snapName, plugOrSlotName string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	return r.connected(snapName, plugOrSlotName)
 }
 
-func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
+func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, error) {
 	if snapName == "" {
-		snapName, _ = r.guessCoreSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
-	var conns []ConnRef
+	var conns []*ConnRef
 	if plugOrSlotName == "" {
 		return nil, fmt.Errorf("plug or slot name is empty")
 	}
@@ -691,14 +748,14 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 
 	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
 		for slotInfo := range r.plugSlots[plug] {
-			connRef := *NewConnRef(plug, slotInfo)
+			connRef := NewConnRef(plug, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
 
 	if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
 		for plugInfo := range r.slotPlugs[slot] {
-			connRef := *NewConnRef(plugInfo, slot)
+			connRef := NewConnRef(plugInfo, slot)
 			conns = append(conns, connRef)
 		}
 	}
@@ -706,27 +763,31 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	return conns, nil
 }
 
-func (r *Repository) Connections(snapName string) ([]ConnRef, error) {
+func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	if snapName == "" {
-		snapName, _ = r.guessCoreSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
 
-	var conns []ConnRef
+	var conns []*ConnRef
 	for _, plugInfo := range r.plugs[snapName] {
 		for slotInfo := range r.plugSlots[plugInfo] {
-			connRef := *NewConnRef(plugInfo, slotInfo)
+			connRef := NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
 	for _, slotInfo := range r.slots[snapName] {
 		for plugInfo := range r.slotPlugs[slotInfo] {
-			connRef := *NewConnRef(plugInfo, slotInfo)
+			// self-connection, ignore here as we got it already in the plugs loop above
+			if plugInfo.Snap == slotInfo.Snap {
+				continue
+			}
+			connRef := NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
@@ -735,8 +796,10 @@ func (r *Repository) Connections(snapName string) ([]ConnRef, error) {
 }
 
 // coreSnapName returns the name of the core snap if one exists
-func (r *Repository) guessCoreSnapName() (string, error) {
+func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
+	case r.slots["snapd"] != nil:
+		return "snapd", nil
 	case r.slots["core"] != nil:
 		return "core", nil
 	case r.slots["ubuntu-core"] != nil:
@@ -747,7 +810,7 @@ func (r *Repository) guessCoreSnapName() (string, error) {
 }
 
 // DisconnectAll disconnects all provided connection references.
-func (r *Repository) DisconnectAll(conns []ConnRef) {
+func (r *Repository) DisconnectAll(conns []*ConnRef) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -880,7 +943,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 
 	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
@@ -970,7 +1033,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 	result := make([]string, 0, len(seen))
 	for info := range seen {
-		result = append(result, info.Name())
+		result = append(result, info.InstanceName())
 	}
 	sort.Strings(result)
 	return result, nil
@@ -995,16 +1058,13 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
-			plug := &Plug{PlugInfo: plugInfo}
-			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
 			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
 			if !ok || err != nil {
 				continue
 			}
 
-			if r.ifaces[iface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plugInfo, slotInfo) {
 				candidates = append(candidates, slotInfo)
 			}
 		}
@@ -1031,16 +1091,13 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
-			plug := &Plug{PlugInfo: plugInfo}
-			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
 			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
 			if !ok || err != nil {
 				continue
 			}
 
-			if r.ifaces[iface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plugInfo, slotInfo) {
 				candidates = append(candidates, plugInfo)
 			}
 		}

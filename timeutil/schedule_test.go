@@ -738,6 +738,14 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			now:        "2017-02-06 9:30",
 			next:       "30m-90m",
 			randomized: true,
+		}, {
+			// first Wednesday at 13:00
+			schedule: "wed1,13:00",
+			now:      "2018-07-30 9:00",
+			// yesterday
+			last: "2018-07-29 13:00",
+			// next one on 2018-08-01 13:00
+			next: "52h-52h",
 		},
 	} {
 		c.Logf("trying %+v", t)
@@ -774,8 +782,8 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 
 			c.Check(next >= minDist && next <= maxDist,
 				Equals, true,
-				Commentf("invalid  distance for schedule %q with last refresh %q, now %q, expected %v, got %v",
-					t.schedule, t.last, t.now, t.next, next))
+				Commentf("invalid  distance for schedule %q with last refresh %q, now %q, expected %v, got %v, date %s",
+					t.schedule, t.last, t.now, t.next, next, fakeNow.Add(next)))
 			previous = next
 		}
 	}
@@ -951,5 +959,76 @@ func (ts *timeutilSuite) TestClockSpans(c *C) {
 		}
 
 		c.Assert(spanStrings, DeepEquals, t.flattenend)
+	}
+}
+
+func (ts *timeutilSuite) TestWeekSpans(c *C) {
+	const shortForm = "2006-01-02"
+
+	//     July 2018            August 2018
+	// Su Mo Tu We Th Fr Sa  Su Mo Tu We Th Fr Sa
+	//  1  2  3  4  5  6  7            1  2  3  4
+	//  8  9 10 11 12 13 14   5  6  7  8  9 10 11
+	// 15 16 17 18 19 20 21  12 13 14 15 16 17 18
+	// 22 23 24 25 26 27 28  19 20 21 22 23 24 25
+	// 29 30 31              26 27 28 29 30 31
+
+	for _, t := range []struct {
+		week  string
+		when  string
+		match bool
+	}{
+		{
+			// first Wednesday
+			week:  "wed1",
+			when:  "2018-08-01",
+			match: true,
+		}, {
+			// first Wednesday
+			week: "wed1",
+			// actually 2nd Wednesday
+			when:  "2018-08-08",
+			match: false,
+		}, {
+			// second Wednesday
+			week:  "wed2",
+			when:  "2018-08-08",
+			match: true,
+		}, {
+			// first Tuesday
+			week:  "tue1",
+			when:  "2018-08-07",
+			match: true,
+		}, {
+			// first Sunday
+			week:  "sun1",
+			when:  "2018-07-01",
+			match: true,
+		}, {
+			// last Tuesday
+			week:  "tue5",
+			when:  "2018-07-31",
+			match: true,
+		}, {
+			// last Tuesday
+			week:  "tue5",
+			when:  "2018-07-24",
+			match: false,
+		}, {
+			// last Thursday
+			week:  "thu5",
+			when:  "2018-07-26",
+			match: true,
+		},
+	} {
+		c.Logf("trying %+v", t)
+		ws, err := timeutil.ParseWeekSpan(t.week)
+		c.Assert(err, IsNil)
+
+		when, err := time.ParseInLocation(shortForm, t.when, time.Local)
+		c.Assert(err, IsNil)
+		c.Logf("when: %v %s", when, when.Weekday())
+
+		c.Check(ws.Match(when), Equals, t.match)
 	}
 }

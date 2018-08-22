@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
-// Container is the interface to interact with the low-level snap files
+// Container is the interface to interact with the low-level snap files.
 type Container interface {
 	// Size returns the size of the snap in bytes.
 	Size() (int64, error)
@@ -66,7 +66,7 @@ var formatHandlers = []snapFormat{
 	}},
 }
 
-// Open opens a given snap file with the right backend
+// Open opens a given snap file with the right backend.
 func Open(path string) (Container, error) {
 
 	if osutil.IsDirectory(path) {
@@ -201,7 +201,8 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 
 		if needsrx[path] || mode.IsDir() {
 			if mode.Perm()&0555 != 0555 {
-				logf("in snap %q: %q should be world-readable and executable, and isn't: %s", s.Name(), path, mode)
+				// TODO parallel-install: use of proper instance/store name
+				logf("in snap %q: %q should be world-readable and executable, and isn't: %s", s.InstanceName(), path, mode)
 				hasBadModes = true
 			}
 		} else {
@@ -213,19 +214,22 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 				// more than anything else, not worth it IMHO (as I can't
 				// imagine this happening by accident).
 				if mode&(os.ModeDir|os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
-					logf("in snap %q: %q should be a regular file (or a symlink) and isn't", s.Name(), path)
+					// TODO parallel-install: use of proper instance/store name
+					logf("in snap %q: %q should be a regular file (or a symlink) and isn't", s.InstanceName(), path)
 					hasBadModes = true
 				}
 			}
 			if needsx[path] || strings.HasPrefix(path, "meta/hooks/") {
 				if mode.Perm()&0111 == 0 {
-					logf("in snap %q: %q should be executable, and isn't: %s", s.Name(), path, mode)
+					// TODO parallel-install: use of proper instance/store name
+					logf("in snap %q: %q should be executable, and isn't: %s", s.InstanceName(), path, mode)
 					hasBadModes = true
 				}
 			} else {
 				// in needsr, or under meta but not a hook
 				if mode.Perm()&0444 != 0444 {
-					logf("in snap %q: %q should be world-readable, and isn't: %s", s.Name(), path, mode)
+					// TODO parallel-install: use of proper instance/store name
+					logf("in snap %q: %q should be world-readable, and isn't: %s", s.InstanceName(), path, mode)
 					hasBadModes = true
 				}
 			}
@@ -239,7 +243,8 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 		for _, needs := range []map[string]bool{needsx, needsrx, needsr} {
 			for path := range needs {
 				if !seen[path] {
-					logf("in snap %q: path %q does not exist", s.Name(), path)
+					// TODO parallel-install: use of proper instance/store name
+					logf("in snap %q: path %q does not exist", s.InstanceName(), path)
 				}
 			}
 		}

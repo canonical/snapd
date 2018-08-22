@@ -196,9 +196,9 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
 }
 
-// InstallPath sideloads the snap with the given path, returning the UUID
-// of the background operation upon success.
-func (client *Client) InstallPath(path string, options *SnapOptions) (changeID string, err error) {
+// InstallPath sideloads the snap with the given path under optional provided name,
+// returning the UUID of the background operation upon success.
+func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
@@ -206,6 +206,7 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 
 	action := actionData{
 		Action:      "install",
+		Name:        name,
 		SnapPath:    path,
 		SnapOptions: options,
 	}

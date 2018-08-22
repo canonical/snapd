@@ -5,6 +5,7 @@ environment:
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     snap install --devmode jq
 
@@ -17,11 +18,20 @@ restore: |
     rm -f "$PRODUCER_DATA/prepare-slot-producer-done"
     rm -f "$CONSUMER_DATA/connect-plug-consumer-done"
     rm -f "$PRODUCER_DATA/connect-slot-producer-done"
+    rm -f "$CONSUMER_DATA/disconnect-plug-consumer-done"
+    rm -f "$PRODUCER_DATA/disconnect-slot-producer-done"
+    rm -f "$CONSUMER_DATA/unprepare-plug-consumer-done"
+    rm -f "$PRODUCER_DATA/unprepare-slot-producer-done"
     snap remove basic-iface-hooks-consumer
     snap remove basic-iface-hooks-producer
 
 execute: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    remove_markers() {
+        rm -f "$CONSUMER_DATA"/*-plug-*done
+        rm -f "$PRODUCER_DATA"/*-slot-*done
+    }
     check_attributes(){
         # static values should have the values defined in snap's yaml
         jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-1"]' /var/lib/snapd/state.json | MATCH "consumer-value-1"
@@ -29,8 +39,8 @@ execute: |
         jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-1"]' /var/lib/snapd/state.json | MATCH "producer-value-1"
         jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-2"]' /var/lib/snapd/state.json | MATCH "producer-value-2"
         # dynamic attributes have values created by the hooks, the "-validated" suffix is added by our test interface
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH "plug-changed\(consumer-value\)"
-        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH "slot-changed\(producer-value\)"
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'plug-changed\(consumer-value\)'
+        jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["before-connect"]' /var/lib/snapd/state.json | MATCH 'slot-changed\(producer-value\)'
     }
 
     check_hooks_were_run(){
@@ -53,20 +63,40 @@ execute: |
 
     echo "Verify static and dynamic attributes have expected values"
     check_attributes
-
-    rm -f "$CONSUMER_DATA/prepare-plug-consumer-done" "$PRODUCER_DATA/prepare-slot-producer-done" "$CONSUMER_DATA/connect-plug-consumer-done" "$PRODUCER_DATA/connect-slot-producer-done"
-
     systemctl start snapd.service snapd.socket
-    echo "Verify that hooks are re-run on update and attributes in the state get updated"
-    install_local basic-iface-hooks-consumer
 
-    echo "Ensure the hooks were executed again"
-    check_hooks_were_run
+    remove_markers
 
-    # stop snapd before inspecting state.json
-    systemctl stop snapd.service snapd.socket
+    # make sure disconnect hooks are executed
+    snap disconnect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
+    snap change --last=disconnect | MATCH "Run hook disconnect-slot-producer of snap \"basic-iface-hooks-producer"
+    snap change --last=disconnect | MATCH "Run hook disconnect-plug-consumer of snap \"basic-iface-hooks-consumer"
 
-    check_attributes
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["exec-count"]' /var/lib/snapd/state.json | MATCH "2"
+    [ -f "$CONSUMER_DATA/disconnect-plug-consumer-done" ]
+    [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
 
-    systemctl start snapd.service snapd.socket
+    remove_markers
+
+    # make connect hooks fail, check that undo hooks were executed
+    snap set basic-iface-hooks-consumer fail=connect
+    if snap connect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer ; then
+        echo "Expected snap connect to fail"
+        exit 1
+    fi
+
+    [ -f "$CONSUMER_DATA/unprepare-plug-consumer-done" ]
+    [ -f "$PRODUCER_DATA/unprepare-slot-producer-done" ]
+    [ -f "$PRODUCER_DATA/connect-slot-producer-done" ]
+    [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
+
+    MATCH "plug-changed.consumer-value" < "$CONSUMER_DATA/unprepare-plug-consumer-done" 
+
+    remove_markers
+
+    # disconnect hooks should be executed on snap removal
+    snap set basic-iface-hooks-consumer fail=none
+    snap connect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
+    snap remove basic-iface-hooks-consumer
+    [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
+    snap change --last=remove | MATCH "Run hook disconnect-slot-producer of snap \"basic-iface-hooks-producer"
+    snap change --last=remove | MATCH "Run hook disconnect-plug-consumer of snap \"basic-iface-hooks-consumer"

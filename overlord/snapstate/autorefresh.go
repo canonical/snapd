@@ -43,8 +43,9 @@ const maxPostponement = 60 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (
-	CanAutoRefresh     func(st *state.State) (bool, error)
-	CanManageRefreshes func(st *state.State) bool
+	CanAutoRefresh        func(st *state.State) (bool, error)
+	CanManageRefreshes    func(st *state.State) bool
+	IsOnMeteredConnection func() (bool, error)
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -149,6 +150,44 @@ func (m *autoRefresh) AtSeed() error {
 	return nil
 }
 
+func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	var onMetered string
+	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+
+	return onMetered != "hold", nil
+}
+
+func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (can bool, err error) {
+	can, err = canRefreshOnMeteredConnection(m.state)
+	if err != nil {
+		return false, err
+	}
+	if can {
+		return true, nil
+	}
+
+	// ignore any errors that occurred while checking if we are on a metered
+	// connection
+	metered, _ := IsOnMeteredConnection()
+	if !metered {
+		return true, nil
+	}
+
+	if now.Sub(lastRefresh) >= maxPostponement {
+		// TODO use warnings when the infra becomes available
+		logger.Noticef("Auto refresh disabled while on metered connections, but pending for too long (%s days). Trying to refresh now.", int(maxPostponement.Hours()/24))
+		return true, nil
+	}
+
+	logger.Debugf("Auto refresh disabled on metered connections")
+
+	return false, nil
+}
+
 // Ensure ensures that we refresh all installed snaps periodically
 func (m *autoRefresh) Ensure() error {
 	m.state.Lock()
@@ -237,6 +276,17 @@ func (m *autoRefresh) Ensure() error {
 
 	// do refresh attempt (if needed)
 	if !m.nextRefresh.After(now) {
+		var can bool
+		can, err = m.canRefreshRespectingMetered(now, lastRefresh)
+		if err != nil {
+			return err
+		}
+		if !can {
+			// clear nextRefresh so that another refresh time is calculated
+			m.nextRefresh = time.Time{}
+			return nil
+		}
+
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will
@@ -277,16 +327,15 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
-	if refreshScheduleManaged(m.state) {
+	if managed, legacy := refreshScheduleManaged(m.state); managed {
 		if m.lastRefreshSchedule != "managed" {
-			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
+			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		return nil, "managed", true, nil
+		return nil, "managed", legacy, nil
 	}
 
 	tr := config.NewTransaction(m.state)
-
 	// try the new refresh.timer config option first
 	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
@@ -377,24 +426,32 @@ func autoRefreshInFlight(st *state.State) bool {
 
 // refreshScheduleManaged returns true if the refresh schedule of the
 // device is managed by an external snap
-func refreshScheduleManaged(st *state.State) bool {
-	var refreshScheduleStr string
+func refreshScheduleManaged(st *state.State) (managed bool, legacy bool) {
+	var confStr string
 
 	// this will only be "nil" if running in tests
 	if CanManageRefreshes == nil {
-		return false
+		return false, legacy
 	}
 
+	// check new style timer first
 	tr := config.NewTransaction(st)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
-	if err != nil {
-		return false
+	err := tr.Get("core", "refresh.timer", &confStr)
+	if err != nil && !config.IsNoOption(err) {
+		return false, legacy
 	}
-	if refreshScheduleStr != "managed" {
-		return false
+	// if not set, fallback to refresh.schedule
+	if confStr == "" {
+		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil {
+			return false, legacy
+		}
+		legacy = true
 	}
 
-	return CanManageRefreshes(st)
+	if confStr != "managed" {
+		return false, legacy
+	}
+	return CanManageRefreshes(st), legacy
 }
 
 // getTime retrieves a time from a state value.

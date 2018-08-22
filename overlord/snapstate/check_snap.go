@@ -58,7 +58,7 @@ func checkAssumes(si *snap.Info) error {
 		if release.OnClassic {
 			hint = "try to update snapd and refresh the core snap"
 		}
-		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", si.Name(), strings.Join(missing, ", "), hint)
+		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", si.InstanceName(), strings.Join(missing, ", "), hint)
 	}
 	return nil
 }
@@ -137,11 +137,11 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 			return nil
 		}
 		return &SnapNeedsDevModeError{
-			Snap: info.Name(),
+			Snap: info.InstanceName(),
 		}
 	case snap.ClassicConfinement:
 		if !release.OnClassic {
-			return &SnapNeedsClassicSystemError{Snap: info.Name()}
+			return &SnapNeedsClassicSystemError{Snap: info.InstanceName()}
 		}
 
 		if flags.Classic {
@@ -153,7 +153,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		}
 
 		return &SnapNeedsClassicError{
-			Snap: info.Name(),
+			Snap: info.InstanceName(),
 		}
 	default:
 		return fmt.Errorf("unknown confinement %q", c)
@@ -170,7 +170,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(info.Architectures) {
-		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.Name(), strings.Join(info.Architectures, ", "), arch.UbuntuArchitecture())
+		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.InstanceName(), strings.Join(info.Architectures, ", "), arch.UbuntuArchitecture())
 	}
 
 	// check assumes
@@ -192,7 +192,7 @@ func validateContainer(c snap.Container, s *snap.Info, logf func(format string, 
 }
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, c, err := openSnapFile(snapFilePath, si)
@@ -208,14 +208,24 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 		return err
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	// update instance key to what was requested
+	s.InstanceKey = instanceKey
+
 	st.Lock()
 	defer st.Unlock()
 
+	// allow registered checks to run first as they may produce more
+	// precise errors
 	for _, check := range checkSnapCallbacks {
 		err := check(st, s, curInfo, flags)
 		if err != nil {
 			return err
 		}
+	}
+
+	if snapName != s.SnapName() {
+		return fmt.Errorf("cannot install snap %q using instance name %q", s.SnapName(), instanceName)
 	}
 
 	return nil
@@ -263,13 +273,14 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	// transition we will end up with not connected interface
 	// connections in the "core" snap. But the transition will
 	// kick in automatically quickly so an extra flag is overkill.
-	if snapInfo.Name() == "core" && core.Name() == "ubuntu-core" {
+	// TODO parallel-install: use instance name
+	if snapInfo.InstanceName() == "core" && core.InstanceName() == "ubuntu-core" {
 		return nil
 	}
 
 	// but generally do not allow to have two cores installed
-	if core.Name() != snapInfo.Name() {
-		return fmt.Errorf("cannot install core snap %q when core snap %q is already present", snapInfo.Name(), core.Name())
+	if core.InstanceName() != snapInfo.InstanceName() {
+		return fmt.Errorf("cannot install core snap %q when core snap %q is already present", snapInfo.InstanceName(), core.InstanceName())
 	}
 
 	return nil
@@ -312,7 +323,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 
-	if currentSnap.Name() != snapInfo.Name() {
+	if currentSnap.InstanceName() != snapInfo.InstanceName() {
 		return fmt.Errorf("cannot replace %s snap with a different one", kind)
 	}
 

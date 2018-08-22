@@ -63,6 +63,7 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}auxv r,
 @{PROC}/*/{,task/*/}cmdline r,
 @{PROC}/*/{,task/*/}exe r,
+@{PROC}/*/{,task/*/}fdinfo/* r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
@@ -73,20 +74,20 @@ deny ptrace (trace),
 
 #include <abstractions/dbus-strict>
 
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=unconfined),
+    member=Get{,All},
 
 # Allow clients to introspect hostname1
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Introspectable
-    member=Introspect
-    peer=(label=unconfined),
+    member=Introspect,
 
 # Allow clients to enumerate DBus connection names on common buses
 dbus (send)
@@ -94,6 +95,14 @@ dbus (send)
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member=ListNames
+    peer=(label=unconfined),
+
+# Allow clients to obtain the DBus machine ID on common buses. We do not
+# mediate the path since any peer can be used.
+dbus (send)
+    bus={session,system}
+    interface=org.freedesktop.DBus.Peer
+    member=GetMachineId
     peer=(label=unconfined),
 `
 

@@ -2,7 +2,7 @@
 
 GRUB_EDITENV=grub-editenv
 case "$SPREAD_SYSTEM" in
-    fedora-*|opensuse-*)
+    fedora-*|opensuse-*|amazon-*)
         GRUB_EDITENV=grub2-editenv
         ;;
 esac
@@ -31,5 +31,17 @@ bootenv_unset() {
         "$GRUB_EDITENV" /boot/grub/grubenv unset "$var"
     else
         fw_setenv "$var"
+    fi
+}
+
+get_boot_path() {
+    if [ -f /boot/uboot/uboot.env ]; then
+        echo "/boot/uboot/"
+    elif [ -f /boot/grub/grubenv ]; then
+        echo "/boot/grub/"
+    else
+        echo "Cannot determine boot path"
+        ls -alR /boot
+        exit 1
     fi
 }

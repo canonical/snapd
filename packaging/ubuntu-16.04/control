@@ -33,6 +33,7 @@ Build-Depends: autoconf,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
+               tzdata,
                udev,
                xfslibs-dev
 Standards-Version: 3.9.7
@@ -69,8 +70,9 @@ Depends: adduser,
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
+Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0), ${snapd:Breaks}
 Recommends: gnupg
+Suggests: zenity | kdialog
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${Built-Using} ${misc:Built-Using}
 Description: Daemon and tooling that enable snap packages
@@ -79,8 +81,7 @@ Description: Daemon and tooling that enable snap packages
  enabling secure distribution of the latest apps and utilities for
  cloud, servers, desktops and the internet of things.
  .
- This is the CLI for snapd, a background service that takes care of
- snaps on the system. Start with 'snap list' to see installed snaps.
+ Start with 'snap list' to see installed snaps.
 
 Package: ubuntu-snappy
 Architecture: all

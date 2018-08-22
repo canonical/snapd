@@ -101,7 +101,11 @@ network sna,
 /{,usr/}{,s}bin/arpd ixr,
 /{,usr/}{,s}bin/bridge ixr,
 /{,usr/}{,s}bin/dhclient Pxr,             # use ixr instead if want to limit to snap dirs
+/{,usr/}{,s}bin/dhclient-script ixr,
 /{,usr/}{,s}bin/ifconfig ixr,
+/{,usr/}{,s}bin/ifdown ixr,
+/{,usr/}{,s}bin/ifquery ixr,
+/{,usr/}{,s}bin/ifup ixr,
 /{,usr/}{,s}bin/ip ixr,
 /{,usr/}{,s}bin/ipmaddr ixr,
 /{,usr/}{,s}bin/iptunnel ixr,
@@ -119,6 +123,7 @@ network sna,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
 /{,usr/}{,s}bin/rtmon ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 /{,usr/}{,s}bin/wpa_action ixr,
@@ -149,6 +154,9 @@ capability setuid,
 @{PROC}/@{pid}/loginuid r,
 @{PROC}/@{pid}/mounts r,
 
+# static host tables
+/etc/hosts w,
+
 # resolvconf
 /sbin/resolvconf ixr,
 /run/resolvconf/{,**} r,
@@ -158,6 +166,20 @@ capability setuid,
 # Required by resolvconf
 /bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,
+
+# wpa_suplicant
+/{,var/}run/wpa_supplicant/** rw,
+/etc/wpa_supplicant/{,**} ixr,
+
+#ifup,ifdown, dhclient
+/{,var/}run/dhclient.*.pid rw,
+/var/lib/dhcp/ r,
+/var/lib/dhcp/** rw,
+
+/run/network/ifstate* rw,
+/run/network/.ifstate* rw,
+/run/network/ifup-* rw,
+/run/network/ifdown-* rw,
 
 # route
 /etc/networks r,

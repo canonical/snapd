@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/client"
@@ -34,7 +35,7 @@ type changeIDMixin struct {
 }
 
 var changeIDMixinOptDesc = mixinDescs{
-	"last": i18n.G("Select last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
+	"last": i18n.G("Select last change of given type (install, refresh, remove, try, auto-refresh, etc.). A question mark at the end of the type means to do nothing (instead of returning an error) if no change of the given type is found. Note the question mark could need protecting from the shell."),
 }
 
 var changeIDMixinArgDesc = []argDesc{{
@@ -43,6 +44,9 @@ var changeIDMixinArgDesc = []argDesc{{
 	// TRANSLATORS: This should probably not start with a lowercase letter.
 	desc: i18n.G("Change ID"),
 }}
+
+// should not be user-visible, but keep it clear and polite because mistakes happen
+var noChangeFoundOK = errors.New("no change found but that's ok")
 
 func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
 	if l.Positional.ID == "" && l.LastChangeType == "" {
@@ -57,20 +61,32 @@ func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
 		return string(l.Positional.ID), nil
 	}
 
+	// note that at this point we know l.LastChangeType != ""
 	kind := l.LastChangeType
+	optional := false
+	if l := len(kind) - 1; kind[l] == '?' {
+		optional = true
+		kind = kind[:l]
+	}
 	// our internal change types use "-snap" postfix but let user skip it and use short form.
 	if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
 		kind += "-snap"
 	}
-	changes, err := cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	changes, err := queryChanges(cli, &client.ChangesOptions{Selector: client.ChangesAll})
 	if err != nil {
 		return "", err
 	}
 	if len(changes) == 0 {
+		if optional {
+			return "", noChangeFoundOK
+		}
 		return "", fmt.Errorf(i18n.G("no changes found"))
 	}
 	chg := findLatestChangeByKind(changes, kind)
 	if chg == nil {
+		if optional {
+			return "", noChangeFoundOK
+		}
 		return "", fmt.Errorf(i18n.G("no changes of type %q found"), l.LastChangeType)
 	}
 

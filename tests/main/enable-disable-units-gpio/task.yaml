@@ -21,7 +21,8 @@ prepare: |
         exit
     fi
     echo "Given a snap declaring a plug on gpio is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local gpio-consumer
 
     echo "And a mocked gpio device is in place"
@@ -29,14 +30,14 @@ prepare: |
     #!/bin/sh
     if [ ! -d "$GPIO_MOCK_DIR" ]; then
         # the service has just been created
-        mkdir -p $GPIO_MOCK_DIR
-        touch $GPIO_MOCK_DIR/gpio100 $GPIO_MOCK_DIR/export $GPIO_MOCK_DIR/unexport
+        mkdir -p "$GPIO_MOCK_DIR"
+        touch "$GPIO_MOCK_DIR/gpio100" "$GPIO_MOCK_DIR/export" "$GPIO_MOCK_DIR/unexport"
     else
         # after reboot, remove device node to test export
-        rm $GPIO_MOCK_DIR/gpio100
-        truncate -s 0 $GPIO_MOCK_DIR/export
+        rm "$GPIO_MOCK_DIR/gpio100"
+        truncate -s 0 "$GPIO_MOCK_DIR/export"
     fi
-    mount --bind $GPIO_MOCK_DIR /sys/class/gpio
+    mount --bind "$GPIO_MOCK_DIR" /sys/class/gpio
     EOF
     chmod a+x /home/test/gpio-mock.sh
 
@@ -66,9 +67,12 @@ restore: |
     fi
     umount /sys/class/gpio || true
     systemctl disable gpio-mock.service
-    rm -rf $GPIO_MOCK_DIR /etc/systemd/system/gpio-mock.service /home/test/gpio-mock.sh
+    rm -rf "$GPIO_MOCK_DIR" /etc/systemd/system/gpio-mock.service /home/test/gpio-mock.sh
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -76,10 +80,10 @@ execute: |
 
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
     expected="Unit snap.core.interface.gpio-100.service has finished starting up"
-    journalctl -xe --no-pager | MATCH "$expected"
+    get_journalctl_log -xe --no-pager | MATCH "$expected"
 
     if [ "$SPREAD_REBOOT" = "1" ]; then
-        cat $GPIO_MOCK_DIR/export | MATCH "^100$"
+        MATCH "^100$" < "$GPIO_MOCK_DIR/export"
     fi
 
     if [ "$SPREAD_REBOOT" = "0" ]; then

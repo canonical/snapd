@@ -2,10 +2,7 @@ summary: Ensure that lxd works
 
 # only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-#systems: [ubuntu-16*, ubuntu-core-*]
-
-# FIXME LXD has some issue on Google images.
-systems: [ubuntu-16.04-32, ubuntu-core-*]
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -14,30 +11,43 @@ backends: [-autopkgtest]
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
+# Start before anything else as it can take a really long time.
+priority: 1000
+
+prepare: |
+    # using apt here is ok because this test only runs on ubuntu
+    echo "Remove any installed debs (some images carry them) to ensure we test the snap"
+    if command -v apt; then
+        apt autoremove -y lxd
+    fi
+
 restore: |
-    if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
+    if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
         exit
     fi
 
-    lxd.lxc stop my-ubuntu
+    lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
 debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     # debug output from lxd
-    journalctl -u snap.lxd.daemon.service
+    get_journalctl_log -u snap.lxd.daemon.service
 
 execute: |
-    if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
+    if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
         echo "No run lxd test when there are not .deb files built"
         exit
     fi
 
     wait_for_lxd(){
-        while ! printf "GET / HTTP/1.0\n\n" | nc -U /var/snap/lxd/common/lxd/unix.socket | MATCH "200 OK"; do sleep 1; done
+        while ! printf 'GET / HTTP/1.0\n\n' | nc -U /var/snap/lxd/common/lxd/unix.socket | MATCH '200 OK'; do sleep 1; done
     }
 
     echo "Install lxd"
-    snap install lxd
+    snap install --candidate lxd
 
     echo "Create a trivial container using the lxd snap"
     wait_for_lxd
@@ -45,29 +55,27 @@ execute: |
 
     echo "Setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_http $http_proxy
+        lxd.lxc config set core.proxy_http "$http_proxy"
     fi
     if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https $http_proxy
+        lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    lxd.lxc launch ubuntu:16.04 my-ubuntu
+    # The snapd package we build as part of the tests will only run on the
+    # distro we build on. So we need to launch the right ubuntu version.
+    . /etc/os-release
+    lxd.lxc launch ubuntu:${VERSION_ID} my-ubuntu
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
-
-    echo "Ensure we can get network"
-    lxd.lxc network create testbr0
-    lxd.lxc network attach testbr0 my-ubuntu eth0
-    lxd.lxc exec my-ubuntu dhclient eth0
 
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
 
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
-    lxd.lxc file push "$GOHOME"/snapd_*.deb my-ubuntu/$GOPATH/
-    lxd.lxc exec my-ubuntu -- dpkg -i "$GOHOME"/snapd_*.deb
+    lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOPATH/"
+    lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
     echo "Setting up proxy *inside* the container"
     if [ -n "${http_proxy:-}" ]; then

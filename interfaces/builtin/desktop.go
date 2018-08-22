@@ -111,6 +111,14 @@ dbus (receive)
     member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
+# DesktopAppInfo Launched
+dbus (send)
+    bus=session
+    path=/org/gtk/gio/DesktopAppInfo
+    interface=org.gtk.gio.DesktopAppInfo
+    member=Launched
+    peer=(label=unconfined),
+
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
 # interested in are pressed, and allows us to receive those events.
@@ -129,7 +137,6 @@ dbus (send)
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
-/usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
     path=/
@@ -170,7 +177,6 @@ dbus (receive)
 
 # Allow use of snapd's internal 'xdg-settings'
 /usr/bin/xdg-settings ixr,
-/usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
     path=/io/snapcraft/Settings
@@ -180,19 +186,20 @@ dbus (send)
 
 ## Allow access to xdg-document-portal file system.  Access control is
 ## handled by bind mounting a snap-specific sub-tree to this location.
-#owner /run/user/[0-9]*/doc/** rw,
+owner /run/user/[0-9]*/doc/ r,
+owner /run/user/[0-9]*/doc/** rw,
 
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/{desktop,documents}
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/{desktop,documents}
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 `
 
@@ -214,7 +221,7 @@ func (iface *desktopInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
@@ -230,11 +237,20 @@ func (iface *desktopInterface) fontconfigDirs() []string {
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
 
+	// Allow mounting document portal
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "  # Mount the document portal\n")
+	// TODO parallel-install: use of proper instance/store name
+	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
+	fmt.Fprintf(&buf, "  umount /run/user/[0-9]*/doc/,\n\n")
+	spec.AddUpdateNS(buf.String())
+
 	if !release.OnClassic {
 		// We only need the font mount rules on classic systems
 		return nil
 	}
 
+	// Allow mounting fonts
 	for _, dir := range iface.fontconfigDirs() {
 		var buf bytes.Buffer
 		source := "/var/lib/snapd/hostfs" + dir
@@ -250,8 +266,15 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	appId := "snap." + plug.Snap().InstanceName()
+	spec.AddUserMountEntry(osutil.MountEntry{
+		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+		Dir:     "$XDG_RUNTIME_DIR/doc",
+		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
+	})
+
 	if !release.OnClassic {
-		// There is nothing to expose on an all-snaps system
+		// We only need the font mount rules on classic systems
 		return nil
 	}
 
@@ -265,15 +288,6 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 			Options: []string{"bind", "ro"},
 		})
 	}
-
-	/*
-		appId := "snap.pkg." + plug.Snap.Name()
-		spec.AddUserMount(mount.Entry{
-			Name: "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
-			Dir: "$XDG_RUNTIME_DIR/doc",
-			Options: []string{"bind", "rw"},
-		})
-	*/
 
 	return nil
 }
