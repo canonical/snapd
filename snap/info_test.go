@@ -1323,10 +1323,10 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "os2", Type: "os"},
 		{SuggestedName: "kernel1", Type: "kernel"},
 		{SuggestedName: "kernel2", Type: "kernel"},
-		{SuggestedName: "gadget1", Type: "gadget"},
-		{SuggestedName: "gadget2", Type: "gadget"},
 		{SuggestedName: "base1", Type: "base"},
 		{SuggestedName: "base2", Type: "base"},
+		{SuggestedName: "gadget1", Type: "gadget"},
+		{SuggestedName: "gadget2", Type: "gadget"},
 		{SuggestedName: "app1", Type: "app"},
 		{SuggestedName: "app2", Type: "app"},
 	})
