@@ -1,8 +1,10 @@
 summary: check that snap debug get-base-declaration works
+
 details: |
     The get-base-declaration debug action is intended for the security team so
     that they can easily review the whole base declaration, however it is
     stored inside the snapd code.
+
 execute: |
     snap debug get-base-declaration | MATCH 'type: base-declaration'
     # The string "$builtin" terminates the declaration
