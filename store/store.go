@@ -2115,10 +2115,16 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		// due to privacy concerns, avoid sending the local names to the
-		// backend and instead just number current snaps, this requires
-		// extra hoops to translate instance key -> instance name
-		instanceKey := fmt.Sprintf("%d-%s", i, curSnap.SnapID)
+		instanceKey := curSnap.SnapID
+		if _, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName); snapInstanceKey != "" {
+			// due to privacy concerns, avoid sending the local names to the
+			// backend and instead just number current snaps, this requires
+			// extra hoops to translate instance key -> instance name
+
+			// TODO parallel-install: ensure that instance key is
+			// stable across refreshes
+			instanceKey = fmt.Sprintf("%d-%s", i, curSnap.SnapID)
+		}
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
