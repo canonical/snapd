@@ -491,6 +491,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			Contact: info.Contact,
 			// no assertions for this snap were put in the seed
 			Unasserted: info.SnapID == "",
+			Type:       info.Type,
 		})
 	}
 	if len(locals) > 0 {

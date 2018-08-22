@@ -599,6 +599,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 			Name:   name,
 			SnapID: name + "-Id",
 			File:   fn,
+			Type:   info.Type,
 		})
 	}
 	c.Check(seed.Snaps[3].Name, Equals, "required-snap1")
@@ -683,6 +684,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 						RealName: "core",
 						Revision: snap.R("x1"),
 					},
+					Type: "os",
 				}
 				unasserted = true
 			case "required-snap1_x1.snap":
@@ -691,6 +693,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 						RealName: "required-snap1",
 						Revision: snap.R("x1"),
 					},
+					Type: "app",
 				}
 				unasserted = true
 			}
@@ -705,6 +708,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: unasserted,
+			Type:       info.Type,
 		})
 	}
 
@@ -782,18 +786,21 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		SnapID:  "core-Id",
 		File:    "core_3.snap",
 		Channel: "beta",
+		Type:    "os",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		Name:    "pc-kernel",
 		SnapID:  "pc-kernel-Id",
 		File:    "pc-kernel_2.snap",
 		Channel: "beta",
+		Type:    "kernel",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
 		Name:    "pc",
 		SnapID:  "pc-Id",
 		File:    "pc_1.snap",
 		Channel: "beta",
+		Type:    "gadget",
 	})
 	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
 		Name:    "required-snap1",
@@ -801,6 +808,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		File:    "required-snap1_3.snap",
 		Contact: "foo@example.com",
 		Channel: "beta",
+		Type:    "app",
 	})
 	// ensure local snaps are put last in seed.yaml
 	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
@@ -810,6 +818,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		File:       "devmode-snap_x1.snap",
 		// no channel for unasserted snaps
 		Channel: "",
+		Type:    "app",
 	})
 
 	// check devmode-snap
@@ -830,6 +839,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		File:       fn,
 		DevMode:    true,
 		Unasserted: true,
+		Type:       "app",
 	})
 }
 
@@ -881,6 +891,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 
 	// check the files are in place
 	for i, name := range []string{"snapd", "core18_18.snap", "pc-kernel", "pc", "other-base"} {
+		typ := "app"
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
@@ -895,6 +906,18 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 				}
 			}
 		}
+		switch name {
+		case "snapd":
+			typ = "app"
+		case "core18_18.snap":
+			typ = "base"
+		case "pc-kernel":
+			typ = "kernel"
+		case "pc":
+			typ = "gadget"
+		case "other-base":
+			typ = "base"
+		}
 
 		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
@@ -905,6 +928,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: unasserted,
+			Type:       snap.Type(typ),
 		})
 	}
 
@@ -1052,6 +1076,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 						SnapID:   "core-Id",
 						Revision: snap.R(3),
 					},
+					Type: "os",
 				}
 			case "required-snap1_3.snap":
 				info = &snap.Info{
@@ -1060,6 +1085,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 						SnapID:   "required-snap1-Id",
 						Revision: snap.R(3),
 					},
+					Type: "app",
 				}
 			default:
 				c.Errorf("cannot have %s", name)
@@ -1075,6 +1101,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 			SnapID:     info.SnapID,
 			File:       fn,
 			Unasserted: false,
+			Type:       info.Type,
 		})
 	}
 
@@ -1183,18 +1210,21 @@ func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
 		Name:   "core",
 		SnapID: "core-Id",
 		File:   "core_3.snap",
+		Type:   "os",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		Name:    "pc-kernel",
 		SnapID:  "pc-kernel-Id",
 		File:    "pc-kernel_2.snap",
 		Channel: "18/stable",
+		Type:    "kernel",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
 		Name:    "pc",
 		SnapID:  "pc-Id",
 		File:    "pc_1.snap",
 		Channel: "18/stable",
+		Type:    "gadget",
 	})
 }
 
@@ -1245,18 +1275,21 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 		SnapID:  "core-Id",
 		File:    "core_3.snap",
 		Channel: "edge",
+		Type:    "os",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		Name:    "pc-kernel",
 		SnapID:  "pc-kernel-Id",
 		File:    "pc-kernel_2.snap",
 		Channel: "18/edge",
+		Type:    "kernel",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
 		Name:    "pc",
 		SnapID:  "pc-Id",
 		File:    "pc_1.snap",
 		Channel: "edge",
+		Type:    "gadget",
 	})
 }
 
@@ -1312,12 +1345,14 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 		SnapID:  "core-Id",
 		File:    "core_3.snap",
 		Channel: "beta",
+		Type:    "os",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		Name:    "pc-kernel",
 		SnapID:  "pc-kernel-Id",
 		File:    "pc-kernel_2.snap",
 		Channel: "18/beta",
+		Type:    "kernel",
 	})
 }
 
@@ -1370,32 +1405,38 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		Name:   "snapd",
 		SnapID: "snapd-Id",
 		File:   "snapd_18.snap",
+		Type:   "app",
 	})
 	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		Name:   "core",
 		SnapID: "core-Id",
 		File:   "core_3.snap",
+		Type:   "os",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
 		Name:   "core18",
 		SnapID: "core18-Id",
 		File:   "core18_18.snap",
+		Type:   "base",
 	})
 	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
 		Name:   "pc-kernel",
 		SnapID: "pc-kernel-Id",
 		File:   "pc-kernel_2.snap",
+		Type:   "kernel",
 	})
 	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
 		Name:   "pc",
 		SnapID: "pc-Id",
 		File:   "pc_1.snap",
+		Type:   "gadget",
 	})
 	c.Check(seed.Snaps[5], DeepEquals, &snap.SeedSnap{
 		Name:    "required-snap1",
 		SnapID:  "required-snap1-Id",
 		File:    "required-snap1_3.snap",
 		Contact: "foo@example.com",
+		Type:    "app",
 	})
 }
 

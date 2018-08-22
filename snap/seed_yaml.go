@@ -50,6 +50,9 @@ type SeedSnap struct {
 	// no assertions are available in the seed for this snap
 	Unasserted bool `yaml:"unasserted,omitempty"`
 
+	// helper firstboot code to sort in the right order
+	Type Type `yaml:"type"`
+
 	File string `yaml:"file"`
 }
 
