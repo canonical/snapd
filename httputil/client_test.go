@@ -34,7 +34,7 @@ var _ = check.Suite(&clientSuite{})
 
 func mustParse(c *check.C, rawurl string) *url.URL {
 	url, err := url.Parse("http://some-proxy:3128")
-	c.Check(err, check.IsNil)
+	c.Assert(err, check.IsNil)
 	return url
 }
 
