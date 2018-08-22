@@ -37,9 +37,11 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layoutMountEntries []osutil.MountEntry
-	mountEntries       []osutil.MountEntry
-	userMountEntries   []osutil.MountEntry
+	layoutMountEntries               []osutil.MountEntry
+	mountEntries                     []osutil.MountEntry
+	userMountEntries                 []osutil.MountEntry
+	parallelInstanceMountEntries     []osutil.MountEntry
+	parallelInstanceUserMountEntries []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
@@ -51,6 +53,20 @@ func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
 //AddUserMountEntry adds a new user mount entry.
 func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
 	spec.userMountEntries = append(spec.userMountEntries, e)
+	return nil
+}
+
+// AddParallelInstanceMountEntry adds a new mount entry for parallel snap
+// instances support.
+func (spec *Specification) AddParallelInstanceMountEntry(e osutil.MountEntry) error {
+	spec.parallelInstanceMountEntries = append(spec.parallelInstanceMountEntries, e)
+	return nil
+}
+
+// AddParallelInstanceUserMountEntry adds a new user mount entry for parallel snap
+// instances support.
+func (spec *Specification) AddParallelInstanceUserMountEntry(e osutil.MountEntry) error {
+	spec.parallelInstanceUserMountEntries = append(spec.parallelInstanceUserMountEntries, e)
 	return nil
 }
 
@@ -131,7 +147,8 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
+	result := make([]osutil.MountEntry, 0, len(spec.parallelInstanceMountEntries)+len(spec.layoutMountEntries)+len(spec.mountEntries))
+	result = append(result, spec.parallelInstanceMountEntries...)
 	result = append(result, spec.layoutMountEntries...)
 	result = append(result, spec.mountEntries...)
 	unclashMountEntries(result)
@@ -140,8 +157,9 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 
 // UserMountEntries returns a copy of the added user mount entries.
 func (spec *Specification) UserMountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, len(spec.userMountEntries))
-	copy(result, spec.userMountEntries)
+	result := make([]osutil.MountEntry, 0, len(spec.parallelInstanceUserMountEntries)+len(spec.userMountEntries))
+	result = append(result, spec.parallelInstanceUserMountEntries...)
+	result = append(result, spec.userMountEntries...)
 	unclashMountEntries(result)
 	return result
 }
@@ -221,22 +239,26 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 // - /var/snap/foo_bar -> /var/snap/foo
 // - $HOME/snap/foo_bar -> $HOME/snap/foo
 func (spec *Specification) AddParallelInstanceMapping(info *snap.Info) {
+	if info.InstanceKey == "" {
+		return
+	}
+
 	// /snap/foo_bar -> /snap/foo
-	spec.AddMountEntry(osutil.MountEntry{
+	spec.AddParallelInstanceMountEntry(osutil.MountEntry{
 		Name:    path.Join(dirs.CoreSnapMountDir, info.InstanceName()),
 		Dir:     path.Join(dirs.CoreSnapMountDir, info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginLayout()},
+		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
 	})
 	// /var/snap/foo_bar -> /var/snap/foo
-	spec.AddMountEntry(osutil.MountEntry{
+	spec.AddParallelInstanceMountEntry(osutil.MountEntry{
 		Name:    path.Join(dirs.SnapDataDir, info.InstanceName()),
 		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginLayout()},
+		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
 	})
 	// $HOME/snap/foo_bar -> $HOME/snap/foo
-	spec.AddUserMountEntry(osutil.MountEntry{
+	spec.AddParallelInstanceUserMountEntry(osutil.MountEntry{
 		Name:    path.Join("$USER_HOME_SNAP_DIR", info.InstanceName()),
 		Dir:     path.Join("$USER_HOME_SNAP_DIR", info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginLayout()},
+		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
 	})
 }
