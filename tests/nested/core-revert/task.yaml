@@ -2,6 +2,8 @@ summary: core revert test
 
 systems: [ubuntu-16.04-64]
 
+kill-timeout: 40m
+
 prepare: |
     . "$TESTSLIB/nested.sh"
     create_nested_core_vm
@@ -26,8 +28,6 @@ debug: |
         rm -rf "$tmp"
         kpartx -ds /tmp/work-dir/ubuntu-core.img
     fi
-
-kill-timeout: 40m
 
 execute: |
     . "$TESTSLIB/nested.sh"

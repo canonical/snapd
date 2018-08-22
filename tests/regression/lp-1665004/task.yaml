@@ -1,15 +1,18 @@
 summary: ensure that /var/lib/snapd/hostfs is group-owned by root
+
 details: |
     On a system that never ran any snap before the /var/lib/snapd/hostfs
     directory does not exist. When snap-confine is used it will create the
     directory on demand but that directory will retain the group identity of
     the user.
+
 prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     if [ -d /var/lib/snapd/hostfs ]; then
         rmdir /var/lib/snapd/hostfs;
     fi
+
 execute: |
     test-snapd-tools.cmd true
     [ "$(stat -c '%g' /var/lib/snapd/hostfs)" -eq 0 ]
