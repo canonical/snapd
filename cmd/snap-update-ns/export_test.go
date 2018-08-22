@@ -30,8 +30,8 @@ import (
 
 var (
 	// change
-	ValidateSnapName = validateSnapName
-	ProcessArguments = processArguments
+	ValidateInstanceName = validateInstanceName
+	ProcessArguments     = processArguments
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
@@ -42,6 +42,9 @@ var (
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
 	ApplyUserFstab        = applyUserFstab
+
+	// bootstrap
+	ClearBootstrapError = clearBootstrapError
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.

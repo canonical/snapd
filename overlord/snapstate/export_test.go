@@ -155,6 +155,10 @@ func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
 	return mockModel(map[string]string{"kernel": "kernel=" + kernelTrack})
 }
 
+func MockModelWithGadgetTrack(gadgetTrack string) (restore func()) {
+	return mockModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
+}
+
 func MockModel() (restore func()) {
 	return mockModel(nil)
 }

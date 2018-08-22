@@ -306,7 +306,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
-		"kernel-version": release.KernelVersion(),
+		"kernel-version": osutil.KernelVersion(),
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
@@ -1013,6 +1013,11 @@ func verifySnapInstructions(inst *snapInstruction) error {
 }
 
 func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	for _, name := range inst.Snaps {
+		if len(name) == 0 {
+			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+		}
+	}
 	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
@@ -1038,6 +1043,10 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if len(inst.Snaps[0]) == 0 {
+		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
+	}
+
 	flags, err := inst.installFlags()
 	if err != nil {
 		return "", nil, err
@@ -1468,6 +1477,16 @@ out:
 		origPath = form.Value["snap-path"][0]
 	}
 
+	var instanceName string
+
+	if len(form.Value["name"]) > 0 {
+		// caller has specified desired instance name
+		instanceName = form.Value["name"][0]
+		if err := snap.ValidateInstanceName(instanceName); err != nil {
+			return BadRequest(err.Error())
+		}
+	}
+
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1503,23 +1522,31 @@ out:
 		if err != nil {
 			return BadRequest("cannot read snap file: %v", err)
 		}
-		snapName = info.InstanceName()
+		snapName = info.SnapName()
 		sideInfo = &snap.SideInfo{RealName: snapName}
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), snapName)
-	if origPath != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
+	if instanceName != "" {
+		requestedSnapName := snap.InstanceSnap(instanceName)
+		if requestedSnapName != snapName {
+			return BadRequest(fmt.Sprintf("instance name %q does not match snap name %q", instanceName, snapName))
+		}
+	} else {
+		instanceName = snapName
 	}
 
-	// TODO parallel-install: pass instance key if needed
-	tset, err := snapstateInstallPath(st, sideInfo, tempPath, "", flags)
+	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), instanceName)
+	if origPath != "" {
+		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, origPath)
+	}
+
+	tset, err := snapstateInstallPath(st, sideInfo, tempPath, instanceName, "", flags)
 	if err != nil {
 		return errToResponse(err, []string{snapName}, InternalError, "cannot install snap file: %v")
 	}
 
-	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{snapName})
-	chg.Set("api-data", map[string]string{"snap-name": snapName})
+	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
+	chg.Set("api-data", map[string]string{"snap-name": instanceName})
 
 	ensureStateSoon(st)
 
@@ -1865,7 +1892,11 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+				conn, err := repo.Connection(connRef)
+				if err != nil {
+					break
+				}
+				ts, err = ifacestate.Disconnect(st, conn)
 				if err != nil {
 					break
 				}

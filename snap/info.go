@@ -147,6 +147,12 @@ func UserCommonDataDir(home string, name string) string {
 	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
 }
 
+// UserSnapDir returns the user-specific directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserSnapDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name)
+}
+
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
 // given snap name. The name can be either a snap name or snap instance name.
 func UserXdgRuntimeDir(euid sys.UserID, name string) string {
@@ -685,6 +691,7 @@ type AppInfo struct {
 	Name          string
 	LegacyAliases []string // FIXME: eventually drop this
 	Command       string
+	CommandChain  []string
 	CommonID      string
 
 	Daemon          string

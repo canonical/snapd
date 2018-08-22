@@ -43,7 +43,7 @@ execute: |
     snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"
 
     echo "Then the service is accessible by a client"
-    nc -w 2 localhost "$PORT" < "$REQUEST_FILE" | grep -Pqz 'ok\n'
+    nc -w 1 localhost "$PORT" < "$REQUEST_FILE" | grep -Pqz 'ok\n'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -53,7 +53,7 @@ execute: |
     snap disconnect "$SNAP_NAME:network-bind"
 
     echo "Then the service is not accessible by a client"
-    response=$(nc -w 2 localhost "$PORT" < "$REQUEST_FILE")
+    response=$(nc -w 1 localhost "$PORT" < "$REQUEST_FILE")
     [ "$response" = "" ]
 
     echo "Then the plug can be connected again"
