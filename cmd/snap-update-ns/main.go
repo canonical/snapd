@@ -186,7 +186,8 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 		if err != nil {
 			// NOTE: we may have done something even if Perform itself has failed.
 			// We need to collect synthesized changes and store them.
-			if change.Entry.XSnapdOrigin() == "layout" {
+			origin := change.Entry.XSnapdOrigin()
+			if origin == "layout" || origin == "parallel-instance" {
 				return nil, err
 			} else if err != ErrIgnoredMissingMount {
 				logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
