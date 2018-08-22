@@ -85,7 +85,9 @@ func (s *adbSupportSuite) TestSanitizePlug(c *C) {
 func (s *adbSupportSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/udev/data/c189:* r,")
 }
 
 func (s *adbSupportSuite) TestSecCompSpec(c *C) {
@@ -96,18 +98,23 @@ func (s *adbSupportSuite) TestSecCompSpec(c *C) {
 
 func (s *adbSupportSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="usb", ATTR{idVendor}=="0502", MODE="0666"`)
+
+	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 80)
+	c.Assert(spec.Snippets(), HasLen, 81)
 	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
-SUBSYSTEM=="usb", ATTR{idVendor}=="0502", MODE="0666", TAG+="snap_consumer_app"`)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0502", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
-SUBSYSTEM=="usb", ATTR{idVendor}=="19d2", MODE="0666", TAG+="snap_consumer_app"`)
+SUBSYSTEM=="usb", ATTR{idVendor}=="19d2", TAG+="snap_consumer_app"`)
 }
 
 func (s *adbSupportSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, true)
-	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, false)
 	c.Assert(si.Summary, Equals, `allows access to connected USB devices for use with fastboot or adb`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "adb-support")
 }
