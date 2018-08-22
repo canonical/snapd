@@ -80,9 +80,11 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
+	udevMon   UDevMon
 }
 
 var storeNew = store.New
+var createUDevMonitor = NewUDevMonitor
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -159,6 +161,8 @@ func New() (*Overlord, error) {
 	if err := o.snapMgr.SyncCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
+
+	o.udevMon = createUDevMonitor(ifaceMgr.HotplugDeviceAdded, ifaceMgr.HotplugDeviceRemoved)
 
 	return o, nil
 }
@@ -261,6 +265,20 @@ func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
+		if o.udevMon != nil {
+			err := o.udevMon.Connect()
+			if err == nil {
+				err = o.udevMon.Run()
+				if err != nil {
+					logger.Noticef("Failed to start udev monitor: %s", err)
+				} else {
+					logger.Noticef("Udev event monitoring enabled")
+				}
+			} else {
+				logger.Noticef("Failed to connect udev monitor: %s", err)
+			}
+		}
+
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
@@ -269,6 +287,12 @@ func (o *Overlord) Loop() {
 			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
+				if o.udevMon != nil {
+					err := o.udevMon.Stop()
+					if err != nil {
+						logger.Noticef("Failed to stop udev monitor: %s", err)
+					}
+				}
 				return nil
 			case <-o.ensureTimer.C:
 			case <-o.pruneTicker.C:
@@ -472,4 +496,11 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 
 func (mb mockBackend) RequestRestart(t state.RestartType) {
 	mb.o.requestRestart(t)
+}
+
+func MockCreateUDevMonitor(new func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon) (restore func()) {
+	createUDevMonitor = new
+	return func() {
+		createUDevMonitor = NewUDevMonitor
+	}
 }
