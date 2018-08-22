@@ -54,5 +54,4 @@ func (p *ProxySettings) Conf(req *http.Request) (*url.URL, error) {
 		return nil, err
 	}
 	return url, nil
-
 }
