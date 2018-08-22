@@ -51,6 +51,10 @@ var typeOrder = map[Type]int{
 	TypeSnapd:  0,
 }
 
+func (m Type) sortOrder() int {
+	return typeOrder[m]
+}
+
 // UnmarshalJSON sets *m to a copy of data.
 func (m *Type) UnmarshalJSON(data []byte) error {
 	var str string
