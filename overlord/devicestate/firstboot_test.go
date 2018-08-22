@@ -70,8 +70,7 @@ type FirstBootTestSuite struct {
 
 	overlord *overlord.Overlord
 
-	restoreOnClassic    func()
-	restoreReadSnapInfo func()
+	restoreOnClassic func()
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -108,10 +107,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
 
-	s.restoreReadSnapInfo = devicestate.MockSnapInfoFromFile(func(snapPath string) (*snap.Info, error) {
-		return &snap.Info{}, nil
-	})
-
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
 	s.overlord = ovld
@@ -130,7 +125,6 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 
 	s.restore()
 	s.restoreOnClassic()
-	s.restoreReadSnapInfo()
 	dirs.SetRootDir("/")
 }
 
@@ -1455,20 +1449,6 @@ type: base
 `
 	baseFname, baseDecl, baseRev := s.makeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
 	writeAssertionsToFile("other-base.asserts", []asserts.Assertion{devAcct, baseRev, baseDecl})
-
-	restore := devicestate.MockSnapInfoFromFile(func(snapPath string) (*snap.Info, error) {
-		typ := snap.TypeApp
-		switch snapPath {
-		case baseFname, core18Fname:
-			typ = snap.TypeBase
-		case kernelFname:
-			typ = snap.TypeKernel
-		case gadgetFname:
-			typ = snap.TypeGadget
-		}
-		return &snap.Info{Type: typ}, nil
-	})
-	defer restore()
 
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
