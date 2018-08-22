@@ -270,6 +270,48 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
 
+func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	const snapName = "mysnap"
+	const currentProfileContent = ""
+	const desiredProfileContent = "/snap/mysnap_foo /snap/mysnap none rbind,x-snapd.origin=parallel-instance 0 0"
+
+	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+
+	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name: "/snap/mysnap_foo",
+					Dir:  "/snap/mysnap", Type: "none",
+					Options: []string{"rbind", "x-snapd.origin=parallel-instance"},
+				},
+			})
+			return nil, fmt.Errorf("testing")
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
+	// The error was not ignored, we bailed out.
+	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), ErrorMatches, "testing")
+
+	c.Check(currentProfilePath, testutil.FileEquals, "")
+}
+
 func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
