@@ -854,7 +854,7 @@ func (bk byKindAndName) Less(i, j int) bool {
 	iRevOrd := kindRevOrder[bk[i].Type]
 	jRevOrd := kindRevOrder[bk[j].Type]
 	if iRevOrd != jRevOrd {
-		return iRevOrd >= jRevOrd
+		return iRevOrd > jRevOrd
 	}
 	return bk[i].InstanceName() < bk[j].InstanceName()
 }
