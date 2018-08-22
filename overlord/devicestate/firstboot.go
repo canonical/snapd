@@ -50,7 +50,7 @@ func snapInfoFromFileImpl(snapPath string) (*snap.Info, error) {
 	return info, err
 }
 
-func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, error) {
+func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Classic {
 		flags.Classic = true
 	}
@@ -66,10 +66,10 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 	} else {
 		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
 		if asserts.IsNotFound(err) {
-			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+			return nil, nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		sideInfo = *si
 		sideInfo.Private = sn.Private
@@ -148,7 +148,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if seedSnap == nil {
 			return fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
+		ts, _, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
 		if err != nil {
 			return err
 		}
@@ -216,21 +216,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	// ensure we install in the right order
-	infoToSeedSnap := make(map[*snap.Info]*snap.SeedSnap, len(seed.Snaps))
-	sortedInfos := make([]*snap.Info, len(seed.Snaps))
-	for i, seedSnap := range seed.Snaps {
-		info, err := snapInfoFromFile(seedSnap.File)
-		if err != nil {
-			return nil, err
-		}
-		sortedInfos[i] = info
-		infoToSeedSnap[info] = seedSnap
-	}
-	sort.Stable(snap.ByType(sortedInfos))
+	infoToTs := make(map[*snap.Info]*state.TaskSet, len(seed.Snaps))
+	infos := make([]*snap.Info, 0, len(seed.Snaps))
 
-	for _, inf := range sortedInfos {
-		sn := infoToSeedSnap[inf]
-
+	for _, sn := range seed.Snaps {
 		if alreadySeeded[sn.Name] {
 			continue
 		}
@@ -240,11 +229,19 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			flags.Required = true
 		}
 
-		ts, err := installSeedSnap(st, sn, flags)
+		ts, info, err := installSeedSnap(st, sn, flags)
 		if err != nil {
 			return nil, err
 		}
+		infos = append(infos, info)
+		infoToTs[info] = ts
+	}
 
+	// now add/chain the tasksets in the right order, note that we
+	// only have tasksets that we did not already seeded
+	sort.Stable(snap.ByType(infos))
+	for _, info := range infos {
+		ts := infoToTs[info]
 		ts.WaitAll(tsAll[last])
 		tsAll = append(tsAll, ts)
 		last++
