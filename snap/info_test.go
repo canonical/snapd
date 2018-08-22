@@ -1296,3 +1296,38 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.UserXdgRuntimeDir(12345, "name_instance"), Equals, "/run/user/12345/snap.name_instance")
 	c.Check(snap.UserSnapDir("/home/bob", "name_instance"), Equals, "/home/bob/snap/name_instance")
 }
+
+func (s *infoSuite) TestSortByType(c *C) {
+	infos := []*snap.Info{
+		{SuggestedName: "app1", Type: "app"},
+		{SuggestedName: "os1", Type: "os"},
+		{SuggestedName: "base1", Type: "base"},
+		{SuggestedName: "gadget1", Type: "gadget"},
+		{SuggestedName: "kernel1", Type: "kernel"},
+		{SuggestedName: "app2", Type: "app"},
+		{SuggestedName: "os2", Type: "os"},
+		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
+			RealName: "snapd",
+		}},
+		{SuggestedName: "base2", Type: "base"},
+		{SuggestedName: "gadget2", Type: "gadget"},
+		{SuggestedName: "kernel2", Type: "kernel"},
+	}
+	sort.Stable(snap.ByType(infos))
+
+	c.Check(infos, DeepEquals, []*snap.Info{
+		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
+			RealName: "snapd",
+		}},
+		{SuggestedName: "os1", Type: "os"},
+		{SuggestedName: "os2", Type: "os"},
+		{SuggestedName: "kernel1", Type: "kernel"},
+		{SuggestedName: "kernel2", Type: "kernel"},
+		{SuggestedName: "gadget1", Type: "gadget"},
+		{SuggestedName: "gadget2", Type: "gadget"},
+		{SuggestedName: "base1", Type: "base"},
+		{SuggestedName: "base2", Type: "base"},
+		{SuggestedName: "app1", Type: "app"},
+		{SuggestedName: "app2", Type: "app"},
+	})
+}
