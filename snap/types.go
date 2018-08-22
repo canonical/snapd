@@ -43,8 +43,8 @@ const (
 // way.
 var typeOrder = map[Type]int{
 	TypeApp:    40,
-	TypeBase:   30,
-	TypeGadget: 20,
+	TypeGadget: 30,
+	TypeBase:   20,
 	TypeKernel: 10,
 	TypeOS:     0,
 }
