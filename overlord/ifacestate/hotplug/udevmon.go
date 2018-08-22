@@ -101,8 +101,7 @@ func (m *UDevMonitor) Run() error {
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tmb.Dying():
-				close(m.monitorStop)
-				return m.netlinkConn.Close()
+				return m.Disconnect()
 			}
 		}
 	})

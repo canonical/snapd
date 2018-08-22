@@ -302,8 +302,7 @@ func (o *Overlord) Stop() error {
 	finalErr := o.loopTomb.Wait()
 	o.stateEng.Stop()
 	if o.udevMon != nil {
-		err := o.udevMon.Stop()
-		if err != nil {
+		if err := o.udevMon.Stop(); err != nil {
 			logger.Noticef("Failed to stop udev monitor: %s", err)
 			if finalErr == nil {
 				finalErr = err
