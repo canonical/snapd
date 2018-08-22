@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,14 @@
  *
  */
 
-package selftest
+package osutil
 
 import (
-	"fmt"
-
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/strutil"
+	"golang.org/x/sys/unix"
 )
 
-// checkKernelVersion looks for some unsupported configurations that users may
-// encounter and provides advice on how to resolve them.
-func checkKernelVersion() error {
-	if release.OnClassic && release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
-		if cmp, _ := strutil.VersionCompare(osutil.KernelVersion(), "3.13"); cmp <= 0 {
-			return fmt.Errorf("you need to reboot into a 4.4 kernel to start using snapd")
-		}
-	}
-	return nil
+func uname() (*unix.Utsname, error) {
+	var u unix.Utsname
+	err := unix.Uname(&u)
+	return &u, err
 }
