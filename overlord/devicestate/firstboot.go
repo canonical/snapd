@@ -35,20 +35,12 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 var errNothingToDo = errors.New("nothing to do")
-
-var snapInfoFromFile = snapInfoFromFileImpl
-
-func snapInfoFromFileImpl(snapPath string) (*snap.Info, error) {
-	info, _, err := backend.OpenSnapFile(snapPath, nil)
-	return info, err
-}
 
 func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Classic {
