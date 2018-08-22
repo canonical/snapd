@@ -910,7 +910,7 @@ func (s *snapmgrTestSuite) TestByKindAndNameOrder(c *C) {
 
 	c.Check(snapstate.ByKindAndNameOrder(base, core), DeepEquals, []*snap.Info{core, base})
 	c.Check(snapstate.ByKindAndNameOrder(app, core, appInstance), DeepEquals, []*snap.Info{core, app, appInstance})
-	c.Check(snapstate.ByKindAndNameOrder(app, base, appInstance,), DeepEquals, []*snap.Info{base, app, appInstance})
+	c.Check(snapstate.ByKindAndNameOrder(app, base, appInstance), DeepEquals, []*snap.Info{base, app, appInstance})
 	c.Check(snapstate.ByKindAndNameOrder(app, base, core, appInstance), DeepEquals, []*snap.Info{core, base, app, appInstance})
 	c.Check(snapstate.ByKindAndNameOrder(app, core, base, appInstance), DeepEquals, []*snap.Info{core, base, app, appInstance})
 
