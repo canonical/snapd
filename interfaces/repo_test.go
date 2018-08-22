@@ -135,13 +135,17 @@ func (s *RepositorySuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func addPlugsSlotsFromInstances(c *C, repo *Repository, instanceNamesAndYamls ...string) []*snap.Info {
-	c.Assert(len(instanceNamesAndYamls)%2, Equals, 0, Commentf("unexpected length: expected instance name, yaml pairs"))
-	result := make([]*snap.Info, 0, len(instanceNamesAndYamls)/2)
-	for i := 0; i < len(instanceNamesAndYamls); i = i + 2 {
-		info := snaptest.MockInfo(c, instanceNamesAndYamls[i+1], nil)
-		if instanceNamesAndYamls[i] != "" {
-			instanceName := instanceNamesAndYamls[i]
+type instanceNameAndYaml struct {
+	Name string
+	Yaml string
+}
+
+func addPlugsSlotsFromInstances(c *C, repo *Repository, iys []instanceNameAndYaml) []*snap.Info {
+	result := make([]*snap.Info, 0, len(iys))
+	for _, iy := range iys {
+		info := snaptest.MockInfo(c, iy.Yaml, nil)
+		if iy.Name != "" {
+			instanceName := iy.Name
 			c.Assert(snap.ValidateInstanceName(instanceName), IsNil)
 			_, info.InstanceKey = snap.SplitInstanceName(instanceName)
 		}
@@ -320,15 +324,17 @@ func (s *RepositorySuite) TestAddPlugFailsWithUnknownInterface(c *C) {
 
 func (s *RepositorySuite) TestAddPlugParallelInstance(c *C) {
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 0)
+
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
+
 	consumer := snaptest.MockInfo(c, consumerYaml, nil)
 	consumer.InstanceKey = "instance"
-
 	err = s.testRepo.AddPlug(consumer.Plugs["plug"])
 	c.Assert(err, IsNil)
-
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 2)
+
 	c.Assert(s.testRepo.Plug(s.plug.Snap.InstanceName(), s.plug.Name), DeepEquals, s.plug)
 	c.Assert(s.testRepo.Plug(consumer.InstanceName(), "plug"), DeepEquals, consumer.Plugs["plug"])
 }
@@ -343,28 +349,32 @@ func (s *RepositorySuite) TestPlug(c *C) {
 }
 
 func (s *RepositorySuite) TestPlugSearch(c *C) {
-	addPlugsSlotsFromInstances(c, s.testRepo, "x", `
+	addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "x", Yaml: `
 name: x
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
-`, "y", `
+`},
+		{Name: "y", Yaml: `
 name: y
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
-`, "z_instance", `
+`},
+		{Name: "z_instance", Yaml: `
 name: z
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
-`)
+`},
+	})
 	// Plug() correctly finds plugs
 	c.Assert(s.testRepo.Plug("x", "a"), Not(IsNil))
 	c.Assert(s.testRepo.Plug("x", "b"), Not(IsNil))
@@ -411,26 +421,30 @@ func (s *RepositorySuite) TestRemovePlugFailsWhenPlugIsConnected(c *C) {
 // Tests for Repository.AllPlugs()
 
 func (s *RepositorySuite) TestAllPlugsWithoutInterfaceName(c *C) {
-	snaps := addPlugsSlotsFromInstances(c, s.testRepo, "snap-a", `
+	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "snap-a", Yaml: `
 name: snap-a
 version: 0
 plugs:
     name-a: interface
-`, "snap-b", `
+`},
+		{Name: "snap-b", Yaml: `
 name: snap-b
 version: 0
 plugs:
     name-a: interface
     name-b: interface
     name-c: interface
-`, "snap-b_instance", `
+`},
+		{Name: "snap-b_instance", Yaml: `
 name: snap-b
 version: 0
 plugs:
     name-a: interface
     name-b: interface
     name-c: interface
-`)
+`},
+	})
 	c.Assert(snaps, HasLen, 3)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.AllPlugs(""), DeepEquals, []*snap.PlugInfo{
@@ -448,26 +462,30 @@ func (s *RepositorySuite) TestAllPlugsWithInterfaceName(c *C) {
 	// Add another interface so that we can look for it
 	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
-	snaps := addPlugsSlotsFromInstances(c, s.testRepo, "snap-a", `
+	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "snap-a", Yaml: `
 name: snap-a
 version: 0
 plugs:
     name-a: interface
-`, "snap-b", `
+`},
+		{Name: "snap-b", Yaml: `
 name: snap-b
 version: 0
 plugs:
     name-a: interface
     name-b: other-interface
     name-c: interface
-`, "snap-b_instance", `
+`},
+		{Name: "snap-b_instance", Yaml: `
 name: snap-b
 version: 0
 plugs:
     name-a: interface
     name-b: other-interface
     name-c: interface
-`)
+`},
+	})
 	c.Assert(snaps, HasLen, 3)
 	c.Assert(s.testRepo.AllPlugs("other-interface"), DeepEquals, []*snap.PlugInfo{
 		snaps[1].Plugs["name-b"],
@@ -478,26 +496,30 @@ plugs:
 // Tests for Repository.Plugs()
 
 func (s *RepositorySuite) TestPlugs(c *C) {
-	snaps := addPlugsSlotsFromInstances(c, s.testRepo, "snap-a", `
+	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "snap-a", Yaml: `
 name: snap-a
 version: 0
 plugs:
     name-a: interface
-`, "snap-b", `
+`},
+		{Name: "snap-b", Yaml: `
 name: snap-b
 version: 0
 plugs:
     name-a: interface
     name-b: interface
     name-c: interface
-`, "snap-b_instance", `
+`},
+		{Name: "snap-b_instance", Yaml: `
 name: snap-b
 version: 0
 plugs:
     name-a: interface
     name-b: interface
     name-c: interface
-`)
+`},
+	})
 	c.Assert(snaps, HasLen, 3)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.Plugs("snap-b"), DeepEquals, []*snap.PlugInfo{
@@ -520,23 +542,27 @@ plugs:
 func (s *RepositorySuite) TestAllSlots(c *C) {
 	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
-	snaps := addPlugsSlotsFromInstances(c, s.testRepo, "snap-a", `
+	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "snap-a", Yaml: `
 name: snap-a
 version: 0
 slots:
     name-a: interface
     name-b: interface
-`, "snap-b", `
+`},
+		{Name: "snap-b", Yaml: `
 name: snap-b
 version: 0
 slots:
     name-a: other-interface
-`, "snap-b_instance", `
+`},
+		{Name: "snap-b_instance", Yaml: `
 name: snap-b
 version: 0
 slots:
     name-a: other-interface
-`)
+`},
+	})
 	c.Assert(snaps, HasLen, 3)
 	// AllSlots("") returns all slots, sorted by snap and slot name
 	c.Assert(s.testRepo.AllSlots(""), DeepEquals, []*snap.SlotInfo{
@@ -555,23 +581,27 @@ slots:
 // Tests for Repository.Slots()
 
 func (s *RepositorySuite) TestSlots(c *C) {
-	snaps := addPlugsSlotsFromInstances(c, s.testRepo, "snap-a", `
+	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "snap-a", Yaml: `
 name: snap-a
 version: 0
 slots:
     name-a: interface
     name-b: interface
-`, "snap-b", `
+`},
+		{Name: "snap-b", Yaml: `
 name: snap-b
 version: 0
 slots:
     name-a: interface
-`, "snap-b_instance", `
+`},
+		{Name: "snap-b_instance", Yaml: `
 name: snap-b
 version: 0
 slots:
     name-a: interface
-`)
+`},
+	})
 	// Slots("snap-a") returns slots present in that snap
 	c.Assert(s.testRepo.Slots("snap-a"), DeepEquals, []*snap.SlotInfo{
 		snaps[0].Slots["name-a"],
