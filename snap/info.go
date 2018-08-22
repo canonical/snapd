@@ -1076,7 +1076,7 @@ func InstanceName(snapName, instanceKey string) string {
 	return snapName
 }
 
-// ByType sorts the given slice of snap info by types. The most
+// ByType supports sorting the given slice of snap info by types. The most
 // important types will come first. The "snapd" snap is handled
 // as well.
 type ByType []*Info
