@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func MockKeyLength(n int) (restore func()) {
@@ -97,6 +98,14 @@ func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (
 	populateStateFromSeed = f
 	return func() {
 		populateStateFromSeed = old
+	}
+}
+
+func MockSnapInfoFromFile(f func(snapPath string) (*snap.Info, error)) (restore func()) {
+	old := snapInfoFromFile
+	snapInfoFromFile = f
+	return func() {
+		snapInfoFromFile = old
 	}
 }
 

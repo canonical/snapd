@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -34,12 +35,20 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 var errNothingToDo = errors.New("nothing to do")
+
+var snapInfoFromFile = snapInfoFromFileImpl
+
+func snapInfoFromFileImpl(snapPath string) (*snap.Info, error) {
+	info, _, err := backend.OpenSnapFile(snapPath, nil)
+	return info, err
+}
 
 func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, error) {
 	if sn.Classic {
@@ -206,7 +215,22 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		last += len(configTss)
 	}
 
-	for _, sn := range seed.Snaps {
+	// ensure we install in the right order
+	infoToSeedSnap := make(map[*snap.Info]*snap.SeedSnap, len(seed.Snaps))
+	sortedInfos := make([]*snap.Info, len(seed.Snaps))
+	for i, seedSnap := range seed.Snaps {
+		info, err := snapInfoFromFile(seedSnap.File)
+		if err != nil {
+			return nil, err
+		}
+		sortedInfos[i] = info
+		infoToSeedSnap[info] = seedSnap
+	}
+	sort.Stable(snap.ByType(sortedInfos))
+
+	for _, inf := range sortedInfos {
+		sn := infoToSeedSnap[inf]
+
 		if alreadySeeded[sn.Name] {
 			continue
 		}

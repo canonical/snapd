@@ -70,7 +70,8 @@ type FirstBootTestSuite struct {
 
 	overlord *overlord.Overlord
 
-	restoreOnClassic func()
+	restoreOnClassic    func()
+	restoreReadSnapInfo func()
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -107,6 +108,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
 
+	s.restoreReadSnapInfo = devicestate.MockSnapInfoFromFile(func(snapPath string) (*snap.Info, error) {
+		return &snap.Info{}, nil
+	})
+
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
 	s.overlord = ovld
@@ -125,6 +130,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 
 	s.restore()
 	s.restoreOnClassic()
+	s.restoreReadSnapInfo()
 	dirs.SetRootDir("/")
 }
 
@@ -1415,4 +1421,103 @@ snaps:
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOrdering(c *C) {
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err := ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	_, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	core18Fname, snapdFname := s.makeCore18Snaps(c)
+
+	snapYaml := `name: snap-req-other-base
+version: 1.0
+base: other-base
+`
+	snapFname, snapDecl, snapRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	writeAssertionsToFile("snap-req-other-base.asserts", []asserts.Assertion{devAcct, snapRev, snapDecl})
+	baseYaml := `name: other-base
+version: 1.0
+type: base
+`
+	baseFname, baseDecl, baseRev := s.makeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
+	writeAssertionsToFile("other-base.asserts", []asserts.Assertion{devAcct, baseRev, baseDecl})
+
+	restore := devicestate.MockSnapInfoFromFile(func(snapPath string) (*snap.Info, error) {
+		typ := snap.TypeApp
+		switch snapPath {
+		case baseFname, core18Fname:
+			typ = snap.TypeBase
+		case kernelFname:
+			typ = snap.TypeKernel
+		case gadgetFname:
+			typ = snap.TypeGadget
+		}
+		return &snap.Info{Type: typ}, nil
+	})
+	defer restore()
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: snap-req-other-base
+   file: %s
+ - name: other-base
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+
+	// the first taskset installs snapd and waits for noone
+	i := 0
+	tSnapd := tsAll[i].Tasks()[0]
+	c.Check(tSnapd.WaitTasks(), HasLen, 0)
+	// the next installs the core18 and that will wait for snapd
+	i++
+	tCore18 := tsAll[i].Tasks()[0]
+	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
+	// the next installs the kernel and will wait for the core18
+	i++
+	tKernel := tsAll[i].Tasks()[0]
+	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
+	// the next installs the gadget and will wait for the kernel
+	i++
+	tGadget := tsAll[i].Tasks()[0]
+	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+	// the next installs the base and waits for the gadget
+	i++
+	tOtherBase := tsAll[i].Tasks()[0]
+	c.Check(tOtherBase.WaitTasks(), testutil.Contains, tGadget)
+	// and finally the app
+	i++
+	tSnap := tsAll[i].Tasks()[0]
+	c.Check(tSnap.WaitTasks(), testutil.Contains, tOtherBase)
 }
