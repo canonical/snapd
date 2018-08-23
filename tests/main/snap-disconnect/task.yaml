@@ -7,39 +7,39 @@ environment:
 
 prepare: |
     echo "Install a test snap"
-    snap pack $TESTSLIB/snaps/home-consumer
-    snap install --dangerous $SNAP_FILE
+    snap pack "$TESTSLIB"/snaps/home-consumer
+    snap install --dangerous "$SNAP_FILE"
 
 restore: |
-    rm -f *.snap
+    rm -f ./*.snap
 
 execute: |
-    DISCONNECTED_PATTERN="\-\s+home-consumer:home"
+    DISCONNECTED_PATTERN='^-\s+home-consumer:home'
 
     echo "Disconnect everything from given slot"
     snap connect home-consumer:home core:home
     snap disconnect core:home
-    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+    snap interfaces | grep -Pzqe -- "$DISCONNECTED_PATTERN"
 
     echo "Disconnect everything from given slot (abbreviated)"
     snap connect home-consumer:home core:home
     snap disconnect :home
-    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+    snap interfaces | grep -Pzqe -- "$DISCONNECTED_PATTERN"
 
     echo "Disconnect everything from given plug"
     snap connect home-consumer:home core:home
     snap disconnect home-consumer:home
-    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+    snap interfaces | grep -Pzqe -- "$DISCONNECTED_PATTERN"
 
     echo "Disconnect specific plug and slot"
     snap connect home-consumer:home core:home
     snap disconnect home-consumer:home core:home
-    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+    snap interfaces | grep -Pzqe -- "$DISCONNECTED_PATTERN"
 
     echo "Disconnect specific plug and slot (abbreviated)"
     snap connect home-consumer:home core:home
     snap disconnect home-consumer:home :home
-    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+    snap interfaces | grep -Pzqe -- "$DISCONNECTED_PATTERN"
 
     echo "Disconnecting again using abbreviated form is handled"
     snap disconnect home-consumer:home | MATCH "No connections to disconnect"
