@@ -85,7 +85,7 @@ func (m *Type) fromString(str string) error {
 		t = TypeApp
 	}
 
-	if t != TypeApp && t != TypeGadget && t != TypeOS && t != TypeKernel && t != TypeBase {
+	if t != TypeApp && t != TypeGadget && t != TypeOS && t != TypeKernel && t != TypeBase && t != TypeSnapd {
 		return fmt.Errorf("invalid snap type: %q", str)
 	}
 
