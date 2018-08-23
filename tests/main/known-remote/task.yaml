@@ -1,4 +1,5 @@
 summary: Check snap known --store
+
 execute: |
     echo "Check getting assertion from the store"
     output=$(snap known --remote model series=16 brand-id=canonical model=pi2)

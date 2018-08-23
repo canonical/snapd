@@ -1,10 +1,7 @@
 summary: Ensure that the fuse-support interface works.
 
 # no support for fuse on 14.04
-systems:
-    # no support for fuse on 14.04
-    - -ubuntu-14.04-64
-    - -ubuntu-14.04-32
+systems: [-ubuntu-14.04-*]
 
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.
