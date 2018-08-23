@@ -629,24 +629,63 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-	installed := make([]string, 0, len(names))
-	tasksets := make([]*state.TaskSet, 0, len(names))
-	// TODO: this could be reorged to do one single store call
+	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
-		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
-		// FIXME: is this expected behavior?
-		if _, ok := err.(*snap.AlreadyInstalledError); ok {
+		var snapst SnapState
+		err := Get(st, name, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, nil, err
+		}
+		if snapst.IsInstalled() {
 			continue
 		}
+		toInstall = append(toInstall, name)
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	installs, err := installCandidates(st, toInstall, "stable", user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tasksets := make([]*state.TaskSet, 0, len(installs))
+	for _, info := range installs {
+		var snapst SnapState
+		var flags Flags
+
+		if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+			return nil, nil, err
+		}
+		if err := validateFeatureFlags(st, info); err != nil {
+			return nil, nil, err
+		}
+
+		snapsup := &SnapSetup{
+			Channel:      "stable",
+			Base:         info.Base,
+			Prereq:       defaultContentPlugProviders(st, info),
+			UserID:       userID,
+			Flags:        flags.ForSnapSetup(),
+			DownloadInfo: &info.DownloadInfo,
+			SideInfo:     &info.SideInfo,
+			Type:         info.Type,
+			PlugsOnly:    len(info.Slots) == 0,
+			InstanceKey:  info.InstanceKey,
+		}
+
+		ts, err := doInstall(st, &snapst, snapsup, 0)
 		if err != nil {
 			return nil, nil, err
 		}
-		installed = append(installed, name)
 		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 
-	return installed, tasksets, nil
+	return toInstall, tasksets, nil
 }
 
 // RefreshCandidates gets a list of candidates for update
