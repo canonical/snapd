@@ -227,6 +227,13 @@ func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Option
 		TargetDir: opts.GadgetUnpackDir,
 		Channel:   opts.Channel,
 	}
+	if model.GadgetTrack() != "" {
+		gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+		if err != nil {
+			return err
+		}
+		dlOpts.Channel = gch
+	}
 	snapFn, _, err := acquireSnap(tsto, model.Gadget(), dlOpts, local)
 	if err != nil {
 		return err
