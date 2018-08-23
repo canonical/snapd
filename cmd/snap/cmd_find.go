@@ -44,6 +44,9 @@ With the --private flag, which requires the user to be logged-in to the store
 (see 'snap help login'), it instead searches for private snaps that the user
 has developer access to, either directly or through the store's collaboration
 feature.
+
+A green check mark (given color and unicode support) after a publisher name
+indicates that the publisher has been verified.
 `)
 
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
@@ -149,22 +152,26 @@ func showSections() error {
 
 type cmdFind struct {
 	Private    bool        `long:"private"`
+	Narrow     bool        `long:"narrow"`
 	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
+	colorMixin
 }
 
 func init() {
 	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
-	}, map[string]string{
+	}, colorDescs.also(map[string]string{
 		"private": i18n.G("Search private snaps"),
+		"narrow":  i18n.G("Only search for snaps in “stable”"),
 		"section": i18n.G("Restrict the search to a given section"),
-	}, []argDesc{{
+	}), []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<query>"),
 	}}).alias = "search"
+
 }
 
 func (x *cmdFind) Execute(args []string) error {
@@ -220,6 +227,11 @@ func (x *cmdFind) Execute(args []string) error {
 		Section: string(x.Section),
 		Query:   x.Positional.Query,
 	}
+
+	if !x.Narrow {
+		opts.Scope = "wide"
+	}
+
 	snaps, resInfo, err := cli.Find(opts)
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
 		logger.Debugf("cannot list snaps: %v", e)
@@ -243,18 +255,19 @@ func (x *cmdFind) Execute(args []string) error {
 
 	// show featured header *after* we checked for errors from the find
 	if showFeatured {
-		fmt.Fprintf(Stdout, i18n.G("No search term specified. Here are some interesting snaps:\n\n"))
+		fmt.Fprint(Stdout, i18n.G("No search term specified. Here are some interesting snaps:\n\n"))
 	}
 
+	esc := x.getEscapes()
 	w := tabWriter()
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tPublisher\tNotes\tSummary"))
+	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
+	fmt.Fprintf(w, i18n.G("Name\tVersion\tPublisher%s\tNotes\tSummary\n"), fillerPublisher(esc))
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Publisher.Username, NotesFromRemote(snap, resInfo), snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, shortPublisher(esc, snap.Publisher), NotesFromRemote(snap, resInfo), snap.Summary)
 	}
 	w.Flush()
-
 	if showFeatured {
-		fmt.Fprintf(Stdout, i18n.G("\nProvide a search term for more specific results.\n"))
+		fmt.Fprint(Stdout, i18n.G("\nProvide a search term for more specific results.\n"))
 	}
 	return nil
 }

@@ -1528,6 +1528,21 @@ apps:
 	c.Assert(info.Apps["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
 }
 
+func (s *YamlSuite) TestSnapYamlPerHookEnvironment(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+hooks:
+ foo:
+  environment:
+   k1: v1
+   k2: v2
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Hooks["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
+}
+
 // classic confinement
 func (s *YamlSuite) TestClassicConfinement(c *C) {
 	y := []byte(`
@@ -1735,4 +1750,18 @@ apps:
 		(info.CommonIDs[1] == "org.foo" && info.CommonIDs[0] == "org.bar"),
 		Equals,
 		true)
+}
+
+func (s *YamlSuite) TestSnapYamlCommandChain(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   command: bin/foo
+   command-chain: [chain1, chain2]
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.CommandChain, DeepEquals, []string{"chain1", "chain2"})
 }

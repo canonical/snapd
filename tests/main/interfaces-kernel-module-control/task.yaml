@@ -1,7 +1,7 @@
 summary: Ensure that the kernel-module-control interface works.
 
 # the s390x kernel has no minix module
-systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*]
+systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*, -amazon-*]
 
 environment:
     MODULE: minix

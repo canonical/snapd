@@ -44,6 +44,18 @@ var (
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
 	TrueishJSON        = trueishJSON
+
+	CanUnicode           = canUnicode
+	ColorTable           = colorTable
+	MonoColorTable       = mono
+	ColorColorTable      = color
+	NoEscColorTable      = noesc
+	ColorMixinGetEscapes = (colorMixin).getEscapes
+	FillerPublisher      = fillerPublisher
+	LongPublisher        = longPublisher
+	ShortPublisher       = shortPublisher
+
+	ReadRpc = readRpc
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -132,11 +144,19 @@ func AssertTypeNameCompletion(match string) []flags.Completion {
 	return assertTypeName("").Complete(match)
 }
 
-func MockIsTerminal(t bool) (restore func()) {
-	oldIsTerminal := isTerminal
-	isTerminal = func() bool { return t }
+func MockIsStdoutTTY(t bool) (restore func()) {
+	oldIsStdoutTTY := isStdoutTTY
+	isStdoutTTY = t
 	return func() {
-		isTerminal = oldIsTerminal
+		isStdoutTTY = oldIsStdoutTTY
+	}
+}
+
+func MockIsStdinTTY(t bool) (restore func()) {
+	oldIsStdinTTY := isStdinTTY
+	isStdinTTY = t
+	return func() {
+		isStdinTTY = oldIsStdinTTY
 	}
 }
 
@@ -166,4 +186,12 @@ func MockWaitConfTimeout(d time.Duration) (restore func()) {
 
 func Wait(cli *client.Client, id string) (*client.Change, error) {
 	return waitMixin{}.wait(cli, id)
+}
+
+func ColorMixin(cmode, umode string) colorMixin {
+	return colorMixin{Color: cmode, Unicode: umode}
+}
+
+func CmdAdviseSnap() *cmdAdviseSnap {
+	return &cmdAdviseSnap{}
 }

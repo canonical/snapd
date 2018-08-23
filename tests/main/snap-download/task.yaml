@@ -1,4 +1,11 @@
 summary: Check that snap download works
+
+restore: |
+    rm -f *.snap
+    rm -f *.assert
+    rm -f ~test/*.snap
+    rm -f ~test/*.assert
+
 execute: |
     verify_asserts() {
         fn="$1"
@@ -28,8 +35,3 @@ execute: |
     su -l -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE HTTPS_PROXY=$HTTPS_PROXY snap download test-snapd-tools" test
     ls /home/test/test-snapd-tools_*.snap
     verify_asserts /home/test/test-snapd-tools_*.assert
-restore: |
-    rm -f *.snap
-    rm -f *.assert
-    rm -f ~test/*.snap
-    rm -f ~test/*.assert

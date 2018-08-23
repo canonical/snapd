@@ -1,0 +1,5 @@
+summary: Ensure that we have the right kernel
+
+execute: |
+    echo "Check kernel version"
+    uname -r | MATCH "^4.15"

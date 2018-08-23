@@ -1,23 +1,31 @@
 summary: The media directory propagates events outwards
+
 details: |
     The /media directory is special in that mount events propagate outward from
     the mount namespace used by snap applications into the main mount namespace.
     Fedora and other systems that build udisks without --enable-fhs-media flag
     use /run/media path instead.
+
 prepare: |
-    . $TESTSLIB/snaps.sh
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     install_local_devmode test-snapd-tools
     mkdir -p ${MEDIA_DIR}/src
     mkdir -p ${MEDIA_DIR}/dst
     touch ${MEDIA_DIR}/src/canary
+
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     test ! -e ${MEDIA_DIR}/dst/canary
     test-snapd-tools.cmd mount --bind ${MEDIA_DIR}/src ${MEDIA_DIR}/dst
     test -e ${MEDIA_DIR}/dst/canary
+
 restore: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     # If this doesn't work maybe it is because the test didn't execute correctly
     umount ${MEDIA_DIR}/dst || true
     rm -f ${MEDIA_DIR}/src/canary

@@ -185,7 +185,10 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
-	// TODO parallel-install: use instance name, instance name must match the store name
+	if snapInfo.InstanceName() != snapInfo.SnapName() {
+		return fmt.Errorf("cannot install %q, parallel installation of kernel or gadget snaps is not supported", snapInfo.InstanceName())
+	}
+
 	if snapInfo.InstanceName() != expectedName {
 		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}
@@ -207,7 +210,10 @@ func delayedCrossMgrInit() {
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func ProxyStore(st *state.State) (*asserts.Store, error) {
-	tr := config.NewTransaction(st)
+	return proxyStore(st, config.NewTransaction(st))
+}
+
+func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error) {
 	var proxyStore string
 	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
 	if err != nil {
@@ -239,17 +245,26 @@ func interfaceConnected(st *state.State, snapName, ifName string) bool {
 
 // CanManageRefreshes returns true if the device can be
 // switched to the "core.refresh.schedule=managed" mode.
+//
+// TODO:
+// - Move the CanManageRefreshes code into the ifstate
+// - Look at the connections and find the connection for snapd-control
+//   with the managed attribute
+// - Take the snap from this connection and look at the snapstate to see
+//   if that snap has a snap declaration (to ensure it comes from the store)
 func CanManageRefreshes(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return false
 	}
 	for _, snapst := range snapStates {
-		if !snapst.Active {
-			continue
-		}
+		// Always get the current info even if the snap is currently
+		// being operated on or if its disabled.
 		info, err := snapst.CurrentInfo()
 		if err != nil {
+			continue
+		}
+		if info.Broken != "" {
 			continue
 		}
 		// The snap must have a snap declaration (implies that

@@ -2,16 +2,17 @@ summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
 systems: [-ubuntu-core-*]
 
-prepare: |
-    echo Ensure we have a os snap with snap run
-    $TESTSLIB/reset.sh
-    snap install --channel=beta core
-    . $TESTSLIB/snaps.sh
-    install_local test-snapd-tools
-
 environment:
     APP/testsnapdtoolsecho: test-snapd-tools.echo
     APP/testsnapdtoolscat: test-snapd-tools.cat
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+
+restore: |
+    rm -f orig.txt
+    rm -f new.txt
 
 execute: |
     . $TESTSLIB/dirs.sh
@@ -28,7 +29,3 @@ execute: |
     $APP $SNAP/bin/cat > new.txt 2>&1
 
     diff -u orig.txt new.txt
-
-restore: |
-    rm -f orig.txt
-    rm -f new.txt

@@ -1,6 +1,6 @@
 summary: Ensure the xdg-open still works in compatibility mode
 
-description: |
+details: |
     The core snap has a xdg-open binary that sends both to the
     new io.snapcraft.Launcher and the old com.canonical.SafeLauncher
     dbus session bus. This test ensures the compatibility with

@@ -1,20 +1,16 @@
 summary: Check that snap info works
 
 # core18 has no python3-yaml
-systems: [-ubuntu-core-18-*]
+# amazon: no PyYAML is not packaged for python3
+systems: [-ubuntu-core-18-*, -amazon-*]
 
 prepare: |
-    . $TESTSLIB/pkgdb.sh
-    distro_install_package python3-yaml
-
     snap pack $TESTSLIB/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
 
 restore: |
     rm -f basic_1.0_all.snap
-    . $TESTSLIB/pkgdb.sh
-    distro_purge_package python3-yaml
     rm -f out
 
 execute: |

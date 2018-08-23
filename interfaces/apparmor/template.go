@@ -106,6 +106,8 @@ var defaultTemplate = `
   # Common utilities for shell scripts
   /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
+  /{,usr/}bin/base32 ixr,
+  /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
   /{,usr/}bin/bzcat ixr,
@@ -135,6 +137,7 @@ var defaultTemplate = `
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/fold ixr,
   /{,usr/}bin/getconf ixr,
   /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
@@ -254,6 +257,7 @@ var defaultTemplate = `
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
+  /usr/lib/snapd/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
@@ -562,7 +566,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
-  /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 
   # Allow reading the dynamic linker cache.

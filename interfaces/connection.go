@@ -106,7 +106,7 @@ func getAttribute(snapName string, ifaceName string, staticAttrs map[string]inte
 func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *ConnectedSlot {
 	return &ConnectedSlot{
 		slotInfo:     slot,
-		staticAttrs:  copyAttributes(slot.Attrs),
+		staticAttrs:  utils.CopyAttributes(slot.Attrs),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
@@ -116,7 +116,7 @@ func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) 
 func NewConnectedSlotReload(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
 	return &ConnectedSlot{
 		slotInfo:     slot,
-		staticAttrs:  copyAttributes(staticAttrs),
+		staticAttrs:  utils.CopyAttributes(staticAttrs),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
@@ -125,7 +125,7 @@ func NewConnectedSlotReload(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[s
 func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) *ConnectedPlug {
 	return &ConnectedPlug{
 		plugInfo:     plug,
-		staticAttrs:  copyAttributes(plug.Attrs),
+		staticAttrs:  utils.CopyAttributes(plug.Attrs),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
@@ -135,7 +135,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) 
 func NewConnectedPlugReload(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
 	return &ConnectedPlug{
 		plugInfo:     plug,
-		staticAttrs:  copyAttributes(staticAttrs),
+		staticAttrs:  utils.CopyAttributes(staticAttrs),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
@@ -177,12 +177,12 @@ func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
-	return copyAttributes(plug.staticAttrs)
+	return utils.CopyAttributes(plug.staticAttrs)
 }
 
 // DynamicAttrs returns all dynamic attributes.
 func (plug *ConnectedPlug) DynamicAttrs() map[string]interface{} {
-	return copyAttributes(plug.dynamicAttrs)
+	return utils.CopyAttributes(plug.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -250,12 +250,12 @@ func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
-	return copyAttributes(slot.staticAttrs)
+	return utils.CopyAttributes(slot.staticAttrs)
 }
 
 // DynamicAttrs returns all dynamic attributes.
 func (slot *ConnectedSlot) DynamicAttrs() map[string]interface{} {
-	return copyAttributes(slot.dynamicAttrs)
+	return utils.CopyAttributes(slot.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -289,28 +289,4 @@ func (slot *ConnectedSlot) Ref() *SlotRef {
 // Interface returns the name of the interface for this connection.
 func (conn *Connection) Interface() string {
 	return conn.Plug.plugInfo.Interface
-}
-
-func copyAttributes(value map[string]interface{}) map[string]interface{} {
-	return copyRecursive(value).(map[string]interface{})
-}
-
-func copyRecursive(value interface{}) interface{} {
-	// note: ensure all the mutable types (or types that need a conversion)
-	// are handled here.
-	switch v := value.(type) {
-	case []interface{}:
-		arr := make([]interface{}, len(v))
-		for i, el := range v {
-			arr[i] = copyRecursive(el)
-		}
-		return arr
-	case map[string]interface{}:
-		mp := make(map[string]interface{}, len(v))
-		for key, item := range v {
-			mp[key] = copyRecursive(item)
-		}
-		return mp
-	}
-	return value
 }

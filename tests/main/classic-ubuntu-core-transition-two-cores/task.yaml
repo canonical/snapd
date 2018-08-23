@@ -9,12 +9,15 @@ systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 backends: [-autopkgtest]
 
 warn-timeout: 1m
+
 kill-timeout: 5m
+
 debug: |
     snap changes
     #shellcheck source=tests/lib/changes.sh
     . "$TESTSLIB"/changes.sh
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
+
 execute: |
     echo "install a snap"
     snap install test-snapd-python-webserver
@@ -73,6 +76,3 @@ execute: |
         exit 1
     fi
     snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
-
-    echo "Ensure interfaces are connected"
-    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"

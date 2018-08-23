@@ -1,0 +1,22 @@
+type: model
+authority-id: developer1
+series: 16
+brand-id: developer1
+model: ubuntu-core-18-amd64
+architecture: amd64
+base: core18
+gadget: pc=18
+kernel: pc-kernel=18
+timestamp: 2017-05-28T19:40:00+00:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCW3abFAAAOVAQAF+FpzYEruynA0m7K4BmCURpiKxEjHHXC/2KwiwSQfUwy9CH
+Gmb6GO1/e4hjqfTY7Tra4BL3x1snTEX1RgT/RD2VTbwW+Ypn3HXe/j7YnqTw+BRKkrJPE3Z2EGI8
+i+gkjkWfViuFGHMCqU2Aa3333A1XtDKrOUkvWiWUyoxEhqhs6ALNsV/uccgNtH73jbce7Fa2Qegt
+e5/fpvYjoWUpfP+SUUE+wB03PjLNfLEeUmz+hf7mj+ogq/VxLFwNnE7aWqG6vg8gC1rmGo0R10w7
+wu8zfrVc76ZLH8X9u/j5hB2Vbe90ph36zzchDnJz02/hY8PQE95HO8SpKk5hGSoIRTSR5SC9Pxxo
+FX15Gpyutn8iVHQ0ygKr8/bjjPIGl5eEO4aBtPCODPiZr4kmytRE/O9vrtifVt40bBBDiIJPW2ZC
+QEUHCCUrc6XaB3z3zdDouBjwXiftOxdzYbo5lFHV85/m4/SzxyogvMATNalJ7A0iSiNDhUUWnzyB
+jL3Rotsgt+DenlEZjx8OZojANlaKg33ujIW+x9hyOeK8S6ahoxn3wo6jt35wc/MfNVeRou1/htkv
+JCVny6uE6u9xQPCNmYmvIlkWrD8i9SIaPXgcg5ZAbl8VluxDBDMUOqjCRe3nE/xI4T5JcnQyhVLb
+oqFc4HFTXriza/S1Ps/nEV0g5Zqt

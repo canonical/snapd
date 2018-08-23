@@ -1,7 +1,9 @@
 summary: Ensure that the openvswitch interface works.
 
+# amazon: no openvswitch package
 systems:
     - -ubuntu-core-*
+    - -amazon-*
 
 details: |
     The openvswitch interface allows to task to the openvswitch socket (rw mode).
@@ -18,6 +20,7 @@ details: |
 manual: true
 
 prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
     echo "Given openvswitch is installed"
@@ -34,6 +37,7 @@ prepare: |
     ip tuntap add tap1 mode tap
 
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
     ovs-vsctl del-port br0 tap1 || true
@@ -42,13 +46,13 @@ restore: |
     distro_purge_package openvswitch-switch
     distro_auto_remove_packages
 
-    rm -f *.error
+    rm -f ./*.error
 
     ip link delete tap1 || true
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i openvswitch | MATCH "\- +test-snapd-openvswitch-consumer:openvswitch"
+    snap interfaces -i openvswitch | MATCH -- '^- +test-snapd-openvswitch-consumer:openvswitch'
 
     echo "When the plug is connected"
     snap connect test-snapd-openvswitch-consumer:openvswitch
@@ -77,33 +81,33 @@ execute: |
     snap disconnect test-snapd-openvswitch-consumer:openvswitch
 
     echo "Then the snap is not able to create a bridge"
-    if test-snapd-openvswitch-consumer.ovs-vsctl add-br br0 2>${PWD}/bridge-creation.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl add-br br0 2>"${PWD}"/bridge-creation.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
-    cat bridge-creation.error | MATCH "database connection failed \(Permission denied\)"
+    MATCH 'database connection failed \(Permission denied\)' < bridge-creation.error
 
     ovs-vsctl add-br br0
 
     echo "And the snap is not able to create a port"
-    if test-snapd-openvswitch-consumer.ovs-vsctl add-port br0 tap1 2>${PWD}/port-creation.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl add-port br0 tap1 2>"${PWD}"/port-creation.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
-    cat port-creation.error | MATCH "database connection failed \(Permission denied\)"
+    MATCH 'database connection failed \(Permission denied\)' < port-creation.error
 
     ovs-vsctl add-port br0 tap1
 
     echo "And the snap is not able to delete a port"
-    if test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1 2>${PWD}/port-deletion.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1 2>"${PWD}"/port-deletion.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
-    cat port-deletion.error | MATCH "database connection failed \(Permission denied\)"
+    MATCH 'database connection failed \(Permission denied\)' < port-deletion.error
 
     echo "And the snap is not able to delete a bridge"
-    if test-snapd-openvswitch-consumer.ovs-vsctl del-br br0 2>${PWD}/br-creation.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl del-br br0 2>"${PWD}"/br-creation.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
-    cat br-creation.error | MATCH "database connection failed \(Permission denied\)"
+    MATCH 'database connection failed \(Permission denied\)' < br-creation.error

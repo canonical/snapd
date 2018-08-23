@@ -22,6 +22,7 @@ package interfaces
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -310,7 +311,7 @@ func (s *connSuite) TestCopyAttributes(c *C) {
 		"e": map[string]interface{}{"e1": "E1"},
 	}
 
-	cpy := CopyAttributes(orig)
+	cpy := utils.CopyAttributes(orig)
 	c.Check(cpy, DeepEquals, orig)
 
 	cpy["d"].([]interface{})[0] = 999
