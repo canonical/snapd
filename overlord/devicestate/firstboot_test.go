@@ -1253,8 +1253,8 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	c.Assert(err, ErrorMatches, "need a model assertion")
 }
 
-func (s *FirstBootTestSuite) makeCore18Snaps(c *C) (core18Fn, snapdFn string) {
-	files := [][]string{{"meta/hooks/configure", ""}}
+func (s *FirstBootTestSuite) makeCore18Snaps(c *C) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+	files := [][]string{}
 
 	core18Yaml := `name: core18
 version: 1.0
@@ -1268,7 +1268,29 @@ version: 1.0
 	snapdFname, snapdDecl, snapdRev := s.makeAssertedSnap(c, snapdYaml, nil, snap.R(2), "canonical")
 	writeAssertionsToFile("snapd.asserts", []asserts.Assertion{snapdRev, snapdDecl})
 
-	return core18Fname, snapdFname
+	kernelYaml := `name: pc-kernel
+version: 1.0
+type: kernel`
+	kernelFname, kernelDecl, kernelRev := s.makeAssertedSnap(c, kernelYaml, files, snap.R(1), "canonical")
+
+	writeAssertionsToFile("kernel.asserts", []asserts.Assertion{kernelRev, kernelDecl})
+
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+	gaYaml := `name: pc
+version: 1.0
+type: gadget
+base: core18
+`
+	gadgetFname, gadgetDecl, gadgetRev := s.makeAssertedSnap(c, gaYaml, files, snap.R(1), "canonical")
+
+	writeAssertionsToFile("gadget.asserts", []asserts.Assertion{gadgetRev, gadgetDecl})
+
+	return core18Fname, snapdFname, kernelFname, gadgetFname
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
@@ -1287,8 +1309,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 		"snap_kernel": "pc-kernel_1.snap",
 	})
 
-	_, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
-	core18Fname, snapdFname := s.makeCore18Snaps(c)
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
@@ -1434,8 +1455,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOrdering(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	_, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
-	core18Fname, snapdFname := s.makeCore18Snaps(c)
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
 
 	snapYaml := `name: snap-req-other-base
 version: 1.0
@@ -1500,4 +1520,49 @@ snaps:
 	i++
 	tSnap := tsAll[i].Tasks()[0]
 	c.Check(tSnap.WaitTasks(), testutil.Contains, tOtherBase)
+}
+
+func (s *FirstBootTestSuite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err := ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	core18Fname, snapdFname, kernelFname, _ := s.makeCore18Snaps(c)
+	// take the gadget without "base: core18"
+	_, _, gadgetFname := s.makeCoreSnaps(c, "")
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, ErrorMatches, `cannot use gadget snap because base "" is different from model base "core18"`)
 }
