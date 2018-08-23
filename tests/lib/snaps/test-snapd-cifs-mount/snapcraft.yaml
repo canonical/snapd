@@ -1,0 +1,15 @@
+name: test-snapd-cifs-mount
+version: 1.0
+summary: Basic cifs-mount snap
+description: A basic snap which allows mounting and unmounting CIFS filesystems
+
+apps:
+  sh:
+    command: sh
+    plugs: [cifs-mount]
+
+parts:
+  utils:
+    plugin: dump
+    source: .
+    stage-packages: [cifs-utils]

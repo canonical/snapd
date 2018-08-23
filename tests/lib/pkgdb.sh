@@ -489,6 +489,8 @@ pkg_dependencies_ubuntu_generic(){
         netcat-openbsd
         pkg-config
         python3-docutils
+        samba
+        smbclient
         udev
         udisks2
         upower
@@ -596,6 +598,8 @@ pkg_dependencies_fedora(){
         python3-yaml
         redhat-lsb-core
         rpm-build
+        samba
+        samba-client
         udisks2
         xdg-user-dirs
         "
@@ -618,6 +622,8 @@ pkg_dependencies_amazon(){
         xdg-user-dirs
         grub2-tools
         nc
+        samba
+        samba-client
         udisks2
         "
 }
@@ -637,6 +643,8 @@ pkg_dependencies_opensuse(){
         python3-yaml
         netcat-openbsd
         osc
+        samba
+        samba-client
         udisks2
         uuidd
         xdg-utils
@@ -664,6 +672,8 @@ pkg_dependencies_arch(){
     python
     python-docutils
     python3-yaml
+    samba
+    smbclient
     squashfs-tools
     shellcheck
     strace
