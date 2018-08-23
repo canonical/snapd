@@ -184,6 +184,8 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		lastConf++
 	}
 
+	// FIXME: ensure that any base is ordered before the gadget so that
+	//        the gadget can use bases that are not the model base
 	if gadgetName := model.Gadget(); gadgetName != "" {
 		if err := installSeedEssential(gadgetName, last); err != nil {
 			return nil, err
