@@ -11562,6 +11562,18 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
 	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
 }
 
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

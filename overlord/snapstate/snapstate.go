@@ -67,7 +67,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			var experimentalAllowSnapd bool
+			tr := config.NewTransaction(st)
+			err := tr.Get("core", "experimental.snapd-snap", &experimentalAllowSnapd)
+			if err != nil && !config.IsNoOption(err) {
+				return nil, err
+			}
+			if !experimentalAllowSnapd {
+				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			}
 		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {
