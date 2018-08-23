@@ -794,37 +794,24 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
 
-	// to make TaskSnapSetup work
-	chg := s.state.NewChange("refresh", "...")
-	for _, ts := range tts {
-		chg.AddAll(ts)
-	}
+	var snapsup, snapsupInstance *snapstate.SnapSetup
 
-	seen := map[string]bool{}
-	for _, tset := range tts {
-		for _, task := range tset.Tasks() {
-			if task.Kind() == "download-snap" {
-				snapsup, err := snapstate.TaskSnapSetup(task)
-				c.Assert(err, IsNil)
-				snapInstance := snapsup.InstanceName()
-				seen[snapInstance] = true
-				switch snapInstance {
-				case "some-snap":
-					verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tset, s.state)
-				case "some-snap_instance":
-					verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tset, s.state)
-				default:
-					c.Fatalf("unexpected snap %q", snapInstance)
-				}
-				break
-			}
-		}
+	// ensure stable ordering of task sets list
+	snapsup, err = snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	if snapsup.InstanceName() != "some-snap" {
+		tts[0], tts[1] = tts[1], tts[0]
+		snapsup, err = snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+		c.Assert(err, IsNil)
 	}
+	snapsupInstance, err = snapstate.TaskSnapSetup(tts[1].Tasks()[0])
+	c.Assert(err, IsNil)
 
-	c.Assert(seen, DeepEquals, map[string]bool{
-		"some-snap":          true,
-		"some-snap_instance": true,
-	})
+	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsupInstance.InstanceName(), Equals, "some-snap_instance")
+
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tts[0], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tts[1], s.state)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
