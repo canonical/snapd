@@ -438,7 +438,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		// if we have a use-case but it requires changes in the
 		// devicestate/firstboot.go ordering code.
 		if info.Type == snap.TypeGadget && info.Base != model.Base() {
-			return fmt.Errorf("cannot use gadget snap because base %q is different from model base %q", info.Base, model.Base())
+			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
 		}
 
 		seen[name] = true
