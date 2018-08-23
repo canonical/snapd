@@ -66,7 +66,7 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 		}
 		rx, err := regexp.Compile(regexpr)
 		if err != nil {
-			return false, fmt.Sprintf("Can't compile regexp %q: %v", regexpr, err)
+			return false, fmt.Sprintf("Cannot compile regexp %q: %v", regexpr, err)
 		}
 		params[1] = rx
 	}
@@ -76,34 +76,34 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
 	buf, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
+		return false, fmt.Sprintf("Cannot read file %q: %v", filename, err)
 	}
 	presentableBuf := string(buf)
 	if exact {
 		switch content := content.(type) {
 		case string:
-			result = string(buf) == content
+			result = presentableBuf == content
 		case []byte:
 			result = bytes.Equal(buf, content)
 			presentableBuf = "<binary data>"
 		case fmt.Stringer:
-			result = string(buf) == content.String()
+			result = presentableBuf == content.String()
 		default:
-			error = fmt.Sprintf("Can't compare file contents with something of type %T", content)
+			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
 	} else {
 		switch content := content.(type) {
 		case string:
-			result = strings.Contains(string(buf), content)
+			result = strings.Contains(presentableBuf, content)
 		case []byte:
 			result = bytes.Contains(buf, content)
 			presentableBuf = "<binary data>"
 		case *regexp.Regexp:
 			result = content.Match(buf)
 		case fmt.Stringer:
-			result = strings.Contains(string(buf), content.String())
+			result = strings.Contains(presentableBuf, content.String())
 		default:
-			error = fmt.Sprintf("Can't compare file contents with something of type %T", content)
+			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
 	}
 	if !result {
