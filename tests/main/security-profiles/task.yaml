@@ -2,6 +2,7 @@ summary: Check security profile generation for apps and hooks.
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/basic-hooks
+
 restore: |
     rm -f basic-hooks_1.0_all.snap
 

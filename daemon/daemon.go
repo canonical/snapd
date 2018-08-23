@@ -99,6 +99,7 @@ const (
 	accessOK accessResult = iota
 	accessUnauthorized
 	accessForbidden
+	accessCancelled
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
@@ -176,7 +177,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 				return accessOK
 			}
 		} else if err == polkit.ErrDismissed {
-			return accessForbidden
+			return accessCancelled
 		} else {
 			logger.Noticef("polkit error: %s", err)
 		}
@@ -204,6 +205,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case accessForbidden:
 		Forbidden("forbidden").ServeHTTP(w, r)
+		return
+	case accessCancelled:
+		AuthCancelled("cancelled").ServeHTTP(w, r)
 		return
 	}
 

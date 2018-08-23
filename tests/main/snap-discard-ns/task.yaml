@@ -1,12 +1,15 @@
 summary: check basic operation of snap-discard-ns
+
 details: |
     The internal command snap-discard-ns discards (unmounts) the
     /run/snapd/ns/$SNAP_NAME.mnt file and removes the current mount profile
     /run/snapd/ns/snap.$SNAP_NAME.fstab. The profile removal is optional and it
     is not an error if it doesn't exist.
+
 prepare: |
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
+
 execute: |
     . "$TESTSLIB/dirs.sh"
 
