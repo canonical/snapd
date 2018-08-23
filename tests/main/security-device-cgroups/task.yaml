@@ -90,8 +90,6 @@ execute: |
         MATCH -v "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
     fi
 
-    echo "================================================="
-
     echo "When a udev rule assigning the device to the snap is added"
     content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-tools_env\""
     echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-tools.rules
@@ -105,8 +103,6 @@ execute: |
 
     echo "And other devices are not shown as assigned to the snap"
     udevadm info "$OTHER_UDEVADM_PATH" | MATCH -v "E: TAGS=.*snap_test-snapd-tools_env"
-
-    echo "================================================="
 
     echo "When a snap command is called"
     test-snapd-tools.env

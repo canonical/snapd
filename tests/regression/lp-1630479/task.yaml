@@ -1,14 +1,17 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1630479
+
 details: |
     The PATH environment variable needs to make sense for the layout of the
     core snap. Snap-confine contains code that sets it accordingly but during
     the introduction of the namespace sharing feature that code would run only
     when the namespace was initially constructed. Subsequent calls would not
     see the correct path. 
+
 prepare: |
     echo "Having installed a test snap"
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
+
 execute: |
     . "$TESTSLIB/dirs.sh"
     echo "We can observe the value of PATH twice"
