@@ -12,8 +12,14 @@ execute: |
 
     snap set system experimental.parallel-instances=true
 
+    devmode=
+    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        # TODO prallel-install: disable devmode once AppArmor profile updates are in
+        devmode=--devmode
+    fi
+
     snap install --dangerous --name test-snapd-tools "$path"
-    snap install --dangerous --name test-snapd-tools_foo "$path"
+    snap install --dangerous $devmode --name test-snapd-tools_foo "$path"
 
     su -l -c '! test -d ~/snap/test-snapd-tools' test
     su -l -c '! test -d ~/snap/test-snapd-tools_foo' test
