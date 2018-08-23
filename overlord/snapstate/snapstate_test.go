@@ -901,21 +901,20 @@ func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
 	c.Check(updates, HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestByKindAndNameOrder(c *C) {
+func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
 	core := &snap.Info{Type: snap.TypeOS}
 	base := &snap.Info{Type: snap.TypeBase}
-	app := &snap.Info{Type: snap.TypeApp, SideInfo: snap.SideInfo{RealName: "snap"}}
-	appInstance := &snap.Info{Type: snap.TypeApp, SideInfo: snap.SideInfo{RealName: "snap"}, InstanceKey: "instance"}
+	app := &snap.Info{Type: snap.TypeApp}
 	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
 
-	c.Check(snapstate.ByKindAndNameOrder(base, core), DeepEquals, []*snap.Info{core, base})
-	c.Check(snapstate.ByKindAndNameOrder(app, core, appInstance), DeepEquals, []*snap.Info{core, app, appInstance})
-	c.Check(snapstate.ByKindAndNameOrder(app, base, appInstance,), DeepEquals, []*snap.Info{base, app, appInstance})
-	c.Check(snapstate.ByKindAndNameOrder(app, base, core, appInstance), DeepEquals, []*snap.Info{core, base, app, appInstance})
-	c.Check(snapstate.ByKindAndNameOrder(app, core, base, appInstance), DeepEquals, []*snap.Info{core, base, app, appInstance})
+	c.Check(snapstate.ByKindOrder(base, core), DeepEquals, []*snap.Info{core, base})
+	c.Check(snapstate.ByKindOrder(app, core), DeepEquals, []*snap.Info{core, app})
+	c.Check(snapstate.ByKindOrder(app, base), DeepEquals, []*snap.Info{base, app})
+	c.Check(snapstate.ByKindOrder(app, base, core), DeepEquals, []*snap.Info{core, base, app})
+	c.Check(snapstate.ByKindOrder(app, core, base), DeepEquals, []*snap.Info{core, base, app})
 
-	c.Check(snapstate.ByKindAndNameOrder(app, core, base, snapd, appInstance), DeepEquals, []*snap.Info{snapd, core, base, app, appInstance})
-	c.Check(snapstate.ByKindAndNameOrder(app, snapd, core, base, appInstance), DeepEquals, []*snap.Info{snapd, core, base, app, appInstance})
+	c.Check(snapstate.ByKindOrder(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
+	c.Check(snapstate.ByKindOrder(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
