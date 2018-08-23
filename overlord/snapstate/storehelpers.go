@@ -403,3 +403,25 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 
 	return updates, stateByID, ignoreValidation, nil
 }
+
+func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	actions := make([]*store.SnapAction, len(names))
+	for i, name := range names {
+		actions[i] = &store.SnapAction{
+			Action:       "install",
+			InstanceName: name,
+			// the desired channel
+			Channel: channel,
+		}
+	}
+
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	defer st.Lock()
+	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, nil)
+}
