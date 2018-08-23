@@ -14,7 +14,10 @@ description: |
     Furthermore, we don't want to print an error on systems where
     xdg-document-portal is not available.
 
-systems: [ -ubuntu-core-* ]
+# Disabled on Ubuntu Core because it doesn't provide the "desktop"
+# slot, and Amazon Linux because it doesn't have the required Python 3
+# packages to run the test.
+systems: [ "-ubuntu-core-*", "-amazon-linux-2-*" ]
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
