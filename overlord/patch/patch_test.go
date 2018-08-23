@@ -335,8 +335,21 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	c.Assert(patch.Apply(st), IsNil)
 
 	c.Assert(sequence, DeepEquals, []int{61, 62})
-}
 
+	// the patches shouldn't be applied again
+	sequence = []int{}
+	c.Assert(patch.Apply(st), IsNil)
+	c.Assert(sequence, HasLen, 0)
+
+	// new sublevel patch 6.3 gets implemented, and is applied
+	p63 := generatePatchFunc(63, &sequence)
+	patch.Mock(6, 3, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62, p63},
+	})
+
+	c.Assert(patch.Apply(st), IsNil)
+	c.Assert(sequence, DeepEquals, []int{63})
+}
 func (s *patchSuite) TestSanity(c *C) {
 	patches := patch.PatchesForTest()
 	levels := make([]int, 0, len(patches))

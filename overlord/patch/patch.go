@@ -99,8 +99,10 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	}
 
 	prevRev := snapst.Sequence[currentIndex-1].Revision
-	// checks if core revision is for patch level 6.0.
-	if prevRev.N < 5000 || prevRev.N > 5145 {
+
+	// check if core revision is for patch level 6.0.
+	// the revision number here is the last core revision released before this code goes live.
+	if prevRev.N > 5145 {
 		return nil
 	}
 
