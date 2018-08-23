@@ -308,7 +308,7 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	st.Set("patch-sublevel", 2)
 
 	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(5142)}
-	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(5144)}
+	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
