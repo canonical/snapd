@@ -329,7 +329,7 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	snapName := plug.Snap.InstanceName()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(snapName); err != nil {
 		return err
 	}
 	// Reject plugs with invalid names
@@ -424,7 +424,7 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	snapName := slot.Snap.InstanceName()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(snapName); err != nil {
 		return err
 	}
 	// Reject slots with invalid names

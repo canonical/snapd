@@ -528,7 +528,7 @@ func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
 
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0`)
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
@@ -1215,7 +1215,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "new-channel")
-	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
@@ -1233,6 +1233,42 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "18/beta")
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	_, err := snapstate.Switch(s.state, "brand-gadget", "new-channel")
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel/stable"`)
+}
+
+func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	_, err := snapstate.Switch(s.state, "brand-gadget", "18/beta")
 	c.Assert(err, IsNil)
 }
 
@@ -1466,7 +1502,7 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", snapstate.Flags{})
+	_, _, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
@@ -1475,7 +1511,7 @@ func (s *snapmgrTestSuite) TestInstallPathMissingName(c *C) {
 	defer s.state.Unlock()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{}, mockSnap, "", snapstate.Flags{})
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap name to install %q not provided`, mockSnap))
 }
 
@@ -1484,7 +1520,7 @@ func (s *snapmgrTestSuite) TestInstallPathSnapIDRevisionUnset(c *C) {
 	defer s.state.Unlock()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "snapididid"}, mockSnap, "", snapstate.Flags{})
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "snapididid"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap id set to install %q but revision is unset`, mockSnap))
 }
 
@@ -4757,7 +4793,7 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 
 	// switching tracks is not ok
 	_, err := snapstate.Update(s.state, "kernel", "new-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel/stable"`)
 
 	// no change to the channel is ok
 	_, err = snapstate.Update(s.state, "kernel", "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -4765,6 +4801,38 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 
 	// switching risk level is ok
 	_, err = snapstate.Update(s.state, "kernel", "18/beta", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+}
+
+func (s *snapmgrTestSuite) TestUpdateGadgetTrackChecksSwitchingTracks(c *C) {
+	si := snap.SideInfo{
+		RealName: "brand-gadget",
+		SnapID:   "brand-gadget-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Channel:  "18/stable",
+	})
+
+	// switching tracks is not ok
+	_, err := snapstate.Update(s.state, "brand-gadget", "new-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel/stable"`)
+
+	// no change to the channel is ok
+	_, err = snapstate.Update(s.state, "brand-gadget", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// switching risk level is ok
+	_, err = snapstate.Update(s.state, "brand-gadget", "18/beta", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 }
@@ -4783,9 +4851,13 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", snapstate.Flags{})
+	ts, info, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
+
+	// ensure the returned info is correct
+	c.Check(info.SideInfo.RealName, Equals, "mock")
+	c.Check(info.Version, Equals, "1.0")
 
 	s.state.Unlock()
 	defer s.se.Stop()
@@ -4893,7 +4965,7 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4988,7 +5060,7 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -5087,7 +5159,7 @@ version: 1.0`)
 		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
 	}
-	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{Required: true})
+	ts, _, err := snapstate.InstallPath(s.state, si, someSnap, "", "", snapstate.Flags{Required: true})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -9421,7 +9493,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 
 	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var m map[string]interface{}
@@ -9451,7 +9523,7 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 
 	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", snapstate.Flags{SkipConfigure: true})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{SkipConfigure: true})
 	c.Assert(err, IsNil)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
@@ -9481,7 +9553,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 
 	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}, snapPath, "edge", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}, snapPath, "", "edge", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var m map[string]interface{}
@@ -11120,7 +11192,7 @@ layout:
  /usr:
   bind: $SNAP/usr
 `)
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
@@ -11128,11 +11200,11 @@ layout:
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	_, _, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitch(c *C) {
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchKernel(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -11158,8 +11230,38 @@ version: 1.0`)
 		Revision: snap.R(42),
 		Channel:  "some-channel",
 	}
-	_, err := snapstate.InstallPath(s.state, si, someSnap, "some-channel", snapstate.Flags{Required: true})
-	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "some-channel/stable"`)
+	_, _, err := snapstate.InstallPath(s.state, si, someSnap, "", "some-channel", snapstate.Flags{Required: true})
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "some-channel/stable"`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchGadget(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// snapd cannot be installed unless the model uses a base snap
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	someSnap := makeTestSnap(c, `name: brand-gadget
+version: 1.0`)
+	si := &snap.SideInfo{
+		RealName: "brand-gadget",
+		SnapID:   "brand-gadget-id",
+		Revision: snap.R(42),
+		Channel:  "some-channel",
+	}
+	_, _, err := snapstate.InstallPath(s.state, si, someSnap, "", "some-channel", snapstate.Flags{Required: true})
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "some-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
@@ -11169,8 +11271,27 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
+	// check various forms of disabling
 	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", "")
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", nil)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	// enable layouts
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -11268,12 +11389,61 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	err := snapstate.ValidateFeatureFlags(s.state, info)
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 
+	// various forms of disabling
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", false)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", "")
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", nil)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", "veryfalse")
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `internal error: feature flag experimental.parallel-instances has unexpected value "veryfalse" \(string\)`)
+
+	// enable parallel instances
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstallInstallPathExperimentalSwitch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
+	_, _, err := snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+
 	// enable parallel instances
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", true)
 	tr.Commit()
 
-	err = snapstate.ValidateFeatureFlags(s.state, info)
+	_, _, err = snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 }
 

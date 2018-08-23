@@ -1,17 +1,21 @@
 summary: ensure that snap-confine handles group and user privileges correctly
+
 details: |
     The openSUSE security team has made a remark about a particular part of
     snap-confine's UID/GID handling. The code there was correct but this test
     is here to demonstrate that and ensure it never regresses.
 
     Security review https://bugzilla.opensuse.org/show_bug.cgi?id=986050
+
 # This test is not executed on a core system simply because of the hassle of
 # building the support C program. In the future it might be improved with the
 # use of the classic snap where we just use classic to build the helper.
 systems: [-ubuntu-core-*]
+
 environment:
     # This is used to abbreviate some of the paths below.
     P: /var/snap/test-snapd-sh/common
+
 prepare: |
     echo "Install a helper snap (for confinement testing)"
     . $TESTSLIB/snaps.sh
@@ -27,6 +31,7 @@ prepare: |
     cp $P/uids-and-gids $P/uids-and-gids-setgid
     chgrp root $P/uids-and-gids-setgid
     chmod 2755 $P/uids-and-gids-setgid
+
 execute: |
     echo "The test executables files have the expected mode and ownership"
     ls -l $P | MATCH -- '-rwxr-xr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids'
