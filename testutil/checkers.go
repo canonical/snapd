@@ -66,7 +66,7 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 		}
 		rx, err := regexp.Compile(regexpr)
 		if err != nil {
-			return false, fmt.Sprintf("Can't compile regexp %q: %v", regexpr, err)
+			return false, fmt.Sprintf("Cannot compile regexp %q: %v", regexpr, err)
 		}
 		params[1] = rx
 	}
@@ -76,30 +76,43 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
 	buf, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
+		return false, fmt.Sprintf("Cannot read file %q: %v", filename, err)
 	}
+	presentableBuf := string(buf)
 	if exact {
 		switch content := content.(type) {
 		case string:
-			return string(buf) == content, ""
+			result = presentableBuf == content
 		case []byte:
-			return bytes.Equal(buf, content), ""
+			result = bytes.Equal(buf, content)
+			presentableBuf = "<binary data>"
 		case fmt.Stringer:
-			return string(buf) == content.String(), ""
+			result = presentableBuf == content.String()
+		default:
+			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
 	} else {
 		switch content := content.(type) {
 		case string:
-			return strings.Contains(string(buf), content), ""
+			result = strings.Contains(presentableBuf, content)
 		case []byte:
-			return bytes.Contains(buf, content), ""
+			result = bytes.Contains(buf, content)
+			presentableBuf = "<binary data>"
 		case *regexp.Regexp:
-			return content.Match(buf), ""
+			result = content.Match(buf)
 		case fmt.Stringer:
-			return strings.Contains(string(buf), content.String()), ""
+			result = strings.Contains(presentableBuf, content.String())
+		default:
+			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
 	}
-	return false, fmt.Sprintf("Can't compare file contents with something of type %T", content)
+	if !result {
+		if error == "" {
+			error = fmt.Sprintf("Failed to match with file contents:\n%v", presentableBuf)
+		}
+		return result, error
+	}
+	return result, ""
 }
 
 type containsChecker struct {
