@@ -138,19 +138,10 @@ func (s *patchSuite) TestApply(c *C) {
 }
 
 func (s *patchSuite) TestApplyLevel6(c *C) {
-	var applied int
-	p50 := func(st *state.State) error {
-		c.Fatalf("patch p50 should not be applied")
-		return nil
-	}
-	p60 := func(st *state.State) error {
-		c.Fatalf("patch p60 should not be applied")
-		return nil
-	}
-	p61 := func(st *state.State) error {
-		applied++
-		return nil
-	}
+	var sequence []int
+	p50 := generatePatchFunc(50, &sequence)
+	p60 := generatePatchFunc(60, &sequence)
+	p61 := generatePatchFunc(61, &sequence)
 
 	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
 		5: {p50},
@@ -170,7 +161,7 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 	defer st.Unlock()
 
 	var level, sublevel int
-	c.Assert(applied, Equals, 1)
+	c.Assert(sequence, DeepEquals, []int{61})
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Check(level, Equals, 6)
@@ -179,10 +170,7 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 
 func (s *patchSuite) TestApplyFromSublevel(c *C) {
 	var sequence []int
-	p60 := func(st *state.State) error {
-		c.Fatalf("patch p60 shouldn't be applied")
-		return nil
-	}
+	p60 := generatePatchFunc(60, &sequence)
 	p61 := generatePatchFunc(61, &sequence)
 	p62 := generatePatchFunc(62, &sequence)
 	p70 := generatePatchFunc(70, &sequence)
@@ -300,10 +288,7 @@ func (s *patchSuite) TestError(c *C) {
 func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	var sequence []int
 
-	p60 := func(st *state.State) error {
-		c.Fatalf("patch p60 shouldn't be applied")
-		return nil
-	}
+	p60 := generatePatchFunc(60, &sequence)
 	p61 := generatePatchFunc(61, &sequence)
 	p62 := generatePatchFunc(62, &sequence)
 
