@@ -1,5 +1,10 @@
 summary: Check that snaps can use service-watchdog provided by systemd
 
+debug: |
+    for service in direct-watchdog-ok direct-watchdog-bad; do
+        systemctl status snap.test-snapd-service-watchdog.$service || true
+    done
+
 execute: |
     echo "When the service snap  is installed"
     . $TESTSLIB/snaps.sh
@@ -43,9 +48,4 @@ execute: |
         # reported differently by different systemd versions
         systemctl show -p Result snap.test-snapd-service-watchdog.$service | MATCH 'Result=(watchdog|signal|core-dump)' || true
         journalctl -u snap.test-snapd-service-watchdog.$service | MATCH 'Watchdog timeout'
-    done
-
-debug: |
-    for service in direct-watchdog-ok direct-watchdog-bad; do
-        systemctl status snap.test-snapd-service-watchdog.$service || true
     done
