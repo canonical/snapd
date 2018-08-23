@@ -775,6 +775,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
 		},
 		Current:     snap.R(3),
@@ -785,19 +787,44 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
-	// task sets order is already stable, but we need to ensure stable ordering
-	// of updates list
+	// ensure stable ordering of updates list
 	if updates[0] != "some-snap" {
 		updates[1], updates[0] = updates[0], updates[1]
 	}
 
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
 
-	ts := tts[0]
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+	// to make TaskSnapSetup work
+	chg := s.state.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
 
-	ts = tts[1]
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
+	seen := map[string]bool{}
+	for _, tset := range tts {
+		for _, task := range tset.Tasks() {
+			if task.Kind() == "download-snap" {
+				snapsup, err := snapstate.TaskSnapSetup(task)
+				c.Assert(err, IsNil)
+				snapInstance := snapsup.InstanceName()
+				seen[snapInstance] = true
+				switch snapInstance {
+				case "some-snap":
+					verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tset, s.state)
+				case "some-snap_instance":
+					verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tset, s.state)
+				default:
+					c.Fatalf("unexpected snap %q", snapInstance)
+				}
+				break
+			}
+		}
+	}
+
+	c.Assert(seen, DeepEquals, map[string]bool{
+		"some-snap":          true,
+		"some-snap_instance": true,
+	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
