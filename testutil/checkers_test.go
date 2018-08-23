@@ -281,9 +281,9 @@ func (s *CheckersS) TestFileEquals(c *check.C) {
 	testCheck(c, FileEquals, false, "Failed to match with file contents:\n<binary data>", filename, []byte(twofer))
 	testCheck(c, FileEquals, false, "Failed to match with file contents:\nnot-so-random-string", filename, myStringer{twofer})
 
-	testCheck(c, FileEquals, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileEquals, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileEquals, false, "Filename must be a string", 42, "")
-	testCheck(c, FileEquals, false, "Can't compare file contents with something of type int", filename, 1)
+	testCheck(c, FileEquals, false, "Cannot compare file contents with something of type int", filename, 1)
 }
 
 func (s *CheckersS) TestFileContains(c *check.C) {
@@ -306,9 +306,9 @@ func (s *CheckersS) TestFileContains(c *check.C) {
 	// undocumented
 	testCheck(c, FileContains, false, "Failed to match with file contents:\nnot-so-random-string", filename, regexp.MustCompile("^$"))
 
-	testCheck(c, FileContains, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileContains, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileContains, false, "Filename must be a string", 42, "")
-	testCheck(c, FileContains, false, "Can't compare file contents with something of type int", filename, 1)
+	testCheck(c, FileContains, false, "Cannot compare file contents with something of type int", filename, 1)
 }
 
 func (s *CheckersS) TestFileMatches(c *check.C) {
@@ -324,7 +324,7 @@ func (s *CheckersS) TestFileMatches(c *check.C) {
 	testCheck(c, FileMatches, false, "Failed to match with file contents:\nnot-so-random-string", filename, "^$")
 	testCheck(c, FileMatches, false, "Failed to match with file contents:\nnot-so-random-string", filename, "123"+regexp.QuoteMeta(content))
 
-	testCheck(c, FileMatches, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileMatches, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
 	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
 }
