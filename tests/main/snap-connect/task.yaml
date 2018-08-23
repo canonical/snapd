@@ -28,7 +28,7 @@ execute: |
     snap connect home-consumer:home system:home
 
     OUTPUT=$(snap change --last=connect)
-    if [ ! "$(echo "$OUTPUT" | wc -l)" -eq 1 ]; then
+    if [ "$(echo "$OUTPUT" | wc -l)" -ne 1 ]; then
         echo "Expected no tasks, got: $OUTPUT"
         exit 1
     fi
