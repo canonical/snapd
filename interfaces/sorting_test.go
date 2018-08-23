@@ -38,67 +38,75 @@ func newConnRef(plugSnap, plug, slotSnap, slot string) *interfaces.ConnRef {
 }
 
 func (s *SortingSuite) TestSortBySlotRef(c *C) {
-	list := []interfaces.SlotRef{
-		{
-			Snap: "snap-2",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-1",
-		},
-	}
+	list := []interfaces.SlotRef{{
+		Snap: "snap-2",
+		Name: "name-2",
+	}, {
+		Snap: "snap-2_instance",
+		Name: "name-2",
+	}, {
+		Snap: "snap-3",
+		Name: "name-2",
+	}, {
+		Snap: "snap-1",
+		Name: "name-2",
+	}, {
+		Snap: "snap-1",
+		Name: "name-1",
+	}}
 	sort.Sort(interfaces.BySlotRef(list))
-	c.Assert(list, DeepEquals, []interfaces.SlotRef{
-		{
-			Snap: "snap-1",
-			Name: "name-1",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-2",
-			Name: "name-2",
-		},
-	})
+	c.Assert(list, DeepEquals, []interfaces.SlotRef{{
+		Snap: "snap-1",
+		Name: "name-1",
+	}, {
+		Snap: "snap-1",
+		Name: "name-2",
+	}, {
+		Snap: "snap-2",
+		Name: "name-2",
+	}, {
+		Snap: "snap-2_instance",
+		Name: "name-2",
+	}, {
+		Snap: "snap-3",
+		Name: "name-2",
+	}})
 }
 
 func (s *SortingSuite) TestSortByPlugRef(c *C) {
-	list := []interfaces.PlugRef{
-		{
-			Snap: "snap-2",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-1",
-		},
-	}
+	list := []interfaces.PlugRef{{
+		Snap: "snap-2",
+		Name: "name-2",
+	}, {
+		Snap: "snap-2_instance",
+		Name: "name-2",
+	}, {
+		Snap: "snap-3",
+		Name: "name-2",
+	}, {
+		Snap: "snap-1",
+		Name: "name-2",
+	}, {
+		Snap: "snap-1",
+		Name: "name-1",
+	}}
 	sort.Sort(interfaces.ByPlugRef(list))
-	c.Assert(list, DeepEquals, []interfaces.PlugRef{
-		{
-			Snap: "snap-1",
-			Name: "name-1",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-2",
-			Name: "name-2",
-		},
-	})
+	c.Assert(list, DeepEquals, []interfaces.PlugRef{{
+		Snap: "snap-1",
+		Name: "name-1",
+	}, {
+		Snap: "snap-1",
+		Name: "name-2",
+	}, {
+		Snap: "snap-2",
+		Name: "name-2",
+	}, {
+		Snap: "snap-2_instance",
+		Name: "name-2",
+	}, {
+		Snap: "snap-3",
+		Name: "name-2",
+	}})
 }
 
 func (s *SortingSuite) TestByBackendName(c *C) {
@@ -127,6 +135,9 @@ func (s *SortingSuite) TestByInterfaceName(c *C) {
 
 func (s *SortingSuite) TestByPlugInfo(c *C) {
 	list := []*snap.PlugInfo{
+		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
@@ -138,11 +149,17 @@ func (s *SortingSuite) TestByPlugInfo(c *C) {
 		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
 	})
 }
 
 func (s *SortingSuite) TestBySlotInfo(c *C) {
 	list := []*snap.SlotInfo{
+		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
@@ -154,6 +171,9 @@ func (s *SortingSuite) TestBySlotInfo(c *C) {
 		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
+		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
+		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
 	})
 }
 
@@ -164,6 +184,8 @@ func (s *SortingSuite) TestByConnRef(c *C) {
 		newConnRef("name-1", "plug-2", "name-2", "slot-2"),
 		newConnRef("name-1", "plug-1", "name-2", "slot-4"),
 		newConnRef("name-1", "plug-1", "name-2", "slot-1"),
+		newConnRef("name-1", "plug-1", "name-2_instance", "slot-1"),
+		newConnRef("name-1_instance", "plug-1", "name-2", "slot-1"),
 	}
 	sort.Sort(interfaces.ByConnRef(list))
 
@@ -171,7 +193,9 @@ func (s *SortingSuite) TestByConnRef(c *C) {
 		newConnRef("name-1", "plug-1", "name-2", "slot-1"),
 		newConnRef("name-1", "plug-1", "name-2", "slot-3"),
 		newConnRef("name-1", "plug-1", "name-2", "slot-4"),
+		newConnRef("name-1", "plug-1", "name-2_instance", "slot-1"),
 		newConnRef("name-1", "plug-2", "name-2", "slot-2"),
 		newConnRef("name-1", "plug-3", "name-2", "slot-1"),
+		newConnRef("name-1_instance", "plug-1", "name-2", "slot-1"),
 	})
 }

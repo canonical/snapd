@@ -27,7 +27,6 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
     
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB/store.sh"
