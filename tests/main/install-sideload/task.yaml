@@ -1,20 +1,18 @@
 summary: Checks for snap sideload install
 
-prepare: |
-    for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
-    do
-        snap pack "$TESTSLIB"/snaps/$snap
-    done
-
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
     SNAP_REEXEC/reexec0: 0
     SNAP_REEXEC/reexec1: 1
 
+prepare: |
+    for snap in basic test-snapd-tools basic-desktop test-snapd-devmode; do
+        snap pack "$TESTSLIB"/snaps/$snap
+    done
+
 restore: |
-    for snap in basic test-snapd-tools basic-desktop
-    do
+    for snap in basic test-snapd-tools basic-desktop; do
         rm -f ./${snap}_1.0_all.snap
     done
 
@@ -69,6 +67,9 @@ execute: |
     echo "Sideload a second time succeeds"
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
+
+    echo "All snap blobs are 0600"
+    test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
 
     # TODO: check we copy the data directory over
 

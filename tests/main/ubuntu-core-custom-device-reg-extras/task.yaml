@@ -2,7 +2,9 @@ summary: |
    Test that device initialisation and registration can be customized
    with the prepare-device gadget hook and this can set request headers,
    a proposed serial and the body of the serial assertion
+
 systems: [ubuntu-core-16-64]
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -13,10 +15,10 @@ prepare: |
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
-    unsquashfs /var/lib/snapd/snaps/pc_*.snap
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
     mkdir -p squashfs-root/meta/hooks
     cp prepare-device squashfs-root/meta/hooks
-    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     mv /var/lib/snapd/seed/assertions/model model.bak
@@ -30,6 +32,7 @@ prepare: |
     systemd_create_and_start_unit fakedevicesvc "$(which fakedevicesvc) localhost:11029"
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -60,6 +63,7 @@ restore: |
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

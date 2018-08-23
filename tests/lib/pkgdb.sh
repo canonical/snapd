@@ -6,9 +6,6 @@
 debian_name_package() {
     for i in "$@"; do
         case "$i" in
-            xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
-                echo "$i"
-                ;;
             man)
                 echo "man-db"
                 ;;
@@ -35,14 +32,24 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     for i in "$@"; do
         case "$i" in
-            xdelta3|jq|curl|python3-yaml)
-                echo "$i"
-                ;;
             openvswitch-switch)
                 echo "openvswitch"
                 ;;
             printer-driver-cups-pdf)
                 echo "cups-pdf"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
+}
+
+amazon_name_package() {
+    for i in "$@"; do
+        case "$i" in
+            xdelta3)
+                echo "xdelta"
                 ;;
             *)
                 echo "$i"
@@ -105,6 +112,9 @@ distro_name_package() {
         fedora-*)
             fedora_name_package "$@"
             ;;
+        amazon-*)
+            amazon_name_package "$@"
+            ;;
         opensuse-*)
             opensuse_name_package "$@"
             ;;
@@ -148,6 +158,9 @@ distro_install_local_package() {
         fedora-*)
             quiet dnf -y install "$@"
             ;;
+        amazon-*)
+            quiet yum -y localinstall "$@"
+            ;;
         opensuse-*)
             quiet rpm -i "$@"
             ;;
@@ -167,6 +180,7 @@ distro_install_package() {
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
+    YUM_FLAGS=
     ZYPPER_FLAGS=
     while [ -n "$1" ]; do
         case "$1" in
@@ -174,6 +188,7 @@ distro_install_package() {
                 APT_FLAGS="$APT_FLAGS --no-install-recommends"
                 DNF_FLAGS="$DNF_FLAGS --setopt=install_weak_deps=False"
                 ZYPPER_FLAGS="$ZYPPER_FLAGS --no-recommends"
+                # TODO no way to set this for yum?
                 shift
                 ;;
             *)
@@ -202,6 +217,7 @@ distro_install_package() {
         ;;
     esac
 
+    # shellcheck disable=SC2207
     pkg_names=($(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
@@ -222,6 +238,10 @@ distro_install_package() {
         fedora-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
+            ;;
+        amazon-*)
+            # shellcheck disable=SC2086
+            quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             ;;
         opensuse-*)
             # shellcheck disable=SC2086
@@ -260,6 +280,9 @@ distro_purge_package() {
             quiet dnf -y remove "$@"
             quiet dnf clean all
             ;;
+        amazon-*)
+            quiet yum -y remove "$@"
+            ;;
         opensuse-*)
             quiet zypper remove -y "$@"
             ;;
@@ -282,6 +305,10 @@ distro_update_package_db() {
             quiet dnf clean all
             quiet dnf makecache
             ;;
+        amazon-*)
+            quiet yum clean all
+            quiet yum makecache
+            ;;
         opensuse-*)
             quiet zypper --gpg-auto-import-keys refresh
             ;;
@@ -302,6 +329,9 @@ distro_clean_package_cache() {
             ;;
         fedora-*)
             dnf clean all
+            ;;
+        amazon-*)
+            yum clean all
             ;;
         opensuse-*)
             zypper -q clean --all
@@ -324,6 +354,9 @@ distro_auto_remove_packages() {
         fedora-*)
             quiet dnf -y autoremove
             ;;
+        amazon-*)
+            quiet yum -y autoremove
+            ;;
         opensuse-*)
             ;;
         arch-*)
@@ -342,6 +375,9 @@ distro_query_package_info() {
             ;;
         fedora-*)
             dnf info "$1"
+            ;;
+        amazon-*)
+            yum info "$1"
             ;;
         opensuse-*)
             zypper info "$1"
@@ -377,7 +413,7 @@ distro_install_build_snapd(){
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
-            fedora-*)
+            fedora-*|amazon-*)
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
                 ;;
@@ -419,7 +455,7 @@ distro_get_package_extension() {
         ubuntu-*|debian-*)
             echo "deb"
             ;;
-        fedora-*|opensuse-*)
+        fedora-*|opensuse-*|amazon-*)
             echo "rpm"
             ;;
         arch-*)
@@ -435,6 +471,7 @@ pkg_dependencies_ubuntu_generic(){
         automake
         autotools-dev
         build-essential
+        clang
         curl
         devscripts
         expect
@@ -453,12 +490,15 @@ pkg_dependencies_ubuntu_generic(){
         pkg-config
         python3-docutils
         udev
+        udisks2
+        upower
         uuid-runtime
         "
 }
 
 pkg_dependencies_ubuntu_classic(){
     echo "
+        avahi-daemon
         cups
         dbus-x11
         gnome-keyring
@@ -474,29 +514,35 @@ pkg_dependencies_ubuntu_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            echo "
-                linux-image-extra-$(uname -r)
-                "
+                pkg_linux_image_extra
             ;;
         ubuntu-16.04-32)
             echo "
-                linux-image-extra-$(uname -r)
+                evolution-data-server
+                gnome-online-accounts
                 "
+                pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
+                evolution-data-server
                 gccgo-6
+                gnome-online-accounts
                 kpartx
                 libvirt-bin
-                linux-image-extra-$(uname -r)
+                nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
                 "
+                pkg_linux_image_extra
             ;;
         ubuntu-17.10-64)
+                pkg_linux_image_extra
+            ;;
+        ubuntu-18.04-64)
             echo "
-                linux-image-extra-4.13.0-16-generic
+                evolution-data-server
                 "
             ;;
         ubuntu-*)
@@ -506,20 +552,56 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                evolution-data-server
                 net-tools
                 "
             ;;
     esac
 }
 
+pkg_linux_image_extra (){
+    if apt-cache show "linux-image-extra-$(uname -r)" > /dev/null 2>&1; then
+        echo "linux-image-extra-$(uname -r)";
+    else
+        if apt-cache show "linux-modules-extra-$(uname -r)" > /dev/null 2>&1; then
+            echo "linux-modules-extra-$(uname -r)";
+        else
+            echo "cannot find a matching kernel modules package";
+            exit 1;
+        fi;
+    fi
+}
+
 pkg_dependencies_ubuntu_core(){
     echo "
-        linux-image-extra-$(uname -r)
         pollinate
         "
+        pkg_linux_image_extra
 }
 
 pkg_dependencies_fedora(){
+    echo "
+        clang
+        curl
+        dbus-x11
+        evolution-data-server
+        expect
+        git
+        golang
+        jq
+        iptables-services
+        man
+        mock
+        net-tools
+        python3-yaml
+        redhat-lsb-core
+        rpm-build
+        udisks2
+        xdg-user-dirs
+        "
+}
+
+pkg_dependencies_amazon(){
     echo "
         curl
         dbus-x11
@@ -531,24 +613,31 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
-        redhat-lsb-core
+        system-lsb-core
         rpm-build
         xdg-user-dirs
+        grub2-tools
+        nc
+        udisks2
         "
 }
 
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        clang
         curl
+        evolution-data-server
         expect
         git
         golang-packaging
         jq
         lsb-release
         man
+        python3-yaml
         netcat-openbsd
         osc
+        udisks2
         uuidd
         xdg-utils
         xdg-user-dirs
@@ -557,25 +646,30 @@ pkg_dependencies_opensuse(){
 
 pkg_dependencies_arch(){
     echo "
-    curl
     base-devel
+    bash-completion
+    clang
+    curl
+    evolution-data-server
+    expect
+    git
     go
     go-tools
+    jq
     libseccomp
     libcap
+    libx11
+    net-tools
+    openbsd-netcat
+    python
     python-docutils
-    xfsprogs
+    python3-yaml
     squashfs-tools
     shellcheck
-    python
-    jq
-    git
-    openbsd-netcat
+    strace
+    udisks2
     xdg-user-dirs
-    expect
-    libx11
-    bash-completion
-    net-tools
+    xfsprogs
     "
 }
 
@@ -591,6 +685,9 @@ pkg_dependencies(){
             ;;
         fedora-*)
             pkg_dependencies_fedora
+            ;;
+        amazon-*)
+            pkg_dependencies_amazon
             ;;
         opensuse-*)
             pkg_dependencies_opensuse

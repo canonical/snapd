@@ -1,8 +1,5 @@
 summary: Ensure that the framebuffer interface works.
 
-# systems listed below do not have /dev/fb0
-systems: [ -ubuntu-14.04-*, -ubuntu-16.04-*, -ubuntu-18.04-*, -fedora-28-*, -debian-9-*, -ubuntu-core-16-64, -ubuntu-core-18-64 ]
-
 details: |
     The framebuffer interface allows to access the /dev/fb* buffer files.
 
@@ -18,8 +15,13 @@ execute: |
     snap interfaces -i framebuffer | MATCH '^- +test-snapd-framebuffer:framebuffer'
 
     if [ ! -e /dev/fb0 ]; then
-        echo "Framebuffer not available on /dev/fb0"
-        exit 1
+        # ensure this test runs on at least one system
+        if [[ "$SPREAD_SYSTEM" = ubuntu-core-16-arm-* ]]; then
+            echo "ubuntu-core-16-arm-32 must have a framebuffer"
+            exit 1
+        fi
+        echo "SKIP: Framebuffer not available on /dev/fb0"
+        exit 0
     fi
 
     echo "When the interface is connected"

@@ -2,10 +2,13 @@ summary: Check that alias symlinks work correctly
 
 systems: [-ubuntu-core-*]
 
+environment:
+    APP/testsnapdtoolsecho: test-snapd-tools.echo
+    APP/testsnapdtoolscat: test-snapd-tools.cat
+    ALIAS/testsnapdtoolsecho: test_echo
+    ALIAS/testsnapdtoolscat: test_cat
+
 prepare: |
-    echo Ensure we have a os snap with snap run
-    $TESTSLIB/reset.sh
-    snap install --channel=beta core
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
 
@@ -15,12 +18,6 @@ restore: |
     rm -f $SNAP_MOUNT_DIR/bin/test_cat
     rm -f orig.txt
     rm -f new.txt
-
-environment:
-    APP/testsnapdtoolsecho: test-snapd-tools.echo
-    APP/testsnapdtoolscat: test-snapd-tools.cat
-    ALIAS/testsnapdtoolsecho: test_echo
-    ALIAS/testsnapdtoolscat: test_cat
 
 execute: |
     . $TESTSLIB/dirs.sh

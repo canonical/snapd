@@ -38,6 +38,17 @@ const (
 	TypeOS Type = "os"
 )
 
+// This is the sort order from least important to most important for
+// types. On e.g. firstboot this will be used to order the snaps this
+// way.
+var typeOrder = map[Type]int{
+	TypeApp:    40,
+	TypeGadget: 30,
+	TypeBase:   20,
+	TypeKernel: 10,
+	TypeOS:     0,
+}
+
 // UnmarshalJSON sets *m to a copy of data.
 func (m *Type) UnmarshalJSON(data []byte) error {
 	var str string

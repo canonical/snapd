@@ -54,7 +54,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*|arch-*)
+            debian-*|fedora-*|opensuse-*|arch-*|amazon-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -88,6 +88,10 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        distro=amzn
+        release=2
+    fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
@@ -98,8 +102,8 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
 
     case "$SPREAD_SYSTEM" in
-        fedora-*)
-            extra_tar_args="$extra_tar_args --exclude='vendor/*'"
+        fedora-*|amazon-*)
+            extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -118,6 +122,10 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        # need to build the vendor tree
+        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+    fi
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -288,8 +296,13 @@ prepare_project() {
             fi
         fi
         # double check we are running the installed kernel
-        # NOTE: arch kernels use ARCH as local version, eg. 4.16.13-2-ARCH
-        if [[ "$(pacman -Qi linux | grep '^Version' | awk '{print $3}')" != "$(uname -r | sed -e 's/-ARCH//')" ]]; then
+        # NOTE: LOCALVERSION is set by scripts/setlocalversion and loos like
+        # 4.17.11-arch1, since this may not match pacman -Qi output, we'll list
+        # the files within the package instead
+        # pacman -Ql linux output:
+        # ...
+        # linux /usr/lib/modules/4.17.11-arch1/modules.alias
+        if [[ "$(pacman -Ql linux | cut -f2 -d' ' |grep '/usr/lib/modules/.*/modules'|cut -f5 -d/ | uniq)" != "$(uname -r)" ]]; then
             echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
@@ -328,7 +341,7 @@ prepare_project() {
     esac
 
     # update vendoring
-    if [ -z "$(which govendor)" ]; then
+    if [ -z "$(command -v govendor)" ]; then
         rm -rf "$GOPATH/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
@@ -341,7 +354,7 @@ prepare_project() {
             ubuntu-*|debian-*)
                 build_deb
                 ;;
-            fedora-*|opensuse-*)
+            fedora-*|opensuse-*|amazon-*)
                 build_rpm
                 ;;
             arch-*)
@@ -426,7 +439,7 @@ restore_suite() {
     "$TESTSLIB"/reset.sh --store
     if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
-        . $TESTSLIB/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch

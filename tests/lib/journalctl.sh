@@ -10,12 +10,7 @@ get_last_journalctl_cursor(){
     journalctl --output=export -n1 | grep --binary-files=text -o '__CURSOR=.*' | sed -e 's/^__CURSOR=//'
 }
 
-restart_journalctl(){
-    systemctl restart systemd-journald
-}
-
 start_new_journalctl_log(){
-    restart_journalctl
     echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
     cursor=$(get_last_journalctl_cursor)
     if [ -z "$cursor" ]; then
@@ -52,12 +47,19 @@ check_journalctl_log(){
 }
 
 get_journalctl_log(){
-    cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
+    cursor=""
+    if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
+        cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
+    fi
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
 get_journalctl_log_from_cursor(){
     cursor=$1
     shift
-    journalctl "$@" --cursor "$cursor"
+    if [ -z "$cursor" ]; then
+        journalctl "$@"
+    else
+        journalctl "$@" --cursor "$cursor"
+    fi
 }

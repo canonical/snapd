@@ -22,7 +22,7 @@ check_canaries() {
     done
 }
 
-HERE="$(readlink -f $(dirname "$0"))"
+HERE="$(readlink -f "$(dirname "$0")")"
 
 OUTPUT="$HERE/po/snappy.pot"
 if [ -n "$1" ]; then
@@ -34,7 +34,8 @@ go install github.com/snapcore/snapd/i18n/xgettext-go
 
 # exclude vendor and _build subdir
 I18N_FILES="$(mktemp -d)/i18n.files"
-find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print > $I18N_FILES
+find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print > "$I18N_FILES"
+# shellcheck disable=SC2064
 trap "rm -rf $(dirname "$I18N_FILES")" EXIT
 
 "${GOPATH%%:*}/bin/xgettext-go" \
@@ -66,7 +67,7 @@ xgettext "$HERE"/data/polkit/*.policy \
 check_canaries
 
 # language packs
-for p in ${HERE}/po/*.po; do
+for p in "${HERE}"/po/*.po; do
 	lang=$(basename "$p" .po)
 	mkdir -p "$HERE/share/locale/$lang/LC_MESSAGES"
 	msgfmt -v -o "$HERE/share/locale/$lang/LC_MESSAGES/snappy.mo" "$p"

@@ -32,7 +32,7 @@ import (
 )
 
 var fmtWatchChangeJSON = `{"type": "sync", "result": {
-  "id":   "42",
+  "id":   "two",
   "kind": "some-kind",
   "summary": "some summary...",
   "status": "Doing",
@@ -43,31 +43,110 @@ var fmtWatchChangeJSON = `{"type": "sync", "result": {
 func (s *SnapSuite) TestCmdWatch(c *C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
+	defer snap.MockMaxGoneTime(time.Millisecond)()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes/two")
+			fmt.Fprintf(w, fmtWatchChangeJSON, 0, 100*1024)
+		case 2:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes/two")
+			fmt.Fprintf(w, fmtWatchChangeJSON, 50*1024, 100*1024)
+		case 3:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes/two")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"id": "two", "ready": true, "status": "Done"}}`)
+		default:
+			c.Errorf("expected 3 queries, currently on %d", n)
+		}
+	})
+
+	rest, err := snap.Parser().ParseArgs([]string{"watch", "two"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Check(n, Equals, 3)
+	c.Check(meter.Values, DeepEquals, []float64{51200})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestWatchLast(c *C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+	defer snap.MockMaxGoneTime(time.Millisecond)()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes")
+			fmt.Fprintln(w, mockChangesJSON)
+		case 2:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes/two")
+			fmt.Fprintf(w, fmtWatchChangeJSON, 0, 100*1024)
+		case 3:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes/two")
+			fmt.Fprintf(w, fmtWatchChangeJSON, 50*1024, 100*1024)
+		case 4:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/changes/two")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"id": "two", "ready": true, "status": "Done"}}`)
+		default:
+			c.Errorf("expected 4 queries, currently on %d", n)
+		}
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"watch", "--last=install"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Check(n, Equals, 4)
+	c.Check(meter.Values, DeepEquals, []float64{51200})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestWatchLastQuestionmark(c *C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
 	restore := snap.MockMaxGoneTime(time.Millisecond)
 	defer restore()
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/changes/42")
-			fmt.Fprintf(w, fmtWatchChangeJSON, 0, 100*1024)
-		case 1:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/changes/42")
-			fmt.Fprintf(w, fmtWatchChangeJSON, 50*1024, 100*1024)
-		case 2:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/changes/42")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"id": "42", "ready": true, "status": "Done"}}`)
-		}
 		n++
+		c.Check(r.Method, Equals, "GET")
+		c.Assert(r.URL.Path, Equals, "/v2/changes")
+		switch n {
+		case 1, 2:
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
+		case 3, 4:
+			fmt.Fprintln(w, mockChangesJSON)
+		default:
+			c.Errorf("expected 4 calls, now on %d", n)
+		}
 	})
+	for i := 0; i < 2; i++ {
+		rest, err := snap.Parser().ParseArgs([]string{"watch", "--last=foobar?"})
+		c.Assert(err, IsNil)
+		c.Assert(rest, DeepEquals, []string{})
+		c.Check(s.Stdout(), Matches, "")
+		c.Check(s.Stderr(), Equals, "")
 
-	_, err := snap.Parser().ParseArgs([]string{"watch", "42"})
-	c.Assert(err, IsNil)
-	c.Check(n, Equals, 3)
+		_, err = snap.Parser().ParseArgs([]string{"watch", "--last=foobar"})
+		if i == 0 {
+			c.Assert(err, ErrorMatches, `no changes found`)
+		} else {
+			c.Assert(err, ErrorMatches, `no changes of type "foobar" found`)
+		}
+	}
 
-	c.Check(meter.Values, DeepEquals, []float64{51200})
+	c.Check(n, Equals, 4)
 }

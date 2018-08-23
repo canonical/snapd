@@ -1,14 +1,14 @@
 summary: Check that install and refresh work with private snaps.
 
-# we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
-systems: [-ubuntu-core-*]
-
 details: |
     These tests rely on the existence of a snap in the remote store set to private.
 
     In order to do the full checks, it also needs the credentials of the owner of that
     snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD, if
     they are not present then only the negative check is performed.
+
+# we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
+systems: [-ubuntu-core-*]
 
 restore: |
     snap logout || true

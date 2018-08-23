@@ -1,12 +1,16 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
+
 prepare: |
-    snap pack $TESTSLIB/snaps/test-snapd-tools
-    snap install --dangerous test-snapd-tools_1.0_all.snap
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-tools
+
 restore: |
     rm -f *.snap
     rm -f *-vars.txt
+
 debug: |
     cat *-vars.txt
+
 execute: |
     echo "Collect SNAP and XDG environment variables"
     test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt
@@ -31,7 +35,13 @@ execute: |
     CTX=$(cat /var/lib/snapd/cookie/snap.test-snapd-tools)
     MATCH "^SNAP_COOKIE=$CTX"                                             < snap-vars.txt
     MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 12
+    # TODO parallel-install: install snap with instance key and verify variables
+    MATCH '^SNAP_INSTANCE_NAME=test-snapd-tools$'                         < snap-vars.txt
+    MATCH '^SNAP_INSTANCE_COMMON=/var/snap/test-snapd-tools/common$'      < snap-vars.txt
+    MATCH '^SNAP_INSTANCE_DATA=/var/snap/test-snapd-tools/x1$'            < snap-vars.txt
+    MATCH '^SNAP_INSTANCE_USER_COMMON=/root/snap/test-snapd-tools/common$' < snap-vars.txt
+    MATCH '^SNAP_INSTANCE_USER_DATA=/root/snap/test-snapd-tools/x1$'      < snap-vars.txt
+    test $(wc -l < snap-vars.txt) -eq 18
 
     echo "Enure that XDG environment variables are what we expect"
     MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt

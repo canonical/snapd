@@ -439,10 +439,13 @@ func (s *ValidateSuite) TestAppWhitelistWithVars(c *C) {
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "test'me"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar'baz"}}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar baz"}}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
@@ -1397,5 +1400,28 @@ func (s *validateSuite) TestValidatePlugSlotName(c *C) {
 		c.Assert(ValidatePlugName(name), ErrorMatches, `invalid plug name: ".*"`)
 		c.Assert(ValidateSlotName(name), ErrorMatches, `invalid slot name: ".*"`)
 		c.Assert(ValidateInterfaceName(name), ErrorMatches, `invalid interface name: ".*"`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateSnapInstanceNameBadSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo_bad
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap name: "foo_bad"`)
+}
+
+func (s *ValidateSuite) TestValidateSnapInstanceNameBadInstanceKey(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	for _, s := range []string{"toolonginstance", "ABCD", "_", "inst@nce", "012345678901"} {
+		info.InstanceKey = s
+		err = Validate(info)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid instance key: %q", s))
 	}
 }

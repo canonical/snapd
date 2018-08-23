@@ -18,5 +18,4 @@ execute: |
     if [ $err -ne 46 ]; then
        echo Wrong error code $err
     fi
-    [ "$output" = "$expected" ] || exit 1
-
+    [ "$output" = "$expected" ]

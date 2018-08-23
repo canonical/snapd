@@ -1,10 +1,13 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1597842
+
 details: |
     The snap execution environment is expected to contain the /usr/src
     directory from the classic distribution. Certain snaps may use that to
     access kernel sources.
+
 # This test only applies to classic systems
 systems: [-ubuntu-core-*, -fedora-*, -arch-*]
+
 prepare: |
     echo "Having installed the test snap"
     . "$TESTSLIB/snaps.sh"
@@ -14,9 +17,11 @@ prepare: |
     mv /usr/src /usr/src.orig || true
     mkdir -p /usr/src
     echo canary > /usr/src/.canary
+
 execute: |
     echo "The canary file in /usr/src can be read"
     [ "$(test-snapd-tools.cmd cat /usr/src/.canary)" = "canary" ]
+
 restore: |
     rm -f /usr/src/.canary
     rm -f -d /usr/src

@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.33.1
+Version:        2.35
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -194,13 +194,11 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snap
 %gobuild cmd/snapctl
 # build snap-exec and snap-update-ns completely static for base snaps
-CGO_ENABLED=0 %gobuild cmd/snap-exec
-# gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
-# FIXME: ^ this doesn't work yet, it's going to be fixed with another PR.
-%gobuild cmd/snap-update-ns
-
-# This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
-sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
+# NOTE: openSUSE's golang rpm helpers pass -buildmode=pie, but glibc is not
+# built with -fPIC so it'll blow up during linking, need to pass
+# -buildmode=default to override this
+%gobuild -buildmode=default -ldflags=-extldflags=-static cmd/snap-exec
+%gobuild -buildmode=default -ldflags=-extldflags=-static cmd/snap-update-ns
 # build snap-seccomp
 %gobuild cmd/snap-seccomp
 
@@ -363,6 +361,7 @@ fi
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
+%{_unitdir}/snapd.failure.service
 %if %{with apparmor}
 %{_unitdir}/snapd.apparmor.service
 %endif

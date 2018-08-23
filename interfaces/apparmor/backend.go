@@ -166,7 +166,7 @@ func (b *Backend) Initialize() error {
 	}
 
 	// We are not using apparmor.LoadProfile() because it uses other cache.
-	if err := loadProfile(profilePath, dirs.SystemApparmorCacheDir); err != nil {
+	if err := loadProfile(profilePath, dirs.SystemApparmorCacheDir, skipReadCache); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
@@ -342,22 +342,36 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
-	// NOTE: load all profiles instead of just the changed profiles.  We're
-	// relying on apparmor cache to make this efficient. This gives us
-	// certainty that each call to Setup ends up with working profiles.
-	all := make([]string, 0, len(content))
+	changed, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
+	// Find the set of unchanged profiles.
+	unchanged := make([]string, 0, len(content)-len(changed))
 	for name := range content {
-		all = append(all, name)
+		// changed is pre-sorted by EnsureDirStateGlobs
+		x := sort.SearchStrings(changed, name)
+		if x < len(changed) && changed[x] == name {
+			continue
+		}
+		unchanged = append(unchanged, name)
 	}
-	sort.Strings(all)
-	errReload := reloadProfiles(all, dir, cache)
+	sort.Strings(unchanged)
+	// Load all changed profiles with a flag that asks apparmor to skip reading
+	// the cache (since we know those changed for sure).  This allows us to
+	// work despite time being wrong (e.g. in the past). For more details see
+	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
+	errReloadChanged := reloadChangedProfiles(changed, dir, cache)
+	// Load all unchanged profiles anyway. This ensures those are correct in
+	// the kernel even if the files on disk were not changed. We rely on
+	// apparmor cache to make this performant.
+	errReloadOther := reloadProfiles(unchanged, dir, cache)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
-	if errReload != nil {
-		return errReload
+	if errReloadChanged != nil {
+		return errReloadChanged
+	}
+	if errReloadOther != nil {
+		return errReloadOther
 	}
 	return errUnload
 }
@@ -453,7 +467,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		// so the meaning of the template would change across kernel
 		// versions and we have not validated that the current template
 		// is operational on older kernels.
-		if cmp, _ := strutil.VersionCompare(release.KernelVersion(), "4.16"); cmp >= 0 && release.DistroLike("opensuse-tumbleweed") {
+		if cmp, _ := strutil.VersionCompare(osutil.KernelVersion(), "4.16"); cmp >= 0 && release.DistroLike("opensuse-tumbleweed") {
 			// As a special exception, for openSUSE Tumbleweed which ships Linux
 			// 4.16, do not downgrade the confinement template.
 		} else {
@@ -512,7 +526,17 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 
 func reloadProfiles(profiles []string, profileDir, cacheDir string) error {
 	for _, profile := range profiles {
-		err := loadProfile(filepath.Join(profileDir, profile), cacheDir)
+		err := loadProfile(filepath.Join(profileDir, profile), cacheDir, 0)
+		if err != nil {
+			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
+		}
+	}
+	return nil
+}
+
+func reloadChangedProfiles(profiles []string, profileDir, cacheDir string) error {
+	for _, profile := range profiles {
+		err := loadProfile(filepath.Join(profileDir, profile), cacheDir, skipReadCache)
 		if err != nil {
 			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
 		}
