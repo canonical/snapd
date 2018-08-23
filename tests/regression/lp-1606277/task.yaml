@@ -1,13 +1,16 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1606277 
+
 details: |
     A missing bind mount for /var/log prevents access to system log files
     even if the log-observe interface is being used.
+
 prepare: |
     . "$TESTSLIB/snaps.sh"
     echo "Having installed a test snap"
     install_local log-observe-consumer
     echo "And having connected the log-observe interface"
     snap connect log-observe-consumer:log-observe :log-observe
+
 execute: |
     echo "We can now see a non-empty /var/log directory"
     [ "$(log-observe-consumer.cmd ls /var/log | wc -l)" != 0 ]

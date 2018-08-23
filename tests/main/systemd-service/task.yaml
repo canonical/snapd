@@ -3,6 +3,9 @@ summary: Check that a service installed by a snap is reported as active by syste
 environment:
     SERVICE_NAME: snap.test-snapd-service.test-snapd-service.service
 
+restore: |
+    rm -f *.snap
+
 execute: |
     . "$TESTSLIB/snaps.sh"
 
@@ -15,6 +18,3 @@ execute: |
     echo "Then systemctl reports the status of the service as loaded, active and running"
     expected="(?s).*?Loaded: loaded .*?Active: active \(running\)"
     systemctl status $SERVICE_NAME | grep -Pqz "$expected"
-
-restore: |
-    rm -f *.snap
