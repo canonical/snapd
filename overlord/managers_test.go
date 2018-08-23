@@ -2425,7 +2425,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	// state of auto-connect task.
 	var retryCheck bool
 	var autoconnectLog string
-	for i := 0; i < 2000 && !retryCheck; i++ {
+	for i := 0; i < 50 && !retryCheck; i++ {
 		st.Unlock()
 		ms.o.Settle(aggressiveSettleTimeout)
 		st.Lock()
