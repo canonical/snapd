@@ -196,7 +196,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		// different, i.e. other bases will have to be sorted before
 		// the gadget.
 		if info.Base != model.Base() {
-			return nil, fmt.Errorf("cannot use gadget snap because base %q is different from model base %q", info.Base, model.Base())
+			return nil, fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
 		}
 
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
