@@ -64,7 +64,7 @@ execute: |
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
     . /etc/os-release
-    lxd.lxc launch ubuntu:${VERSION_ID} my-ubuntu
+    lxd.lxc launch "ubuntu:${VERSION_ID}" my-ubuntu
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
