@@ -50,11 +50,11 @@ apps:
   plugs: [adb-support]
 `
 
-const adbSupportCoreYaml = `name: core
+const adbSupportCoreYaml = `name: provider
 version: 0
-type: os
-slots:
-  adb-support:
+apps:
+ app:
+  slots: [adb-support]
 `
 
 func (s *adbSupportSuite) SetUpTest(c *C) {
@@ -83,16 +83,29 @@ func (s *adbSupportSuite) TestSanitizePlug(c *C) {
 
 func (s *adbSupportSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,")
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "/run/udev/data/c189:* r,")
+
+	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/udev/data/c189:* r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network inet stream,")
 }
 
 func (s *adbSupportSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "socket AF_INET SOCK_STREAM -")
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "bind")
+
+	spec = &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "socket AF_INET SOCK_STREAM -")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "connect")
 }
 
 func (s *adbSupportSuite) TestUDevSpec(c *C) {
@@ -116,11 +129,6 @@ func (s *adbSupportSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, false)
 	c.Assert(si.Summary, Equals, `allows access to connected USB devices for use with fastboot or adb`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "adb-support")
-}
-
-func (s *adbSupportSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *adbSupportSuite) TestInterfaces(c *C) {

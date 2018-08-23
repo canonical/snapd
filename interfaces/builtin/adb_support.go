@@ -25,6 +25,8 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 )
@@ -122,30 +124,54 @@ var adbSupportVendorList = map[int]string{
 	0xE040: "VIZIO",
 }
 
-var adbSupportConnectedPlugAppArmor = `
-# Description: Allow access to all adb USB devices
-# Allow all usb devices here and rely on the device cgroup for mediation
+var adbSupportPermanentSlotAppArmor = `
+# Allow adb (server) to access all usb devices and rely on the device cgroup for mediation.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
 # Allow access to udev meta-data about character devices with major number 189
 # as per https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
-# those describe "USB serial converters - alternate devices". This is what I
-# get after plugging in a derivative of Android to my system.
+# those describe "USB serial converters - alternate devices".
+# This is what I get after plugging in a derivative of Android to my system.
 /run/udev/data/c189:* r,
+
+# Allow reading the serial number of all the USB devices.
+/sys/devices/**/usb*/*/serial r,
+
+# Allow adb (server) to use TCP/IP networking.
+network inet stream,
+`
+
+var adbSupportPermanentSlotSecComp = `
+accept
+accept4
+bind
+listen
+socket AF_INET SOCK_STREAM -
+`
+
+var adbSupportConnectedPlugAppArmor = `
+# Allow adb (client) to use TCP/IP networking.
+network inet stream,
+`
+
+var adbSupportConnectedPlugSecComp = `
+socket AF_INET SOCK_STREAM -
+connect
 `
 
 type adbSupportInterface struct {
 	commonInterface
+	sortedVendorIDs []int
 }
 
-// vendorIDs returns a sorted list of vendor IDs supported by adb-support interface.
-func (iface *adbSupportInterface) vendorIDs() []int {
-	vendorIDs := make([]int, 0, len(adbSupportVendorList))
-	for vendorID := range adbSupportVendorList {
-		vendorIDs = append(vendorIDs, vendorID)
-	}
-	sort.Ints(vendorIDs)
-	return vendorIDs
+func (iface *adbSupportInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(adbSupportPermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *adbSupportInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(adbSupportPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *adbSupportInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
@@ -167,11 +193,25 @@ func (iface *adbSupportInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	return nil
 }
 
+// vendorIDs returns a sorted list of vendor IDs supported by adb-support interface.
+func (iface *adbSupportInterface) vendorIDs() []int {
+	if iface.sortedVendorIDs == nil {
+		vendorIDs := make([]int, 0, len(adbSupportVendorList))
+		for vendorID := range adbSupportVendorList {
+			vendorIDs = append(vendorIDs, vendorID)
+		}
+		sort.Ints(vendorIDs)
+		iface.sortedVendorIDs = vendorIDs
+	}
+	return iface.sortedVendorIDs
+}
+
 func init() {
-	registerIface(&adbSupportInterface{commonInterface{
+	registerIface(&adbSupportInterface{commonInterface: commonInterface{
 		name:                  "adb-support",
 		summary:               adbSupportSummary,
 		baseDeclarationSlots:  adbSupportBaseDeclarationSlots,
 		connectedPlugAppArmor: adbSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:  adbSupportConnectedPlugSecComp,
 	}})
 }
