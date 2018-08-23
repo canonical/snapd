@@ -21,8 +21,14 @@ execute: |
     echo "Sideload the regular snap"
     snap install --dangerous "$path"
 
+    devmode=
+    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        # TODO prallel-install: disable devmode once AppArmor profile updates are in
+        devmode=--devmode
+    fi
+
     echo "Sideload the parallel installed snap"
-    snap install --dangerous --name test-snapd-layout_foo "$path"
+    snap install --dangerous $devmode --name test-snapd-layout_foo "$path"
 
     for name in test-snapd-layout test-snapd-layout_foo; do
         # workaround trespassing bug
