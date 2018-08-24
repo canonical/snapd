@@ -100,6 +100,9 @@ func Run(tr Conf) error {
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
+	if err := validateRefreshRateLimit(tr); err != nil {
+		return err
+	}
 	if err := validateExperimentalSettings(tr); err != nil {
 		return err
 	}
