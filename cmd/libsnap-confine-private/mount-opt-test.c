@@ -281,12 +281,42 @@ static bool missing_mount(struct sc_fault_state *state, void *ptr)
 	return true;
 }
 
-static void test_sc_do_optional_mount(void)
+static void test_sc_do_optional_mount_missing(void)
 {
 	sc_break("mount", missing_mount);
 	bool ok = sc_do_optional_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
 	g_assert_false(ok);
 	sc_reset_faults();
+}
+
+static void test_sc_do_optional_mount_failure(gconstpointer snap_debug)
+{
+	if (g_test_subprocess()) {
+		sc_break("mount", broken_mount);
+		if (GPOINTER_TO_INT(snap_debug) == 1) {
+			g_setenv("SNAP_CONFINE_DEBUG", "1", true);
+		}
+		(void)sc_do_optional_mount("/foo", "/bar", "ext4", MS_RDONLY,
+					   NULL);
+
+		g_test_message("expected sc_do_mount not to return");
+		sc_reset_faults();
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	if (GPOINTER_TO_INT(snap_debug) == 0) {
+		g_test_trap_assert_stderr
+		    ("cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
+	} else {
+		/* with snap_debug the debug output hides the actual mount commands *but*
+		 * they are still shown if there was an error
+		 */
+		g_test_trap_assert_stderr
+		    ("DEBUG: performing operation: (disabled) use debug build to see details\n"
+		     "cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
+	}
 }
 
 static void __attribute__ ((constructor)) init(void)
@@ -302,6 +332,12 @@ static void __attribute__ ((constructor)) init(void)
 			     GINT_TO_POINTER(1), test_sc_do_mount);
 	g_test_add_data_func("/mount/sc_do_umount_with_debug",
 			     GINT_TO_POINTER(1), test_sc_do_umount);
-	g_test_add_func("/mount/sc_do_optional_mount",
-			test_sc_do_optional_mount);
+	g_test_add_func("/mount/sc_do_optional_mount_missing",
+			test_sc_do_optional_mount_missing);
+	g_test_add_data_func("/mount/sc_do_optional_mount_failure",
+			     GINT_TO_POINTER(0),
+			     test_sc_do_optional_mount_failure);
+	g_test_add_data_func("/mount/sc_do_optional_mount_failure_with_debug",
+			     GINT_TO_POINTER(1),
+			     test_sc_do_optional_mount_failure);
 }
