@@ -70,14 +70,14 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-type rateLimitKey string
+type rateLimitKey struct{}
 
-func ContextWithRateLimit(ctx context.Context, rate float64) context.Context {
-	return context.WithValue(ctx, rateLimitKey("rate"), rate)
+func ContextWithRateLimit(ctx context.Context, rate int64) context.Context {
+	return context.WithValue(ctx, rateLimitKey{}, rate)
 }
 
-func GetRateLimit(ctx context.Context) float64 {
-	if val, ok := ctx.Value(rateLimitKey("rate")).(float64); ok {
+func RateLimit(ctx context.Context) int64 {
+	if val, ok := ctx.Value(rateLimitKey{}).(int64); ok {
 		return val
 	}
 	return 0
@@ -1535,8 +1535,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		mw := io.MultiWriter(w, h, pbar)
 		var limiter io.Reader
 		limiter = resp.Body
-		if limit := GetRateLimit(ctx); limit > 0 {
-			bucket := ratelimit.NewBucketWithRate(limit, 2*int64(limit))
+		if limit := RateLimit(ctx); limit > 0 {
+			bucket := ratelimit.NewBucketWithRate(float64(limit), 2*limit)
 			limiter = ratelimit.Reader(resp.Body, bucket)
 		}
 		_, finalErr = io.Copy(mw, limiter)
