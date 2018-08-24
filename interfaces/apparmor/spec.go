@@ -180,6 +180,7 @@ func (spec *Specification) AddParallelInstanceMapping(si *snap.Info) {
 	fmt.Fprintf(&buf, "  mount options=(rw rbind) /var/snap/%s/ -> /var/snap/%s/,\n", si.InstanceName(), si.SnapName())
 	// /home/joe/snap/foo_bar -> /home/joe/snap/foo
 	// workaround https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/1612393
+	fmt.Fprintf(&buf, "  # workaround https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/1612393\n")
 	fmt.Fprintf(&buf, "  mount options=(rw rbind) /home/*/snap/%s/ -> /home/*/snap/%s/,\n", si.InstanceName(), si.SnapName())
 	fmt.Fprintf(&buf, "  mount options=(rw rbind) /root/snap/%s/ -> /root/snap/%s/,\n", si.InstanceName(), si.SnapName())
 	spec.AddUpdateNS(buf.String())

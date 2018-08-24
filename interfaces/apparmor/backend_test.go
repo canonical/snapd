@@ -1344,6 +1344,7 @@ apps:
   # Allow parallel instance snap mount namespace adjustments
   mount options=(rw rbind) /snap/some-snap_instance/ -> /snap/some-snap/,
   mount options=(rw rbind) /var/snap/some-snap_instance/ -> /var/snap/some-snap/,
+  # workaround https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/1612393
   mount options=(rw rbind) /home/*/snap/some-snap_instance/ -> /home/*/snap/some-snap/,
   mount options=(rw rbind) /root/snap/some-snap_instance/ -> /root/snap/some-snap/,
 `)
