@@ -111,7 +111,6 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 			if err == nil {
 				info.SnapID = si.SnapID
 				info.Revision = si.Revision
-				info.Channel = opts.Channel
 			}
 		}
 	}
@@ -121,10 +120,39 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	}, nil
 }
 
+func validateNoParallelSnapInstances(snaps []string) error {
+	for _, snapName := range snaps {
+		_, instanceKey := snap.SplitInstanceName(snapName)
+		if instanceKey != "" {
+			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
+		}
+	}
+	return nil
+}
+
+// validateNonLocalSnaps raises an error when snaps that would be pulled from
+// the store use an instance key in their names
+func validateNonLocalSnaps(snaps []string) error {
+	nonLocalSnaps := make([]string, 0, len(snaps))
+	for _, snapName := range snaps {
+		if !strings.HasSuffix(snapName, ".snap") {
+			nonLocalSnaps = append(nonLocalSnaps, snapName)
+		}
+	}
+	return validateNoParallelSnapInstances(nonLocalSnaps)
+}
+
 func Prepare(opts *Options) error {
 	model, err := decodeModelAssertion(opts)
 	if err != nil {
 		return err
+	}
+
+	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
+		return err
+	}
+	if _, err := snap.ParseChannel(opts.Channel, ""); err != nil {
+		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
 	// TODO: might make sense to support this later
@@ -136,8 +164,6 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
-
-	// TODO parallel-install: parallel installs should be blocked for now
 
 	local, err := localSnaps(tsto, opts)
 	if err != nil {
@@ -183,6 +209,12 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		}
 	}
 
+	modelSnaps := modela.RequiredSnaps()
+	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget(), modela.Base())
+	if err := validateNoParallelSnapInstances(modelSnaps); err != nil {
+		return nil, err
+	}
+
 	return modela, nil
 }
 
@@ -194,6 +226,13 @@ func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Option
 	dlOpts := &DownloadOptions{
 		TargetDir: opts.GadgetUnpackDir,
 		Channel:   opts.Channel,
+	}
+	if model.GadgetTrack() != "" {
+		gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+		if err != nil {
+			return err
+		}
+		dlOpts.Channel = gch
 	}
 	snapFn, _, err := acquireSnap(tsto, model.Gadget(), dlOpts, local)
 	if err != nil {
@@ -263,6 +302,22 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
+func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use track %q for %s from model assertion", track, what)
+	mch, err := snap.ParseChannel(track, "")
+	if err != nil {
+		return "", fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	if defaultChannel != "" {
+		dch, err := snap.ParseChannel(defaultChannel, "")
+		if err != nil {
+			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
+		}
+		mch.Risk = dch.Risk
+	}
+	return mch.Clean().String(), nil
+}
+
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -302,11 +357,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dlOpts := &DownloadOptions{
-		TargetDir: snapSeedDir,
-		Channel:   opts.Channel,
-	}
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
@@ -322,6 +372,16 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
 		snaps = append(snaps, "snapd")
+		// TODO: once we order snaps by what they need this
+		//       can go aways
+		// Here we ensure that "core" is seeded very early
+		// when bases are in use. This fixes the issue
+		// that when people use model assertions with
+		// required snaps like bluez which at this point
+		// still requires core will hang forever in seeding.
+		if strutil.ListContains(opts.Snaps, "core") {
+			snaps = append(snaps, "core")
+		}
 	}
 	// core/base,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(baseName))
@@ -348,6 +408,26 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
 		} else {
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+		}
+
+		snapChannel := opts.Channel
+		if name == model.Kernel() && model.KernelTrack() != "" {
+			kch, err := makeChannelFromTrack("kernel", model.KernelTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			snapChannel = kch
+		}
+		if name == model.Gadget() && model.GadgetTrack() != "" {
+			gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			snapChannel = gch
+		}
+		dlOpts := &DownloadOptions{
+			TargetDir: snapSeedDir,
+			Channel:   snapChannel,
 		}
 
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
@@ -380,6 +460,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			}
 		} else {
 			locals = append(locals, name)
+			// local snaps have no channel
+			snapChannel = ""
 		}
 
 		// kernel/os/model.base are required for booting
@@ -403,7 +485,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
-			Channel: info.Channel,
+			Channel: snapChannel,
 			File:    filepath.Base(fn),
 			DevMode: info.NeedsDevMode(),
 			Contact: info.Contact,

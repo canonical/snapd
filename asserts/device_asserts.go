@@ -24,6 +24,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Model holds a model assertion, which is a statement by a brand
@@ -71,14 +73,40 @@ func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
 }
 
+// snapWithTrack represents a snap that includes optional track
+// information like `snapName=trackName`
+type snapWithTrack string
+
+func (s snapWithTrack) Snap() string {
+	return strings.SplitN(string(s), "=", 2)[0]
+}
+
+func (s snapWithTrack) Track() string {
+	l := strings.SplitN(string(s), "=", 2)
+	if len(l) > 1 {
+		return l[1]
+	}
+	return ""
+}
+
 // Gadget returns the gadget snap the model uses.
 func (mod *Model) Gadget() string {
-	return mod.HeaderString("gadget")
+	return snapWithTrack(mod.HeaderString("gadget")).Snap()
+}
+
+// GadgetTrack returns the gadget track the model uses.
+func (mod *Model) GadgetTrack() string {
+	return snapWithTrack(mod.HeaderString("gadget")).Track()
 }
 
 // Kernel returns the kernel snap the model uses.
 func (mod *Model) Kernel() string {
-	return mod.HeaderString("kernel")
+	return snapWithTrack(mod.HeaderString("kernel")).Snap()
+}
+
+// KernelTrack returns the kernel track the model uses.
+func (mod *Model) KernelTrack() string {
+	return snapWithTrack(mod.HeaderString("kernel")).Track()
 }
 
 // Base returns the base snap the model uses.
@@ -118,11 +146,36 @@ var _ consistencyChecker = (*Model)(nil)
 // limit model to only lowercase for now
 var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
+func checkSnapWithTrackHeader(header string, headers map[string]interface{}) error {
+	_, ok := headers[header]
+	if !ok {
+		return nil
+	}
+	value, ok := headers[header].(string)
+	if !ok {
+		return fmt.Errorf(`%q header must be a string`, header)
+	}
+	l := strings.SplitN(value, "=", 2)
+	if len(l) == 1 {
+		return nil
+	}
+	track := l[1]
+	if strings.Count(track, "/") != 0 {
+		return fmt.Errorf(`%q channel selector must be a track name only`, header)
+	}
+	channelRisks := []string{"stable", "candidate", "beta", "edge"}
+	if strutil.ListContains(channelRisks, track) {
+		return fmt.Errorf(`%q channel selector must be a track name`, header)
+	}
+	return nil
+}
+
 func checkModel(headers map[string]interface{}) (string, error) {
 	s, err := checkStringMatches(headers, "model", validModel)
 	if err != nil {
 		return "", err
 	}
+
 	// TODO: support the concept of case insensitive/preserving string headers
 	if strings.ToLower(s) != s {
 		return "", fmt.Errorf(`"model" header cannot contain uppercase letters`)
@@ -201,6 +254,14 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, err := checker(assert.headers, h); err != nil {
 			return nil, err
 		}
+	}
+
+	// kernel/gadget can have (optional) tracks - validate those
+	if err := checkSnapWithTrackHeader("kernel", assert.headers); err != nil {
+		return nil, err
+	}
+	if err := checkSnapWithTrackHeader("gadget", assert.headers); err != nil {
+		return nil, err
 	}
 
 	// store is optional but must be a string, defaults to the ubuntu store

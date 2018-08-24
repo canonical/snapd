@@ -1,0 +1,9 @@
+name: test-snapd-joystick
+version: 1.0
+summary: Basic joystick snap
+description: A basic snap which allows reading and writing to joystick devices
+
+apps:
+  sh:
+    command: bin/sh
+    plugs: [joystick]

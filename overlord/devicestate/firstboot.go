@@ -41,7 +41,7 @@ import (
 
 var errNothingToDo = errors.New("nothing to do")
 
-func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, error) {
+func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Classic {
 		flags.Classic = true
 	}
@@ -57,17 +57,17 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 	} else {
 		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
 		if asserts.IsNotFound(err) {
-			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+			return nil, nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		sideInfo = *si
 		sideInfo.Private = sn.Private
 		sideInfo.Contact = sn.Contact
 	}
 
-	return snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
+	return snapstate.InstallPath(st, &sideInfo, path, "", sn.Channel, flags)
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
@@ -139,7 +139,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if seedSnap == nil {
 			return fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
+		ts, _, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
 		if err != nil {
 			return err
 		}
@@ -150,31 +150,37 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		alreadySeeded[snapName] = true
 		return nil
 	}
+
+	last := -1
 	// if there are snaps to seed, core/base needs to be seeded too
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" {
-			if err := installSeedEssential("snapd", -1); err != nil {
+			if err := installSeedEssential("snapd", last); err != nil {
 				return nil, err
 			}
+			last++
 		}
-		if err := installSeedEssential(baseSnap, -1); err != nil {
+		if err := installSeedEssential(baseSnap, last); err != nil {
 			return nil, err
 		}
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" if where the system config lives.
 		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
+		last++
 	}
 
-	last := 0
+	lastConf := 0
 	if kernelName := model.Kernel(); kernelName != "" {
 		if err := installSeedEssential(kernelName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[last])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		lastConf++
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
@@ -182,16 +188,23 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
-		configTs.WaitAll(configTss[last])
+		// wait for the previous configTss
+		configTs.WaitAll(configTss[lastConf])
 		configTss = append(configTss, configTs)
 		last++
+		//If we use lastConf again we need to enable this. It is
+		//commented out because go vet complains about an ineffectual
+		// assignment.
+		//lastConf++
 	}
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
-	configTss[0].WaitAll(tsAll[last])
-	tsAll = append(tsAll, configTss...)
-	last += len(configTss)
+	if len(configTss) > 0 {
+		configTss[0].WaitAll(tsAll[last])
+		tsAll = append(tsAll, configTss...)
+		last += len(configTss)
+	}
 
 	for _, sn := range seed.Snaps {
 		if alreadySeeded[sn.Name] {
@@ -203,11 +216,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			flags.Required = true
 		}
 
-		ts, err := installSeedSnap(st, sn, flags)
+		ts, _, err := installSeedSnap(st, sn, flags)
 		if err != nil {
 			return nil, err
 		}
-
 		ts.WaitAll(tsAll[last])
 		tsAll = append(tsAll, ts)
 		last++

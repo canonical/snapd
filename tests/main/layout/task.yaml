@@ -1,21 +1,28 @@
 summary: Ensure that snap layouts are applied
+
 details: |
     This test installs a test snap that uses layout declarations.
     The layout changes which directories and files exist in the filesystem
     in the area beyond the $SNAP directory. In addition all applications and
     hooks get permissions to access those areas.
+
 prepare: |
     echo "Ensure feature flag is enabled"
     snap set core experimental.layouts=true
-    . $TESTSLIB/snaps.sh
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-layout
+
 debug: |
     ls -ld /etc || :
     ls -ld /etc/demo || :
     ls -ld /etc/demo.conf || :
     ls -ld /etc/demo.cfg || :
+
 execute: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     for i in $(seq 2); do
         if [ "$i" -eq 2 ]; then
             echo "The snap works across refreshes"
@@ -30,6 +37,7 @@ execute: |
         test-snapd-layout.sh -c "test -d /etc/demo"
         test-snapd-layout.sh -c "test -f /etc/demo.conf"
         test-snapd-layout.sh -c "test -h /etc/demo.cfg"
+        #shellcheck disable=SC2016
         test "$(test-snapd-layout.sh -c "readlink /etc/demo.cfg")" = "$(test-snapd-layout.sh -c 'echo $SNAP_COMMON/etc/demo.conf')"
         test-snapd-layout.sh -c "test -d /usr/share/demo"
         test-snapd-layout.sh -c "test -d /var/lib/demo"
@@ -57,19 +65,24 @@ execute: |
         echo "and the writes go to the right place in the backing store"
 
         test-snapd-layout.sh -c "echo foo-1 > /etc/demo/writable"
+        #shellcheck disable=SC2016
         test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo/writable')" = "foo-1"
 
         test-snapd-layout.sh -c "echo foo-2 > /etc/demo.conf"
+        #shellcheck disable=SC2016
         test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo.conf')" = "foo-2"
 
         # NOTE: this is a symlink to demo.conf, effectively
         test-snapd-layout.sh -c "echo foo-3 > /etc/demo.cfg"
+        #shellcheck disable=SC2016
         test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo.conf')" = "foo-3"
 
         test-snapd-layout.sh -c "echo foo-4 > /var/lib/demo/writable"
+        #shellcheck disable=SC2016
         test "$(test-snapd-layout.sh -c 'cat $SNAP_DATA/var/lib/demo/writable')" = "foo-4"
 
         test-snapd-layout.sh -c "echo foo-5 > /var/cache/demo/writable"
+        #shellcheck disable=SC2016
         test "$(test-snapd-layout.sh -c 'cat $SNAP_DATA/var/cache/demo/writable')" = "foo-5"
 
         echo "layout locations pointing to SNAP are readable"
@@ -78,6 +91,12 @@ execute: |
         test-snapd-layout.sh -c "test -r /opt/demo/file"
 
         echo "layout locations in dynamically created SNAP directories are writable"
+        # shellcheck disable=SC2016
         test-snapd-layout.sh -c 'test -w $SNAP/bin/very/weird/place'
         test-snapd-layout.sh -c 'test -w /bin/very/weird/place'
     done
+
+restore:
+    # cleanup after the trespassing bug, see: https://github.com/snapcore/snapd/pull/4889
+    # TODO: remove this once the problem is addressed
+    rm -rf /etc/demo /etc/demo.conf /etc/demo.cfg

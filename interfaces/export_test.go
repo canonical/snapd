@@ -73,7 +73,9 @@ func (c BySlotInfo) Len() int           { return bySlotInfo(c).Len() }
 func (c BySlotInfo) Swap(i, j int)      { bySlotInfo(c).Swap(i, j) }
 func (c BySlotInfo) Less(i, j int) bool { return bySlotInfo(c).Less(i, j) }
 
-var CopyAttributes = copyAttributes
+var (
+	FindSnapdPath = findSnapdPath
+)
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
 func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
@@ -81,5 +83,14 @@ func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
 	isHomeUsingNFS = new
 	return func() {
 		isHomeUsingNFS = old
+	}
+}
+
+// MockOsReadlink mocks the real implementation of os.Readlink
+func MockOsReadlink(new func(string) (string, error)) (restore func()) {
+	old := osReadlink
+	osReadlink = new
+	return func() {
+		osReadlink = old
 	}
 }

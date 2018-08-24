@@ -24,10 +24,9 @@ execute: |
     tr -s "\n " " " < error.log | MATCH 'contact developer'
 
     echo "And the journal counts the ways"
-    get_journalctl_log -u snapd > journal.log
-    MATCH '"comp.sh" should be world-readable' < journal.log
-    MATCH '"bin/bar" should be executable' < journal.log
-    MATCH '"bin/foo" should be world-readable and executable' < journal.log
-    MATCH '"meta/unreadable" should be world-readable' < journal.log
-    MATCH '"meta/hooks/what" should be executable' < journal.log
-    MATCH '"bin/stahp" does not exist' < journal.log
+    check_journalctl_log '"comp.sh" should be world-readable' -u snapd
+    check_journalctl_log '"bin/bar" should be executable' -u snapd
+    check_journalctl_log '"bin/foo" should be world-readable and executable' -u snapd
+    check_journalctl_log '"meta/unreadable" should be world-readable' -u snapd
+    check_journalctl_log '"meta/hooks/what" should be executable' -u snapd
+    check_journalctl_log '"bin/stahp" does not exist' -u snapd

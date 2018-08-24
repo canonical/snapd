@@ -77,7 +77,8 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	return &Info{SideInfo: SideInfo{RealName: name, Revision: revision}}
+	storeName, instanceKey := SplitInstanceName(name)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
@@ -114,6 +115,48 @@ func HookSecurityTag(snapName, hookName string) string {
 // are not associated to an app or hook in the snap.
 func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
+}
+
+// DataDir returns the data directory for given snap name. The name can be
+// either a snap name or snap instance name.
+func DataDir(name string, revision Revision) string {
+	return filepath.Join(dirs.SnapDataDir, name, revision.String())
+}
+
+// CommonDataDir returns the common data directory for given snap name. The name
+// can be either a snap name or snap instance name.
+func CommonDataDir(name string) string {
+	return filepath.Join(dirs.SnapDataDir, name, "common")
+}
+
+// HooksDir returns the directory containing the snap's hooks for given snap
+// name. The name can be either a snap name or snap instance name.
+func HooksDir(name string, revision Revision) string {
+	return filepath.Join(MountDir(name, revision), "meta", "hooks")
+}
+
+// UserDataDir returns the user-specific data directory for given snap name. The
+// name can be either a snap name or snap instance name.
+func UserDataDir(home string, name string, revision Revision) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name, revision.String())
+}
+
+// UserCommonDataDir returns the user-specific common data directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserCommonDataDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
+}
+
+// UserSnapDir returns the user-specific directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserSnapDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name)
+}
+
+// UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
+// given snap name. The name can be either a snap name or snap instance name.
+func UserXdgRuntimeDir(euid sys.UserID, name string) string {
+	return filepath.Join(dirs.XdgRuntimeDirBase, fmt.Sprintf("%d/snap.%s", euid, name))
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -206,6 +249,7 @@ type StoreAccount struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display-name"`
+	Validation  string `json:"validation,omitempty"`
 }
 
 // Layout describes a single element of the layout section.
@@ -264,11 +308,11 @@ type ChannelSnapInfo struct {
 // InstanceName returns the blessed name of the snap decorated with instance
 // key, if any.
 func (s *Info) InstanceName() string {
-	return InstanceName(s.StoreName(), s.InstanceKey)
+	return InstanceName(s.SnapName(), s.InstanceKey)
 }
 
-// StoreName returns the global blessed name of the snap.
-func (s *Info) StoreName() string {
+// SnapName returns the global blessed name of the snap.
+func (s *Info) SnapName() string {
 	if s.RealName != "" {
 		return s.RealName
 	}
@@ -311,27 +355,27 @@ func (s *Info) MountFile() string {
 
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
-	return filepath.Join(s.MountDir(), "meta", "hooks")
+	return HooksDir(s.InstanceName(), s.Revision)
 }
 
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.InstanceName(), s.Revision.String())
+	return DataDir(s.InstanceName(), s.Revision)
 }
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, s.InstanceName(), s.Revision.String())
+	return UserDataDir(home, s.InstanceName(), s.Revision)
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, s.InstanceName(), "common")
+	return UserCommonDataDir(home, s.InstanceName())
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.InstanceName(), "common")
+	return CommonDataDir(s.InstanceName())
 }
 
 // DataHomeDir returns the per user data directory of the snap.
@@ -346,7 +390,7 @@ func (s *Info) CommonDataHomeDir() string {
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
 func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
-	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.InstanceName()))
+	return UserXdgRuntimeDir(euid, s.InstanceName())
 }
 
 // XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
@@ -411,6 +455,14 @@ func (s *Info) InstallDate() time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// IsActive returns whether this snap revision is active.
+func (s *Info) IsActive() bool {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	return err == nil && tag == rev
 }
 
 // BadInterfacesSummary returns a summary of the problems of bad plugs
@@ -639,6 +691,7 @@ type AppInfo struct {
 	Name          string
 	LegacyAliases []string // FIXME: eventually drop this
 	Command       string
+	CommandChain  []string
 	CommonID      string
 
 	Daemon          string
@@ -687,6 +740,8 @@ type HookInfo struct {
 	Name  string
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment strutil.OrderedMap
 }
 
 // File returns the path to the *.socket file
@@ -730,9 +785,8 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	// TODO parallel-install: use of proper instance/store name
-	if app.Name == app.Snap.InstanceName() {
-		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	if app.Name == app.Snap.SnapName() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Snap.InstanceName())
 	}
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
 }
@@ -795,7 +849,12 @@ func (hook *HookInfo) SecurityTag() string {
 
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
-	return envFromMap(hook.Snap.Environment.Copy())
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hook.Environment.Keys() {
+		hookEnv.Set(k, hook.Environment.Get(k))
+	}
+
+	return envFromMap(hookEnv)
 }
 
 func envFromMap(envMap *strutil.OrderedMap) []string {
@@ -904,6 +963,9 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	return info, nil
 }
 
@@ -972,7 +1034,7 @@ func InstallDate(name string) time.Time {
 func SplitSnapApp(snapApp string) (snap, app string) {
 	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
-		return l[0], l[0]
+		return l[0], InstanceSnap(l[0])
 	}
 	return l[0], l[1]
 }
@@ -981,52 +1043,52 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 // `snap` and the `app` part. It also deals with the special
 // case of snapName == appName.
 func JoinSnapApp(snap, app string) string {
-	if snap == app {
-		return app
+	storeName, instanceKey := SplitInstanceName(snap)
+	if storeName == app {
+		return InstanceName(app, instanceKey)
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
 }
 
-// UseNick returns the nickname for given snap name. If there is none, returns
-// the original name.
-func UseNick(snapName string) string {
-	if snapName == "core" {
-		return "system"
+// InstanceSnap splits the instance name and returns the name of the snap.
+func InstanceSnap(instanceName string) string {
+	snapName, _ := SplitInstanceName(instanceName)
+	return snapName
+}
+
+// SplitInstanceName splits the instance name and returns the snap name and the
+// instance key.
+func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
+	split := strings.SplitN(instanceName, "_", 2)
+	snapName = split[0]
+	if len(split) > 1 {
+		instanceKey = split[1]
+	}
+	return snapName, instanceKey
+}
+
+// InstanceName takes the snap name and the instance key and returns an instance
+// name of the snap.
+func InstanceName(snapName, instanceKey string) string {
+	if instanceKey != "" {
+		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
 	return snapName
 }
 
-// DropNick returns the snap name for given nickname. If there is none, returns
-// the original name.
-func DropNick(nick string) string {
-	if nick == "system" {
-		return "core"
-	}
-	return nick
-}
+// ByType sorts the given slice of snap info by types. The most
+// important types will come first. The "snapd" snap is handled
+// as well.
+type ByType []*Info
 
-// StoreName splits the instance name and returns the store name of the snap.
-func StoreName(instanceName string) string {
-	storeName, _ := SplitInstanceName(instanceName)
-	return storeName
-}
-
-// SplitInstanceName splits the instance name and returns the store name and the
-// instance key.
-func SplitInstanceName(instanceName string) (storeName, instanceKey string) {
-	split := strings.SplitN(instanceName, "_", 2)
-	storeName = split[0]
-	if len(split) > 1 {
-		instanceKey = split[1]
+func (r ByType) Len() int      { return len(r) }
+func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r ByType) Less(i, j int) bool {
+	if r[i].SideInfo.RealName == "snapd" {
+		return true
 	}
-	return storeName, instanceKey
-}
-
-// InstanceName takes the store name and the instance key and returns an instance
-// name of the snap.
-func InstanceName(storeName, instanceKey string) string {
-	if instanceKey != "" {
-		return fmt.Sprintf("%s_%s", storeName, instanceKey)
+	if r[j].SideInfo.RealName == "snapd" {
+		return false
 	}
-	return storeName
+	return typeOrder[r[i].Type] < typeOrder[r[j].Type]
 }

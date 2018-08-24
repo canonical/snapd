@@ -13,17 +13,21 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
-    echo "Ensure we have a working goa-daemon"
-    distro_install_package gnome-online-accounts
     snap install --edge test-snapd-accounts-service
     mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
+    # this will also kill the "gdbus monitor" command
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
     rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+    # usually not needed, this should die when dbus goes down
+    kill "$(cat gdbus-monitor.pid)" || true
+
+debug: |
+    cat gdbus.log || true
 
 execute: |
     echo "Ensure things run"
@@ -31,6 +35,9 @@ execute: |
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
     eval "$(printf password|gnome-keyring-daemon --login)"
     eval "$(gnome-keyring-daemon --start)"
+    # add debug
+    gdbus monitor --session --dest org.gnome.OnlineAccounts >gdbus.log 2>&1 &
+    echo "$!" > gdbus-monitor.pid
 
     echo "Creating account"
     # We set a long timeout here because goa-daemon will be activated

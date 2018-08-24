@@ -20,13 +20,13 @@ restore: |
     rm -f call.error
 
 execute: |
-    if [ ! -d /dev/input/by-path/ ]; then
+    if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
             # ensure the test runs at least on this spread system
             echo "No /dev/input/by-path but this test cannot be skipped on ubuntu-16.04-64"
             exit 1
         fi
-        echo "SKIP: no /dev/input/by-path"
+        echo "SKIP: no /dev/input/by-path or keyboard input detected"
         exit 0
     fi
 
@@ -50,7 +50,7 @@ execute: |
 
     echo "When the mir plug is disconnected"
     snap disconnect test-snapd-udev-input-subsystem:mir-plug test-snapd-udev-input-subsystem:mir-slot
-    snap interfaces -i mir | MATCH "\- +test-snapd-udev-input-subsystem:mir-plug"
+    snap interfaces -i mir | MATCH -- '- +test-snapd-udev-input-subsystem:mir-plug'
 
     echo "The snap's plug still cannot access an evdev keyboard"
     if test-snapd-udev-input-subsystem.plug 2>"${PWD}"/call.error; then
@@ -61,7 +61,7 @@ execute: |
     MATCH "Permission denied" < call.error
 
     echo "When the time-control plug is disconnected"
-    snap interfaces -i time-control | MATCH ":time-control +\-"
+    snap interfaces -i time-control | MATCH ':time-control +-'
 
     echo "The snap's time-control plug cannot access an evdev keyboard when disconnected"
     if test-snapd-udev-input-subsystem.plug-with-time-control 2>"${PWD}"/call.error; then
