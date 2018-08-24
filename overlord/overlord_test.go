@@ -163,7 +163,7 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 
 	var sublevel int
 	c.Assert(state.Get("patch-sublevel", &sublevel), IsNil)
-	c.Check(sublevel, Equals, 2)
+	c.Check(sublevel, Equals, 1)
 
 	var b bool
 	err = state.Get("patched", &b)
