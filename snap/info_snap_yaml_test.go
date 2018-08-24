@@ -1757,11 +1757,16 @@ func (s *YamlSuite) TestSnapYamlCommandChain(c *C) {
 version: 42
 apps:
  foo:
-   command: bin/foo
-   command-chain: [chain1, chain2]
+  command: bin/foo
+  command-chain: [chain1, chain2]
+hooks:
+ configure:
+  command-chain: [hookchain1, hookchain2]
 `)
 	info, err := snap.InfoFromSnapYaml(yAutostart)
 	c.Assert(err, IsNil)
 	app := info.Apps["foo"]
 	c.Check(app.CommandChain, DeepEquals, []string{"chain1", "chain2"})
+	hook := info.Hooks["configure"]
+	c.Check(hook.CommandChain, DeepEquals, []string{"hookchain1", "hookchain2"})
 }
