@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -81,7 +80,6 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
-	udevMon   udevmonitor.Interface
 }
 
 var storeNew = store.New
@@ -163,19 +161,6 @@ func New() (*Overlord, error) {
 	}
 
 	return o, nil
-}
-
-func (o *Overlord) EnableHotplug() error {
-	udevMon := udevmonitor.CreateUDevMonitor(o.ifaceMgr.HotplugDeviceAdded, o.ifaceMgr.HotplugDeviceRemoved)
-	if err := udevMon.Connect(); err != nil {
-		return err
-	}
-	if err := udevMon.Run(); err != nil {
-		udevMon.Disconnect()
-		return err
-	}
-	o.udevMon = udevMon
-	return nil
 }
 
 func (o *Overlord) addManager(mgr StateManager) {
@@ -299,18 +284,9 @@ func (o *Overlord) Loop() {
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
 	o.loopTomb.Kill(nil)
-	finalErr := o.loopTomb.Wait()
+	err1 := o.loopTomb.Wait()
 	o.stateEng.Stop()
-	if o.udevMon != nil {
-		if err := o.udevMon.Stop(); err != nil {
-			logger.Noticef("Failed to stop udev monitor: %s", err)
-			if finalErr == nil {
-				finalErr = err
-			}
-		}
-	}
-
-	return finalErr
+	return err1
 }
 
 func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {

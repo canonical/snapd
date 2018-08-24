@@ -162,6 +162,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 	ms.o = o
 	st := ms.o.State()
 	st.Lock()
@@ -2037,6 +2038,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 	s.o = o
 
 	st := o.State()

@@ -606,10 +606,6 @@ func New() (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ovld.EnableHotplug()
-	if err != nil {
-		return nil, err
-	}
 	return &Daemon{
 		overlord: ovld,
 		// TODO: Decide when this should be disabled by default.
