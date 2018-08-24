@@ -668,7 +668,7 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -686,7 +686,7 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		snapst := stateByID[update.SnapID]
+		snapst := stateByInstanceName[update.InstanceName()]
 		return snapst.Channel, snapst.Flags, snapst
 
 	}
