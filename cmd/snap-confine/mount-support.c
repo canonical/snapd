@@ -651,6 +651,9 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR
 			{"/run/netns", true},	// access to the 'ip netns' network namespaces
+			// The /mnt directory is optional in base snaps to ensure backwards
+			// compatibility with the first version of base snaps that was
+			// released.
 			{"/mnt",.is_optional = true},	// to support the removable-media interface
 			{},
 		};
