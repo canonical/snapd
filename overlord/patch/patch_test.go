@@ -126,7 +126,7 @@ func (s *patchSuite) TestApply(c *C) {
 
 	var sublevel int
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
-	c.Check(sublevel, Equals, 1)
+	c.Check(sublevel, Equals, 0)
 
 	var n, o int
 	err = st.Get("n", &n)
@@ -143,7 +143,7 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 	p60 := generatePatchFunc(60, &sequence)
 	p61 := generatePatchFunc(61, &sequence)
 
-	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+	restore := patch.Mock(6, 1, map[int][]patch.PatchFunc{
 		5: {p50},
 		6: {p60, p61},
 	})
@@ -165,7 +165,7 @@ func (s *patchSuite) TestApplyLevel6(c *C) {
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Check(level, Equals, 6)
-	c.Check(sublevel, Equals, 2)
+	c.Check(sublevel, Equals, 1)
 }
 
 func (s *patchSuite) TestApplyFromSublevel(c *C) {
@@ -176,12 +176,13 @@ func (s *patchSuite) TestApplyFromSublevel(c *C) {
 	p70 := generatePatchFunc(70, &sequence)
 	p71 := generatePatchFunc(71, &sequence)
 
-	restore := patch.Mock(7, 2, map[int][]patch.PatchFunc{
+	restore := patch.Mock(7, 1, map[int][]patch.PatchFunc{
 		6: {p60, p61, p62},
 		7: {p70, p71},
 	})
 	defer restore()
 
+	// we'll be patching from 6.0 -> 7.1
 	st := state.New(nil)
 	st.Lock()
 	st.Set("patch-level", 6)
@@ -190,14 +191,33 @@ func (s *patchSuite) TestApplyFromSublevel(c *C) {
 	c.Assert(patch.Apply(st), IsNil)
 
 	st.Lock()
-	defer st.Unlock()
 
 	var level, sublevel int
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
 	c.Check(level, Equals, 7)
-	c.Check(sublevel, Equals, 2)
+	c.Check(sublevel, Equals, 1)
 	c.Assert(sequence, DeepEquals, []int{61, 62, 70, 71})
+
+	// now patching from 7.1 -> 7.2
+	sequence = []int{}
+	p72 := generatePatchFunc(72, &sequence)
+	patch.Mock(7, 2, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62},
+		7: {p70, p71, p72},
+	})
+
+	st.Unlock()
+	c.Assert(patch.Apply(st), IsNil)
+	c.Assert(sequence, DeepEquals, []int{72})
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 7)
+	c.Check(sublevel, Equals, 2)
 }
 
 func (s *patchSuite) TestMissing(c *C) {
@@ -269,7 +289,7 @@ func (s *patchSuite) TestError(c *C) {
 	st.Set("patch-level", 1)
 	st.Unlock()
 	err := patch.Apply(st)
-	c.Assert(err, ErrorMatches, `cannot patch system state to level 3, sublevel 1: boom`)
+	c.Assert(err, ErrorMatches, `cannot patch system state to level 3, sublevel 0: boom`)
 
 	st.Lock()
 	defer st.Unlock()
@@ -318,7 +338,6 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	st.Unlock()
 
 	c.Assert(patch.Apply(st), IsNil)
-
 	c.Assert(sequence, DeepEquals, []int{61, 62})
 
 	// the patches shouldn't be applied again
