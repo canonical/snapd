@@ -1,11 +1,5 @@
 summary: Ensure that the content sharing interface works.
 
-# This test purges the state which causes the device to reinitialize
-# with (potentially) a different core snap. Running this on core will
-# also trigger a reboot in the middle of the tests because the new
-# core will be applied. So skip the test on core devices.
-systems: [-ubuntu-core-*]
-
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap
@@ -13,6 +7,12 @@ details: |
     A snap which defines the content sharing plug must be shown in the interfaces list.
     The plug must be autoconnected on install and, as usual, must be able to be
     reconnected.
+
+# This test purges the state which causes the device to reinitialize
+# with (potentially) a different core snap. Running this on core will
+# also trigger a reboot in the middle of the tests because the new
+# core will be applied. So skip the test on core devices.
+systems: [-ubuntu-core-*]
 
 prepare: |
     echo "Ensure an empty state so that installing test-snapd-content-plug"

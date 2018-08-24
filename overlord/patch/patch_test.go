@@ -23,9 +23,12 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 
 	. "gopkg.in/check.v1"
 )
@@ -37,7 +40,7 @@ type patchSuite struct{}
 var _ = Suite(&patchSuite{})
 
 func (s *patchSuite) TestInit(c *C) {
-	restore := patch.Mock(2, nil)
+	restore := patch.Mock(2, 1, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -49,10 +52,14 @@ func (s *patchSuite) TestInit(c *C) {
 	err := st.Get("patch-level", &patchLevel)
 	c.Assert(err, IsNil)
 	c.Check(patchLevel, Equals, 2)
+
+	var patchSublevel int
+	c.Assert(st.Get("patch-sublevel", &patchSublevel), IsNil)
+	c.Check(patchSublevel, Equals, 1)
 }
 
 func (s *patchSuite) TestNothingToDo(c *C) {
-	restore := patch.Mock(2, nil)
+	restore := patch.Mock(2, 1, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -64,7 +71,7 @@ func (s *patchSuite) TestNothingToDo(c *C) {
 }
 
 func (s *patchSuite) TestNoDowngrade(c *C) {
-	restore := patch.Mock(2, nil)
+	restore := patch.Mock(2, 0, nil)
 	defer restore()
 
 	st := state.New(nil)
@@ -82,15 +89,23 @@ func (s *patchSuite) TestApply(c *C) {
 		st.Set("n", n+1)
 		return nil
 	}
+	p121 := func(st *state.State) error {
+		var o int
+		st.Get("o", &o)
+		st.Set("o", o+1)
+		return nil
+	}
 	p23 := func(st *state.State) error {
 		var n int
 		st.Get("n", &n)
 		st.Set("n", n*10)
 		return nil
 	}
-	restore := patch.Mock(3, map[int]func(*state.State) error{
-		2: p12,
-		3: p23,
+
+	// patch level 3, sublevel 1
+	restore := patch.Mock(3, 1, map[int][]patch.PatchFunc{
+		2: {p12, p121},
+		3: {p23},
 	})
 	defer restore()
 
@@ -109,15 +124,85 @@ func (s *patchSuite) TestApply(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(level, Equals, 3)
 
-	var n int
+	var sublevel int
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(sublevel, Equals, 1)
+
+	var n, o int
 	err = st.Get("n", &n)
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 10)
+
+	c.Assert(st.Get("o", &o), IsNil)
+	c.Assert(o, Equals, 1)
+}
+
+func (s *patchSuite) TestApplyLevel6(c *C) {
+	var sequence []int
+	p50 := generatePatchFunc(50, &sequence)
+	p60 := generatePatchFunc(60, &sequence)
+	p61 := generatePatchFunc(61, &sequence)
+
+	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+		5: {p50},
+		6: {p60, p61},
+	})
+	defer restore()
+
+	// simulate the special case where sublevel is introduced for system that's already on patch level 6.
+	// only p61 patch should be applied.
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-level", 6)
+	st.Unlock()
+	c.Assert(patch.Apply(st), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var level, sublevel int
+	c.Assert(sequence, DeepEquals, []int{61})
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 6)
+	c.Check(sublevel, Equals, 2)
+}
+
+func (s *patchSuite) TestApplyFromSublevel(c *C) {
+	var sequence []int
+	p60 := generatePatchFunc(60, &sequence)
+	p61 := generatePatchFunc(61, &sequence)
+	p62 := generatePatchFunc(62, &sequence)
+	p70 := generatePatchFunc(70, &sequence)
+	p71 := generatePatchFunc(71, &sequence)
+
+	restore := patch.Mock(7, 2, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62},
+		7: {p70, p71},
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-level", 6)
+	st.Set("patch-sublevel", 0)
+	st.Unlock()
+	c.Assert(patch.Apply(st), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var level, sublevel int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 7)
+	c.Check(sublevel, Equals, 2)
+	c.Assert(sequence, DeepEquals, []int{61, 62, 70, 71})
 }
 
 func (s *patchSuite) TestMissing(c *C) {
-	restore := patch.Mock(3, map[int]func(*state.State) error{
-		3: func(s *state.State) error { return nil },
+	restore := patch.Mock(3, 0, map[int][]patch.PatchFunc{
+		3: {func(s *state.State) error { return nil }},
 	})
 	defer restore()
 
@@ -127,6 +212,30 @@ func (s *patchSuite) TestMissing(c *C) {
 	st.Unlock()
 	err := patch.Apply(st)
 	c.Assert(err, ErrorMatches, `cannot upgrade: snapd is too new for the current system state \(patch level 1\)`)
+}
+
+func (s *patchSuite) TestDowngradeSublevel(c *C) {
+	restore := patch.Mock(3, 1, map[int][]patch.PatchFunc{
+		3: {func(s *state.State) error { return nil }},
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-level", 3)
+	st.Set("patch-sublevel", 6)
+	st.Unlock()
+
+	// we're at patch level 3, sublevel 6 according to state, but the implemented level is 3,1
+	c.Assert(patch.Apply(st), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	var level, sublevel int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 3)
+	c.Check(sublevel, Equals, 1)
 }
 
 func (s *patchSuite) TestError(c *C) {
@@ -148,10 +257,10 @@ func (s *patchSuite) TestError(c *C) {
 		st.Set("n", n*100)
 		return nil
 	}
-	restore := patch.Mock(3, map[int]func(*state.State) error{
-		2: p12,
-		3: p23,
-		4: p34,
+	restore := patch.Mock(3, 0, map[int][]patch.PatchFunc{
+		2: {p12},
+		3: {p23},
+		4: {p34},
 	})
 	defer restore()
 
@@ -160,7 +269,7 @@ func (s *patchSuite) TestError(c *C) {
 	st.Set("patch-level", 1)
 	st.Unlock()
 	err := patch.Apply(st)
-	c.Assert(err, ErrorMatches, `cannot patch system state from level 2 to 3: boom`)
+	c.Assert(err, ErrorMatches, `cannot patch system state to level 3, sublevel 1: boom`)
 
 	st.Lock()
 	defer st.Unlock()
@@ -176,6 +285,56 @@ func (s *patchSuite) TestError(c *C) {
 	c.Check(n, Equals, 10)
 }
 
+func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
+	var sequence []int
+
+	p60 := generatePatchFunc(60, &sequence)
+	p61 := generatePatchFunc(61, &sequence)
+	p62 := generatePatchFunc(62, &sequence)
+
+	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62},
+	})
+
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+
+	// simulate the situation where core was refreshed
+	// from a revision with patch level 6 that's not sublevel-aware back to 6.2.
+	st.Set("last-refresh", time.Now().Add(-23*time.Hour))
+	st.Set("patch-level", 6)
+	st.Set("patch-sublevel", 2)
+
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(5142)}
+	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1, siCore2},
+		Current:  siCore2.Revision,
+	})
+	st.Unlock()
+
+	c.Assert(patch.Apply(st), IsNil)
+
+	c.Assert(sequence, DeepEquals, []int{61, 62})
+
+	// the patches shouldn't be applied again
+	sequence = []int{}
+	c.Assert(patch.Apply(st), IsNil)
+	c.Assert(sequence, HasLen, 0)
+
+	// new sublevel patch 6.3 gets implemented, and is applied
+	p63 := generatePatchFunc(63, &sequence)
+	patch.Mock(6, 3, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62, p63},
+	})
+
+	c.Assert(patch.Apply(st), IsNil)
+	c.Assert(sequence, DeepEquals, []int{63})
+}
 func (s *patchSuite) TestSanity(c *C) {
 	patches := patch.PatchesForTest()
 	levels := make([]int, 0, len(patches))
@@ -189,4 +348,14 @@ func (s *patchSuite) TestSanity(c *C) {
 	}
 	// ends at implemented patch level
 	c.Check(levels[len(levels)-1], Equals, patch.Level)
+
+	// Sublevel matches the number of patches for last Level.
+	c.Check(len(patches[patch.Level])-1, Equals, patch.Sublevel)
+}
+
+func generatePatchFunc(testValue int, sequence *[]int) patch.PatchFunc {
+	return func(st *state.State) error {
+		*sequence = append(*sequence, testValue)
+		return nil
+	}
 }

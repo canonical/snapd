@@ -3,7 +3,7 @@ summary: A snap designed to test the writable mimic
 version: 1.0
 apps:
     sh:
-        command: ../../../bin/sh
+        command: bin/sh
 slots:
     content:
         interface: content

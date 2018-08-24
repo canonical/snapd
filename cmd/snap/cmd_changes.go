@@ -134,6 +134,9 @@ func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
 	chid, err := c.GetChangeID(cli)
 	if err != nil {
+		if err == noChangeFoundOK {
+			return nil
+		}
 		return err
 	}
 
