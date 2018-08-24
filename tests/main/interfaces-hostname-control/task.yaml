@@ -13,6 +13,9 @@ restore: |
     rm -f ./*.error
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     echo "Then the plug is disconnected by default"
     snap interfaces -i hostname-control | MATCH -- '- +test-snapd-hostname-control:hostname-control'
     
@@ -26,8 +29,11 @@ execute: |
     snap_hostname="$(test-snapd-hostname-control.sh -c "/bin/hostname")"
     [ "$hostname" = "$snap_hostname" ]
     
-    echo "And the /etc/hostname file can be written"
-    test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname"
+    # On core systems /etc/hostname is not writable
+    if is_classic_system; then
+        echo "And the /etc/hostname file can be written"
+        test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname"
+    fi
     
     echo "And hostname can be set/set through dbus"
     test-snapd-hostname-control.sh -c "hostnamectl" | MATCH "$hostname"
@@ -53,3 +59,7 @@ execute: |
         exit 1
     fi
     MATCH "Permission denied" < hostname.error
+
+    echo "And the /etc/hostname file and the hostname command are still available even without the connection."
+    test-snapd-hostname-control.sh -c "test -f /etc/hostname"
+    test-snapd-hostname-control.sh -c "test -x /bin/hostname"
