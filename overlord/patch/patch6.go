@@ -25,7 +25,7 @@ import (
 )
 
 func init() {
-	patches[6] = []PatchFunc{patch6}
+	patches[6] = []PatchFunc{patch6, patch61}
 }
 
 type patch6Flags struct {

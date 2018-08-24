@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type connStatePatch7 struct {
+type connStatePatch61 struct {
 	Auto             bool                   `json:"auto,omitempty"`
 	ByGadget         bool                   `json:"by-gadget,omitempty"`
 	Interface        string                 `json:"interface,omitempty"`
@@ -36,17 +36,14 @@ type connStatePatch7 struct {
 	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
 }
 
-func init() {
-	patches[7] = patch7
-}
-
 // processConns updates conns map and augments it with plug-static and slot-static attributes from current snap info.
 // NOTE: missing snap or missing plugs/slots are ignored and not reported as errors as we might have stale connections
 // and ifacemgr deals with them (i.e. discards) on startup; we want to process all good slots and plugs here.
-func processConns(conns map[string]connStatePatch7, infos map[string]*snap.Info) (bool, error) {
+func processConns(conns map[string]connStatePatch61, infos map[string]*snap.Info) (bool, error) {
 	var updated bool
 	for id, conn := range conns {
-		if conn.StaticPlugAttrs != nil || conn.StaticSlotAttrs != nil {
+		// static attributes already present
+		if len(conn.StaticPlugAttrs) > 0 || len(conn.StaticSlotAttrs) > 0 {
 			continue
 		}
 
@@ -97,9 +94,9 @@ func processConns(conns map[string]connStatePatch7, infos map[string]*snap.Info)
 	return updated, nil
 }
 
-// patch7:
+// patch61:
 //  - add static plug and slot attributes to connections that miss them. Attributes are read from current snap info.
-func patch7(st *state.State) error {
+func patch61(st *state.State) error {
 	infos := make(map[string]*snap.Info)
 
 	// update all pending "discard-conns" tasks as they may keep connection data in "removed".
@@ -108,7 +105,7 @@ func patch7(st *state.State) error {
 			continue
 		}
 
-		var removed map[string]connStatePatch7
+		var removed map[string]connStatePatch61
 		if task.Kind() == "discard-conns" {
 			err := task.Get("removed", &removed)
 			if err == state.ErrNoState {
@@ -130,7 +127,7 @@ func patch7(st *state.State) error {
 	}
 
 	// update conns
-	var conns map[string]connStatePatch7
+	var conns map[string]connStatePatch61
 	err := st.Get("conns", &conns)
 	if err == state.ErrNoState {
 		// no connections to process
