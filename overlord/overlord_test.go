@@ -773,7 +773,7 @@ func (u *udevMonMock) Stop() error {
 
 func (ovs *overlordSuite) TestEnableHotplugBasic(c *C) {
 	u := udevMonMock{}
-	restore := hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedCallback, hotplug.DeviceRemovedCallback) hotplug.UDevMon {
+	restore := hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedFunc, hotplug.DeviceRemovedFunc) hotplug.UDevMon {
 		return &u
 	})
 	defer restore()
