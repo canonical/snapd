@@ -25,6 +25,7 @@ restore: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
         exit
     fi
+    rm -f conf.yaml
 
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
@@ -103,3 +104,23 @@ execute: |
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
     snap connect lxd-demo-server:lxd lxd:lxd
+
+    echo "Check that we run in 'unconfined' lxd containers"
+    lxd.lxc config show my-ubuntu > conf.yaml
+    cat <<EOF >> conf.yaml
+    config:
+      raw.lxc: |
+        lxc.apparmor.profile=unconfined
+    EOF
+    lxd.lxc stop --force my-ubuntu
+    lxd.lxc config edit my-ubuntu < conf.yaml
+    lxd.lxc start my-ubuntu
+    # shellcheck disable=SC2016
+    lxd.lxc exec my-ubuntu -- sh -c 'set -x;for i in $(seq 120); do if systemctl is-active snapd; then break; fi; sleep 1; done'
+    lxd.lxc exec my-ubuntu -- snap install test-snapd-tools
+    lxd.lxc exec my-ubuntu -- SNAP_CONFINE_DEBUG=1 test-snapd-tools.echo hello-from-inside
+    lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+
+debug: |
+    lxd.lxc exec my-ubuntu -- dmesg | grep DENIED
+    lxd.lxc exec my-ubuntu -- SNAP_CONFINE_DEBUG=1 test-snapd-tools.echo hello

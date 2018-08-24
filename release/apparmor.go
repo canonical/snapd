@@ -32,8 +32,11 @@ import (
 type AppArmorLevelType int
 
 const (
+	// UninitializedAppArmor indicates that no apparmor detection was
+	// done yet
+	UninitializedAppArmorDetection AppArmorLevelType = iota
 	// NoAppArmor indicates that apparmor is not enabled.
-	NoAppArmor AppArmorLevelType = iota
+	NoAppArmor
 	// PartialAppArmor indicates that apparmor is enabled but some
 	// features are missing.
 	PartialAppArmor
@@ -46,19 +49,21 @@ var (
 	appArmorSummary string
 )
 
-func init() {
-	appArmorLevel, appArmorSummary = probeAppArmor()
-}
-
 // AppArmorLevel quantifies how well apparmor is supported on the
 // current kernel.
 func AppArmorLevel() AppArmorLevelType {
+	if appArmorSummary == "" {
+		appArmorLevel, appArmorSummary = probeAppArmor()
+	}
 	return appArmorLevel
 }
 
 // AppArmorSummary describes how well apparmor is supported on the
 // current kernel.
 func AppArmorSummary() string {
+	if appArmorLevel == UninitializedAppArmorDetection {
+		appArmorLevel, appArmorSummary = probeAppArmor()
+	}
 	return appArmorSummary
 }
 
@@ -101,10 +106,36 @@ func isDirectory(path string) bool {
 	return stat.IsDir()
 }
 
+var (
+	osGetuid             = os.Getuid
+	apparmorProfilesPath = "/sys/kernel/security/apparmor/profiles"
+)
+
 func probeAppArmor() (AppArmorLevelType, string) {
 	if !isDirectory(appArmorFeaturesSysPath) {
 		return NoAppArmor, "apparmor not enabled"
 	}
+
+	// Check that apparmor is actually usable. In some
+	// configurations of lxd, apparmor looks available when in
+	// reality it isn't. Eg, this can happen when a container runs
+	// unprivileged (eg, root in the container is non-root
+	// outside) and also unconfined (where lxd doesn't set up an
+	// apparmor policy namespace). We can therefore simply check
+	// if /sys/kernel/security/apparmor/profiles is readable (like
+	// aa-status does), and if it isn't, we know we can't manipulate
+	// policy.
+	if osGetuid() == 0 {
+		f, err := os.Open(apparmorProfilesPath)
+		if os.IsPermission(err) {
+			return NoAppArmor, "apparmor detected but insufficient permissions to use it"
+		}
+		if f != nil {
+			f.Close()
+		}
+	}
+
+	// Check apparmor features
 	var missing []string
 	for _, feature := range requiredAppArmorFeatures {
 		if !isDirectory(filepath.Join(appArmorFeaturesSysPath, feature)) {

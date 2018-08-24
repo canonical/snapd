@@ -40,6 +40,24 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 	}
 }
 
+func MockAppArmorProfilesPath(path string) (restorer func()) {
+	old := apparmorProfilesPath
+	apparmorProfilesPath = path
+	return func() {
+		apparmorProfilesPath = old
+	}
+}
+
+func MockOsGetuid(uid int) (restorer func()) {
+	old := osGetuid
+	osGetuid = func() int {
+		return uid
+	}
+	return func() {
+		osGetuid = old
+	}
+}
+
 var (
 	ProbeAppArmor            = probeAppArmor
 	RequiredAppArmorFeatures = requiredAppArmorFeatures
