@@ -131,7 +131,6 @@ var adbPermanentSlotAppArmor = `
 # Allow access to udev meta-data about character devices with major number 189
 # as per https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
 # those describe "USB serial converters - alternate devices".
-# This is what I get after plugging in a derivative of Android to my system.
 /run/udev/data/c189:* r,
 
 # Allow reading the serial number of all the USB devices.
