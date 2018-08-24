@@ -154,9 +154,9 @@ func MockCreateUDevMonitor(new newMonitorFn) (restore func()) {
 	}
 }
 
-type UDevMonMock struct{}
+type Mock struct{}
 
-func (u *UDevMonMock) Connect() error    { return nil }
-func (u *UDevMonMock) Disconnect() error { return nil }
-func (u *UDevMonMock) Run() error        { return nil }
-func (u *UDevMonMock) Stop() error       { return nil }
+func (u *Mock) Connect() error    { return nil }
+func (u *Mock) Disconnect() error { return nil }
+func (u *Mock) Run() error        { return nil }
+func (u *Mock) Stop() error       { return nil }

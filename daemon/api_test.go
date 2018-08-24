@@ -228,7 +228,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
 	s.restoreUDevMon = udevmonitor.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
-		return &udevmonitor.UDevMonMock{}
+		return &udevmonitor.Mock{}
 	})
 
 	s.rsnaps = nil
