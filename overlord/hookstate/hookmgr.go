@@ -49,7 +49,6 @@ type hijackKey struct{ hook, snap string }
 // snap. Otherwise they're skipped with no error.
 type HookManager struct {
 	state      *state.State
-	runner     *state.TaskRunner
 	repository *repository
 
 	contextsMutex sync.RWMutex
@@ -58,6 +57,7 @@ type HookManager struct {
 	hijackMap map[hijackKey]hijackFunc
 
 	runningHooks int32
+	runner       *state.TaskRunner
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -88,11 +88,9 @@ type HookSetup struct {
 }
 
 // Manager returns a new HookManager.
-func Manager(s *state.State) (*HookManager, error) {
-	runner := state.NewTaskRunner(s)
-
+func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
-	runner.SetBlocked(func(thisTask *state.Task, running []*state.Task) bool {
+	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
 		// check if we're a hook task, probably not needed but let's take extra care
 		if thisTask.Kind() != "run-hook" {
 			return false
@@ -117,10 +115,10 @@ func Manager(s *state.State) (*HookManager, error) {
 
 	manager := &HookManager{
 		state:      s,
-		runner:     runner,
 		repository: newRepository(),
 		contexts:   make(map[string]*Context),
 		hijackMap:  make(map[hijackKey]hijackFunc),
+		runner:     runner,
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, manager.undoRunHook)
@@ -144,24 +142,15 @@ func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerato
 	m.repository.addHandlerGenerator(pattern, generator)
 }
 
-func (m *HookManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *HookManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
 }
 
-// Wait implements StateManager.Wait.
-func (m *HookManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *HookManager) Stop() {
-	m.runner.Stop()
+// StopHooks kills all currently running hooks and returns after
+// that's done.
+func (m *HookManager) StopHooks() {
+	m.runner.StopKinds("run-hook")
 }
 
 func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {

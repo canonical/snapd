@@ -1,9 +1,10 @@
 summary: Ensure that snap-repair is available
 
-systems: [-fedora-*, -opensuse-*, -arch-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     if ! grep -q "ID=ubuntu-core" /etc/os-release; then
         echo "Ensure snap-repair is disabled on classic"

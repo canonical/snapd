@@ -51,8 +51,6 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
-
-	runner *state.TaskRunner
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -81,9 +79,17 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+
+	// InstanceKey is set by the user during installation and differs for
+	// each instance of given snap
+	InstanceKey string `json:"instance-key,omitempty"`
 }
 
-func (snapsup *SnapSetup) Name() string {
+func (snapsup *SnapSetup) InstanceName() string {
+	return snap.InstanceName(snapsup.SnapName(), snapsup.InstanceKey)
+}
+
+func (snapsup *SnapSetup) SnapName() string {
 	if snapsup.SideInfo.RealName == "" {
 		panic("SnapSetup.SideInfo.RealName not set")
 	}
@@ -95,15 +101,15 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.Name(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.Name(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) MountFile() string {
-	return snap.MountFile(snapsup.Name(), snapsup.Revision())
+	return snap.MountFile(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // SnapState holds the state for a snap installed in the system.
@@ -124,6 +130,10 @@ type SnapState struct {
 
 	// UserID of the user requesting the install
 	UserID int `json:"user-id,omitempty"`
+
+	// InstanceKey is set by the user during installation and differs for
+	// each instance of given snap
+	InstanceKey string `json:"instance-key,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -263,7 +273,9 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(cur.RealName, cur, 0)
+
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
+	return readInfo(name, cur, 0)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -302,13 +314,10 @@ func Store(st *state.State) StoreService {
 }
 
 // Manager returns a new snap manager.
-func Manager(st *state.State) (*SnapManager, error) {
-	runner := state.NewTaskRunner(st)
-
+func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	m := &SnapManager{
 		state:          st,
 		backend:        backend.Backend{},
-		runner:         runner,
 		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),
@@ -366,7 +375,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 
 	// control serialisation
-	runner.SetBlocked(m.blockedTask)
+	runner.AddBlocked(m.blockedTask)
 
 	writeSnapReadme()
 
@@ -547,8 +556,6 @@ func (m *SnapManager) Ensure() error {
 		m.catalogRefresh.Ensure(),
 	}
 
-	m.runner.Ensure()
-
 	//FIXME: use firstErr helper
 	for _, e := range errs {
 		if e != nil {
@@ -557,18 +564,4 @@ func (m *SnapManager) Ensure() error {
 	}
 
 	return nil
-}
-
-func (m *SnapManager) KnownTaskKinds() []string {
-	return m.runner.KnownTaskKinds()
-}
-
-// Wait implements StateManager.Wait.
-func (m *SnapManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() {
-	m.runner.Stop()
 }

@@ -21,15 +21,16 @@ package ifacestate_test
 
 import (
 	"bytes"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -57,6 +58,7 @@ type interfaceManagerSuite struct {
 	testutil.BaseTest
 	o              *overlord.Overlord
 	state          *state.State
+	se             *overlord.StateEngine
 	db             *asserts.Database
 	privateMgr     *ifacestate.InterfaceManager
 	privateHookMgr *hookstate.HookManager
@@ -81,6 +83,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.se = s.o.StateEngine()
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
@@ -117,18 +120,28 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mockSnapCmd.Restore()
 
 	if s.privateMgr != nil {
-		s.privateMgr.Stop()
+		s.se.Stop()
 	}
 	dirs.SetRootDir("")
 }
 
+func addForeignTaskHandlers(runner *state.TaskRunner) {
+	// Add handler to test full aborting of changes
+	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return errors.New("error out")
+	}
+	runner.AddHandler("error-trigger", erroringHandler, nil)
+}
+
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
-		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces, s.extraBackends)
+		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.o.TaskRunner(), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
-		ifacestate.AddForeignTaskHandlers(mgr)
+		addForeignTaskHandlers(s.o.TaskRunner())
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
+
+		s.o.AddManager(s.o.TaskRunner())
 
 		// ensure the re-generation of security profiles did not
 		// confuse the tests
@@ -139,7 +152,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 
 func (s *interfaceManagerSuite) hookManager(c *C) *hookstate.HookManager {
 	if s.privateHookMgr == nil {
-		mgr, err := hookstate.Manager(s.state)
+		mgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 		c.Assert(err, IsNil)
 		s.privateHookMgr = mgr
 		s.o.AddManager(mgr)
@@ -153,25 +166,9 @@ func (s *interfaceManagerSuite) settle(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
-}
-
-func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
-	mgr, err := ifacestate.Manager(s.state, s.hookManager(c), nil, nil)
-	c.Assert(err, IsNil)
-	kinds := mgr.KnownTaskKinds()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{
-		"auto-connect",
-		"connect",
-		"discard-conns",
-		"disconnect",
-		"gadget-connect",
-		"remove-profiles",
-		"setup-profiles",
-		"transition-ubuntu-core"})
+	s.manager(c)
+	s.se.Ensure()
+	s.se.Wait()
 }
 
 func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
@@ -198,10 +195,86 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	i := 0
 	task := ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
+	var hookSetup, undoHookSetup hookstate.HookSetup
+	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "prepare-plug-plug", Optional: true})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "unprepare-plug-plug", Optional: true, IgnoreError: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "prepare-slot-slot", Optional: true})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "unprepare-slot-slot", Optional: true, IgnoreError: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Assert(task.Kind(), Equals, "connect")
+	var plug interfaces.PlugRef
+	c.Assert(task.Get("plug", &plug), IsNil)
+	c.Assert(plug.Snap, Equals, "consumer")
+	c.Assert(plug.Name, Equals, "plug")
+	var slot interfaces.SlotRef
+	c.Assert(task.Get("slot", &slot), IsNil)
+	c.Assert(slot.Snap, Equals, "producer")
+	c.Assert(slot.Name, Equals, "slot")
+
+	var autoconnect bool
+	err = task.Get("auto", &autoconnect)
+	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(autoconnect, Equals, false)
+
+	// verify initial attributes are present in connect task
+	var plugStaticAttrs map[string]interface{}
+	var plugDynamicAttrs map[string]interface{}
+	c.Assert(task.Get("plug-static", &plugStaticAttrs), IsNil)
+	c.Assert(plugStaticAttrs, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(task.Get("plug-dynamic", &plugDynamicAttrs), IsNil)
+	c.Assert(plugDynamicAttrs, DeepEquals, map[string]interface{}{})
+
+	var slotStaticAttrs map[string]interface{}
+	var slotDynamicAttrs map[string]interface{}
+	c.Assert(task.Get("slot-static", &slotStaticAttrs), IsNil)
+	c.Assert(slotStaticAttrs, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(task.Get("slot-dynamic", &slotDynamicAttrs), IsNil)
+	c.Assert(slotDynamicAttrs, DeepEquals, map[string]interface{}{})
+
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
+}
+
+func (s *interfaceManagerSuite) TestParallelInstallConnectTask(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnapInstance(c, "consumer_foo", consumerYaml)
+	s.mockSnapInstance(c, "producer", producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := ifacestate.Connect(s.state, "consumer_foo", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+
+	var hs hookstate.HookSetup
+	i := 0
+	task := ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
 	var hookSetup hookstate.HookSetup
 	err = task.Get("hook-setup", &hookSetup)
 	c.Assert(err, IsNil)
-	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "prepare-plug-plug", Optional: true})
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer_foo", Hook: "prepare-plug-plug", Optional: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
@@ -214,7 +287,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
 	c.Assert(err, IsNil)
-	c.Assert(plug.Snap, Equals, "consumer")
+	c.Assert(plug.Snap, Equals, "consumer_foo")
 	c.Assert(plug.Name, Equals, "plug")
 	var slot interfaces.SlotRef
 	err = task.Get("slot", &slot)
@@ -257,7 +330,45 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Check(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hs)
 	c.Assert(err, IsNil)
-	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer_foo", Hook: "connect-plug-plug", Optional: true})
+}
+
+func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	conns := map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto": false,
+		},
+	}
+	s.state.Set("conns", conns)
+
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(ts, IsNil)
+	alreadyConnected, ok := err.(*ifacestate.ErrAlreadyConnected)
+	c.Assert(ok, Equals, true)
+	c.Assert(alreadyConnected.Connection, DeepEquals, interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}})
+	c.Assert(err, ErrorMatches, `already connected: "consumer:plug producer:slot"`)
+
+	conns = map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"auto":      true,
+			"undesired": true,
+		},
+	}
+	s.state.Set("conns", conns)
+
+	// ErrAlreadyConnected is not reported if connection exists but is undesired
+	ts, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
 }
 
 func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string, otherTaskKind string, expectedErr string) {
@@ -273,6 +384,27 @@ func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*sta
 	chg.AddTask(t)
 
 	_, err := f(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, ErrorMatches, expectedErr)
+}
+
+func (s *interfaceManagerSuite) testDisconnectConflicts(c *C, snapName string, otherTaskKind string, expectedErr string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask(otherTaskKind, "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName},
+	})
+	chg.AddTask(t)
+
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+	}
+
+	_, err := ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, ErrorMatches, expectedErr)
 }
 
@@ -293,11 +425,11 @@ func (s *interfaceManagerSuite) TestConnectConflictsSlotSnapOnUnlink(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsPlugSnapOnLink(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer", "link-snap", `snap "consumer" has "other-chg" change in progress`)
+	s.testDisconnectConflicts(c, "consumer", "link-snap", `snap "consumer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnapOnLink(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
+	s.testDisconnectConflicts(c, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
@@ -317,7 +449,11 @@ func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
 	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 
-	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+	}
+	_, err = ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 }
 
@@ -346,12 +482,12 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	t.Set("snap-setup", sup1)
 	chg.AddTask(t)
 
-	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t)
+	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true), IsNil)
+	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer"), IsNil)
 
-	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", []string{"auto"})
+	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithAutoSet())
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
@@ -384,11 +520,11 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 
 	chg.AddTask(t2)
 
-	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t2)
+	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t2)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckConnectConflicts(s.state, "consumer", "producer", true)
+	return ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer")
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
@@ -441,11 +577,11 @@ func (s *interfaceManagerSuite) TestSymmetricAutoconnectIgnore(c *C) {
 	t2.Set("snap-setup", sup2)
 	chg2.AddTask(t2)
 
-	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t1)
+	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t1)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, true)
 
-	ignore, err = ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t2)
+	ignore, err = ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t2)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, true)
 }
@@ -463,8 +599,7 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnConnectWithAutoFlag(c *
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
-func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
-	// FIXME: flesh this test out once individual connect conflict check is fleshed out
+func (s *interfaceManagerSuite) TestAutoconnectRetryOnConnect(c *C) {
 	s.state.Lock()
 	task := s.state.NewTask("connect", "")
 	task.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
@@ -473,7 +608,7 @@ func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
 	s.state.Unlock()
 
 	err := s.createAutoconnectChange(c, task)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -671,11 +806,58 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, consumerYaml, sideInfo)
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+	snapInfo = snaptest.MockSnap(c, producerYaml, sideInfo)
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
 
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{
+			Snap:  &snap.Info{SuggestedName: "consumer"},
+			Name:  "plug",
+			Attrs: map[string]interface{}{"attr1": "value1"}},
+			map[string]interface{}{"attr3": "value3"}),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{
+			Snap:  &snap.Info{SuggestedName: "producer"},
+			Name:  "slot",
+			Attrs: map[string]interface{}{"attr2": "value2"}},
+			map[string]interface{}{"attr4": "value4"}),
+	}
+	ts, err := ifacestate.Disconnect(s.state, conn)
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 3)
+
+	var hookSetup, undoHookSetup hookstate.HookSetup
 	task := ts.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: false})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true, IgnoreError: false})
+
+	task = ts.Tasks()[1]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true})
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true, IgnoreError: false})
+
+	task = ts.Tasks()[2]
 	c.Assert(task.Kind(), Equals, "disconnect")
+	var autoDisconnect bool
+	c.Assert(task.Get("auto-disconnect", &autoDisconnect), Equals, state.ErrNoState)
+	c.Assert(autoDisconnect, Equals, false)
+
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
 	c.Assert(err, IsNil)
@@ -686,11 +868,34 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+
+	// verify connection attributes are present in the disconnect task
+	var plugStaticAttrs1, plugDynamicAttrs1, slotStaticAttrs1, slotDynamicAttrs1 map[string]interface{}
+
+	c.Assert(task.Get("plug-static", &plugStaticAttrs1), IsNil)
+	c.Assert(plugStaticAttrs1, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(task.Get("plug-dynamic", &plugDynamicAttrs1), IsNil)
+	c.Assert(plugDynamicAttrs1, DeepEquals, map[string]interface{}{"attr3": "value3"})
+
+	c.Assert(task.Get("slot-static", &slotStaticAttrs1), IsNil)
+	c.Assert(slotStaticAttrs1, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(task.Get("slot-dynamic", &slotDynamicAttrs1), IsNil)
+	c.Assert(slotDynamicAttrs1, DeepEquals, map[string]interface{}{"attr4": "value4"})
 }
 
 // Disconnect works when both plug and slot are specified
 func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
+}
+
+func (s *interfaceManagerSuite) getConnection(c *C, plugSnap, plugName, slotSnap, slotName string) *interfaces.Connection {
+	conn, err := s.manager(c).Repository().Connection(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
+		SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
+	return conn
 }
 
 func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSnap, slotName string) {
@@ -711,10 +916,12 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	// Initialize the manager. This registers both snaps and reloads the connection.
 	mgr := s.manager(c)
 
+	conn := s.getConnection(c, plugSnap, plugName, slotSnap, slotName)
+
 	// Run the disconnect task and let it finish.
 	s.state.Lock()
 	change := s.state.NewChange("disconnect", "...")
-	ts, err := ifacestate.Disconnect(s.state, plugSnap, plugName, slotSnap, slotName)
+	ts, err := ifacestate.Disconnect(s.state, conn)
 	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
@@ -724,15 +931,16 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Assert(err, IsNil)
 	change.AddAll(ts)
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// Ensure that the task succeeded.
 	c.Assert(change.Err(), IsNil)
-	task := change.Tasks()[0]
+	c.Assert(change.Tasks(), HasLen, 3)
+	task := change.Tasks()[2]
 	c.Check(task.Kind(), Equals, "disconnect")
 	c.Check(task.Status(), Equals, state.DoneStatus)
 
@@ -757,6 +965,60 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
+}
+
+func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	connState := map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":    "test",
+			"slot-static":  map[string]interface{}{"attr1": "value1"},
+			"slot-dynamic": map[string]interface{}{"attr2": "value2"},
+			"plug-static":  map[string]interface{}{"attr3": "value3"},
+			"plug-dynamic": map[string]interface{}{"attr4": "value4"},
+		},
+	}
+
+	s.state.Lock()
+	s.state.Set("conns", connState)
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both snaps and reloads the connection.
+	_ = s.manager(c)
+
+	conn := s.getConnection(c, "consumer", "plug", "producer", "slot")
+
+	// Run the disconnect task and let it finish.
+	s.state.Lock()
+	change := s.state.NewChange("disconnect", "...")
+	ts, err := ifacestate.Disconnect(s.state, conn)
+
+	c.Assert(err, IsNil)
+	change.AddAll(ts)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitAll(ts)
+	change.AddTask(terr)
+	c.Assert(change.Tasks(), HasLen, 4)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that disconnect tasks were undone
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Status(), Equals, state.UndoneStatus)
+	}
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, connState)
+
+	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
 }
 
 func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
@@ -861,10 +1123,14 @@ func (s *interfaceManagerSuite) mockSnapDecl(c *C, name, publisher string, extra
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
+	return s.mockSnapInstance(c, "", yamlText)
+}
+
+func (s *interfaceManagerSuite) mockSnapInstance(c *C, instanceName, yamlText string) *snap.Info {
 	sideInfo := &snap.SideInfo{
 		Revision: snap.R(1),
 	}
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, yamlText, sideInfo)
 	sideInfo.RealName = snapInfo.SnapName()
 
 	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
@@ -884,10 +1150,11 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 	// Put a side info into the state
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  sideInfo.Revision,
-		SnapType: string(snapInfo.Type),
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
 	})
 	return snapInfo
 }
@@ -945,7 +1212,7 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	return change
 }
 
-func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *state.Change {
+func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) (*state.Change, *state.Task) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -959,7 +1226,7 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
-	return change
+	return change, task
 }
 
 var ubuntuCoreSnapYaml = `
@@ -1676,22 +1943,22 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 }
 
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
-	s.testDoDicardConns(c, "consumer")
+	s.testDoDiscardConns(c, "consumer")
 }
 
 func (s *interfaceManagerSuite) TestDoDiscardConnsSlot(c *C) {
-	s.testDoDicardConns(c, "producer")
+	s.testDoDiscardConns(c, "producer")
 }
 
 func (s *interfaceManagerSuite) TestUndoDiscardConnsPlug(c *C) {
-	s.testUndoDicardConns(c, "consumer")
+	s.testUndoDiscardConns(c, "consumer")
 }
 
 func (s *interfaceManagerSuite) TestUndoDiscardConnsSlot(c *C) {
-	s.testUndoDicardConns(c, "producer")
+	s.testUndoDiscardConns(c, "producer")
 }
 
-func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
+func (s *interfaceManagerSuite) testDoDiscardConns(c *C, snapName string) {
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
@@ -1707,7 +1974,7 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 	// remove the snaps so that discard-conns doesn't complain about snaps still installed
@@ -1716,11 +1983,9 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	s.state.Unlock()
 
 	// Run the discard-conns task and let it finish
-	change := s.addDiscardConnsChange(c, snapName)
+	change, _ := s.addDiscardConnsChange(c, snapName)
 
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1742,8 +2007,8 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	})
 }
 
-func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
-	mgr := s.manager(c)
+func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
+	s.manager(c)
 
 	s.state.Lock()
 	// Store information about a connection in the state.
@@ -1756,29 +2021,19 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	s.state.Unlock()
 
 	// Run the discard-conns task and let it finish
-	change := s.addDiscardConnsChange(c, snapName)
-
-	// Add a dummy task just to hold the change not ready.
+	change, t := s.addDiscardConnsChange(c, snapName)
 	s.state.Lock()
-	dummy := s.state.NewTask("dummy", "")
-	change.AddTask(dummy)
+	terr := s.state.NewTask("error-trigger", "provoking undo")
+	terr.WaitFor(t)
+	change.AddTask(terr)
 	s.state.Unlock()
 
-	mgr.Ensure()
-	mgr.Wait()
-
-	s.state.Lock()
-	c.Check(change.Status(), Equals, state.DoStatus)
-	change.Abort()
-	s.state.Unlock()
-
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Assert(change.Status(), Equals, state.UndoneStatus)
+	c.Assert(change.Status().Ready(), Equals, true)
+	c.Assert(t.Status(), Equals, state.UndoneStatus)
 
 	// Information about the connection is intact
 	var conns map[string]interface{}
@@ -1808,9 +2063,9 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 
 	// Run the remove-security task
 	change := s.addRemoveSnapSecurityChange(c, "consumer")
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Stop()
 
 	// Change succeeds
 	s.state.Lock()
@@ -1928,10 +2183,11 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	})
 	s.state.Unlock()
 
-	mgr := s.manager(c)
+	s.manager(c)
+	conn := s.getConnection(c, "consumer", "plug", "producer", "slot")
 
 	s.state.Lock()
-	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, IsNil)
 	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -1943,9 +2199,7 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1972,10 +2226,11 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	})
 	s.state.Unlock()
 
-	mgr := s.manager(c)
+	s.manager(c)
 
+	conn := s.getConnection(c, "consumer", "plug", "producer", "slot")
 	s.state.Lock()
-	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, IsNil)
 	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -1987,9 +2242,7 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2012,10 +2265,15 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	})
 	s.state.Unlock()
 
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
-	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+	}
+
+	ts, err := ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, IsNil)
 	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -2027,9 +2285,7 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2306,7 +2562,7 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, httpdSnapYaml)
 
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2323,9 +2579,9 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 	change.AddTask(task)
 
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Stop()
 	s.state.Lock()
 
 	c.Assert(change.Status(), Equals, state.DoneStatus)
@@ -2345,7 +2601,7 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, httpdSnapYaml)
 
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2366,10 +2622,10 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 
 	s.state.Unlock()
 	for i := 0; i < 10; i++ {
-		mgr.Ensure()
-		mgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
-	mgr.Stop()
+	s.se.Stop()
 	s.state.Lock()
 
 	c.Assert(change.Status(), Equals, state.ErrorStatus)
@@ -2533,7 +2789,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 
 func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	mgr := s.manager(c)
+	s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
 	consumer := s.mockSnap(c, consumerYaml)
 
@@ -2563,24 +2819,20 @@ func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
 	})
 
 	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
-	// Add a dummy task just to hold the change not ready.
-	dummy := s.state.NewTask("dummy", "")
-	chg.AddTask(dummy)
-
-	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
-	s.state.Lock()
-
-	c.Assert(chg.Status(), Equals, state.DoStatus)
-	chg.Abort()
+	terr := s.state.NewTask("error-trigger", "provoking undo")
+	connTasks := chg.Tasks()
+	terr.WaitAll(state.NewTaskSet(connTasks...))
+	chg.AddTask(terr)
 
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.Status(), Equals, state.UndoneStatus)
+	c.Assert(chg.Status().Ready(), Equals, true)
+	for _, t := range connTasks {
+		c.Assert(t.Status(), Equals, state.UndoneStatus)
+	}
 
 	// Information about the connection is intact
 	var conns map[string]interface{}
@@ -2839,7 +3091,7 @@ slots:
   interface: content
   content: shared-content
 `)
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 
@@ -2874,15 +3126,15 @@ slots:
 	// run the change
 	s.state.Unlock()
 	for i := 0; i < 5; i++ {
-		mgr.Ensure()
-		mgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	// change did a retry
 	s.state.Lock()
 	c.Check(tConnectPlug.Status(), Equals, state.DoingStatus)
 
-	// pretent install of content slot is done
+	// pretend install of content slot is done
 	tInstSlot.SetStatus(state.DoneStatus)
 	// wait for contentLinkRetryTimeout
 	time.Sleep(10 * time.Millisecond)
@@ -2891,8 +3143,8 @@ slots:
 
 	// run again
 	for i := 0; i < 5; i++ {
-		mgr.Ensure()
-		mgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	// check that the connect plug task is now in done state
@@ -2970,6 +3222,143 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 	})
 }
 
+func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddSnap(consumerInfo), IsNil)
+	c.Assert(repo.AddSnap(producerInfo), IsNil)
+
+	plugDynAttrs := map[string]interface{}{
+		"attr3": "value3",
+	}
+	slotDynAttrs := map[string]interface{}{
+		"attr4": "value4",
+	}
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}, plugDynAttrs, slotDynAttrs, nil)
+
+	chg := s.state.NewChange("install", "")
+	t := s.state.NewTask("auto-disconnect", "")
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ht := t.HaltTasks()
+	c.Assert(ht, HasLen, 3)
+
+	c.Assert(ht[2].Kind(), Equals, "disconnect")
+	var autoDisconnect bool
+	c.Assert(ht[2].Get("auto-disconnect", &autoDisconnect), IsNil)
+	c.Assert(autoDisconnect, Equals, true)
+	var plugDynamic, slotDynamic, plugStatic, slotStatic map[string]interface{}
+	c.Assert(ht[2].Get("plug-static", &plugStatic), IsNil)
+	c.Assert(ht[2].Get("plug-dynamic", &plugDynamic), IsNil)
+	c.Assert(ht[2].Get("slot-static", &slotStatic), IsNil)
+	c.Assert(ht[2].Get("slot-dynamic", &slotDynamic), IsNil)
+
+	c.Assert(plugStatic, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	c.Assert(slotStatic, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	c.Assert(plugDynamic, DeepEquals, map[string]interface{}{"attr3": "value3"})
+	c.Assert(slotDynamic, DeepEquals, map[string]interface{}{"attr4": "value4"})
+
+	var expectedHooks = []struct{ snap, hook string }{
+		{snap: "producer", hook: "disconnect-slot-slot"},
+		{snap: "consumer", hook: "disconnect-plug-plug"},
+	}
+
+	for i := 0; i < 2; i++ {
+		var hsup hookstate.HookSetup
+		c.Assert(ht[i].Kind(), Equals, "run-hook")
+		c.Assert(ht[i].Get("hook-setup", &hsup), IsNil)
+
+		c.Assert(hsup.Snap, Equals, expectedHooks[i].snap)
+		c.Assert(hsup.Hook, Equals, expectedHooks[i].hook)
+	}
+}
+
+func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingKind string) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	supprod := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	}
+
+	s.state.Lock()
+
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddSnap(consumerInfo), IsNil)
+	c.Assert(repo.AddSnap(producerInfo), IsNil)
+
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}, nil, nil, nil)
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+
+	chg2 := s.state.NewChange("remove", "")
+	t2 := s.state.NewTask("auto-disconnect", "")
+	t2.Set("snap-setup", sup)
+	chg2.AddTask(t2)
+
+	// create conflicting task
+	chg1 := s.state.NewChange("conflicting change", "")
+	t1 := s.state.NewTask(conflictingKind, "")
+	t1.Set("snap-setup", supprod)
+	chg1.AddTask(t1)
+	t3 := s.state.NewTask("other", "")
+	t1.WaitFor(t3)
+	chg1.AddTask(t3)
+	t3.SetStatus(state.HoldStatus)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*Waiting for conflicting change in progress...`)
+	c.Assert(t2.Status(), Equals, state.DoingStatus)
+}
+
+func (s *interfaceManagerSuite) TestDisconnectInterfacesRetryLink(c *C) {
+	s.testDisconnectInterfacesRetry(c, "link-snap")
+}
+
+func (s *interfaceManagerSuite) TestDisconnectInterfacesRetrySetupProfiles(c *C) {
+	s.testDisconnectInterfacesRetry(c, "setup-profiles")
+}
+
 func (s *interfaceManagerSuite) setupGadgetConnect(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnapDecl(c, "consumer", "publisher1", nil)
@@ -3001,7 +3390,7 @@ func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
 	defer r1()
 
 	s.setupGadgetConnect(c)
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3011,8 +3400,8 @@ func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -3057,7 +3446,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
 	defer r1()
 
 	s.setupGadgetConnect(c)
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3073,8 +3462,8 @@ func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -3088,7 +3477,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	defer r1()
 
 	s.setupGadgetConnect(c)
-	mgr := s.manager(c)
+	s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3106,8 +3495,8 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -3129,7 +3518,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
 	s.mockSnapDecl(c, "producer", "publisher2", nil)
 	s.mockSnap(c, producerYaml)
 
-	mgr := s.manager(c)
+	s.manager(c)
 
 	gadgetInfo := s.mockSnap(c, `name: gadget
 type: gadget
@@ -3158,8 +3547,8 @@ volumes:
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -3188,7 +3577,7 @@ plugs:
   network-control:
 `)
 
-	mgr := s.manager(c)
+	s.manager(c)
 
 	gadgetInfo := s.mockSnap(c, `name: gadget
 type: gadget
@@ -3214,8 +3603,8 @@ volumes:
 	chg.AddTask(t)
 
 	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)

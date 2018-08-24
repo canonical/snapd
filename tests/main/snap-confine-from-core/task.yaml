@@ -1,7 +1,7 @@
 summary: Test that snap-confine is run from core on re-exec
 
-# Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+# Disable for Fedora, openSUSE, Arch and Amazon Linux 2 as re-exec is not support there yet
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 prepare: |
     echo "Installing test-snapd-tools"

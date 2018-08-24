@@ -120,7 +120,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
-publisher: canonical
+publisher: Canonical✓
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -239,7 +239,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -337,7 +337,7 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   BSD-3
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -373,7 +373,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -409,7 +409,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -454,7 +454,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at

@@ -74,6 +74,7 @@ type imageSuite struct {
 
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
+	storeActions    []*store.SnapAction
 	tsto            *image.ToolingStore
 
 	storeSigning *assertstest.StoreStack
@@ -133,6 +134,12 @@ func (s *imageSuite) SetUpTest(c *C) {
 		"account-id": "other",
 	}, "")
 	s.storeSigning.Add(otherAcct)
+
+	// mock the mount cmds (for the extract kernel assets stuff)
+	c1 := testutil.MockCommand(c, "mount", "")
+	s.AddCleanup(c1.Restore)
+	c2 := testutil.MockCommand(c, "umount", "")
+	s.AddCleanup(c2.Restore)
 }
 
 func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher string) {
@@ -169,6 +176,7 @@ func (s *imageSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
 	image.Stdout = os.Stdout
 	image.Stderr = os.Stderr
+	s.storeActions = nil
 }
 
 // interface for the store
@@ -181,10 +189,17 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
 	}
 
-	if info, ok := s.storeSnapInfo[actions[0].Name]; ok {
+	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
+		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
+	}
+	// record
+	s.storeActions = append(s.storeActions, actions[0])
+
+	if info, ok := s.storeSnapInfo[actions[0].InstanceName]; ok {
+		info.Channel = actions[0].Channel
 		return []*snap.Info{info}, nil
 	}
-	return nil, fmt.Errorf("no %q in the fake store", actions[0].Name)
+	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
@@ -470,6 +485,42 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	}
 }
 
+func (s *imageSuite) TestDownloadUnpackGadgetFromTrack(c *C) {
+	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, nil)
+	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1818))
+
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
+	opts := &image.Options{
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.DownloadUnpackGadget(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	c.Check(s.storeActions, HasLen, 1)
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		Channel:      "18/stable",
+		InstanceName: "pc",
+	})
+
+}
+
 func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[string]string) {
 	err := os.MkdirAll(gadgetUnpackDir, 0755)
 	c.Assert(err, IsNil)
@@ -515,19 +566,11 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 	seedassertsdir := filepath.Join(seeddir, "assertions")
 
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
+	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	})
-
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
 
 	opts := &image.Options{
 		RootDir:         rootdir,
@@ -601,20 +644,11 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	seedassertsdir := filepath.Join(rootdir, "var/lib/snapd/seed/assertions")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
+	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
 	})
-
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
 
 	opts := &image.Options{
 		Snaps: []string{
@@ -716,15 +750,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
-	err := os.MkdirAll(gadgetUnpackDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
+	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
@@ -733,17 +759,12 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	s.downloadedSnaps["devmode-snap"] = snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
 	s.storeSnapInfo["devmode-snap"] = infoFromSnapYaml(c, devmodeSnap, snap.R(0))
 
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
-
 	opts := &image.Options{
 		Snaps: []string{s.downloadedSnaps["devmode-snap"]},
 
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "beta",
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
@@ -756,6 +777,40 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seed.Snaps, HasLen, 5)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:    "core",
+		SnapID:  "core-Id",
+		File:    "core_3.snap",
+		Channel: "beta",
+	})
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:    "pc-kernel",
+		SnapID:  "pc-kernel-Id",
+		File:    "pc-kernel_2.snap",
+		Channel: "beta",
+	})
+	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
+		Name:    "pc",
+		SnapID:  "pc-Id",
+		File:    "pc_1.snap",
+		Channel: "beta",
+	})
+	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
+		Name:    "required-snap1",
+		SnapID:  "required-snap1-Id",
+		File:    "required-snap1_3.snap",
+		Contact: "foo@example.com",
+		Channel: "beta",
+	})
+	// ensure local snaps are put last in seed.yaml
+	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
+		Name:       "devmode-snap",
+		DevMode:    true,
+		Unasserted: true,
+		File:       "devmode-snap_x1.snap",
+		// no channel for unasserted snaps
+		Channel: "",
+	})
 
 	// check devmode-snap
 	info := &snap.Info{
@@ -799,15 +854,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	model := rawmodel.(*asserts.Model)
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
-	err = os.MkdirAll(gadgetUnpackDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
+	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"core18":     "canonical",
 		"pc":         "canonical",
@@ -815,12 +862,6 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 		"snapd":      "canonical",
 		"other-base": "other",
 	})
-
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
 
 	opts := &image.Options{
 		RootDir:         rootdir,
@@ -887,20 +928,11 @@ func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
+	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "other",
 	})
-
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
 
 	opts := &image.Options{
 		RootDir:         rootdir,
@@ -982,20 +1014,11 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	assertsdir := filepath.Join(rootdir, "var/lib/snapd/seed/assertions")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
+	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
 	})
-
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
 
 	opts := &image.Options{
 		Snaps: []string{
@@ -1101,6 +1124,279 @@ func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 		Snaps:     []string{"foo_instance"},
 	})
 	c.Assert(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
+}
+
+func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Channel:   "x/x/x/x",
+	})
+	c.Assert(err, ErrorMatches, `cannot use channel: channel name has too many components: x/x/x/x`)
+}
+
+func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 3)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:   "core",
+		SnapID: "core-Id",
+		File:   "core_3.snap",
+	})
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:    "pc-kernel",
+		SnapID:  "pc-kernel-Id",
+		File:    "pc-kernel_2.snap",
+		Channel: "18/stable",
+	})
+	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
+		Name:    "pc",
+		SnapID:  "pc-Id",
+		File:    "pc_1.snap",
+		Channel: "18/stable",
+	})
+}
+
+func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	rootdir := c.MkDir()
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "edge",
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 3)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:    "core",
+		SnapID:  "core-Id",
+		File:    "core_3.snap",
+		Channel: "edge",
+	})
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:    "pc-kernel",
+		SnapID:  "pc-kernel-Id",
+		File:    "pc-kernel_2.snap",
+		Channel: "18/edge",
+	})
+	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
+		Name:    "pc",
+		SnapID:  "pc-Id",
+		File:    "pc_1.snap",
+		Channel: "edge",
+	})
+}
+
+func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	// pretend we downloaded the core,kernel already
+	cfn := s.downloadedSnaps["core"]
+	kfn := s.downloadedSnaps["pc-kernel"]
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		Snaps:           []string{kfn, cfn},
+		Channel:         "beta",
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	c.Check(local.NameToPath(), HasLen, 2)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 3)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:    "core",
+		SnapID:  "core-Id",
+		File:    "core_3.snap",
+		Channel: "beta",
+	})
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:    "pc-kernel",
+		SnapID:  "pc-kernel-Id",
+		File:    "pc-kernel_2.snap",
+		Channel: "18/beta",
+	})
+}
+
+func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core18":    "canonical",
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		Snaps:           []string{"core"},
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 6)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:   "snapd",
+		SnapID: "snapd-Id",
+		File:   "snapd_18.snap",
+	})
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:   "core",
+		SnapID: "core-Id",
+		File:   "core_3.snap",
+	})
+	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
+		Name:   "core18",
+		SnapID: "core18-Id",
+		File:   "core18_18.snap",
+	})
+	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
+		Name:   "pc-kernel",
+		SnapID: "pc-kernel-Id",
+		File:   "pc-kernel_2.snap",
+	})
+	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
+		Name:   "pc",
+		SnapID: "pc-Id",
+		File:   "pc_1.snap",
+	})
+	c.Check(seed.Snaps[5], DeepEquals, &snap.SeedSnap{
+		Name:    "required-snap1",
+		SnapID:  "required-snap1-Id",
+		File:    "required-snap1_3.snap",
+		Contact: "foo@example.com",
+	})
 }
 
 type toolingAuthContextSuite struct {

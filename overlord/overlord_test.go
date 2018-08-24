@@ -61,7 +61,7 @@ func (ovs *overlordSuite) TearDownTest(c *C) {
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
-	restore := patch.Mock(42, nil)
+	restore := patch.Mock(42, 2, nil)
 	defer restore()
 
 	var configstateInitCalled bool
@@ -73,6 +73,8 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
 
+	c.Check(o.StateEngine(), NotNil)
+	c.Check(o.TaskRunner(), NotNil)
 	c.Check(o.SnapManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
@@ -136,9 +138,13 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 		s.Set("patched", true)
 		return nil
 	}
-	patch.Mock(1, map[int]func(*state.State) error{1: p})
+	sp := func(s *state.State) error {
+		s.Set("patched2", true)
+		return nil
+	}
+	patch.Mock(1, 1, map[int][]patch.PatchFunc{1: {p, sp}})
 
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0}}`))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0, "patch-sublevel":0}}`))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -155,9 +161,16 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(level, Equals, 1)
 
+	var sublevel int
+	c.Assert(state.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(sublevel, Equals, 2)
+
 	var b bool
 	err = state.Get("patched", &b)
 	c.Assert(err, IsNil)
+	c.Check(b, Equals, true)
+
+	c.Assert(state.Get("patched2", &b), IsNil)
 	c.Check(b, Equals, true)
 }
 
@@ -166,10 +179,6 @@ type witnessManager struct {
 	expectedEnsure int
 	ensureCalled   chan struct{}
 	ensureCallback func(s *state.State) error
-}
-
-func (m *witnessManager) KnownTaskKinds() []string {
-	return []string{"foo"}
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -181,12 +190,6 @@ func (wm *witnessManager) Ensure() error {
 		return wm.ensureCallback(wm.state)
 	}
 	return nil
-}
-
-func (wm *witnessManager) Stop() {
-}
-
-func (wm *witnessManager) Wait() {
 }
 
 // markSeeded flags the state under the overlord as seeded to avoid running the seeding code in these tests
@@ -214,6 +217,30 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 
 	err = o.Stop()
 	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestUnknownTasks(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
+	// unknown tasks are ignored and succeed
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	t := st.NewTask("unknown", "...")
+	chg := st.NewChange("change-w-unknown", "...")
+	chg.AddTask(t)
+
+	st.Unlock()
+	err = o.Settle(1 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
 func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
@@ -427,7 +454,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
-	o.UnknownTaskManager().Ignore([]string{"foo"})
 
 	// create two changes, one that can be pruned now, one in progress
 	st := o.State()
@@ -485,52 +511,49 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	c.Check(dirs.SnapStateFile, testutil.FileContains, `"mark":1`)
 }
 
-type runnerManager struct {
-	runner         *state.TaskRunner
+type sampleManager struct {
 	ensureCallback func()
 }
 
-func newRunnerManager(s *state.State) *runnerManager {
-	rm := &runnerManager{
-		runner: state.NewTaskRunner(s),
-	}
+func newSampleManager(s *state.State, runner *state.TaskRunner) *sampleManager {
+	sm := &sampleManager{}
 
-	rm.runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr1Mark", 1)
 		return nil
 	}, nil)
-	rm.runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr2Mark", 1)
 		return nil
 	}, nil)
-	rm.runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return nil
 	}, nil)
-	rm.runner.AddHandler("runMgrForever", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgrForever", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return &state.Retry{}
 	}, nil)
-	rm.runner.AddHandler("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgrWCleanupMark", 1)
 		return nil
 	}, nil)
-	rm.runner.AddCleanup("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
+	runner.AddCleanup("runMgrWCleanup", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
@@ -538,27 +561,14 @@ func newRunnerManager(s *state.State) *runnerManager {
 		return nil
 	})
 
-	return rm
+	return sm
 }
 
-func (rm *runnerManager) KnownTaskKinds() []string {
-	return rm.runner.KnownTaskKinds()
-}
-
-func (rm *runnerManager) Ensure() error {
-	if rm.ensureCallback != nil {
-		rm.ensureCallback()
+func (sm *sampleManager) Ensure() error {
+	if sm.ensureCallback != nil {
+		sm.ensureCallback()
 	}
-	rm.runner.Ensure()
 	return nil
-}
-
-func (rm *runnerManager) Stop() {
-	rm.runner.Stop()
-}
-
-func (rm *runnerManager) Wait() {
-	rm.runner.Wait()
 }
 
 func (ovs *overlordSuite) TestTrivialSettle(c *C) {
@@ -567,8 +577,9 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -595,8 +606,9 @@ func (ovs *overlordSuite) TestSettleNotConverging(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -621,8 +633,9 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -654,8 +667,9 @@ func (ovs *overlordSuite) TestSettleChainWCleanup(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	o.AddManager(rm1)
+	sm1 := newSampleManager(s, o.TaskRunner())
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 
@@ -690,8 +704,8 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	rm1 := newRunnerManager(s)
-	rm1.ensureCallback = func() {
+	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1.ensureCallback = func() {
 		s.Lock()
 		defer s.Unlock()
 		v := 0
@@ -699,7 +713,8 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 		s.Set("ensureCount", v+1)
 	}
 
-	o.AddManager(rm1)
+	o.AddManager(sm1)
+	o.AddManager(o.TaskRunner())
 
 	defer o.Engine().Stop()
 

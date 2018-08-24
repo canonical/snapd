@@ -62,6 +62,8 @@ func (s *desktopSuite) TearDownTest(c *C) {
 var desktopAppYaml = `
 name: foo
 version: 1.0
+apps:
+    foobar:
 `
 
 var mockDesktopFile = []byte(`
@@ -110,11 +112,57 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 	})
 }
 
+func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
+	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
+	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance_foobar.desktop")
+
+	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+
+	err = wrappers.RemoveSnapDesktopFiles(info)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
+		{"update-desktop-database", dirs.SnapDesktopFilesDir},
+	})
+	// foo_instance file is still there
+	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
+
+	// restore the non-instance file
+	err = ioutil.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
+
+	s.mockUpdateDesktopDatabase.ForgetCalls()
+
+	info.InstanceKey = "instance"
+	err = wrappers.RemoveSnapDesktopFiles(info)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, false)
+	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
+		{"update-desktop-database", dirs.SnapDesktopFilesDir},
+	})
+	// foo file is still there
+	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, true)
+}
+
 func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 
-	err := os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
+	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	c.Assert(err, IsNil)
+
+	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance_foobar.desktop")
+	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
 	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
@@ -133,6 +181,8 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	c.Check(err, NotNil)
 	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
+	// foo_instance file was not removed by cleanup
+	c.Check(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 }
 
 // sanitize
@@ -324,6 +374,51 @@ TargetEnvironment=Unity
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, string(desktopContent))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesPlain(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	snap.InstanceKey = "bar"
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app
+`)
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
+`, dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesWithArgs(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	snap.InstanceKey = "bar"
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app %U
+`)
+
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
+`, dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
