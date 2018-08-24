@@ -63,5 +63,6 @@ execute: |
 
     echo "Ensure refresh.last is set"
     jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH "$(date +%Y)"
+
     echo "No refresh hold at this point"
     ! snap refresh --time| MATCH "^hold:"

@@ -501,26 +501,29 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags Flags) (*state.TaskSet, error) {
-	name := si.RealName
-	if name == "" {
-		return nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags) (*state.TaskSet, *snap.Info, error) {
+	if si.RealName == "" {
+		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
+	}
+
+	if instanceName == "" {
+		instanceName = si.RealName
 	}
 
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err := Get(st, instanceName, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if si.SnapID != "" {
 		if si.Revision.Unset() {
-			return nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
+			return nil, nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
 		}
 	}
 
-	if err := canSwitchChannel(st, name, channel); err != nil {
-		return nil, err
+	if err := canSwitchChannel(st, instanceName, channel); err != nil {
+		return nil, nil, err
 	}
 
 	var instFlags int
@@ -534,28 +537,40 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	// have side info or the user passed --dangerous
 	info, container, err := backend.OpenSnapFile(path, si)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := validateContainer(container, info, logger.Noticef); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	if err := snap.ValidateInstanceName(instanceName); err != nil {
+		return nil, nil, err
+	}
+
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	if info.SnapName() != snapName {
+		return nil, nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
+	}
+	info.InstanceKey = instanceKey
+
 	if err := validateFeatureFlags(st, info); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	snapsup := &SnapSetup{
-		Base:      info.Base,
-		Prereq:    defaultContentPlugProviders(st, info),
-		SideInfo:  si,
-		SnapPath:  path,
-		Channel:   channel,
-		Flags:     flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Base:        info.Base,
+		Prereq:      defaultContentPlugProviders(st, info),
+		SideInfo:    si,
+		SnapPath:    path,
+		Channel:     channel,
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
 	}
 
-	return doInstall(st, &snapst, snapsup, instFlags)
+	ts, err := doInstall(st, &snapst, snapsup, instFlags)
+	return ts, info, err
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -563,7 +578,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	return InstallPath(st, &snap.SideInfo{RealName: name}, path, "", flags)
+	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags)
+	return ts, err
 }
 
 // Install returns a set of tasks for installing snap.
@@ -652,7 +668,7 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -670,7 +686,7 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		snapst := stateByID[update.SnapID]
+		snapst := stateByInstanceName[update.InstanceName()]
 		return snapst.Channel, snapst.Flags, snapst
 
 	}
@@ -720,7 +736,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	// first snapd, core, bases, then rest
-	sort.Sort(byKind(updates))
+	sort.Stable(snap.ByType(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
 		preTs := prereqs[prereqName]
@@ -815,31 +831,6 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	return updated, tasksets, nil
-}
-
-type byKind []*snap.Info
-
-func (bk byKind) Len() int      { return len(bk) }
-func (bk byKind) Swap(i, j int) { bk[i], bk[j] = bk[j], bk[i] }
-
-var kindRevOrder = map[snap.Type]int{
-	snap.TypeOS:   2,
-	snap.TypeBase: 1,
-}
-
-func (bk byKind) Less(i, j int) bool {
-	// snapd sorts first to ensure that on all refrehses it is the first
-	// snap package that gets refreshed.
-	if bk[i].SnapName() == "snapd" {
-		return true
-	}
-	if bk[j].SnapName() == "snapd" {
-		return false
-	}
-
-	iRevOrd := kindRevOrder[bk[i].Type]
-	jRevOrd := kindRevOrder[bk[j].Type]
-	return iRevOrd >= jRevOrd
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {

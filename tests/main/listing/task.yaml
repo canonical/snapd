@@ -5,12 +5,12 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
+# TODO: update test for core18 but its already pretty confusing as is
+systems: [-ubuntu-core-18-*]
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
-
-# TODO: update test for core18 but its already pretty confusing as is
-systems: [-ubuntu-core-18-*]
 
 execute: |
     echo "List prints core snap version"
