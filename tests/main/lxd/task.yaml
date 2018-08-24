@@ -24,6 +24,7 @@ restore: |
 
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
+    rm -f conf.yaml 
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
@@ -96,3 +97,17 @@ execute: |
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
     snap connect lxd-demo-server:lxd lxd:lxd
+
+    echo "Check that we error in 'unconfined' lxd containers"
+    lxd.lxc config show my-ubuntu > conf.yaml
+    cat <<EOF >> conf.yaml
+    config:
+      raw.lxc: |
+        lxc.apparmor.profile=unconfined
+    EOF
+    lxd.lxc stop --force my-ubuntu
+    lxd.lxc config edit my-ubuntu < conf.yaml
+    lxd.lxc start my-ubuntu
+    # shellcheck disable=SC2016
+    lxd.lxc exec my-ubuntu -- sh -c 'set -x;for i in $(seq 120); do if journalctl -u snapd.service | grep -E "apparmor detected but insufficient permissions to use it"; then break; fi; sleep 1; done'
+    lxd.lxc exec my-ubuntu -- journalctl -u snapd | MATCH "apparmor detected but insufficient permissions to use it"
