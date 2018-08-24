@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/systemd"
@@ -58,7 +57,6 @@ type daemonSuite struct {
 	err             error
 	lastPolkitFlags polkit.CheckFlags
 	notified        []string
-	restoreUDevMon  func()
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -76,9 +74,6 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		s.notified = append(s.notified, notif)
 		return nil
 	}
-	s.restoreUDevMon = udevmonitor.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
-		return &udevmonitor.Mock{}
-	})
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization
 }
@@ -89,7 +84,6 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	s.authorized = false
 	s.err = nil
 	logger.SetLogger(logger.NullLogger)
-	s.restoreUDevMon()
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {

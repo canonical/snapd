@@ -144,19 +144,3 @@ func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 		m.deviceRemoved(di)
 	}
 }
-
-type newMonitorFn func(DeviceAddedFunc, DeviceRemovedFunc) Interface
-
-func MockCreateUDevMonitor(new newMonitorFn) (restore func()) {
-	CreateUDevMonitor = new
-	return func() {
-		CreateUDevMonitor = New
-	}
-}
-
-type Mock struct{}
-
-func (u *Mock) Connect() error    { return nil }
-func (u *Mock) Disconnect() error { return nil }
-func (u *Mock) Run() error        { return nil }
-func (u *Mock) Stop() error       { return nil }

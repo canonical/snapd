@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -83,6 +82,8 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
+
+	o.InterfaceManager().DisableUdevMonitor()
 
 	s := o.State()
 	c.Check(s, NotNil)
@@ -212,6 +213,7 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 func (ovs *overlordSuite) TestUnknownTasks(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 
 	markSeeded(o)
 	// make sure we don't try to talk to the store
@@ -746,47 +748,4 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
-}
-
-type udevMonMock struct {
-	ConnectCalled, RunCalled, StopCalled bool
-}
-
-func (u *udevMonMock) Connect() error {
-	u.ConnectCalled = true
-	return nil
-}
-
-func (u *udevMonMock) Disconnect() error {
-	return nil
-}
-
-func (u *udevMonMock) Run() error {
-	u.RunCalled = true
-	return nil
-}
-
-func (u *udevMonMock) Stop() error {
-	u.StopCalled = true
-	return nil
-}
-
-func (ovs *overlordSuite) TestEnableHotplugBasic(c *C) {
-	u := udevMonMock{}
-	restore := hotplug.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.UDevMon {
-		return &u
-	})
-	defer restore()
-
-	o, err := overlord.New()
-	c.Assert(err, IsNil)
-
-	c.Assert(o.EnableHotplug(), IsNil)
-
-	o.Loop()
-	o.Stop()
-
-	c.Assert(u.ConnectCalled, Equals, true)
-	c.Assert(u.RunCalled, Equals, true)
-	c.Assert(u.StopCalled, Equals, true)
 }
