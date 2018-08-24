@@ -136,7 +136,8 @@ var adbPermanentSlotAppArmor = `
 # Allow reading the serial number of all the USB devices.
 /sys/devices/**/usb*/*/serial r,
 
-# Allow adb (server) to use TCP/IP networking.
+# Allow adb (server) to use TCP/IP for localhost IPC.
+# TODO: once fine-grained network mediation is possible, constrain this to localhost.
 network inet stream,
 `
 
@@ -149,7 +150,8 @@ socket AF_INET SOCK_STREAM -
 `
 
 var adbConnectedPlugAppArmor = `
-# Allow adb (client) to use TCP/IP networking.
+# Allow adb (client) to use TCP/IP for localhost IPC.
+# TODO: once fine-grained network mediation is possible, constrain this to localhost.
 network inet stream,
 `
 
