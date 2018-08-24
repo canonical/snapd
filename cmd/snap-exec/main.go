@@ -90,7 +90,7 @@ func run() error {
 
 	// Now actually handle the dispatching
 	if opts.Hook != "" {
-		return execHook(snapApp, revision, opts.Hook)
+		return execHook(snapApp, revision, opts.Hook, opts.SkipCommandChain)
 	}
 
 	return execApp(snapApp, revision, opts.Command, extraArgs, opts.SkipCommandChain)
@@ -125,11 +125,11 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func commandChain(app *snap.AppInfo) []string {
-	chain := make([]string, 0, len(app.CommandChain))
-	snapMountDir := app.Snap.MountDir()
+func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
+	chain := make([]string, 0, len(commandChain))
+	snapMountDir := snapInfo.MountDir()
 
-	for _, element := range app.CommandChain {
+	for _, element := range commandChain {
 		chain = append(chain, filepath.Join(snapMountDir, element))
 	}
 
@@ -214,7 +214,7 @@ func execApp(snapApp, revision, command string, args []string, skipCommandChain 
 	fullCmd = append(fullCmd, args...)
 
 	if !skipCommandChain {
-		fullCmd = append(commandChain(app), fullCmd...)
+		fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 	}
 
 	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
@@ -224,7 +224,7 @@ func execApp(snapApp, revision, command string, args []string, skipCommandChain 
 	return nil
 }
 
-func execHook(snapName, revision, hookName string) error {
+func execHook(snapName, revision, hookName string, skipCommandChain bool) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return err
@@ -246,6 +246,9 @@ func execHook(snapName, revision, hookName string) error {
 	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
 
 	// run the hook
-	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)
-	return syscallExec(hookPath, []string{hookPath}, env)
+	cmd := []string{filepath.Join(hook.Snap.HooksDir(), hook.Name)}
+	if !skipCommandChain {
+		cmd = append(absoluteCommandChain(hook.Snap, hook.CommandChain), cmd...)
+	}
+	return syscallExec(cmd[0], cmd, env)
 }
