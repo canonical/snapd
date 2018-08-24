@@ -29,12 +29,12 @@ import (
 )
 
 // Level is the current implemented patch level of the state format and content.
-var Level = 7
+var Level = 6
 
 // Sublevel is the current implemented sublevel for the Level.
 // Sublevel 0 is the first patch for the new Level, rollback below x.0 is not possible.
 // Sublevel patches > 0 do not prevent rollbacks.
-var Sublevel = 0
+var Sublevel = 1
 
 type PatchFunc func(s *state.State) error
 
