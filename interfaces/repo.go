@@ -43,7 +43,7 @@ type Repository struct {
 	slotPlugs map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection
 	// given a plug and a slot, are they connected?
 	plugSlots map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection
-	backends  map[SecuritySystem]SecurityBackend
+	backends  []SecurityBackend
 }
 
 // NewRepository creates an empty plug repository.
@@ -55,7 +55,6 @@ func NewRepository() *Repository {
 		slots:         make(map[string]map[string]*snap.SlotInfo),
 		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
 		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
-		backends:      make(map[SecuritySystem]SecurityBackend),
 	}
 
 	return repo
@@ -231,10 +230,12 @@ func (r *Repository) AddBackend(backend SecurityBackend) error {
 	defer r.m.Unlock()
 
 	name := backend.Name()
-	if _, ok := r.backends[name]; ok {
-		return fmt.Errorf("cannot add backend %q, security system name is in use", name)
+	for _, other := range r.backends {
+		if other.Name() == name {
+			return fmt.Errorf("cannot add backend %q, security system name is in use", name)
+		}
 	}
-	r.backends[name] = backend
+	r.backends = append(r.backends, backend)
 	return nil
 }
 
@@ -809,15 +810,13 @@ func (r *Repository) disconnect(plug *snap.PlugInfo, slot *snap.SlotInfo) {
 }
 
 // Backends returns all the security backends.
+// The order is the same as the order in which they were inserted.
 func (r *Repository) Backends() []SecurityBackend {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	result := make([]SecurityBackend, 0, len(r.backends))
-	for _, backend := range r.backends {
-		result = append(result, backend)
-	}
-	sort.Sort(byBackendName(result))
+	result := make([]SecurityBackend, len(r.backends))
+	copy(result, r.backends)
 	return result
 }
 
@@ -857,7 +856,13 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	backend := r.backends[securitySystem]
+	var backend SecurityBackend
+	for _, b := range r.backends {
+		if b.Name() == securitySystem {
+			backend = b
+			break
+		}
+	}
 	if backend == nil {
 		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
 	}
