@@ -17,16 +17,16 @@
  *
  */
 
-package hotplug
+package udevmonitor
 
 import (
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
-func MockUDevMonitorChannel(mon *UDevMonitor, events chan netlink.UEvent) {
+func MockUDevMonitorChannel(mon *Monitor, events chan netlink.UEvent) {
 	mon.netlinkEvents = events
 }
 
-func MockUDevMonitorStopChannel(mon *UDevMonitor, monitorStop chan struct{}) {
+func MockUDevMonitorStopChannel(mon *Monitor, monitorStop chan struct{}) {
 	mon.monitorStop = monitorStop
 }

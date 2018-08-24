@@ -17,7 +17,7 @@
  *
  */
 
-package hotplug
+package udevmonitor
 
 import (
 	"fmt"
@@ -30,9 +30,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-var CreateUDevMonitor = newUDevMonitor
+var CreateUDevMonitor = New
 
-type UDevMon interface {
+type Interface interface {
 	Connect() error
 	Disconnect() error
 	Run() error
@@ -42,8 +42,8 @@ type UDevMon interface {
 type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
 type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
 
-// UDevMonitor monitors kernel uevents making it possible to find USB devices.
-type UDevMonitor struct {
+// Monitor monitors kernel uevents making it possible to find USB devices.
+type Monitor struct {
 	tomb          tomb.Tomb
 	deviceAdded   DeviceAddedFunc
 	deviceRemoved DeviceRemovedFunc
@@ -54,8 +54,8 @@ type UDevMonitor struct {
 	netlinkEvents chan netlink.UEvent
 }
 
-func newUDevMonitor(added DeviceAddedFunc, removed DeviceRemovedFunc) UDevMon {
-	m := &UDevMonitor{
+func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
+	m := &Monitor{
 		deviceAdded:   added,
 		deviceRemoved: removed,
 		netlinkConn:   &netlink.UEventConn{},
@@ -67,7 +67,7 @@ func newUDevMonitor(added DeviceAddedFunc, removed DeviceRemovedFunc) UDevMon {
 	return m
 }
 
-func (m *UDevMonitor) Connect() error {
+func (m *Monitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
 		return fmt.Errorf("cannot connect: already connected")
@@ -83,7 +83,7 @@ func (m *UDevMonitor) Connect() error {
 	return nil
 }
 
-func (m *UDevMonitor) Disconnect() error {
+func (m *Monitor) Disconnect() error {
 	close(m.monitorStop)
 	return m.netlinkConn.Close()
 }
@@ -91,7 +91,7 @@ func (m *UDevMonitor) Disconnect() error {
 // Run enumerates existing USB devices and starts a new goroutine that
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
-func (m *UDevMonitor) Run() error {
+func (m *Monitor) Run() error {
 	m.tomb.Go(func() error {
 		for {
 			select {
@@ -108,14 +108,14 @@ func (m *UDevMonitor) Run() error {
 	return nil
 }
 
-func (m *UDevMonitor) Stop() error {
+func (m *Monitor) Stop() error {
 	m.tomb.Kill(nil)
 	err := m.tomb.Wait()
 	m.netlinkConn = nil
 	return err
 }
 
-func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
+func (m *Monitor) udevEvent(ev *netlink.UEvent) {
 	switch ev.Action {
 	case netlink.ADD:
 		m.addDevice(ev.KObj, ev.Env)
@@ -125,7 +125,7 @@ func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
 	}
 }
 
-func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
+func (m *Monitor) addDevice(kobj string, env map[string]string) {
 	di, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
@@ -135,7 +135,7 @@ func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
 	}
 }
 
-func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
+func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 	di, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
@@ -145,12 +145,12 @@ func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 	}
 }
 
-type newMonitorFn func(DeviceAddedFunc, DeviceRemovedFunc) UDevMon
+type newMonitorFn func(DeviceAddedFunc, DeviceRemovedFunc) Interface
 
 func MockCreateUDevMonitor(new newMonitorFn) (restore func()) {
 	CreateUDevMonitor = new
 	return func() {
-		CreateUDevMonitor = newUDevMonitor
+		CreateUDevMonitor = New
 	}
 }
 

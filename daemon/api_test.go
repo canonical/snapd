@@ -64,7 +64,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/ifacestate/hotplug"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -227,8 +227,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
-	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedFunc, hotplug.DeviceRemovedFunc) hotplug.UDevMon {
-		return &hotplug.UDevMonMock{}
+	s.restoreUDevMon = udevmonitor.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		return &udevmonitor.UDevMonMock{}
 	})
 
 	s.rsnaps = nil
