@@ -51,8 +51,8 @@ var typeOrder = map[Type]int{
 	TypeSnapd:  0,
 }
 
-func (m Type) sortOrder() int {
-	return typeOrder[m]
+func (m Type) SortsBefore(other Type) bool {
+	return typeOrder[m] < typeOrder[other]
 }
 
 // UnmarshalJSON sets *m to a copy of data.
