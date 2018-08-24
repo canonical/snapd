@@ -137,3 +137,40 @@ func (ts *strutilSuite) TestTruncateOutput(c *check.C) {
 	out = strutil.TruncateOutput(data, 0, 0)
 	c.Assert(out, check.HasLen, 0)
 }
+
+func (ts *strutilSuite) TestParseValueWithUnitHappy(c *check.C) {
+	for _, t := range []struct {
+		str      string
+		expected int64
+	}{
+		{"0B", 0},
+		{"1B", 1},
+		{"400B", 400},
+		{"1kB", 1000},
+		{"900kB", 900 * 1000},
+		{"1MB", 1000 * 1000},
+		{"20MB", 20 * 1000 * 1000},
+		{"1GB", 1000 * 1000 * 1000},
+		{"31GB", 31 * 1000 * 1000 * 1000},
+	} {
+		val, err := strutil.ParseValueWithUnit(t.str)
+		c.Check(err, check.IsNil)
+		c.Check(val, check.Equals, t.expected)
+	}
+}
+
+func (ts *strutilSuite) TestParseValueWithUnitUnhappy(c *check.C) {
+	for _, t := range []struct {
+		str    string
+		errStr string
+	}{
+		{"", `cannot parse "": need a unit`},
+		{"1", `cannot parse "1": need a unit`},
+		{"400x", `cannot use unit in "400x": try 'kB' or 'MB'`},
+		{"400xx", `cannot use unit in "400xx": try 'kB' or 'MB'`},
+		{"1k", `cannot use unit in "1k": try 'kB' or 'MB'`},
+	} {
+		_, err := strutil.ParseValueWithUnit(t.str)
+		c.Check(err, check.ErrorMatches, t.errStr)
+	}
+}

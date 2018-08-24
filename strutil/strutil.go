@@ -111,3 +111,37 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 	}
 	return data
 }
+
+// ParseValueWithUnit parses a value like 500kB and returns the number
+// in byte
+func ParseValueWithUnit(inp string) (int64, error) {
+	unitMultiplier := map[string]int{
+		"B":  1,
+		"kB": 1000,
+		"MB": 1000 * 1000,
+		"GB": 1000 * 1000 * 1000,
+		"TB": 1000 * 1000 * 1000 * 1000,
+		"PB": 1000 * 1000 * 1000 * 1000 * 1000,
+		"EB": 1000 * 1000 * 1000 * 1000 * 1000 * 1000,
+	}
+	if len(inp) < 2 {
+		return 0, fmt.Errorf("cannot parse %q: need a unit", inp)
+	}
+	// simple case, "1234B", read as byte
+	if lastCh := inp[len(inp)-1]; lastCh == 'B' {
+		if asByte, err := strconv.ParseInt(inp[:len(inp)-1], 10, 64); err == nil {
+			return asByte, nil
+		}
+	}
+	// two char suffix
+	unit := inp[len(inp)-2:]
+	mul, ok := unitMultiplier[unit]
+	if !ok {
+		return 0, fmt.Errorf("cannot use unit in %q: try 'kB' or 'MB'", inp)
+	}
+	val, err := strconv.ParseInt(inp[:len(inp)-2], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return val * int64(mul), nil
+}
