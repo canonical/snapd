@@ -115,7 +115,7 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 // ParseValueWithUnit parses a value like 500kB and returns the number
 // in byte
 func ParseValueWithUnit(inp string) (int64, error) {
-	unitMultiplier := map[string]int{
+	unitMultiplier := map[string]int64{
 		"B":  1,
 		"kB": 1000,
 		"MB": 1000 * 1000,
