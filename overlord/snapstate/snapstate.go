@@ -736,7 +736,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	// first snapd, core, bases, then rest
-	sort.Sort(byKind(updates))
+	sort.Stable(snap.ByType(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
 		preTs := prereqs[prereqName]
@@ -831,31 +831,6 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	return updated, tasksets, nil
-}
-
-type byKind []*snap.Info
-
-func (bk byKind) Len() int      { return len(bk) }
-func (bk byKind) Swap(i, j int) { bk[i], bk[j] = bk[j], bk[i] }
-
-var kindRevOrder = map[snap.Type]int{
-	snap.TypeOS:   2,
-	snap.TypeBase: 1,
-}
-
-func (bk byKind) Less(i, j int) bool {
-	// snapd sorts first to ensure that on all refrehses it is the first
-	// snap package that gets refreshed.
-	if bk[i].SnapName() == "snapd" {
-		return true
-	}
-	if bk[j].SnapName() == "snapd" {
-		return false
-	}
-
-	iRevOrd := kindRevOrder[bk[i].Type]
-	jRevOrd := kindRevOrder[bk[j].Type]
-	return iRevOrd >= jRevOrd
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
