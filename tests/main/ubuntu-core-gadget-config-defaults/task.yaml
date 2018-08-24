@@ -1,7 +1,9 @@
 summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
+
 systems: [ubuntu-core-16-64]
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -13,7 +15,7 @@ prepare: |
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
     snap download --edge test-snapd-with-configure
-    unsquashfs /var/lib/snapd/snaps/pc_*.snap
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
     # fill in defaults
     TEST_SNAP_ID=
     if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
@@ -32,7 +34,7 @@ prepare: |
            rsyslog:
              disable: true
     EOF
-    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     cp test-snapd-with-configure_*.snap /var/lib/snapd/seed/snaps/
@@ -46,6 +48,7 @@ prepare: |
     cp test-snapd-with-configure_*.assert /var/lib/snapd/seed/assertions
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -93,6 +96,7 @@ restore: |
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

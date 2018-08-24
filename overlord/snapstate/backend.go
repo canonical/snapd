@@ -54,7 +54,7 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install releated
-	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
+	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, model *asserts.Model) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error

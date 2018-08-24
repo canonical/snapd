@@ -1,0 +1,26 @@
+summary: Check that command-chain is properly supported
+
+prepare: |
+    echo "Build command chain snap"
+    snap pack "$TESTSLIB/snaps/command-chain"
+    snap install --dangerous command-chain_1.0_all.snap
+
+restore: |
+    rm -f command-chain_1.0_all.snap
+
+execute: |
+    echo "Test that command-chain actually runs as expected"
+    [ "$(command-chain.hello)" = "chain1 chain2 hello" ]
+
+    echo "Ensure that the command-chain is run with 'snap run --shell' as well"
+    [ "$(snap run --shell command-chain.hello -c 'echo "shell"')" = "chain1 chain2 shell" ]
+    env="$(snap run --shell command-chain.hello -c 'env')"
+    echo "$env" | MATCH '^CHAIN_1_RAN=1$'
+    echo "$env" | MATCH '^CHAIN_2_RAN=1$'
+
+    echo "Also ensure that 'snap run' supports skipping the command chain"
+    [ "$(snap run --skip-command-chain command-chain.hello)" = "hello" ]
+    [ "$(snap run --shell --skip-command-chain command-chain.hello -c 'echo "shell"')" = "shell" ]
+    env="$(snap run --shell --skip-command-chain command-chain.hello -c 'env')"
+    echo "$env" | MATCH -v '^CHAIN_1_RAN=1$'
+    echo "$env" | MATCH -v '^CHAIN_2_RAN=1$'

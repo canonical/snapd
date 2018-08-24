@@ -1,7 +1,8 @@
 summary: Check that snap connect works
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Install a test snap"
     install_local home-consumer
@@ -23,15 +24,24 @@ execute: |
     snap connect home-consumer:home
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
+    echo "Connecting already connected interface does nothing"
+    snap connect home-consumer:home system:home
+
+    OUTPUT=$(snap change --last=connect)
+    if [ "$(echo "$OUTPUT" | wc -l)" -ne 1 ]; then
+        echo "Expected no tasks, got: $OUTPUT"
+        exit 1
+    fi
+
     snap disconnect home-consumer:home
-    snap tasks --last=disconnect| MATCH "Disconnect .* from core:home"
+    snap tasks --last=disconnect| MATCH "Disconnect .* from (core|snapd):home"
 
     echo "The plug can be connected to a slot on the core snap using abbreviated syntax"
     snap connect home-consumer:home :home
 
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    snap tasks --last=connect| MATCH "Connect home-consumer:home to core:home"
+    snap tasks --last=connect| MATCH "Connect home-consumer:home to (core|snapd):home"
 
     # NOTE: Those only work when installed from the store as otherwise we don't
     # have snap declaration assertion and cannot check if a given connection

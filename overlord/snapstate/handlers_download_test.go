@@ -29,41 +29,23 @@ import (
 )
 
 type downloadSnapSuite struct {
-	state     *state.State
-	snapmgr   *snapstate.SnapManager
+	baseHandlerSuite
+
 	fakeStore *fakeStore
-
-	fakeBackend *fakeSnappyBackend
-
-	reset func()
 }
 
 var _ = Suite(&downloadSnapSuite{})
 
 func (s *downloadSnapSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
-	s.state.Lock()
-	defer s.state.Unlock()
+	s.setup(c, nil)
 
 	s.fakeStore = &fakeStore{
 		state:       s.state,
 		fakeBackend: s.fakeBackend,
 	}
+	s.state.Lock()
+	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
-
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
-	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-
-	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
-}
-
-func (s *downloadSnapSuite) TearDownTest(c *C) {
-	s.reset()
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
@@ -85,8 +67,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	// the compat code called the store "Snap" endpoint
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -96,9 +78,9 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 		{
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
-				Action:  "install",
-				Name:    "foo",
-				Channel: "some-channel",
+				Action:       "install",
+				InstanceName: "foo",
+				Channel:      "some-channel",
 			},
 			revno: snap.R(11),
 		},
@@ -145,8 +127,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	s.se.Ensure()
+	s.se.Wait()
 
 	// only the download endpoint of the store was hit
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -188,8 +170,8 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	s.state.Unlock()
 
 	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 	}
 
 	s.state.Lock()

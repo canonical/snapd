@@ -1,4 +1,5 @@
 summary: when the base snap changes revision apps are not stuck on the stale one
+
 details: |
     When a snap application starts running the mount namespace it inhabits is
     preserved and cached across all the applications belonging to a given snap.
@@ -14,6 +15,7 @@ details: |
 # soon as the new core snap is installed. A variant of this using a non-core
 # base snap is possible but that is a separate test.
 systems: [-ubuntu-core-*]
+
 prepare: |
     # We will need the Swiss-army-knife shell snap. We want to use it in
     # devmode so that we can look at /customized file which is non-standard.
@@ -22,11 +24,16 @@ prepare: |
 
     # We will also need to prepare a hacked core snap that just differs from
     # our own in some detail that we can measure.
-    unsquashfs $(ls /var/lib/snapd/snaps/core_*.snap | sort -r -n | head -n 1)
+    unsquashfs -no-progress $(ls /var/lib/snapd/snaps/core_*.snap | sort -r -n | head -n 1)
     touch squashfs-root/customized
     sed -i -e 's/version: .*/version: customized/' squashfs-root/meta/snap.yaml
 
     mksnap_fast squashfs-root core-customized.snap
+
+restore: |
+    rm -rf squashfs-root
+    rm -f core-customized.snap
+
 execute: |
     # Start a "sleep" process in the background
     test-snapd-sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
@@ -62,6 +69,3 @@ execute: |
     # the stamp file in /tmp because /tmp is now empty.
     test-snapd-sh -c "test ! -e /tmp/stamp"
     test-snapd-sh -c "test -e /customized"
-restore: |
-    rm -rf squashfs-root
-    rm -f core-customized.snap

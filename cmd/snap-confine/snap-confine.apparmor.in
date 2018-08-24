@@ -68,7 +68,7 @@
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
     /usr/lib/snapd/snap-device-helper ixr, # drop
-    /lib/udev/snappy-app-dev ixr, # drop
+    /{,usr/}lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,
@@ -193,6 +193,8 @@
 
     # allow making re-execed host snap-exec available inside base snaps
     mount options=(ro bind) @SNAP_MOUNT_DIR@/core/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    # allow making snapd snap tools available inside base snaps
+    mount options=(ro bind) @SNAP_MOUNT_DIR@/snapd/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
 
     mount options=(rw bind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
@@ -264,17 +266,17 @@
     mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
 
     # Vulkan support
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 
     # GLVND EGL vendor
     /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
 
     # create gl dirs as needed
     /tmp/snap.rootfs_*/ r,
@@ -363,6 +365,8 @@
     # support for the mount namespace sharing
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
+    ptrace read peer=unconfined,
+    # https://forum.snapcraft.io/t/custom-kernel-error-on-readlinkat-in-mount-namespace/6097/21
     ptrace trace peer=unconfined,
 
     mount options=(rw rbind) /run/snapd/ns/ -> /run/snapd/ns/,

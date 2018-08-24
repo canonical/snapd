@@ -120,7 +120,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
-publisher: canonical
+publisher: Canonical✓
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -145,7 +145,8 @@ const mockInfoJSON = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -182,7 +183,8 @@ const mockInfoJSONWithChannels = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "download-size": 65536,
       "icon": "",
@@ -237,7 +239,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -260,7 +262,8 @@ const mockInfoJSONOtherLicense = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
@@ -291,7 +294,8 @@ const mockInfoJSONNoLicense = `
       "publisher": {
          "id": "canonical",
          "username": "canonical",
-         "display-name": "Canonical"
+         "display-name": "Canonical",
+         "validation": "verified"
       },
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
@@ -333,7 +337,7 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
+publisher: Canonical✓
 license:   BSD-3
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -369,8 +373,8 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
-license:   unknown
+publisher: Canonical✓
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
@@ -405,8 +409,8 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
-license:   unknown
+publisher: Canonical✓
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
@@ -450,8 +454,8 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: canonical
-license:   unknown
+publisher: Canonical✓
+license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/

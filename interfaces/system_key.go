@@ -73,19 +73,25 @@ type systemKey struct {
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
+	osReadlink      = os.Readlink
 )
 
 func findSnapdPath() (string, error) {
 	snapdPath := filepath.Join(dirs.DistroLibExecDir, "snapd")
 
 	// find the right snapdPath by looking if we are re-execing or not
-	exe, err := os.Readlink("/proc/self/exe")
+	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
 		return "", err
 	}
 
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/snapd"), nil
+		// reexecd' snapd may be coming from either 'core' or 'snapd'
+		// snaps, find the local prefix to the snap:
+		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
+		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
+		prefix := strings.Split(exe, "/usr/")[0]
+		return filepath.Join(prefix, "/usr/lib/snapd/snapd"), nil
 	}
 	return snapdPath, nil
 }

@@ -1,4 +1,5 @@
 summary: Check that entire snap can be shared with the content interface
+
 prepare: |
     echo "Having installed a pair of snaps that share content"
     . "$TESTSLIB/snaps.sh"
@@ -6,6 +7,7 @@ prepare: |
     install_local test-snapd-content-plug
     echo "We can connect them together"
     snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+
 execute: |
     echo "We can now see that the content is shared"
     test-snapd-content-plug.content-plug | grep "Some shared content"

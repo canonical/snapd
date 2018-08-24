@@ -1,11 +1,14 @@
 summary: Check that /var/lib/lxd is bind mounted to the real thing if one exists
+
 details: |
     After switching to the chroot-based snap-confine the LXD snap stopped
     working (even in devmode) because it relied on access to /var/lib/lxd from
     the host filesystem. While this would never work in an all-snap image it is
     still important to ensure that it works in classic devmode environment.
+
 # This test only applies to classic systems
 systems: [-ubuntu-core-*, -fedora-*, -arch-*]
+
 prepare: |
     echo "Having installed the test snap in devmode"
     . "$TESTSLIB/snaps.sh"
@@ -13,9 +16,11 @@ prepare: |
     echo "Having created a canary file in /var/lib/lxd"
     mkdir -p /var/lib/lxd
     echo "test" > /var/lib/lxd/canary
+
 execute: |
     echo "We can see the canary file in /var/lib/lxd"
     [ "$(test-snapd-tools.cmd cat /var/lib/lxd/canary)" = "test" ]
+
 restore: |
     rm -f /var/lib/lxd/canary
     # When the host already has LXD installed we cannot just remove this

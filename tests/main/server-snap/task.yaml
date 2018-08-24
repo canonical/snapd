@@ -1,8 +1,7 @@
 summary: Check snap web servers
 
 # arch: there is no ip6-localhost
-# core18: no "nc" binary
-systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-core-18-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
@@ -19,14 +18,14 @@ environment:
 warn-timeout: 3m
 
 prepare: |
-    snap install $SNAP_NAME
+    snap install "$SNAP_NAME"
     cat > request.txt <<EOF
     GET / HTTP/1.0
 
     EOF
     echo "Wait for the service to be listening, limited to the task kill-timeout"
     # shellcheck source=tests/lib/network.sh
-    . $TESTSLIB/network.sh
+    . "$TESTSLIB"/network.sh
     wait_listen_port "$PORT"
 
 restore: |
@@ -35,6 +34,6 @@ restore: |
 execute: |
     response=$(nc -w 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
 
-    statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
+    statusPattern='(?s)HTTP\/1\.0 200 OK\n*'
     echo "$response" | grep -Pzq "$statusPattern"
     echo "$response" | grep -Pzq "$TEXT"

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,13 +25,18 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -129,6 +134,7 @@ const (
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 	errorKindLoginRequired     = errorKind("login-required")
 	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
+	errorKindAuthCancelled     = errorKind("auth-cancelled")
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
@@ -141,7 +147,11 @@ const (
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
-	errorKindSnapRevisionNotAvailable = errorKind("snap-revision-not-available")
+	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
+	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
+	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
+
+	errorKindSnapChangeConflict = errorKind("snap-change-conflict")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
@@ -365,15 +375,73 @@ func SnapNotFound(snapName string, err error) Response {
 // operation is requested for which no revivision can be found
 // in the given context (e.g. request an install from a stable
 // channel when this channel is empty).
-func SnapRevisionNotAvailable(snapName string, err error) Response {
+func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) Response {
+	var value interface{} = snapName
+	kind := errorKindSnapRevisionNotAvailable
+	msg := rnaErr.Error()
+	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
+		thisArch := arch.UbuntuArchitecture()
+		values := map[string]interface{}{
+			"snap-name":    snapName,
+			"action":       rnaErr.Action,
+			"channel":      rnaErr.Channel,
+			"architecture": thisArch,
+		}
+		archOK := false
+		releases := make([]map[string]interface{}, 0, len(rnaErr.Releases))
+		for _, c := range rnaErr.Releases {
+			if c.Architecture == thisArch {
+				archOK = true
+			}
+			releases = append(releases, map[string]interface{}{
+				"architecture": c.Architecture,
+				"channel":      c.Name,
+			})
+		}
+		// we return all available releases (arch x channel)
+		// as reported in the store error, but we hint with
+		// the error kind whether there was anything at all
+		// available for this architecture
+		if archOK {
+			kind = errorKindSnapChannelNotAvailable
+			msg = "no snap revision on specified channel"
+		} else {
+			kind = errorKindSnapArchitectureNotAvailable
+			msg = "no snap revision on specified architecture"
+		}
+		values["releases"] = releases
+		value = values
+	}
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
-			Message: err.Error(),
-			Kind:    errorKindSnapRevisionNotAvailable,
-			Value:   snapName,
+			Message: msg,
+			Kind:    kind,
+			Value:   value,
 		},
 		Status: 404,
+	}
+}
+
+// SnapChangeConflict is an error responder used when an operation is
+// conflicts with another change.
+func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
+	value := map[string]interface{}{}
+	if cce.Snap != "" {
+		value["snap-name"] = cce.Snap
+	}
+	if cce.ChangeKind != "" {
+		value["change-kind"] = cce.ChangeKind
+	}
+
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: cce.Error(),
+			Kind:    errorKindSnapChangeConflict,
+			Value:   value,
+		},
+		Status: 409,
 	}
 }
 
@@ -389,4 +457,92 @@ func AppNotFound(format string, v ...interface{}) Response {
 		Result: res,
 		Status: 404,
 	}
+}
+
+// AuthCancelled is an error responder used when a user cancelled
+// the auth process.
+func AuthCancelled(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAuthCancelled,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 403,
+	}
+}
+
+func errToResponse(err error, snaps []string, fallback func(format string, v ...interface{}) Response, format string, v ...interface{}) Response {
+	var kind errorKind
+	var snapName string
+
+	switch err {
+	case store.ErrSnapNotFound:
+		switch len(snaps) {
+		case 1:
+			return SnapNotFound(snaps[0], err)
+		// store.ErrSnapNotFound should only be returned for individual
+		// snap queries; in all other cases something's wrong
+		case 0:
+			return InternalError("store.SnapNotFound with no snap given")
+		default:
+			return InternalError("store.SnapNotFound with %d snaps", len(snaps))
+		}
+	case store.ErrNoUpdateAvailable:
+		kind = errorKindSnapNoUpdateAvailable
+	case store.ErrLocalSnap:
+		kind = errorKindSnapLocal
+	default:
+		handled := true
+		switch err := err.(type) {
+		case *store.RevisionNotAvailableError:
+			// store.ErrRevisionNotAvailable should only be returned for
+			// individual snap queries; in all other cases something's wrong
+			switch len(snaps) {
+			case 1:
+				return SnapRevisionNotAvailable(snaps[0], err)
+			case 0:
+				return InternalError("store.RevisionNotAvailable with no snap given")
+			default:
+				return InternalError("store.RevisionNotAvailable with %d snaps", len(snaps))
+			}
+		case *snap.AlreadyInstalledError:
+			kind = errorKindSnapAlreadyInstalled
+			snapName = err.Snap
+		case *snap.NotInstalledError:
+			kind = errorKindSnapNotInstalled
+			snapName = err.Snap
+		case *snapstate.ChangeConflictError:
+			return SnapChangeConflict(err)
+		case *snapstate.SnapNeedsDevModeError:
+			kind = errorKindSnapNeedsDevMode
+			snapName = err.Snap
+		case *snapstate.SnapNeedsClassicError:
+			kind = errorKindSnapNeedsClassic
+			snapName = err.Snap
+		case *snapstate.SnapNeedsClassicSystemError:
+			kind = errorKindSnapNeedsClassicSystem
+			snapName = err.Snap
+		case net.Error:
+			if err.Timeout() {
+				kind = errorKindNetworkTimeout
+			} else {
+				handled = false
+			}
+		default:
+			handled = false
+		}
+
+		if !handled {
+			v = append(v, err)
+			return fallback(format, v...)
+		}
+	}
+
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Result: &errorResult{Message: err.Error(), Kind: kind, Value: snapName},
+		Status: 400,
+	}, nil)
 }

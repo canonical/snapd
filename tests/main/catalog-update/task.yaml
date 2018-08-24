@@ -4,14 +4,22 @@ execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
+    echo "We count how many catalog refreshes are logged before starting snapd"
+    refreshes_before="$(get_journalctl_log -u snapd | grep -c 'Catalog refresh' || true)"
+
+    systemctl restart snapd.{socket,service}
+
     echo "Ensure that catalog refresh happens on startup"
     for _ in $(seq 60); do
-        if get_journalctl_log -u snapd | MATCH "Catalog refresh"; then
+        refreshes_after="$(get_journalctl_log -u snapd | grep -c 'Catalog refresh' || true)"
+        if [ "$refreshes_after" -gt "$refreshes_before" ]; then
             break
         fi
         sleep 1
     done
-    get_journalctl_log -u snapd | MATCH "Catalog refresh"
+
+    echo "Ensure the current number of refreshes is greater than before restarting snapd"
+    [ "$refreshes_after" -gt "$refreshes_before" ]
 
     echo "Ensure that we don't log all catalog body data"
     if get_journalctl_log -u snapd | MATCH "Tools for testing the snapd application"; then
