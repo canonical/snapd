@@ -227,7 +227,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
-	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedCallback, hotplug.DeviceRemovedCallback) hotplug.UDevMon {
+	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedFunc, hotplug.DeviceRemovedFunc) hotplug.UDevMon {
 		return &hotplug.UDevMonMock{}
 	})
 

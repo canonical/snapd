@@ -76,7 +76,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		s.notified = append(s.notified, notif)
 		return nil
 	}
-	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedCallback, hotplug.DeviceRemovedCallback) hotplug.UDevMon {
+	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedFunc, hotplug.DeviceRemovedFunc) hotplug.UDevMon {
 		return &hotplug.UDevMonMock{}
 	})
 	s.notified = nil

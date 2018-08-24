@@ -47,15 +47,15 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addCalled, removeCalled bool
 	var addInfo, remInfo *hotplug.HotplugDeviceInfo
-	addedCb := func(inf *hotplug.HotplugDeviceInfo) {
+	added := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
 		addInfo = inf
 	}
-	removedCb := func(inf *hotplug.HotplugDeviceInfo) {
+	removed := func(inf *hotplug.HotplugDeviceInfo) {
 		removeCalled = true
 		remInfo = inf
 	}
-	mon := hp.CreateUDevMonitor(addedCb, removedCb)
+	mon := hp.CreateUDevMonitor(added, removed)
 	c.Assert(mon, NotNil)
 	udevmon, _ := mon.(*hp.UDevMonitor)
 

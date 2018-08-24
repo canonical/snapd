@@ -39,27 +39,26 @@ type UDevMon interface {
 	Stop() error
 }
 
-type DeviceAddedCallback func(device *hotplug.HotplugDeviceInfo)
-type DeviceRemovedCallback func(device *hotplug.HotplugDeviceInfo)
+type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
+type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
 
 // UDevMonitor monitors kernel uevents making it possible to find USB devices.
 type UDevMonitor struct {
-	tmb             *tomb.Tomb
-	deviceAddedCb   DeviceAddedCallback
-	deviceRemovedCb DeviceRemovedCallback
-	netlinkConn     *netlink.UEventConn
+	tomb          tomb.Tomb
+	deviceAdded   DeviceAddedFunc
+	deviceRemoved DeviceRemovedFunc
+	netlinkConn   *netlink.UEventConn
 	// channels used by netlink connection and monitor
 	monitorStop   chan struct{}
 	netlinkErrors chan error
 	netlinkEvents chan netlink.UEvent
 }
 
-func newUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
+func newUDevMonitor(added DeviceAddedFunc, removed DeviceRemovedFunc) UDevMon {
 	m := &UDevMonitor{
-		deviceAddedCb:   addedCb,
-		deviceRemovedCb: removedCb,
-		netlinkConn:     &netlink.UEventConn{},
-		tmb:             new(tomb.Tomb),
+		deviceAdded:   added,
+		deviceRemoved: removed,
+		netlinkConn:   &netlink.UEventConn{},
 	}
 
 	m.netlinkEvents = make(chan netlink.UEvent)
@@ -93,14 +92,14 @@ func (m *UDevMonitor) Disconnect() error {
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
 func (m *UDevMonitor) Run() error {
-	m.tmb.Go(func() error {
+	m.tomb.Go(func() error {
 		for {
 			select {
 			case err := <-m.netlinkErrors:
 				logger.Noticef("netlink error: %q\n", err)
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
-			case <-m.tmb.Dying():
+			case <-m.tomb.Dying():
 				return m.Disconnect()
 			}
 		}
@@ -110,8 +109,8 @@ func (m *UDevMonitor) Run() error {
 }
 
 func (m *UDevMonitor) Stop() error {
-	m.tmb.Kill(nil)
-	err := m.tmb.Wait()
+	m.tomb.Kill(nil)
+	err := m.tomb.Wait()
 	m.netlinkConn = nil
 	return err
 }
@@ -131,8 +130,8 @@ func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
 	if err != nil {
 		return
 	}
-	if m.deviceAddedCb != nil {
-		m.deviceAddedCb(di)
+	if m.deviceAdded != nil {
+		m.deviceAdded(di)
 	}
 }
 
@@ -141,12 +140,12 @@ func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 	if err != nil {
 		return
 	}
-	if m.deviceRemovedCb != nil {
-		m.deviceRemovedCb(di)
+	if m.deviceRemoved != nil {
+		m.deviceRemoved(di)
 	}
 }
 
-type newMonitorFn func(DeviceAddedCallback, DeviceRemovedCallback) UDevMon
+type newMonitorFn func(DeviceAddedFunc, DeviceRemovedFunc) UDevMon
 
 func MockCreateUDevMonitor(new newMonitorFn) (restore func()) {
 	CreateUDevMonitor = new
