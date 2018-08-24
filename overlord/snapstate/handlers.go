@@ -406,7 +406,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
 // there is no limit.
-func autoRefreshRateLimited(st *state.State) (rate float64) {
+func autoRefreshRateLimited(st *state.State) (rate int64) {
 	tr := config.NewTransaction(st)
 
 	var rateLimit string
@@ -418,7 +418,7 @@ func autoRefreshRateLimited(st *state.State) (rate float64) {
 	if err != nil {
 		return 0
 	}
-	return float64(val)
+	return val
 }
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
@@ -443,8 +443,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.MountFile()
 
 	ctx := tomb.Context(nil)
+	dlOpts := &store.DownloadOptions{}
 	if snapsup.IsAutoRefresh && rate > 0 {
-		ctx = store.ContextWithRateLimit(ctx, float64(rate))
+		dlOpts.RateLimit = rate
 	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
@@ -455,10 +456,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(ctx, snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(ctx, snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(ctx, snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(ctx, snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 	}
 	if err != nil {
 		return err
