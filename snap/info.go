@@ -1083,5 +1083,5 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].Type.sortOrder() < r[j].Type.sortOrder()
+	return r[i].Type.SortsBefore(r[j].Type)
 }
