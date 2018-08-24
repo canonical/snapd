@@ -1075,3 +1075,20 @@ func InstanceName(snapName, instanceKey string) string {
 	}
 	return snapName
 }
+
+// ByType sorts the given slice of snap info by types. The most
+// important types will come first. The "snapd" snap is handled
+// as well.
+type ByType []*Info
+
+func (r ByType) Len() int      { return len(r) }
+func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r ByType) Less(i, j int) bool {
+	if r[i].SideInfo.RealName == "snapd" {
+		return true
+	}
+	if r[j].SideInfo.RealName == "snapd" {
+		return false
+	}
+	return typeOrder[r[i].Type] < typeOrder[r[j].Type]
+}
