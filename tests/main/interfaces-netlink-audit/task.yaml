@@ -2,11 +2,9 @@ summary: Ensure that the netlink audit interface works.
 
 details: |
     The netlink-audit interface allows read/write to kernel audit system.
-
     The test-snapd-netlink-audit snap creates a netlink socket and binds it. 
 
-# Ubuntu 14.04-64 is skipped due to the capability CAP_AUDIT_READ
-# is not available in its kernel
+# Ubuntu 14.04: CAP_AUDIT_READ is not available in its kernel
 # arch: CONFIG_AUDIT is not enabled in the default kernel
 systems: [-ubuntu-14.04-*, -arch-*]
 
