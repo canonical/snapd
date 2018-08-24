@@ -39,7 +39,6 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
-#include "../libsnap-confine-private/privs.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
