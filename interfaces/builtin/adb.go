@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const adbSummary = `allows access to connected USB devices for use with fastboot or adb`
+const adbSummary = `allows operating as Android Debug Bridge service`
 
 const adbBaseDeclarationSlots = `
   adb:
