@@ -69,8 +69,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		if model == nil || model.Base() == "" {
 			var experimentalAllowSnapd bool
 			tr := config.NewTransaction(st)
-			err := tr.Get("core", "experimental.snapd-snap", &experimentalAllowSnapd)
-			if err != nil && !config.IsNoOption(err) {
+			experimentalAllowSnapd, err := getFeatureFlagBool(tr, "experimental.snapd-snap")
+			if err != nil {
 				return nil, err
 			}
 			if !experimentalAllowSnapd {
