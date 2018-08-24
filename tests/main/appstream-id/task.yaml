@@ -1,12 +1,10 @@
 summary: Verify AppStream ID integration
+
 # fedora-*, amazon-*: uses nmap netcat by default (https://nmap.org/ncat/)
 systems: [-fedora-*, -amazon-*]
 
 prepare: |
     snap install jq
-
-restore: |
-    snap remove jq
 
 execute: |
     echo "Verify that search results contain common-ids"
