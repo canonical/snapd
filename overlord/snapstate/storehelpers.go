@@ -310,7 +310,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	}
 
 	actionsByUserID := make(map[int][]*store.SnapAction)
-	stateByID := make(map[string]*SnapState, len(snapStates))
+	stateByInstanceName := make(map[string]*SnapState, len(snapStates))
 	ignoreValidation := make(map[string]bool)
 	nCands := 0
 
@@ -330,7 +330,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			return
 		}
 
-		stateByID[installed.SnapID] = snapst
+		stateByInstanceName[installed.InstanceName] = snapst
 
 		if len(names) == 0 {
 			installed.Block = snapst.Block()
@@ -401,5 +401,5 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		updates = append(updates, updatesForUser...)
 	}
 
-	return updates, stateByID, ignoreValidation, nil
+	return updates, stateByInstanceName, ignoreValidation, nil
 }
