@@ -1,0 +1,23 @@
+summary: Ensure that the selftest works
+
+prepare: |
+    echo "Break mounting so that the selftest of a squashfs mount fails"
+    mount -o bind /bin/false /bin/mount
+
+restore: |
+    echo "Undoing the mount breakage"
+    umount /bin/mount
+    systemctl restart snapd
+
+execute: |
+    echo "Restart snapd so that the selftest runs"
+    systemctl restart snapd
+    # shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    wait_for_service snapd
+
+    echo "Ensure selftest error is reported in the journal"
+    journalctl -u snapd | MATCH "selftest failed: cannot mount squashfs image"
+    
+    echo "Ensure snap commands reply with selftest error"
+    snap list 2>&1 | MATCH "selftest failed: cannot mount squashfs image"

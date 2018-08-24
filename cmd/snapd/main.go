@@ -88,10 +88,6 @@ func run() error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
 
-	if err := selftest.Run(); err != nil {
-		return fmt.Errorf("cannot start snapd: %v", err)
-	}
-
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
@@ -102,6 +98,17 @@ func run() error {
 	if err := d.Init(); err != nil {
 		return err
 	}
+
+	// Run selftest now, if anything goes wrong with the selftest we go
+	// into "degraded" mode where we always report the given error to
+	// any snap client.
+	if err := selftest.Run(); err != nil {
+		degradedErr := fmt.Errorf("selftest failed: %s", err)
+		logger.Noticef("%s", degradedErr)
+		logger.Noticef("Entering degraded mode")
+		d.DegradedMode(degradedErr)
+	}
+
 	d.Version = cmd.Version
 
 	d.Start()

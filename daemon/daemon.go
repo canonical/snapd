@@ -350,6 +350,16 @@ func (d *Daemon) Init() error {
 	return nil
 }
 
+// DegradedMode puts the daemon into an degraded mode which will
+// always return the internal error given in the "err" argument.
+//
+// This is useful to report permanent errors to the client when
+// the daemon cannot work because e.g. a selftest failed.
+func (d *Daemon) DegradedMode(err error) {
+	d.router = mux.NewRouter()
+	d.router.PathPrefix("/").Handler(InternalError(err.Error()))
+}
+
 func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
 
