@@ -804,7 +804,7 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			"snap-update-ns", "--user-mounts", snap_name_copy,
 			NULL
 		};
-		char *envp[3] = { NULL };
+		char *envp[4] = { NULL };
 		int last_env = 0;
 		if (sc_is_debug_enabled()) {
 			envp[last_env++] = "SNAPD_DEBUG=1";
