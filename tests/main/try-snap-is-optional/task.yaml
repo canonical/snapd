@@ -1,5 +1,7 @@
 summary: Check that try command works when snap dir is omitted
+
 systems: [-ubuntu-core-*]
+
 execute: |
     echo "When try is executed inside a snap directory"
     cd $TESTSLIB/snaps/test-snapd-tools

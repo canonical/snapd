@@ -1,19 +1,24 @@
 summary: smoke tests for user mounts
+
 details: |
     When a confined snap has a user-fstab file, additional bind mounts will
     be performed prior to running the application.  These mounts are private
     to the invocation of the application, so can be used to manipulate how
     per-user data is presented.
+
 # This test makes use of the user mount provided by the desktop
 # interface.  When we have an interface providing user mounts that is
 # available on core, we can switch to that.
 systems: [-ubuntu-core-*]
+
 prepare: |
     snap try "$TESTSLIB"/snaps/test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
+
 restore: |
     rm -rf /run/user/12345/*
     rm -f /tmp/check-user-mount.sh
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . $TESTSLIB/dirs.sh
