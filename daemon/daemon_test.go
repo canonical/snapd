@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/ifacestate/hotplug"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/systemd"
@@ -76,8 +76,8 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		s.notified = append(s.notified, notif)
 		return nil
 	}
-	s.restoreUDevMon = hotplug.MockCreateUDevMonitor(func(hotplug.DeviceAddedFunc, hotplug.DeviceRemovedFunc) hotplug.UDevMon {
-		return &hotplug.UDevMonMock{}
+	s.restoreUDevMon = udevmonitor.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		return &udevmonitor.UDevMonMock{}
 	})
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization

@@ -40,7 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/ifacestate/hotplug"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -81,7 +81,7 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
-	udevMon   hotplug.UDevMon
+	udevMon   udevmonitor.Interface
 }
 
 var storeNew = store.New
@@ -166,7 +166,7 @@ func New() (*Overlord, error) {
 }
 
 func (o *Overlord) EnableHotplug() error {
-	udevMon := hotplug.CreateUDevMonitor(o.ifaceMgr.HotplugDeviceAdded, o.ifaceMgr.HotplugDeviceRemoved)
+	udevMon := udevmonitor.CreateUDevMonitor(o.ifaceMgr.HotplugDeviceAdded, o.ifaceMgr.HotplugDeviceRemoved)
 	if err := udevMon.Connect(); err != nil {
 		return err
 	}
