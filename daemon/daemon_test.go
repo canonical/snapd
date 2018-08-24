@@ -77,7 +77,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		return nil
 	}
 	s.restoreUDevMon = udevmonitor.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
-		return &udevmonitor.UDevMonMock{}
+		return &udevmonitor.Mock{}
 	})
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization
