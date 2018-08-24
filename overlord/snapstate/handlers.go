@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	// FIXME: only needed for store.ContextWithRateLimit, move to its own package?
 	"github.com/snapcore/snapd/store"
 )
@@ -407,11 +408,17 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 // there is no limit.
 func autoRefreshRateLimited(st *state.State) (rate float64) {
 	tr := config.NewTransaction(st)
-	// FIXME: support user friendly values like "5M"
-	if err := tr.Get("core", "refresh.rate-limit", &rate); err == nil {
-		return rate
+
+	var rateLimit string
+	err := tr.Get("core", "refresh.rate-limit", &rateLimit)
+	if err != nil {
+		return 0
 	}
-	return 0
+	val, err := strutil.ParseValueWithUnit(rateLimit)
+	if err != nil {
+		return 0
+	}
+	return float64(val)
 }
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
