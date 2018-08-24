@@ -522,7 +522,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
-		"adb-support":             {"app"},
+		"adb": {"app"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
