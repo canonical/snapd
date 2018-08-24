@@ -61,12 +61,12 @@ func Init(s *state.State) {
 func applySublevelPatches(level, firstSublevel int, s *state.State) error {
 	for sublevel := firstSublevel; sublevel < len(patches[level]); sublevel++ {
 		if sublevel > 0 {
-			logger.Noticef("Patching system state level %d to sublevel %d...", level, sublevel+1)
+			logger.Noticef("Patching system state level %d to sublevel %d...", level, sublevel)
 		}
-		err := applyOne(patches[level][sublevel], s, level, sublevel+1)
+		err := applyOne(patches[level][sublevel], s, level, sublevel)
 		if err != nil {
 			logger.Noticef("Cannot patch: %v", err)
-			return fmt.Errorf("cannot patch system state to level %d, sublevel %d: %v", level, sublevel+1, err)
+			return fmt.Errorf("cannot patch system state to level %d, sublevel %d: %v", level, sublevel, err)
 		}
 	}
 	return nil
@@ -165,7 +165,7 @@ func Apply(s *state.State) error {
 		return nil
 	}
 
-	// apply any missing sublevel patches for current state level.
+	// apply any missing sublevel patches for current state level before upgrading to new levels.
 	// the 0th sublevel patch is a patch for major level update (e.g. 7.0),
 	// therefore there is +1 for the indices.
 	if stateSublevel+1 < len(patches[stateLevel]) {
