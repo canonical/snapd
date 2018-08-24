@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type adbSupportSuite struct {
+type adbSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -39,49 +39,49 @@ type adbSupportSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&adbSupportSuite{
-	iface: builtin.MustInterface("adb-support"),
+var _ = Suite(&adbSuite{
+	iface: builtin.MustInterface("adb"),
 })
 
-const adbSupportConsumerYaml = `name: consumer
+const adbConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [adb-support]
+  plugs: [adb]
 `
 
-const adbSupportCoreYaml = `name: provider
+const adbCoreYaml = `name: provider
 version: 0
 apps:
  app:
-  slots: [adb-support]
+  slots: [adb]
 `
 
-func (s *adbSupportSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, adbSupportConsumerYaml, nil, "adb-support")
-	s.slot, s.slotInfo = MockConnectedSlot(c, adbSupportCoreYaml, nil, "adb-support")
+func (s *adbSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, adbConsumerYaml, nil, "adb")
+	s.slot, s.slotInfo = MockConnectedSlot(c, adbCoreYaml, nil, "adb")
 }
 
-func (s *adbSupportSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "adb-support")
+func (s *adbSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "adb")
 }
 
-func (s *adbSupportSuite) TestSanitizeSlot(c *C) {
+func (s *adbSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "adb-support",
-		Interface: "adb-support",
+		Name:      "adb",
+		Interface: "adb",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
-func (s *adbSupportSuite) TestSanitizePlug(c *C) {
+func (s *adbSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *adbSupportSuite) TestAppArmorSpec(c *C) {
+func (s *adbSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -94,7 +94,7 @@ func (s *adbSupportSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network inet stream,")
 }
 
-func (s *adbSupportSuite) TestSecCompSpec(c *C) {
+func (s *adbSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -108,7 +108,7 @@ func (s *adbSupportSuite) TestSecCompSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "connect")
 }
 
-func (s *adbSupportSuite) TestUDevSpec(c *C) {
+func (s *adbSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
@@ -117,20 +117,20 @@ func (s *adbSupportSuite) TestUDevSpec(c *C) {
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 81)
-	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
+	c.Assert(spec.Snippets(), testutil.Contains, `# adb
 SUBSYSTEM=="usb", ATTR{idVendor}=="0502", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
+	c.Assert(spec.Snippets(), testutil.Contains, `# adb
 SUBSYSTEM=="usb", ATTR{idVendor}=="19d2", TAG+="snap_consumer_app"`)
 }
 
-func (s *adbSupportSuite) TestStaticInfo(c *C) {
+func (s *adbSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, false)
 	c.Assert(si.Summary, Equals, `allows access to connected USB devices for use with fastboot or adb`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "adb-support")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "adb")
 }
 
-func (s *adbSupportSuite) TestInterfaces(c *C) {
+func (s *adbSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
