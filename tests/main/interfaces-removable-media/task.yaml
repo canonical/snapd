@@ -72,11 +72,6 @@ execute: |
         exit 0
     fi
 
-    echo "The snap cannot create new things in /mnt"
-    if test-snapd-removable-media.sh -c 'echo foo > /mnt/bad'; then
-        echo "/mnt/bad should never be writable" && exit 1
-    fi
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-removable-media:removable-media
 

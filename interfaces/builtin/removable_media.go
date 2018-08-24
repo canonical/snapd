@@ -46,7 +46,7 @@ const removableMediaConnectedPlugAppArmor = `
 # Allow read-only access to /mnt to enumerate items.
 /mnt/ r,
 # Allow write access to anything under /mnt
-/mnt/*/** rwk,
+/mnt/** rwk,
 `
 
 func init() {
