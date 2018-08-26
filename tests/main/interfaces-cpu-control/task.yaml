@@ -1,0 +1,48 @@
+summary: Ensure that the cpu-control interface works.
+
+details: |
+    The cpu-control interface allows setting CPU tunables
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-cpu-control
+
+restore: |
+    rm -f call.error
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i cpu-control |  MATCH -- '^- +test-snapd-cpu-control:cpu-control'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-cpu-control:cpu-control
+
+    echo "Then the snap is able to read the cpu directory"
+    test-snapd-cpu-control.sh -c "ls /sys/devices/system/cpu"
+    
+    echo "Then the snap is able to read the online file for the cpu0"
+    # Write is not allowed so it is not tested, even when the interface allows that
+    if [ -f /sys/devices/system/cpu/cpu0/online ]; then
+        test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/cpu0/online"
+    fi
+
+    echo "Then the snap is able to read the control file for the smt"
+    # Write is not allowed so it is not tested, even when the interface allows that
+    if [ -f /sys/devices/system/cpu/smt/control ]; then
+        test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/smt/control"
+    fi
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-cpu-control:cpu-control
+
+    echo "Then the snap is not able to read the cpu directory"
+    if test-snapd-cpu-control.sh -c "ls /sys/devices/system/cpu" 2>call.error; then
+        echo "Expected permission error accessing to cpu directory"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

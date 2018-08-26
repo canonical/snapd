@@ -1,0 +1,9 @@
+name: test-snapd-cpu-control
+version: 1.0
+summary: Basic cpu-control snap
+description: A basic snap which allows setting CPU tunables
+
+apps:
+  sh:
+    command: bin/sh
+    plugs: [cpu-control]
