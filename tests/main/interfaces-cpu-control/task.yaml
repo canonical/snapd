@@ -41,7 +41,7 @@ execute: |
     snap disconnect test-snapd-cpu-control:cpu-control
 
     echo "Then the snap is not able to read the cpu directory"
-    if test-snapd-cpu-control.sh -c "ls /sys/devices/system/cpu" 2>call.error; then
+    if test-snapd-cpu-control.sh -c "ls /sys/devices/system/cpu/cpu0" 2>call.error; then
         echo "Expected permission error accessing to cpu directory"
         exit 1
     fi
