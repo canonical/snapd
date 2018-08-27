@@ -128,21 +128,24 @@ func ParseValueWithUnit(inp string) (int64, error) {
 	if len(inp) < 2 {
 		return 0, fmt.Errorf("cannot parse %q: need a unit", inp)
 	}
-	// simple case, "1234B", read as byte
-	if lastCh := inp[len(inp)-1]; lastCh == 'B' {
-		if asByte, err := strconv.ParseInt(inp[:len(inp)-1], 10, 64); err == nil {
-			return asByte, nil
-		}
-	}
-	// two char suffix
+	// most users will use a unit with two chars (e.g. "1024kB"),
+	// so check that first
 	unit := strings.ToUpper(inp[len(inp)-2:])
-	mul, ok := unitMultiplier[unit]
-	if !ok {
+	if mul, ok := unitMultiplier[unit]; ok {
+		val, err := strconv.ParseInt(inp[:len(inp)-2], 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return val * int64(mul), nil
+	}
+
+	// check for the simple case, e.g. "1234B"
+	if lastCh := inp[len(inp)-1]; lastCh != 'B' {
 		return 0, fmt.Errorf("cannot use unit in %q: try 'kB' or 'MB'", inp)
 	}
-	val, err := strconv.ParseInt(inp[:len(inp)-2], 10, 64)
+	asByte, err := strconv.ParseInt(inp[:len(inp)-1], 10, 64)
 	if err != nil {
 		return 0, err
 	}
-	return val * int64(mul), nil
+	return asByte, nil
 }
