@@ -3672,27 +3672,27 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 }
 
 type udevMonitorMock struct {
-	ConnectError, DisconnectError, RunError                error
-	ConnectCalled, RunCalled, StopCalled, DisconnectCalled int
+	ConnectError, RunError                             error
+	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
 }
 
 func (u *udevMonitorMock) Connect() error {
-	u.ConnectCalled++
+	u.ConnectCalls++
 	return u.ConnectError
 }
 
 func (u *udevMonitorMock) Disconnect() error {
-	u.DisconnectCalled++
-	return u.DisconnectError
+	u.DisconnectCalls++
+	return nil
 }
 
 func (u *udevMonitorMock) Run() error {
-	u.RunCalled++
+	u.RunCalls++
 	return u.RunError
 }
 
 func (u *udevMonitorMock) Stop() error {
-	u.StopCalled++
+	u.StopCalls++
 	return nil
 }
 
@@ -3710,15 +3710,15 @@ func (s *interfaceManagerSuite) TestUdevMonitorInit(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
+	// succesfull initialization should result in exactly 1 connect and run call
 	for i := 0; i < 5; i++ {
 		c.Assert(mgr.Ensure(), IsNil)
 	}
 	mgr.Stop()
 
-	c.Assert(u.ConnectCalled, Equals, 1)
-	c.Assert(u.RunCalled, Equals, 1)
-	c.Assert(u.StopCalled, Equals, 1)
-	c.Assert(u.DisconnectCalled, Equals, 1)
+	c.Assert(u.ConnectCalls, Equals, 1)
+	c.Assert(u.RunCalls, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 1)
 }
 
 func (s *interfaceManagerSuite) TestUdevMonitorInitErrors(c *C) {
@@ -3738,23 +3738,22 @@ func (s *interfaceManagerSuite) TestUdevMonitorInitErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(mgr.Ensure(), ErrorMatches, "Connect failed")
-	c.Assert(u.ConnectCalled, Equals, 1)
-	c.Assert(u.RunCalled, Equals, 0)
-	c.Assert(u.StopCalled, Equals, 0)
+	c.Assert(u.ConnectCalls, Equals, 1)
+	c.Assert(u.RunCalls, Equals, 0)
+	c.Assert(u.StopCalls, Equals, 0)
 
 	u.ConnectError = nil
 	u.RunError = fmt.Errorf("Run failed")
 	c.Assert(mgr.Ensure(), ErrorMatches, "Run failed")
-	c.Assert(u.ConnectCalled, Equals, 2)
-	c.Assert(u.RunCalled, Equals, 1)
-	c.Assert(u.StopCalled, Equals, 0)
+	c.Assert(u.ConnectCalls, Equals, 2)
+	c.Assert(u.RunCalls, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 0)
+	c.Assert(u.DisconnectCalls, Equals, 1)
 
 	u.RunError = nil
-	u.DisconnectError = fmt.Errorf("Disconnect failed")
 	c.Assert(mgr.Ensure(), IsNil)
 
 	mgr.Stop()
 
-	c.Assert(u.StopCalled, Equals, 1)
-	c.Assert(u.DisconnectCalled, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 1)
 }
