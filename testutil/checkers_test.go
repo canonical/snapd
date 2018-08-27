@@ -388,12 +388,12 @@ func (s *CheckersS) TestIntChecker(c *check.C) {
 	testCheck(c, IntLessThan, false, "right-hand-side argument must be an int", 1, false)
 
 	// Relationship error.
-	testCheck(c, IntLessThan, false, "failed relation 2 < 1", 2, 1)
-	testCheck(c, IntLessEqual, false, "failed relation 2 <= 1", 2, 1)
-	testCheck(c, IntEqual, false, "failed relation 2 == 1", 2, 1)
-	testCheck(c, IntNotEqual, false, "failed relation 2 != 2", 2, 2)
-	testCheck(c, IntGreaterThan, false, "failed relation 1 > 2", 1, 2)
-	testCheck(c, IntGreaterEqual, false, "failed relation 1 >= 2", 1, 2)
+	testCheck(c, IntLessThan, false, "relation 2 < 1 is not true", 2, 1)
+	testCheck(c, IntLessEqual, false, "relation 2 <= 1 is not true", 2, 1)
+	testCheck(c, IntEqual, false, "relation 2 == 1 is not true", 2, 1)
+	testCheck(c, IntNotEqual, false, "relation 2 != 2 is not true", 2, 2)
+	testCheck(c, IntGreaterThan, false, "relation 1 > 2 is not true", 1, 2)
+	testCheck(c, IntGreaterEqual, false, "relation 1 >= 2 is not true", 1, 2)
 
 	// Unexpected relation.
 	unexpected := &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: "==="}

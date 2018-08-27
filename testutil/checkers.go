@@ -332,7 +332,7 @@ func (checker *intChecker) Check(params []interface{}, names []string) (result b
 		return false, fmt.Sprintf("unexpected relation %q", checker.rel)
 	}
 	if !result {
-		error = fmt.Sprintf("failed relation %d %s %d", a, checker.rel, b)
+		error = fmt.Sprintf("relation %d %s %d is not true", a, checker.rel, b)
 	}
 	return result, error
 }
