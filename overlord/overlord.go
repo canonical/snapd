@@ -309,7 +309,7 @@ func (o *Overlord) CanGoSocketActivated() bool {
 	}
 	// check if there are any changes in flight
 	for _, chg := range st.Changes() {
-		if !chg.Status().Ready() {
+		if !chg.Status().Ready() || !chg.IsClean() {
 			return false
 		}
 	}
