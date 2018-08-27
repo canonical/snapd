@@ -778,6 +778,7 @@ func (ovs *overlordSuite) TestCanGoSocketActivatedSnaps(c *C) {
 
 	st := o.State()
 	st.Lock()
+	st.Set("seeded", true)
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(1)},
@@ -796,10 +797,48 @@ func (ovs *overlordSuite) TestCanGoSocketPendingChanges(c *C) {
 
 	st := o.State()
 	st.Lock()
+	st.Set("seeded", true)
 	chg := st.NewChange("foo", "fake change")
 	chg.AddTask(st.NewTask("bar", "fake task"))
 	c.Assert(chg.Status(), Equals, state.DoStatus)
 	st.Unlock()
 
 	c.Check(o.CanGoSocketActivated(), Equals, false)
+}
+
+func (ovs *overlordSuite) TestCanGoSocketPendingCleans(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	t := st.NewTask("bar", "fake task")
+	chg := st.NewChange("foo", "fake change")
+	chg.AddTask(t)
+	t.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(t.IsClean(), Equals, false)
+	st.Unlock()
+
+	c.Check(o.CanGoSocketActivated(), Equals, false)
+}
+
+func (ovs *overlordSuite) TestCanGoSocketOnlyDonePendingChanges(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	t := st.NewTask("bar", "fake task")
+	chg := st.NewChange("foo", "fake change")
+	chg.AddTask(t)
+	t.SetStatus(state.DoneStatus)
+	t.SetClean()
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(t.IsClean(), Equals, true)
+	st.Unlock()
+
+	c.Check(o.CanGoSocketActivated(), Equals, true)
 }
