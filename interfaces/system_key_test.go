@@ -58,6 +58,9 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
+	err = os.MkdirAll(filepath.Join(s.apparmorFeatures, "file"), 0755)
+	c.Assert(err, IsNil)
+
 	id, err := osutil.MyBuildID()
 	c.Assert(err, IsNil)
 	s.buildID = id
@@ -73,6 +76,11 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
+	restore := release.MockAppArmorFeaturesSysPath(s.apparmorFeatures)
+	defer restore()
+	restore = release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
@@ -80,6 +88,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	c.Assert(err, IsNil)
 
 	apparmorFeaturesStr, err := json.Marshal(release.AppArmorFeatures())
+	c.Assert(release.AppArmorFeatures(), HasLen, 1)
 	c.Assert(err, IsNil)
 
 	seccompActionsStr, err := json.Marshal(release.SecCompActions())
@@ -94,6 +103,22 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
 	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+}
+
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoAppArmor(c *C) {
+	restore := release.MockAppArmorFeaturesSysPath(s.apparmorFeatures)
+	defer restore()
+	// as in when the userspace tooling is missing
+	restore = release.MockAppArmorLevel(release.NoAppArmor)
+	defer restore()
+
+	err := interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+
+	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	c.Assert(err, IsNil)
+
+	c.Check(string(systemKey), Matches, `{.*,"apparmor-features":null,.*}`)
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
