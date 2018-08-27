@@ -147,7 +147,7 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 // DisableUdevMonitor disables the instantiation of udev monitor, but has no effect
 // if udev is already created; it should be called after creating InterfaceManager, before
 // first Ensure.
-// This method is to meant for tests only.
+// This method is meant for tests only.
 func (m *InterfaceManager) DisableUdevMonitor() {
 	if m.udevMon != nil {
 		logger.Noticef("Udev Monitor already created, cannot be disabled")
