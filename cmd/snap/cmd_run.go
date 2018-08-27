@@ -55,11 +55,10 @@ var (
 )
 
 type cmdRun struct {
-	Command          string `long:"command" hidden:"yes"`
-	HookName         string `long:"hook" hidden:"yes"`
-	Revision         string `short:"r" default:"unset" hidden:"yes"`
-	Shell            bool   `long:"shell" `
-	SkipCommandChain bool   `long:"skip-command-chain"`
+	Command  string `long:"command" hidden:"yes"`
+	HookName string `long:"hook" hidden:"yes"`
+	Revision string `short:"r" default:"unset" hidden:"yes"`
+	Shell    bool   `long:"shell" `
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -83,15 +82,14 @@ and environment.
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command":            i18n.G("Alternative command to run"),
-			"hook":               i18n.G("Hook to run"),
-			"r":                  i18n.G("Use a specific snap revision when running hook"),
-			"shell":              i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"skip-command-chain": i18n.G("Do not run the command chain (useful for debugging)"),
-			"strace":             i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
-			"gdb":                i18n.G("Run the command with gdb"),
-			"timer":              i18n.G("Run as a timer service with given schedule"),
-			"parser-ran":         "",
+			"command":    i18n.G("Alternative command to run"),
+			"hook":       i18n.G("Hook to run"),
+			"r":          i18n.G("Use a specific snap revision when running hook"),
+			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
+			"gdb":        i18n.G("Run the command with gdb"),
+			"timer":      i18n.G("Run as a timer service with given schedule"),
+			"parser-ran": "",
 		}, nil)
 }
 
@@ -760,9 +758,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	if x.Command != "" {
 		cmd = append(cmd, "--command="+x.Command)
-	}
-	if x.SkipCommandChain {
-		cmd = append(cmd, "--skip-command-chain")
 	}
 
 	if hook != "" {
