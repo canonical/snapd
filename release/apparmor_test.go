@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type apparmorSuite struct{}
@@ -49,10 +50,22 @@ func (s *apparmorSuite) TestProbeAppArmorNoAppArmor(c *C) {
 	c.Check(summary, Equals, "apparmor not enabled")
 }
 
+func (s *apparmorSuite) TestProbeAppArmorNoAppArmorParser(c *C) {
+	fakeSysPath := c.MkDir()
+	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
+	defer restore()
+
+	level, summary := release.ProbeAppArmor()
+	c.Check(level, Equals, release.NoAppArmor)
+	c.Check(summary, Equals, "apparmor is enabled but user-space tooling is missing")
+}
+
 func (s *apparmorSuite) TestProbeAppArmorPartialAppArmor(c *C) {
 	fakeSysPath := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
 	defer restore()
+	cmd := testutil.MockCommand(c, "apparmor_parser", "true")
+	defer cmd.Restore()
 
 	level, summary := release.ProbeAppArmor()
 	c.Check(level, Equals, release.PartialAppArmor)
@@ -63,6 +76,8 @@ func (s *apparmorSuite) TestProbeAppArmorFullAppArmor(c *C) {
 	fakeSysPath := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
 	defer restore()
+	cmd := testutil.MockCommand(c, "apparmor_parser", "true")
+	defer cmd.Restore()
 
 	for _, feature := range release.RequiredAppArmorFeatures {
 		err := os.Mkdir(filepath.Join(fakeSysPath, feature), 0755)

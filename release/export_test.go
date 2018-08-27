@@ -32,14 +32,6 @@ func MockOSReleasePath(filename string) (restore func()) {
 	}
 }
 
-func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
-	old := appArmorFeaturesSysPath
-	appArmorFeaturesSysPath = path
-	return func() {
-		appArmorFeaturesSysPath = old
-	}
-}
-
 var (
 	ProbeAppArmor            = probeAppArmor
 	RequiredAppArmorFeatures = requiredAppArmorFeatures
