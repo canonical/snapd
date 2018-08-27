@@ -1359,3 +1359,30 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }
+
+func (s *backendSuite) TestDowngradeConfinement(c *C) {
+
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+
+	for _, tc := range []struct {
+		distro   string
+		kernel   string
+		expected bool
+	}{
+		{"opensuse-tumbleweed", "4.16.10-1-default", false},
+		{"opensuse-tumbleweed", "4.14.1-default", true},
+		{"arch", "4.18.2.a-1-hardened", false},
+		{"arch", "4.18.5-arch1-1-ARCH", true},
+		{"arch", "4.17.4-hardened", false},
+		{"arch", "4.17.4-1-ARCH", true},
+		{"arch", "4.18.6-arch1-1-ARCH", false},
+	} {
+		c.Logf("trying: %+v", tc)
+		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})
+		defer restore()
+		restore = osutil.MockKernelVersion(tc.kernel)
+		defer restore()
+		c.Check(apparmor.DowngradeConfinement(), Equals, tc.expected, Commentf("unexpected result for %+v", tc))
+	}
+}

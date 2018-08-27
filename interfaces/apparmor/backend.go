@@ -456,16 +456,15 @@ func downgradeConfinement() bool {
 			return false
 		}
 	case release.DistroLike("arch"):
-		if !strings.HasSuffix(kver, "-hardened") {
-			// how did we get here anyway?
-			return true
-		}
-		if cmp, _ := strutil.VersionCompare(kver, "4.17.4"); cmp >= 0 {
-			// linux-hardened 4.17.4+ has apparmor enabled
-			return false
+		if strings.HasSuffix(kver, "-hardened") {
+			if cmp, _ := strutil.VersionCompare(kver, "4.17.4"); cmp >= 0 {
+				// The linux-hardened 4.17.4+ package has
+				// apparmor enabled, do not downgrade the
+				// confinement template.
+				return false
+			}
 		}
 	}
-
 	return true
 }
 
