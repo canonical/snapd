@@ -158,7 +158,7 @@ func (m *InterfaceManager) DisableUdevMonitor() {
 
 var (
 	udevInitRetryTimeout = time.Minute * 15
-	createUdevMonitor    = udevmonitor.CreateUDevMonitor
+	createUdevMonitor    = udevmonitor.New
 )
 
 func (m *InterfaceManager) initUdevMonitor() error {

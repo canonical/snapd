@@ -30,8 +30,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-var CreateUDevMonitor = New
-
 type Interface interface {
 	Connect() error
 	Disconnect() error
