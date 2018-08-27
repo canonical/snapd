@@ -44,6 +44,7 @@ func (s *spdxSuite) TestParseHappy(c *C) {
 		"GPL-2.0 AND (BSD-2-Clause OR 0BSD)",
 		"(BSD-2-Clause OR 0BSD) AND GPL-2.0 WITH GCC-exception-3.1",
 		"((GPL-2.0 AND (BSD-2-Clause OR 0BSD)) OR GPL-3.0) ",
+		"Other-Open-Source",
 	} {
 		err := spdx.ValidateLicense(t)
 		c.Check(err, IsNil, Commentf("input: %q", t))
