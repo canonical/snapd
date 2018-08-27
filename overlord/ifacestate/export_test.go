@@ -33,6 +33,10 @@ var (
 	SetConns                     = setConns
 )
 
+func NewConnectOptsWithAutoSet() connectOpts {
+	return connectOpts{AutoConnect: true, ByGadget: false}
+}
+
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
 	old := removeStaleConnections
 	removeStaleConnections = f
