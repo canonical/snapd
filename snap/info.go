@@ -741,7 +741,8 @@ type HookInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment strutil.OrderedMap
+	Environment  strutil.OrderedMap
+	CommandChain []string
 }
 
 // File returns the path to the *.socket file
