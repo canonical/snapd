@@ -81,15 +81,19 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
 
 	c.Assert(env, DeepEquals, map[string]string{
-		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
-		"SNAP_ARCH":         arch.UbuntuArchitecture(),
-		"SNAP_COMMON":       "/var/snap/foo/common",
-		"SNAP_DATA":         "/var/snap/foo/17",
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-		"SNAP_NAME":         "foo",
-		"SNAP_REEXEC":       "",
-		"SNAP_REVISION":     "17",
-		"SNAP_VERSION":      "1.0",
+		"SNAP":                 fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
+		"SNAP_ARCH":            arch.UbuntuArchitecture(),
+		"SNAP_COMMON":          "/var/snap/foo/common",
+		"SNAP_DATA":            "/var/snap/foo/17",
+		"SNAP_LIBRARY_PATH":    "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+		"SNAP_NAME":            "foo",
+		"SNAP_INSTANCE":        fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
+		"SNAP_INSTANCE_NAME":   "foo",
+		"SNAP_INSTANCE_COMMON": "/var/snap/foo/common",
+		"SNAP_INSTANCE_DATA":   "/var/snap/foo/17",
+		"SNAP_REEXEC":          "",
+		"SNAP_REVISION":        "17",
+		"SNAP_VERSION":         "1.0",
 	})
 
 }
@@ -98,10 +102,12 @@ func (ts *HTestSuite) TestUser(c *C) {
 	env := userEnv(mockSnapInfo, "/root")
 
 	c.Assert(env, DeepEquals, map[string]string{
-		"HOME":             "/root/snap/foo/17",
-		"SNAP_USER_COMMON": "/root/snap/foo/common",
-		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
+		"HOME":                      "/root/snap/foo/17",
+		"SNAP_USER_COMMON":          "/root/snap/foo/common",
+		"SNAP_USER_DATA":            "/root/snap/foo/17",
+		"SNAP_INSTANCE_USER_COMMON": "/root/snap/foo/common",
+		"SNAP_INSTANCE_USER_DATA":   "/root/snap/foo/17",
+		"XDG_RUNTIME_DIR":           fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
 	})
 }
 
@@ -110,9 +116,11 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 
 	c.Assert(env, DeepEquals, map[string]string{
 		// NOTE HOME Is absent! we no longer override it
-		"SNAP_USER_COMMON": "/root/snap/foo/common",
-		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
+		"SNAP_USER_COMMON":          "/root/snap/foo/common",
+		"SNAP_USER_DATA":            "/root/snap/foo/17",
+		"SNAP_INSTANCE_USER_COMMON": "/root/snap/foo/common",
+		"SNAP_INSTANCE_USER_DATA":   "/root/snap/foo/17",
+		"XDG_RUNTIME_DIR":           fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
 	})
 }
 
@@ -134,21 +142,101 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
-			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
-			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
-			"SNAP_ARCH":         arch.UbuntuArchitecture(),
-			"SNAP_COMMON":       "/var/snap/snapname/common",
-			"SNAP_DATA":         "/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-			"SNAP_NAME":         "snapname",
-			"SNAP_REEXEC":       "",
-			"SNAP_REVISION":     "42",
-			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
-			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
-			"SNAP_VERSION":      "1.0",
-			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
+			"HOME":                      fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP":                      fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_ARCH":                 arch.UbuntuArchitecture(),
+			"SNAP_COMMON":               "/var/snap/snapname/common",
+			"SNAP_DATA":                 "/var/snap/snapname/42",
+			"SNAP_LIBRARY_PATH":         "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+			"SNAP_NAME":                 "snapname",
+			"SNAP_INSTANCE":             fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_INSTANCE_NAME":        "snapname",
+			"SNAP_INSTANCE_COMMON":      "/var/snap/snapname/common",
+			"SNAP_INSTANCE_DATA":        "/var/snap/snapname/42",
+			"SNAP_REEXEC":               "",
+			"SNAP_REVISION":             "42",
+			"SNAP_USER_COMMON":          fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_USER_DATA":            fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_INSTANCE_USER_COMMON": fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_INSTANCE_USER_DATA":   fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_VERSION":              "1.0",
+			"XDG_RUNTIME_DIR":           fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
 		})
 	}
+}
+
+func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo.Revision = snap.R(42)
+
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+
+	homeEnv := os.Getenv("HOME")
+	defer os.Setenv("HOME", homeEnv)
+
+	// pretend it's snapname_foo
+	info.InstanceKey = "foo"
+
+	for _, withHomeEnv := range []bool{true, false} {
+		if !withHomeEnv {
+			os.Setenv("HOME", "")
+		}
+
+		env := snapEnv(info)
+		c.Check(env, DeepEquals, map[string]string{
+			"HOME":                      fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP":                      fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_ARCH":                 arch.UbuntuArchitecture(),
+			"SNAP_COMMON":               "/var/snap/snapname/common",
+			"SNAP_DATA":                 "/var/snap/snapname/42",
+			"SNAP_LIBRARY_PATH":         "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+			"SNAP_NAME":                 "snapname",
+			"SNAP_INSTANCE":             fmt.Sprintf("%s/snapname_foo/42", dirs.CoreSnapMountDir),
+			"SNAP_INSTANCE_NAME":        "snapname_foo",
+			"SNAP_INSTANCE_COMMON":      "/var/snap/snapname_foo/common",
+			"SNAP_INSTANCE_DATA":        "/var/snap/snapname_foo/42",
+			"SNAP_REEXEC":               "",
+			"SNAP_REVISION":             "42",
+			"SNAP_USER_COMMON":          fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_USER_DATA":            fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_INSTANCE_USER_COMMON": fmt.Sprintf("%s/snap/snapname_foo/common", usr.HomeDir),
+			"SNAP_INSTANCE_USER_DATA":   fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
+			"SNAP_VERSION":              "1.0",
+			"XDG_RUNTIME_DIR":           fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
+		})
+	}
+}
+
+func (ts *HTestSuite) TestParallelInstallUser(c *C) {
+	info := *mockSnapInfo
+	info.InstanceKey = "bar"
+	env := userEnv(&info, "/root")
+
+	c.Assert(env, DeepEquals, map[string]string{
+		"HOME":                      "/root/snap/foo/17",
+		"SNAP_USER_COMMON":          "/root/snap/foo/common",
+		"SNAP_USER_DATA":            "/root/snap/foo/17",
+		"SNAP_INSTANCE_USER_COMMON": "/root/snap/foo_bar/common",
+		"SNAP_INSTANCE_USER_DATA":   "/root/snap/foo_bar/17",
+		"XDG_RUNTIME_DIR":           fmt.Sprintf("/run/user/%d/snap.foo_bar", sys.Geteuid()),
+	})
+}
+
+func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
+	info := *mockClassicSnapInfo
+	info.InstanceKey = "bar"
+	env := userEnv(&info, "/root")
+
+	c.Assert(env, DeepEquals, map[string]string{
+		// NOTE HOME Is absent! we no longer override it
+		"SNAP_USER_COMMON":          "/root/snap/foo/common",
+		"SNAP_USER_DATA":            "/root/snap/foo/17",
+		"SNAP_INSTANCE_USER_COMMON": "/root/snap/foo_bar/common",
+		"SNAP_INSTANCE_USER_DATA":   "/root/snap/foo_bar/17",
+		"XDG_RUNTIME_DIR":           fmt.Sprintf("/run/user/%d/snap.foo_bar", sys.Geteuid()),
+	})
 }
 
 func envValue(env []string, key string) (bool, string) {

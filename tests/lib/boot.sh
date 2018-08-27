@@ -2,7 +2,7 @@
 
 GRUB_EDITENV=grub-editenv
 case "$SPREAD_SYSTEM" in
-    fedora-*|opensuse-*)
+    fedora-*|opensuse-*|amazon-*)
         GRUB_EDITENV=grub2-editenv
         ;;
 esac

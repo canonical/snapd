@@ -1,5 +1,6 @@
 summary: Check file XAUTHORITY env variable points to is migrated into the snap environment
-description: |
+
+details: |
     The XAUTHORITY environment variable points to a file which is located
     in HOME, /run or /tmp depending on the distribution and desktop being
     used. If the file ends up in /tmp then it wont be visible inside the

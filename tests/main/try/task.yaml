@@ -10,24 +10,21 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
-    . $TESTSLIB/systemd.sh
-    echo "Given a service listening on a port"
-    printf "#!/bin/sh -e\nwhile true; do printf \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -w 1; done" > $SERVICE_FILE
-    chmod a+x $SERVICE_FILE
-    systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
     # shellcheck source=tests/lib/network.sh
-    . $TESTSLIB/network.sh
-    wait_listen_port "$PORT"
+    . "$TESTSLIB"/network.sh
+    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
 
 restore: |
-    . $TESTSLIB/systemd.sh
-    systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f $SERVICE_FILE $READABLE_FILE
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+    #shellcheck disable=SC2153
+    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    rm -f "$SERVICE_FILE" "$READABLE_FILE"
 
 execute: |
     echo "Given a buildable snap in a known directory"
     echo "When try is executed on that directory"
-    snap try $TESTSLIB/snaps/test-snapd-tools
+    snap try "$TESTSLIB"/snaps/test-snapd-tools
 
     echo "Then the snap is listed as installed with try in the notes"
     snap list | MATCH '^test-snapd-tools .* try'
@@ -36,14 +33,12 @@ execute: |
     test-snapd-tools.success
 
     echo "And commands from the snap-try binary can read in a readable dir"
-    echo -n "Hello World" > $READABLE_FILE
-    test-snapd-tools.cat $READABLE_FILE | MATCH "Hello World"
-
-    echo "====================================="
+    echo -n "Hello World" > "$READABLE_FILE"
+    test-snapd-tools.cat "$READABLE_FILE" | MATCH "Hello World"
 
     echo "Given a buildable snap which access confinement-protected resources in a known directory"
     echo "When try is executed on that directory"
-    snap try $TESTSLIB/snaps/test-snapd-tools
+    snap try "$TESTSLIB"/snaps/test-snapd-tools
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap command is not able to access the protected resource"
@@ -53,37 +48,32 @@ execute: |
         fi
     fi
 
-    echo "====================================="
-
     echo "Given a buildable snap which access confinement-protected resources in a known directory"
     echo "When try is executed on that directory with devmode enabled"
-    snap try $TESTSLIB/snaps/test-snapd-tools --devmode
+    snap try "$TESTSLIB"/snaps/test-snapd-tools --devmode
 
     echo "Then the snap command is able to access the protected resource"
     test-snapd-tools.head -1 /dev/kmsg
 
-    echo "====================================="
-
     echo "Given a buildable snap which access confinement-enabled network resources in a known directory"
     echo "When try is executed on that directory"
-    snap try $TESTSLIB/snaps/network-consumer
+    snap try "$TESTSLIB"/snaps/network-consumer
 
     echo "Then the snap is able to access the network resource"
-    network-consumer http://127.0.0.1:$PORT | MATCH "ok"
+    network-consumer http://127.0.0.1:"$PORT" | MATCH "ok"
 
-    echo "====================================="
     n=test-snapd-classic-confinement
     s=$TESTSLIB/snaps/$n
     echo "Given a buildable snap with classic confinement:"
     echo " - you can't try it without --classic:"
-    snap try $s && exit 1 || true
-    snap try --jailmode $s && exit 1 || true
-    snap try --devmode $s && exit 1 || true
+    ! snap try "$s"
+    ! snap try --jailmode "$s"
+    ! snap try --devmode "$s"
 
     touch /tmp/lala
 
     echo " - you can try it with --classic:"
-    snap try --classic $s
+    snap try --classic "$s"
     snap list $n | MATCH $n.*classic
     $n | MATCH lala
     snap remove $n

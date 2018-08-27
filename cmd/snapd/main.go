@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -58,6 +60,36 @@ func main() {
 	}
 }
 
+func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
+	// not running under systemd
+	if os.Getenv("WATCHDOG_USEC") == "" {
+		return nil, nil
+	}
+	usec := osutil.GetenvInt64("WATCHDOG_USEC")
+	if usec == 0 {
+		return nil, fmt.Errorf("cannot parse WATCHDOG_USEC: %q", os.Getenv("WATCHDOG_USEC"))
+	}
+	dur := time.Duration(usec/2) * time.Microsecond
+	logger.Debugf("Setting up sd_notify() watchdog timer every %s", dur)
+	wt := time.NewTicker(dur)
+
+	go func() {
+		for {
+			select {
+			case <-wt.C:
+				// TODO: poke the snapd API here and
+				//       only report WATCHDOG=1 if it
+				//       replies with valid data
+				systemd.SdNotify("WATCHDOG=1")
+			case <-d.Dying():
+				break
+			}
+		}
+	}()
+
+	return wt, nil
+}
+
 func run() error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
@@ -80,6 +112,14 @@ func run() error {
 
 	d.Start()
 
+	watchdog, err := runWatchdog(d)
+	if err != nil {
+		return fmt.Errorf("cannot run software watchdog: %v", err)
+	}
+	if watchdog != nil {
+		defer watchdog.Stop()
+	}
+
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
 	select {
@@ -89,5 +129,5 @@ func run() error {
 		// something called Stop()
 	}
 
-	return d.Stop()
+	return d.Stop(ch)
 }

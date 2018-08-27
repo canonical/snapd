@@ -184,14 +184,6 @@ EOF
 }
 
 prepare_classic() {
-    # ensure apt is the latest version
-    # https://bugs.launchpad.net/ubuntu/+source/apt/+bug/1776218
-    case "$SPREAD_SYSTEM" in
-        ubuntu-*|debian-*)
-            apt install -y apt
-            ;;
-    esac
-
     distro_install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
@@ -330,7 +322,7 @@ setup_reflash_magic() {
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
         
         # FIXME: fetch directly once its in the assertion service
-        cp "$TESTSLIB/assertions/core-amd64-18.model" "$IMAGE_HOME/pc.model"
+        cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         
         IMAGE=core18-amd64.img
             
@@ -342,7 +334,7 @@ setup_reflash_magic() {
         #
         # We can do this once https://forum.snapcraft.io/t/5947 is
         # answered.
-        echo "Added needed assertions so that core-amd64-18.model works"
+        echo "Added needed assertions so that ubuntu-core-18-amd64.model works"
         # shellcheck source=tests/lib/store.sh
         . "$TESTSLIB/store.sh"
         STORE_DIR="$(pwd)/fake-store-blobdir"
@@ -418,7 +410,7 @@ EOF
     fi
 
     # extra_snap should contain only ONE snap
-    if "${#extra_snap[@]}" -ne 1; then
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
         echo "unexpected number of globbed snaps: ${extra_snap[*]}"
         exit 1
     fi

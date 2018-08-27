@@ -53,6 +53,32 @@ prepare: |
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-tls.so.123.456
     fi
 
+restore: |
+    umount -t tmpfs /sys/module
+    rm -rf /usr/share/vulkan
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so.123.456
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so.123.456
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so.123.456
+        if [[ "$(uname -m)" == x86_64 ]]; then
+            rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so.123.456
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so.123.456
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so.123.456
+        fi
+    fi
+    rm -rf /usr/lib/nvidia-123
+    rm -rf /usr/lib32/nvidia-123
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -91,29 +117,3 @@ execute: |
         echo "And GLVND EGL vendor file"
         snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json" | MATCH canary-egl
     fi
-
-restore: |
-    umount -t tmpfs /sys/module
-    rm -rf /usr/share/vulkan
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
-        rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
-    fi
-
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
-        rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so.123.456
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so.123.456
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so.123.456
-        if [[ "$(uname -m)" == x86_64 ]]; then
-            rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so.123.456
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so.123.456
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so.123.456
-        fi
-    fi
-    rm -rf /usr/lib/nvidia-123
-    rm -rf /usr/lib32/nvidia-123
