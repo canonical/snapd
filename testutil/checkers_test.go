@@ -374,3 +374,29 @@ func (s *CheckersS) TestSystemCallSequenceEqual(c *check.C) {
 	testCheck(c, SyscallsEqual, false, "system call #0 `foo` unexpectedly absent, got only 0 system call(s) but expected 1",
 		[]CallResultError{}, []CallResultError{{C: `foo`}})
 }
+
+func (s *CheckersS) TestIntChecker(c *check.C) {
+	c.Assert(1, IntLessThan, 2)
+	c.Assert(1, IntLessEqual, 1)
+	c.Assert(1, IntEqual, 1)
+	c.Assert(2, IntNotEqual, 1)
+	c.Assert(2, IntGreaterThan, 1)
+	c.Assert(2, IntGreaterEqual, 2)
+
+	// Wrong argument types.
+	testCheck(c, IntLessThan, false, "left-hand-side argument must be an int", false, 1)
+	testCheck(c, IntLessThan, false, "right-hand-side argument must be an int", 1, false)
+
+	// Relationship error.
+	testCheck(c, IntLessThan, false, "failed relation 2 < 1", 2, 1)
+	testCheck(c, IntLessEqual, false, "failed relation 2 <= 1", 2, 1)
+	testCheck(c, IntEqual, false, "failed relation 2 == 1", 2, 1)
+	testCheck(c, IntNotEqual, false, "failed relation 2 != 2", 2, 2)
+	testCheck(c, IntGreaterThan, false, "failed relation 1 > 2", 1, 2)
+	testCheck(c, IntGreaterEqual, false, "failed relation 1 >= 2", 1, 2)
+
+	// Unexpected relation.
+	unexpected := &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: "==="}
+	testCheck(c, unexpected, false, `unexpected relation "==="`, 1, 2)
+
+}
