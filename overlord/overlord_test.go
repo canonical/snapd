@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -745,4 +746,60 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
+}
+
+func (ovs *overlordSuite) TestCanGoSocketActivatedNotSeeded(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", false)
+	st.Unlock()
+
+	c.Check(o.CanGoSocketActivated(), Equals, false)
+}
+
+func (ovs *overlordSuite) TestCanGoSocketActivatedSeeded(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
+	c.Check(o.CanGoSocketActivated(), Equals, true)
+}
+
+func (ovs *overlordSuite) TestCanGoSocketActivatedSnaps(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		Active:  true,
+	})
+	st.Unlock()
+
+	c.Check(o.CanGoSocketActivated(), Equals, false)
+}
+
+func (ovs *overlordSuite) TestCanGoSocketPendingChanges(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	chg := st.NewChange("foo", "fake change")
+	chg.AddTask(st.NewTask("bar", "fake task"))
+	c.Assert(chg.Status(), Equals, state.DoStatus)
+	st.Unlock()
+
+	c.Check(o.CanGoSocketActivated(), Equals, false)
 }

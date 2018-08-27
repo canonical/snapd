@@ -529,6 +529,7 @@ func (d *Daemon) Stop() error {
 
 	d.mu.Lock()
 	restartSystem := d.restartSystem
+	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
 	d.snapdListener.Close()
@@ -562,6 +563,19 @@ func (d *Daemon) Stop() error {
 
 	}
 
+	if restartSocket {
+		// At this point we processed all open requests (and
+		// stopped accepting new requests) - before going into
+		// socket activated mode we need to check if any of
+		// those open requests resulted in something that
+		// prevents us from going into socket activation mode.
+		//
+		// If this is the case we do a "normal" snapd restart
+		// to process the new changes.
+		if !d.overlord.CanGoSocketActivated() {
+			d.restartSocket = false
+		}
+	}
 	d.overlord.Stop()
 
 	err := d.tomb.Wait()

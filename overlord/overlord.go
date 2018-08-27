@@ -269,7 +269,7 @@ func (o *Overlord) Loop() {
 			o.stateEng.Ensure()
 			// without snaps on the system we may go into
 			// socket activation mode
-			if o.canGoSocketActivated() {
+			if o.CanGoSocketActivated() {
 				o.State().RequestRestart(state.RestartSocket)
 			}
 			select {
@@ -286,11 +286,11 @@ func (o *Overlord) Loop() {
 	})
 }
 
-// canGoSocketActivated returns true if the main ensure loop can go into
+// CanGoSocketActivated returns true if the main ensure loop can go into
 // "socket-activation" mode. This is only possible once seeding is done
 // and there are no snaps on the system. This is to reduce the memory
 // footprint on e.g. containers.
-func (o *Overlord) canGoSocketActivated() bool {
+func (o *Overlord) CanGoSocketActivated() bool {
 	st := o.State()
 	st.Lock()
 	defer st.Unlock()
