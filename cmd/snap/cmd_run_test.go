@@ -285,6 +285,30 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
 }
 
+func (s *SnapSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, check.IsNil)
+	info.SideInfo.Revision = snap.R(42)
+	info.InstanceKey = "foo"
+
+	fakeHome := c.MkDir()
+	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	})
+	defer restorer()
+
+	err = snaprun.CreateUserDataDirs(info)
+	c.Assert(err, check.IsNil)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
+	// mount point for snap instance mapping has been created
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname")), check.Equals, true)
+	// and it's empty inside
+	m, err := filepath.Glob(filepath.Join(fakeHome, "/snap/snapname/*"))
+	c.Assert(err, check.IsNil)
+	c.Assert(m, check.HasLen, 0)
+}
+
 func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
@@ -314,6 +338,38 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 		"snap.snapname.hook.configure",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+}
+
+func (s *SnapSuite) TestSnapRunHookIntegrationSkipCommandChain(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// Run a hook from the active revision
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--skip-command-chain", "--hook=configure", "snapname"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.hook.configure",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--skip-command-chain", "--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 

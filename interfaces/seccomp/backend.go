@@ -54,7 +54,6 @@ var (
 	osReadlink               = os.Readlink
 	kernelFeatures           = release.SecCompActions
 	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
-	kernelVersion            = release.KernelVersion
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
@@ -244,7 +243,7 @@ func requiresSocketcallImpl(baseSnap string) bool {
 		// glibc sysdeps/unix/sysv/linux/i386/kernel-features.h and
 		// sysdeps/unix/sysv/linux/s390/kernel-features.h added the
 		// individual socket syscalls in 4.3.
-		if cmp, _ := strutil.VersionCompare(kernelVersion(), "4.3"); cmp < 0 {
+		if cmp, _ := strutil.VersionCompare(osutil.KernelVersion(), "4.3"); cmp < 0 {
 			return true
 		}
 

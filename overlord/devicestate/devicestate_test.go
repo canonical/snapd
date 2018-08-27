@@ -1292,8 +1292,8 @@ hooks:
 		Model: "pc2",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	// mark it as seeded
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
