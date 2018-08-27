@@ -47,8 +47,10 @@ func init() {
 func main() {
 	cmd.ExecInCoreSnap()
 	if err := run(); err != nil {
-		if err == daemon.ErrStopDaemon {
-			fmt.Fprint(os.Stdout, "got stop daemon\n")
+		if err == daemon.ErrRestartSocket {
+			// Note that we don't prepend: "error: " here because
+			// ErrRestartSocket is not an error as such.
+			fmt.Fprintf(os.Stdout, "%v\n", err)
 			os.Exit(42)
 		}
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

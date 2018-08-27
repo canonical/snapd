@@ -270,7 +270,7 @@ func (o *Overlord) Loop() {
 			// without snaps on the system we may go into
 			// socket activation mode
 			if o.canGoSocketActivated() {
-				o.State().RequestRestart(state.StopDaemon)
+				o.State().RequestRestart(state.RestartSocket)
 			}
 			select {
 			case <-o.loopTomb.Dying():
