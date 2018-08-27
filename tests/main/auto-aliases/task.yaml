@@ -1,4 +1,5 @@
 summary: Check auto-aliases mechanism
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
