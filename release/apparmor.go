@@ -99,6 +99,7 @@ var (
 		"ptrace",
 		"signal",
 	}
+	apparmorUserspaceExists = apparmorUserspaceExistsImpl
 )
 
 // isDirectoy is like osutil.IsDirectory but we cannot import this
@@ -111,7 +112,7 @@ func isDirectory(path string) bool {
 	return stat.IsDir()
 }
 
-func apparmorUserspaceExists() bool {
+func apparmorUserspaceExistsImpl() bool {
 	_, err := exec.LookPath("apparmor_parser")
 
 	return err == nil

@@ -32,6 +32,16 @@ func MockOSReleasePath(filename string) (restore func()) {
 	}
 }
 
+func MockAppArmorUserspaceExists(exists bool) (restore func()) {
+	old := apparmorUserspaceExists
+	apparmorUserspaceExists = func() bool {
+		return exists
+	}
+	return func() {
+		apparmorUserspaceExists = old
+	}
+}
+
 var (
 	ProbeAppArmor            = probeAppArmor
 	RequiredAppArmorFeatures = requiredAppArmorFeatures
