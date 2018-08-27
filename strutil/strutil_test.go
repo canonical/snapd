@@ -147,6 +147,8 @@ func (ts *strutilSuite) TestParseValueWithUnitHappy(c *check.C) {
 		{"1B", 1},
 		{"400B", 400},
 		{"1kB", 1000},
+		// note the upper-case
+		{"1KB", 1000},
 		{"900kB", 900 * 1000},
 		{"1MB", 1000 * 1000},
 		{"20MB", 20 * 1000 * 1000},
