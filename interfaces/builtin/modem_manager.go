@@ -127,12 +127,12 @@ dbus (receive)
     interface=org.freedesktop.login1.Manager
     member={PrepareForSleep,SessionNew,SessionRemoved}
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member=Inhibit
-    peer=(label=unconfined),
+    member=Inhibit,
 `
 
 const modemManagerConnectedSlotAppArmor = `
@@ -184,6 +184,18 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
+
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect,
+dbus (send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
 `
 
 const modemManagerPermanentSlotSecComp = `
@@ -1249,7 +1261,7 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotUDev)
-	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	return nil
 }
 

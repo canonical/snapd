@@ -20,9 +20,6 @@
 package snapstate
 
 import (
-	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -144,45 +141,42 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
-func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
-	sort.Sort(byKind(snaps))
-	return snaps
-}
-
 func MockModelWithBase(baseName string) (restore func()) {
-	return mockModel(fmt.Sprintf("base: %s", baseName))
+	return mockModel(map[string]string{"base": baseName})
 }
 
 func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
-	return mockModel(fmt.Sprintf("kernel-track: %s", kernelTrack))
+	return mockModel(map[string]string{"kernel": "kernel=" + kernelTrack})
+}
+
+func MockModelWithGadgetTrack(gadgetTrack string) (restore func()) {
+	return mockModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
 }
 
 func MockModel() (restore func()) {
-	return mockModel()
+	return mockModel(nil)
 }
 
-func mockModel(extras ...string) (restore func()) {
+func mockModel(override map[string]string) (restore func()) {
 	oldModel := Model
 
-	var extra string
-	if len(extras) > 0 {
-		extra = "\n" + strings.Join(extras, "\n")
+	model := map[string]interface{}{
+		"type":              "model",
+		"authority-id":      "brand",
+		"series":            "16",
+		"brand-id":          "brand",
+		"model":             "baz-3000",
+		"architecture":      "armhf",
+		"gadget":            "brand-gadget",
+		"kernel":            "kernel",
+		"timestamp":         "2018-01-01T08:00:00+00:00",
+		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+	}
+	for k, v := range override {
+		model[k] = v
 	}
 
-	mod := fmt.Sprintf(`type: model
-authority-id: brand
-series: 16
-brand-id: brand
-model: baz-3000
-architecture: armhf
-gadget: brand-gadget
-kernel: kernel%s
-timestamp: 2018-01-01T08:00:00+00:00
-sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-AXNpZw==
-`, extra)
-	a, err := asserts.Decode([]byte(mod))
+	a, err := asserts.Assemble(model, nil, nil, []byte("AXNpZw=="))
 	if err != nil {
 		panic(err)
 	}

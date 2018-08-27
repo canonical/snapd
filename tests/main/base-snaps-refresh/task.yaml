@@ -1,9 +1,10 @@
 summary: Check that refreshes that require new base snaps work
+
 systems: [-opensuse-*]
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     echo "Install a snap that requires no base snap"
     cp -a "$TESTSLIB"/snaps/test-snapd-requires-base-bare .
@@ -17,5 +18,6 @@ execute: |
 
     echo "Now refresh to the version in the store that has a base"
     snap refresh --edge --amend test-snapd-requires-base-bare
+
     echo "And ensure the base got pulled in"
     snap list | grep test-snapd-base-bare

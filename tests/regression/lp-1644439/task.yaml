@@ -1,5 +1,5 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
-manual: true  # see https://github.com/snapcore/snapd/pull/3076
+
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
@@ -10,10 +10,18 @@ details: |
     another namespace in which the /run/snapd/ns directory is visible.
     The most obvious candidate is pid one, which definitely doesn't run in a
     snap-specific namespace, has a predictable PID and is long lived.
+
+manual: true  # see https://github.com/snapcore/snapd/pull/3076
+
 prepare: |
     echo "Having installed the test snap in devmode"
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
+
+debug: |
+    # Kernel version is an important input in understing failures of this test
+    uname -a
+
 execute: |
     # This test is meaningful only on Ubuntu for now as this is where we have
     # the complete apparmor patch-set.
@@ -43,6 +51,3 @@ execute: |
     /usr/lib/snapd/snap-discard-ns test-snapd-tools
     su -l -c 'test-snapd-tools.cmd /bin/true' test
     su -l -c "test-snapd-tools.cmd /bin/sh -c \"SNAP_CONFINE_DEBUG=yes $SNAP_MOUNT_DIR/bin/test-snapd-tools.cmd /bin/true\"" test
-debug: |
-    # Kernel version is an important input in understing failures of this test
-    uname -a

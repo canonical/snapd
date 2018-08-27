@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,9 +17,16 @@
  *
  */
 
-package release
+package dirs
 
 var (
-	GetKernelRelease = getKernelRelease
-	GetMachineName   = getMachineName
+	IsInsideBaseSnap = isInsideBaseSnap
 )
+
+func MockMetaSnapPath(path string) (restore func()) {
+	old := metaSnapPath
+	metaSnapPath = path
+	return func() {
+		metaSnapPath = old
+	}
+}

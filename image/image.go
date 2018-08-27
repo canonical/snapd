@@ -227,6 +227,13 @@ func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Option
 		TargetDir: opts.GadgetUnpackDir,
 		Channel:   opts.Channel,
 	}
+	if model.GadgetTrack() != "" {
+		gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+		if err != nil {
+			return err
+		}
+		dlOpts.Channel = gch
+	}
 	snapFn, _, err := acquireSnap(tsto, model.Gadget(), dlOpts, local)
 	if err != nil {
 		return err
@@ -295,27 +302,20 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
-	errPrefix := fmt.Sprintf("cannot use kernel-track %q from model assertion", kernelTrack)
-	if strings.Count(kernelTrack, "/") != 0 {
-		return "", fmt.Errorf("%s: must be a track name only", errPrefix)
-	}
-	kch, err := snap.ParseChannel(kernelTrack, "")
+func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use track %q for %s from model assertion", track, what)
+	mch, err := snap.ParseChannel(track, "")
 	if err != nil {
 		return "", fmt.Errorf("%s: %v", errPrefix, err)
 	}
-	if kch.Track == "" {
-		return "", fmt.Errorf("%s: not a track", errPrefix)
-	}
-
 	if defaultChannel != "" {
 		dch, err := snap.ParseChannel(defaultChannel, "")
 		if err != nil {
 			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
 		}
-		kch.Risk = dch.Risk
+		mch.Risk = dch.Risk
 	}
-	return kch.Clean().String(), nil
+	return mch.Clean().String(), nil
 }
 
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
@@ -372,6 +372,16 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
 		snaps = append(snaps, "snapd")
+		// TODO: once we order snaps by what they need this
+		//       can go aways
+		// Here we ensure that "core" is seeded very early
+		// when bases are in use. This fixes the issue
+		// that when people use model assertions with
+		// required snaps like bluez which at this point
+		// still requires core will hang forever in seeding.
+		if strutil.ListContains(opts.Snaps, "core") {
+			snaps = append(snaps, "core")
+		}
 	}
 	// core/base,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(baseName))
@@ -402,11 +412,18 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 		snapChannel := opts.Channel
 		if name == model.Kernel() && model.KernelTrack() != "" {
-			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
+			kch, err := makeChannelFromTrack("kernel", model.KernelTrack(), opts.Channel)
 			if err != nil {
 				return err
 			}
 			snapChannel = kch
+		}
+		if name == model.Gadget() && model.GadgetTrack() != "" {
+			gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			snapChannel = gch
 		}
 		dlOpts := &DownloadOptions{
 			TargetDir: snapSeedDir,

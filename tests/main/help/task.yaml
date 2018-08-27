@@ -1,5 +1,7 @@
 summary: Check commands help
-systems: [+fedora-*]
+
+systems: [fedora-*]
+
 execute: |
     bad=""
     for CMD in $( GO_FLAGS_COMPLETION=1 snap | grep -vFx help ); do

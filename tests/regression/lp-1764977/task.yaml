@@ -1,4 +1,5 @@
 summary: Broken snap doesn't break "snap list" and other operations
+
 details: |
     Snap can enter the "broken" state when its meta/snap.yaml cannot be found.
     Typically this means the snap is unmounted or that "snap try"-mode snap was
@@ -13,6 +14,7 @@ details: |
     still present and can be read. In the other case it is removed when the
     snap is removed (individual files are unlinked and disappear from the
     bind-mounted view of the mounted snap).
+
 execute: |
     cp -a  $TESTSLIB/snaps/test-snapd-sh .
     snap try test-snapd-sh

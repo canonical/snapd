@@ -68,7 +68,7 @@ func isValidName(name string) bool {
 	return true
 }
 
-// ValidateName checks if a string can be used as a snap instance name.
+// ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_instance_name_validate and validate_instance_name .
@@ -212,6 +212,14 @@ func ValidateHook(hook *HookInfo) error {
 	if !valid {
 		return fmt.Errorf("invalid hook name: %q", hook.Name)
 	}
+
+	// Also validate the command chain
+	for _, value := range hook.CommandChain {
+		if !commandChainContentWhitelist.MatchString(value) {
+			return fmt.Errorf("hook command-chain contains illegal %q (legal: '%s')", value, commandChainContentWhitelist)
+		}
+	}
+
 	return nil
 }
 
@@ -325,8 +333,10 @@ func Validate(info *Info) error {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 
-	// TODO parallel-install: use of proper instance/store name, validate instance key
-	if err := ValidateName(name); err != nil {
+	if err := ValidateName(info.SnapName()); err != nil {
+		return err
+	}
+	if err := ValidateInstanceName(name); err != nil {
 		return err
 	}
 
@@ -582,8 +592,10 @@ func validateAppTimer(app *AppInfo) error {
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
-// will get confused.
+// will get confused. chainContentWhitelist is the same, but for the
+// command-chain, which also doesn't allow whitespace.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
+var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
@@ -617,6 +629,13 @@ func ValidateApp(app *AppInfo) error {
 
 	for name, value := range checks {
 		if err := validateField(name, value, appContentWhitelist); err != nil {
+			return err
+		}
+	}
+
+	// Also validate the command chain
+	for _, value := range app.CommandChain {
+		if err := validateField("command-chain", value, commandChainContentWhitelist); err != nil {
 			return err
 		}
 	}
