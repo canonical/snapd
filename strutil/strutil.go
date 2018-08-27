@@ -113,11 +113,12 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 }
 
 // ParseValueWithUnit parses a value like 500kB and returns the number
-// in byte
+// in byte. The case of the unit will be ignored for user convenience.
 func ParseValueWithUnit(inp string) (int64, error) {
 	unitMultiplier := map[string]int64{
-		"B":  1,
-		"kB": 1000,
+		"B": 1,
+		// strictly speaking this is "kB" but we ignore cases
+		"KB": 1000,
 		"MB": 1000 * 1000,
 		"GB": 1000 * 1000 * 1000,
 		"TB": 1000 * 1000 * 1000 * 1000,
@@ -134,7 +135,7 @@ func ParseValueWithUnit(inp string) (int64, error) {
 		}
 	}
 	// two char suffix
-	unit := inp[len(inp)-2:]
+	unit := strings.ToUpper(inp[len(inp)-2:])
 	mul, ok := unitMultiplier[unit]
 	if !ok {
 		return 0, fmt.Errorf("cannot use unit in %q: try 'kB' or 'MB'", inp)
