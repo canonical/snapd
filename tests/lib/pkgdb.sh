@@ -624,6 +624,7 @@ pkg_dependencies_opensuse(){
         jq
         lsb-release
         man
+        nfs-kernel-server
         python3-yaml
         netcat-openbsd
         osc
@@ -649,6 +650,7 @@ pkg_dependencies_arch(){
     libcap
     libx11
     net-tools
+    nfs-utils
     openbsd-netcat
     python
     python-docutils
