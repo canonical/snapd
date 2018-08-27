@@ -1376,7 +1376,7 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 		{"arch", "4.18.5-arch1-1-ARCH", true},
 		{"arch", "4.17.4-hardened", false},
 		{"arch", "4.17.4-1-ARCH", true},
-		{"arch", "4.18.6-arch1-1-ARCH", false},
+		{"arch", "4.18.6-arch1-1-ARCH", true},
 	} {
 		c.Logf("trying: %+v", tc)
 		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})
