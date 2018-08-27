@@ -1,10 +1,5 @@
 summary: check that the core and kernel snaps roll back correctly after a failed upgrade
 
-systems: [ubuntu-core-16-*]
-
-# Start early as it takes a long time.
-priority: 100
-
 details: |
     This test ensures that the system can survive to a failed upgrade of a fundamental
     snap, rolling back to the last good known version.
@@ -14,6 +9,11 @@ details: |
     the failure and executes a reboot. The test checks that after the reboot (in fact two
     reboots, one for trying the upgrade and another for rolling back) the installed
     fundamental snap is the good one and the boot environment variables are correctly set.
+
+systems: [ubuntu-core-16-*]
+
+# Start early as it takes a long time.
+priority: 100
 
 environment:
     INJECT_FAILURE/rclocalcrash: inject_rclocalcrash_failure
