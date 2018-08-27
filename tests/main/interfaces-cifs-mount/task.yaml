@@ -7,28 +7,25 @@ prepare: |
     snap install test-snapd-cifs-mount
 
     # Create linux and samba users 
-    sudo useradd -s /bin/true test-cifs
-    echo "test-cifs:test123#" | sudo chpasswd
+    useradd -s /bin/true test-cifs
+    echo "test-cifs:test123#" | chpasswd
     mkdir /home/test-cifs
 
     echo test > test-pass
     echo test >> test-pass
-    sudo smbpasswd -a test-cifs -s < test-pass
+    smbpasswd -a test-cifs -s < test-pass
 
     # Create mount point
-    mkdir -p local_share /var/snap/test-snapd-cifs-mount/current/local_mount
+    mkdir -p local_share
+    test-snapd-cifs-mount.sh -c "mkdir \$SNAP_DATA/local_mount"
     chmod 755 local_share
     touch local_share/test
 
     # Configure samba
     cp /etc/samba/smb.conf /etc/samba/smb.conf.back
-    echo "[data]" >> /etc/samba/smb.conf
-    echo "path=$(pwd)/local_share" >> /etc/samba/smb.conf
-    echo "writable=yes" >> /etc/samba/smb.conf
-    echo "browsable=yes" >> /etc/samba/smb.conf
+    { echo "[data]"; echo "path=$(pwd)/local_share"; echo "writable=yes"; echo "browsable=yes"; } >> /etc/samba/smb.conf
 
     systemctl restart smbd.service
-    systemctl restart nmbd.service
 
 restore: |
     rm -f call.error test-pass
@@ -39,7 +36,6 @@ restore: |
     userdel test-cifs
     cp /etc/samba/smb.conf.back /etc/samba/smb.conf || true
     systemctl restart smbd.service
-    systemctl restart nmbd.service
 
 execute: |
     echo "The interface is not connected by default"
@@ -49,11 +45,11 @@ execute: |
     snap connect test-snapd-cifs-mount:cifs-mount
 
     echo "Then the snap is able to mount and umount a cifs fs"
-    test-snapd-cifs-mount.sh -c "mount -t cifs //127.0.0.1/data /var/snap/test-snapd-cifs-mount/current/local_mount -o user=test-cifs,passowrd=test"
-    test-snapd-cifs-mount.sh -c "test -f /var/snap/test-snapd-cifs-mount/current/local_mount/test"
+    test-snapd-cifs-mount.sh -c "mount -t cifs //127.0.0.1/data \$SNAP_DATA/local_mount -o user=test-cifs,passowrd=test"
+    test-snapd-cifs-mount.sh -c "test -f \$SNAP_DATA/local_mount/test"
     
-    test-snapd-cifs-mount.sh -c "umount /var/snap/test-snapd-cifs-mount/current/local_mount"
-    test-snapd-cifs-mount.sh -c "! test -f /var/snap/test-snapd-cifs-mount/current/local_mount/test"
+    test-snapd-cifs-mount.sh -c "umount \$SNAP_DATA/local_mount"
+    test-snapd-cifs-mount.sh -c "! test -f \$SNAP_DATA/local_mount/test"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -63,7 +59,7 @@ execute: |
     snap disconnect test-snapd-cifs-mount:cifs-mount
 
     echo "Then the snap is not able to mount a cifs filesystem"
-    if test-snapd-cifs-mount.sh -c "mount -t cifs //127.0.0.1/data /var/snap/test-snapd-cifs-mount/current/local_mount -o user=test-cifs,passowrd=test" 2>call.error; then
+    if test-snapd-cifs-mount.sh -c "mount -t cifs //127.0.0.1/data \$SNAP_DATA/local_mount -o user=test-cifs,passowrd=test" 2>call.error; then
         echo "Expected permission error mounting cifs"
         exit 1
     fi
