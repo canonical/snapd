@@ -80,7 +80,9 @@ const (
 	RestartUnset RestartType = iota
 	RestartDaemon
 	RestartSystem
-	StopDaemon
+	// RestartSocket will restart the daemon so that it goes into
+	// socket activation mode.
+	RestartSocket
 )
 
 // State represents an evolving system state that persists across restarts.
