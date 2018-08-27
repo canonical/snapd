@@ -12,7 +12,6 @@ systems: [-ubuntu-core-*, -opensuse-*]
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-
     install_local test-snapd-sh
 
 restore: |

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -443,7 +444,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
 	// specify "core18" with 4.4 kernel so as not to influence the release
 	// check.
 	base := "core18"
-	restore := seccomp.MockKernelVersion(func() string { return "4.4" })
+	restore := osutil.MockKernelVersion("4.4")
 	defer restore()
 
 	tests := []struct {
@@ -516,7 +517,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
 	for _, t := range tests {
 		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
 		defer restore()
-		restore = seccomp.MockKernelVersion(func() string { return t.version })
+		restore = osutil.MockKernelVersion(t.version)
 		defer restore()
 
 		// specify "core18" here so as not to influence the
@@ -532,7 +533,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaBaseSnap(c *C) {
 	defer restore()
 	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
 	defer restore()
-	restore = seccomp.MockKernelVersion(func() string { return "4.3" })
+	restore = osutil.MockKernelVersion("4.3")
 	defer restore()
 
 	testBases := []string{"", "core", "core16"}
@@ -548,7 +549,7 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	defer restore()
 	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
 	defer restore()
-	restore = seccomp.MockKernelVersion(func() string { return "4.3" })
+	restore = osutil.MockKernelVersion("4.3")
 	defer restore()
 
 	testBases := []string{"bare", "core18", "fedora-core"}

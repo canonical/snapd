@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -142,17 +141,16 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
-func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
-	sort.Sort(byKind(snaps))
-	return snaps
-}
-
 func MockModelWithBase(baseName string) (restore func()) {
 	return mockModel(map[string]string{"base": baseName})
 }
 
 func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
 	return mockModel(map[string]string{"kernel": "kernel=" + kernelTrack})
+}
+
+func MockModelWithGadgetTrack(gadgetTrack string) (restore func()) {
+	return mockModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
 }
 
 func MockModel() (restore func()) {

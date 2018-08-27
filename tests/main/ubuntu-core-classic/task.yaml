@@ -1,15 +1,20 @@
 summary: Ensure classic dimension works correctly
+
 systems: [ubuntu-core-16-*]
+
 environment:
     # We need to set the SUDO_USER here to simulate the real
     # behavior. I.e. when entering classic it happens via
     # `sudo classic` and the user gets a user shell inside
     # the classic environment that has sudo support.
     SUDO_USER: test
+
 prepare: |
     echo "test ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/create-test
+
 restore: |
     rm -f /etc/sudoers.d/create-test
+
 execute: |
     echo "Ensure classic can be installed"
     snap install --devmode --beta classic

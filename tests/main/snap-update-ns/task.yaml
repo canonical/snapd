@@ -1,4 +1,5 @@
 summary: smoke test for snap-update-ns
+
 details: |
     Snapd is growing a new executable, snap-update-ns, to modify an existing
     mount namespace.  This is further documented on the forum here
@@ -7,10 +8,12 @@ details: |
     While the implementation matures this test checks that we call setns
     correctly (and it doesn't fail) enough that we reach the "not implemented"
     message that is currently in snap-updates-ns
+
 environment:
     # I made far too many typos when those were literals in the code below.
     PLUG_SNAP: test-snapd-content-plug
     SLOT_SNAP: test-snapd-content-slot
+
 prepare: |
     . $TESTSLIB/snaps.sh
     # NOTE: those are installed locally so that they are not connected because
@@ -25,6 +28,7 @@ prepare: |
     . "$TESTSLIB/dirs.sh"
     $LIBEXECDIR/snapd/snap-discard-ns $PLUG_SNAP
     rm -f /run/snapd/ns/$PLUG_SNAP.mnt
+
 execute: |
     # NOTE: All the commands here will focus on the -plug snap as this is where
     # the mount namespace is going to be altered. The -slot snap is just there
