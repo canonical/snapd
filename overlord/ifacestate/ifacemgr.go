@@ -53,7 +53,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		setupHooks(hookManager)
 	}
 
-	// note: leave udevInitTime is at the default value, so that udev is initialized on first Ensure run.
+	// note: leave udevInitTime at the default value, so that udev is initialized on first Ensure run.
 	m := &InterfaceManager{
 		state: s,
 		repo:  interfaces.NewRepository(),
@@ -109,7 +109,7 @@ func (m *InterfaceManager) Ensure() error {
 		return nil
 	}
 
-	// retry udev monitor initialization every 15 minutes
+	// retry udev monitor initialization every 5 minutes
 	now := time.Now()
 	if now.After(m.udevInitTime) {
 		err := m.initUdevMonitor()
@@ -157,7 +157,7 @@ func (m *InterfaceManager) DisableUdevMonitor() {
 }
 
 var (
-	udevInitRetryTimeout = time.Minute * 15
+	udevInitRetryTimeout = time.Minute * 5
 	createUdevMonitor    = udevmonitor.New
 )
 
