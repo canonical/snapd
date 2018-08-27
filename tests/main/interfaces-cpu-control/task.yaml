@@ -18,8 +18,8 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-cpu-control:cpu-control
 
-    echo "Then the snap is able to read the cpu directory"
-    test-snapd-cpu-control.sh -c "ls /sys/devices/system/cpu"
+    echo "Then the snap is able to read the uevent file for the cpu0"
+    test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/cpu0/uevent"
     
     echo "Then the snap is able to read the online file for the cpu0"
     # Write is not allowed so it is not tested, even when the interface allows that
@@ -40,8 +40,8 @@ execute: |
     echo "When the plug is disconnected"
     snap disconnect test-snapd-cpu-control:cpu-control
 
-    echo "Then the snap is not able to read the cpu directory"
-    if test-snapd-cpu-control.sh -c "ls /sys/devices/system/cpu/cpu0" 2>call.error; then
+    echo "Then the snap is not able to read the uevent file for the cpu0"
+    if test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/cpu0/uevent" 2>call.error; then
         echo "Expected permission error accessing to cpu directory"
         exit 1
     fi
