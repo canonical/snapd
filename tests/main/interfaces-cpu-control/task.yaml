@@ -18,9 +18,6 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-cpu-control:cpu-control
 
-    echo "Then the snap is able to read the uevent file for the cpu0"
-    test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/cpu0/uevent"
-    
     echo "Then the snap is able to read the online file for the cpu0"
     # Write is not allowed so it is not tested, even when the interface allows that
     if [ -f /sys/devices/system/cpu/cpu0/online ]; then
@@ -40,9 +37,20 @@ execute: |
     echo "When the plug is disconnected"
     snap disconnect test-snapd-cpu-control:cpu-control
 
-    echo "Then the snap is not able to read the uevent file for the cpu0"
-    if test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/cpu0/uevent" 2>call.error; then
-        echo "Expected permission error accessing to cpu directory"
-        exit 1
+    echo "Then the snap is not able to read the online file for the cpu0"
+    if [ -f /sys/devices/system/cpu/cpu0/online ]; then
+        if test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/cpu0/online" 2>call.error; then
+            echo "Expected permission error accessing to read the online file for the cpu0"
+            exit 1
+        fi
+        MATCH "Permission denied" < call.error
     fi
-    MATCH "Permission denied" < call.error
+
+    echo "Then the snap is not able to read the control file for the smt"
+    if [ -f /sys/devices/system/cpu/smt/control ]; then
+        if test-snapd-cpu-control.sh -c "cat /sys/devices/system/cpu/smt/control" 2>call.error; then
+            echo "Expected permission error accessing to read the control file for the smt"
+            exit 1
+        fi
+        MATCH "Permission denied" < call.error
+    fi
