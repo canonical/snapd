@@ -740,3 +740,65 @@ func (s *daemonSuite) TestRebootHelper(c *check.C) {
 		cmd.ForgetCalls()
 	}
 }
+
+func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
+	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+
+	// mark as already seeded, we also have no snaps so this will
+	// go into socket activation mode
+	s.markSeeded(d)
+
+	d.Start()
+	select {
+	case <-d.Dying():
+		// exit the loop
+	case <-time.After(5 * time.Second):
+		c.Errorf("daemon did not stop after 5s")
+	}
+	err = d.Stop()
+	c.Check(err, check.Equals, ErrRestartSocket)
+	c.Check(d.restartSocket, check.Equals, true)
+}
+
+func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
+	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	// mark as already seeded, we also have no snaps so this will
+	// go into socket activation mode
+	s.markSeeded(d)
+	st := d.overlord.State()
+
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+
+	d.Start()
+	select {
+	case <-d.Dying():
+		// Pretend we got change while shutting down, this can
+		// happen when e.g. the user requested a `snap install
+		// foo` at the same time as the code in the overlord
+		// checked that it can go into socket activated
+		// mode. I.e. the daemon was processing the request
+		// but no change was generated at the time yet.
+		st.Lock()
+		chg := st.NewChange("fake-install", "fake install some snap")
+		chg.AddTask(st.NewTask("fake-install-task", "fake install task"))
+		chgStatus := chg.Status()
+		st.Unlock()
+		// ensure our change is valid and ready
+		c.Check(chgStatus, check.Equals, state.DoStatus)
+	case <-time.After(5 * time.Second):
+		c.Errorf("daemon did not stop after 5s")
+	}
+	// when the daemon got a pending change it just restarts
+	err = d.Stop()
+	c.Check(err, check.IsNil)
+	c.Check(d.restartSocket, check.Equals, false)
+}
