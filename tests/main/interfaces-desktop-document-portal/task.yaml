@@ -1,17 +1,25 @@
 summary: The document portal is mounted by snaps using the desktop interface
+
 details: |
     The document portal is a component of xdg-desktop-portal that
     provides a way to share files with a confined application in a
     controlled fashion.  To provide proper security, a subtree of the
     portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
     sandbox.
+
 systems: [-ubuntu-core-*]
+
 prepare: |
-    snap try "$TESTSLIB"/snaps/test-snapd-desktop
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    install_local test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
+
 restore: |
     rm -rf /run/user/12345/*
     rm -f /tmp/check-doc-portal.sh
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh

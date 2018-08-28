@@ -17,7 +17,7 @@ execute: |
     systemctl kill --signal=SIGSEGV snapd.service
     systemctl status snapd.failure.service | MATCH inactive
     echo "Snap list is working still"
-    snap list | MATCH "^snapd.*x1.*"
+    snap list | MATCH "^snapd .* $current .*"
 
     echo "Break snapd"
     unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
@@ -30,7 +30,7 @@ execute: |
     fi
 
     echo "And verify that snap commands still work and snapd is reverted"
-    snap list | MATCH "^snapd.*x1.*"
+    snap list | MATCH "^snapd .* $current .*"
 
     echo "Verify we got the expected error message"
     snap change --last=install|MATCH "there was a snapd rollback across the restart"

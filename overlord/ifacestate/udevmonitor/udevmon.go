@@ -17,7 +17,7 @@
  *
  */
 
-package overlord
+package udevmonitor
 
 import (
 	"fmt"
@@ -29,21 +29,22 @@ import (
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
-type UDevMon interface {
+type Interface interface {
 	Connect() error
+	Disconnect() error
 	Run() error
 	Stop() error
 }
 
-type DeviceAddedCallback func(device *hotplug.HotplugDeviceInfo)
-type DeviceRemovedCallback func(device *hotplug.HotplugDeviceInfo)
+type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
+type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
 
-// UDevMonitor monitors kernel uevents making it possible to find USB devices.
-type UDevMonitor struct {
-	tmb             *tomb.Tomb
-	deviceAddedCb   DeviceAddedCallback
-	deviceRemovedCb DeviceRemovedCallback
-	netlinkConn     *netlink.UEventConn
+// Monitor monitors kernel uevents making it possible to find USB devices.
+type Monitor struct {
+	tomb          tomb.Tomb
+	deviceAdded   DeviceAddedFunc
+	deviceRemoved DeviceRemovedFunc
+	netlinkConn   *netlink.UEventConn
 	// channels used by netlink connection and monitor
 	monitorStop         chan struct{}
 	netlinkErrors       chan error
@@ -52,12 +53,11 @@ type UDevMonitor struct {
 	queuedNetlinkEvents []*netlink.UEvent
 }
 
-func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
-	m := &UDevMonitor{
-		deviceAddedCb:   addedCb,
-		deviceRemovedCb: removedCb,
-		netlinkConn:     &netlink.UEventConn{},
-		tmb:             new(tomb.Tomb),
+func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
+	m := &Monitor{
+		deviceAdded:   added,
+		deviceRemoved: removed,
+		netlinkConn:   &netlink.UEventConn{},
 	}
 
 	m.netlinkEvents = make(chan netlink.UEvent)
@@ -67,7 +67,7 @@ func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback
 	return m
 }
 
-func (m *UDevMonitor) Connect() error {
+func (m *Monitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
 		return fmt.Errorf("cannot connect: already connected")
@@ -83,18 +83,19 @@ func (m *UDevMonitor) Connect() error {
 	return nil
 }
 
+func (m *Monitor) Disconnect() error {
+	close(m.monitorStop)
+	return m.netlinkConn.Close()
+}
+
 // Run enumerates existing USB devices and starts a new goroutine that
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
-func (m *UDevMonitor) Run() error {
-	existingDevices := make(chan *hotplug.HotplugDeviceInfo)
-	udevadmErrors := make(chan error)
+func (m *Monitor) Run() error {
+	m.tomb.Go(func() error {
+		existingDevices := make(chan *hotplug.HotplugDeviceInfo)
+		udevadmErrors := make(chan error)
 
-	if err := hotplug.EnumerateExistingDevices(existingDevices, udevadmErrors); err != nil {
-		return fmt.Errorf("cannot enumerate existing devices: %s", err)
-	}
-
-	m.tmb.Go(func() error {
 		var enumerationFinished bool
 		// Gather devices from udevadm info output (enumeration on startup) and from udev event monitor:
 		// - devices discovered on startup are reported via existingDevices channel
@@ -104,6 +105,9 @@ func (m *UDevMonitor) Run() error {
 		// It might happen that a device is plugged at startup and is reported by both existingDevices
 		// channel and netlinkEvents channel; such events are ignored by de-duplication logic based on device path;
 		// this de-dup logic is only applied until enumeration is finished.
+		if err := hotplug.EnumerateExistingDevices(existingDevices, udevadmErrors); err != nil {
+			return fmt.Errorf("cannot enumerate existing devices: %s", err)
+		}
 		for {
 			select {
 			case err, ok := <-udevadmErrors:
@@ -113,8 +117,8 @@ func (m *UDevMonitor) Run() error {
 					udevadmErrors = nil
 				}
 			case dev, ok := <-existingDevices:
-				if ok && m.deviceAddedCb != nil {
-					m.deviceAddedCb(dev)
+				if ok && m.deviceAdded != nil {
+					m.deviceAdded(dev)
 					m.startupDevices[dev.DevicePath()] = true
 				}
 				if !ok {
@@ -136,11 +140,9 @@ func (m *UDevMonitor) Run() error {
 				} else {
 					m.udevEvent(&ev)
 				}
-			case <-m.tmb.Dying():
-				close(m.monitorStop)
-				m.netlinkConn.Close()
+			case <-m.tomb.Dying():
 				m.queuedNetlinkEvents = nil
-				return nil
+				return m.Disconnect()
 			}
 		}
 	})
@@ -148,14 +150,14 @@ func (m *UDevMonitor) Run() error {
 	return nil
 }
 
-func (m *UDevMonitor) Stop() error {
-	m.tmb.Kill(nil)
-	err := m.tmb.Wait()
+func (m *Monitor) Stop() error {
+	m.tomb.Kill(nil)
+	err := m.tomb.Wait()
 	m.netlinkConn = nil
 	return err
 }
 
-func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
+func (m *Monitor) udevEvent(ev *netlink.UEvent) {
 	switch ev.Action {
 	case netlink.ADD:
 		m.addDevice(ev.KObj, ev.Env)
@@ -165,7 +167,7 @@ func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
 	}
 }
 
-func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
+func (m *Monitor) addDevice(kobj string, env map[string]string) {
 	di, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
@@ -173,17 +175,17 @@ func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
 	if m.startupDevices != nil && m.startupDevices[di.DevicePath()] {
 		return
 	}
-	if m.deviceAddedCb != nil {
-		m.deviceAddedCb(di)
+	if m.deviceAdded != nil {
+		m.deviceAdded(di)
 	}
 }
 
-func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
+func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 	di, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
-	if m.deviceRemovedCb != nil {
-		m.deviceRemovedCb(di)
+	if m.deviceRemoved != nil {
+		m.deviceRemoved(di)
 	}
 }

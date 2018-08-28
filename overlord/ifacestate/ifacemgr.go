@@ -20,10 +20,14 @@
 package ifacestate
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -33,6 +37,10 @@ import (
 type InterfaceManager struct {
 	state *state.State
 	repo  *interfaces.Repository
+
+	udevMon             udevmonitor.Interface
+	udevInitTime        time.Time
+	udevMonitorDisabled bool
 }
 
 // Manager returns a new InterfaceManager.
@@ -45,6 +53,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		setupHooks(hookManager)
 	}
 
+	// note: leave udevInitTime at the default value, so that udev is initialized on first Ensure run.
 	m := &InterfaceManager{
 		state: s,
 		repo:  interfaces.NewRepository(),
@@ -65,12 +74,13 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	}
 
 	addHandler("connect", m.doConnect, m.undoConnect)
-	addHandler("disconnect", m.doDisconnect, nil)
+	addHandler("disconnect", m.doDisconnect, m.undoDisconnect)
 	addHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	addHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
+	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
@@ -95,7 +105,31 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
+	if m.udevMon != nil || m.udevMonitorDisabled {
+		return nil
+	}
+
+	// retry udev monitor initialization every 5 minutes
+	now := time.Now()
+	if now.After(m.udevInitTime) {
+		err := m.initUdevMonitor()
+		if err != nil {
+			m.udevInitTime = now.Add(udevInitRetryTimeout)
+		}
+		return err
+	}
 	return nil
+}
+
+// Stop implements StateWaiterStopper.Stop. It stops
+// the udev monitor, if running.
+func (m *InterfaceManager) Stop() {
+	if m.udevMon == nil {
+		return
+	}
+	if err := m.udevMon.Stop(); err != nil {
+		logger.Noticef("Failed to stop udev monitor: %s", err)
+	}
 }
 
 // Repository returns the interface repository used internally by the manager.
@@ -108,6 +142,36 @@ func (m *InterfaceManager) Ensure() error {
 // locks to ensure consistency.
 func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
+}
+
+// DisableUdevMonitor disables the instantiation of udev monitor, but has no effect
+// if udev is already created; it should be called after creating InterfaceManager, before
+// first Ensure.
+// This method is meant for tests only.
+func (m *InterfaceManager) DisableUdevMonitor() {
+	if m.udevMon != nil {
+		logger.Noticef("Udev Monitor already created, cannot be disabled")
+		return
+	}
+	m.udevMonitorDisabled = true
+}
+
+var (
+	udevInitRetryTimeout = time.Minute * 5
+	createUdevMonitor    = udevmonitor.New
+)
+
+func (m *InterfaceManager) initUdevMonitor() error {
+	mon := createUdevMonitor(m.HotplugDeviceAdded, m.HotplugDeviceRemoved)
+	if err := mon.Connect(); err != nil {
+		return err
+	}
+	if err := mon.Run(); err != nil {
+		mon.Disconnect()
+		return err
+	}
+	m.udevMon = mon
+	return nil
 }
 
 // MockSecurityBackends mocks the list of security backends that are used for setting up security.

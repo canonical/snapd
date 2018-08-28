@@ -185,6 +185,10 @@ apps:
    command: bar
  sample:
    command: foobar
+   command-chain: [chain]
+hooks:
+ configure:
+  command-chain: [hookchain]
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
@@ -200,6 +204,8 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -218,6 +224,8 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 	c.Check(snapInfo2.Summary(), Equals, "instance summary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -1281,6 +1289,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1)), Equals, "/home/bob/snap/name/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name"), Equals, "/home/bob/snap/name/common")
 	c.Check(snap.UserXdgRuntimeDir(12345, "name"), Equals, "/run/user/12345/snap.name")
+	c.Check(snap.UserSnapDir("/home/bob", "name"), Equals, "/home/bob/snap/name")
 
 	c.Check(snap.MountDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(snap.MountFile("name_instance", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
@@ -1290,4 +1299,61 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1)), Equals, "/home/bob/snap/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance"), Equals, "/home/bob/snap/name_instance/common")
 	c.Check(snap.UserXdgRuntimeDir(12345, "name_instance"), Equals, "/run/user/12345/snap.name_instance")
+	c.Check(snap.UserSnapDir("/home/bob", "name_instance"), Equals, "/home/bob/snap/name_instance")
+}
+
+func (s *infoSuite) TestSortByType(c *C) {
+	infos := []*snap.Info{
+		{SuggestedName: "app1", Type: "app"},
+		{SuggestedName: "os1", Type: "os"},
+		{SuggestedName: "base1", Type: "base"},
+		{SuggestedName: "gadget1", Type: "gadget"},
+		{SuggestedName: "kernel1", Type: "kernel"},
+		{SuggestedName: "app2", Type: "app"},
+		{SuggestedName: "os2", Type: "os"},
+		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
+			RealName: "snapd",
+		}},
+		{SuggestedName: "base2", Type: "base"},
+		{SuggestedName: "gadget2", Type: "gadget"},
+		{SuggestedName: "kernel2", Type: "kernel"},
+	}
+	sort.Stable(snap.ByType(infos))
+
+	c.Check(infos, DeepEquals, []*snap.Info{
+		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
+			RealName: "snapd",
+		}},
+		{SuggestedName: "os1", Type: "os"},
+		{SuggestedName: "os2", Type: "os"},
+		{SuggestedName: "kernel1", Type: "kernel"},
+		{SuggestedName: "kernel2", Type: "kernel"},
+		{SuggestedName: "base1", Type: "base"},
+		{SuggestedName: "base2", Type: "base"},
+		{SuggestedName: "gadget1", Type: "gadget"},
+		{SuggestedName: "gadget2", Type: "gadget"},
+		{SuggestedName: "app1", Type: "app"},
+		{SuggestedName: "app2", Type: "app"},
+	})
+}
+
+func (s *infoSuite) TestSortByTypeAgain(c *C) {
+	core := &snap.Info{Type: snap.TypeOS}
+	base := &snap.Info{Type: snap.TypeBase}
+	app := &snap.Info{Type: snap.TypeApp}
+	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
+
+	byType := func(snaps ...*snap.Info) []*snap.Info {
+		sort.Stable(snap.ByType(snaps))
+		return snaps
+	}
+
+	c.Check(byType(base, core), DeepEquals, []*snap.Info{core, base})
+	c.Check(byType(app, core), DeepEquals, []*snap.Info{core, app})
+	c.Check(byType(app, base), DeepEquals, []*snap.Info{base, app})
+	c.Check(byType(app, base, core), DeepEquals, []*snap.Info{core, base, app})
+	c.Check(byType(app, core, base), DeepEquals, []*snap.Info{core, base, app})
+
+	c.Check(byType(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
+	c.Check(byType(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }

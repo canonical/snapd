@@ -124,6 +124,17 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
+func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
+	chain := make([]string, 0, len(commandChain))
+	snapMountDir := snapInfo.MountDir()
+
+	for _, element := range commandChain {
+		chain = append(chain, filepath.Join(snapMountDir, element))
+	}
+
+	return chain
+}
+
 // expandEnvCmdArgs takes the string list of commandline arguments
 // and expands any $VAR with the given var from the env argument.
 func expandEnvCmdArgs(args []string, env map[string]string) []string {
@@ -200,6 +211,9 @@ func execApp(snapApp, revision, command string, args []string) error {
 	}
 	fullCmd = append(fullCmd, cmdArgs...)
 	fullCmd = append(fullCmd, args...)
+
+	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
+
 	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
@@ -229,6 +243,6 @@ func execHook(snapName, revision, hookName string) error {
 	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
 
 	// run the hook
-	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)
-	return syscallExec(hookPath, []string{hookPath}, env)
+	cmd := append(absoluteCommandChain(hook.Snap, hook.CommandChain), filepath.Join(hook.Snap.HooksDir(), hook.Name))
+	return syscallExec(cmd[0], cmd, env)
 }

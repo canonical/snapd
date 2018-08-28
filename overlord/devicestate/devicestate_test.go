@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"sync"
 	"testing"
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -198,9 +200,34 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	var mu sync.Mutex
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		default:
+			c.Fatalf("unexpected verb %q", r.Method)
+		case "HEAD":
+			if r.URL.Path != "/" {
+				c.Fatalf("unexpected HEAD request %q", r.URL.String())
+			}
+			switch s.reqID {
+			case "REQID-42":
+				w.Header().Set("Snap-Store-Version", "6")
+			case "REQID-41":
+				w.Header().Set("Snap-Store-Version", "5")
+			default:
+				c.Fatalf("unexpected HEAD request w/reqID %q", s.reqID)
+			}
+			w.WriteHeader(200)
+			return
+		case "POST":
+			// carry on
+		}
+
+		if s.reqID == "REQID-42" {
+			c.Check(r.Header.Get("X-Snap-Device-Service-URL"), Matches, "http://[^/]*/bad/svc/")
+		}
+
 		switch r.URL.Path {
 		default:
-			c.Fatalf("unexpected request %q", r.URL.String())
+			c.Fatalf("unexpected POST request %q", r.URL.String())
 		case requestIDURLPath, "/svc/request-id":
 			if s.reqID == "REQID-501" {
 				w.WriteHeader(501)
@@ -214,6 +241,9 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
 		case serialURLPath:
+			if s.reqID == "REQID-42" {
+				c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
+			}
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 
 			mu.Lock()
@@ -418,7 +448,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	// as device-service.url is set, should not need to do this but just in case
+	// as core.proxy.store is set, should not need to do this but just in case
 	r2 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baaad/")
 	defer r2()
 
@@ -1123,12 +1153,24 @@ hooks:
 	// avoid full seeding
 	s.seeding()
 
-	// runs the whole device registration process
+	// runs the whole device registration process, note that the
+	// device is not seeded yet
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 
+	// without a seeded device, there is no become-operational change
 	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
+
+	// now mark it as seeded
+	s.state.Set("seeded", true)
+	// and run the device registration again
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -1155,6 +1197,128 @@ hooks:
 	c.Check(details, DeepEquals, map[string]interface{}{
 		"mac": "00:00:00:00:ff:00",
 	})
+
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithHookAndNewProxy(c *C) {
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, true)
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithHookAndOldProxy(c *C) {
+	s.testFullDeviceRegistrationHappyWithHookAndProxy(c, false)
+}
+
+func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, newEnough bool) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	if newEnough {
+		s.reqID = "REQID-42"
+	} else {
+		s.reqID = "REQID-41"
+	}
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		c.Assert(ctx.HookName(), Equals, "prepare-device")
+
+		deviceURL := mockServer.URL + "/bad/svc/"
+		if !newEnough {
+			deviceURL = mockServer.URL + "/svc/"
+		}
+
+		// snapctl set the registration params
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", deviceURL)}, 0)
+		c.Assert(err, IsNil)
+
+		h, err := json.Marshal(map[string]string{
+			"x-extra-header": "extra",
+		})
+		c.Assert(err, IsNil)
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
+		c.Assert(err, IsNil)
+
+		return nil, nil
+	})
+	defer r2()
+
+	// as device-service.url is set, should not need to do this but just in case
+	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
+	defer r3()
+
+	// setup state as will be done by first-boot
+	// & have a gadget with a prepare-device hook
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "proxy.store", "foo"), IsNil)
+	tr.Commit()
+	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
+	c.Assert(assertstate.Add(s.state, operatorAcct), IsNil)
+
+	// have a store assertion.
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "foo",
+		"url":         mockServer.URL,
+		"operator-id": operatorAcct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, stoAs), IsNil)
+
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "gadget",
+	})
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+hooks:
+    prepare-device:
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc2",
+	})
+
+	// mark it as seeded
+	s.state.Set("seeded", true)
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc2")
+	c.Check(device.Serial, Equals, "9999")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc2",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
@@ -2337,4 +2501,74 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	// only the fake seeding change is in the state, no further
 	// changes
 	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestNewEnoughProxyParse(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	badURL := &url.URL{Opaque: "%a"} // url.Parse(badURL.String()) needs to fail, which isn't easy :-)
+	c.Check(devicestate.NewEnoughProxy(badURL, http.DefaultClient), Equals, false)
+	c.Check(log.String(), Matches, "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: parse .*")
+}
+
+func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
+	expectedUserAgent := httputil.UserAgent()
+	log, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	expecteds := []string{
+		`Head http://\S+: EOF`,
+		`Head request returned 403 Forbidden.`,
+		`Bogus Snap-Store-Version header "5pre1".`,
+		``,
+	}
+
+	n := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
+		n++
+		switch n {
+		case 1:
+			conn, _, err := w.(http.Hijacker).Hijack()
+			c.Assert(err, IsNil)
+			conn.Close()
+		case 2:
+			w.WriteHeader(403)
+		case 3:
+			w.Header().Set("Snap-Store-Version", "5pre1")
+			w.WriteHeader(200)
+		case 4:
+			w.Header().Set("Snap-Store-Version", "5")
+			w.WriteHeader(200)
+		case 5:
+			w.Header().Set("Snap-Store-Version", "6")
+			w.WriteHeader(200)
+		default:
+			c.Errorf("expected %d results, now on %d", len(expecteds), n)
+		}
+	}))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	c.Assert(err, IsNil)
+	for _, expected := range expecteds {
+		log.Reset()
+		c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, false)
+		if len(expected) > 0 {
+			expected = "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: " + expected
+		}
+		c.Check(log.String(), Matches, expected)
+	}
+	c.Check(n, Equals, len(expecteds))
+
+	// and success at last
+	log.Reset()
+	c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, true)
+	c.Check(log.String(), Equals, "")
+	c.Check(n, Equals, len(expecteds)+1)
 }
