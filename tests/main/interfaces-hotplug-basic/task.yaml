@@ -21,4 +21,10 @@ execute: |
         fi
         sleep 1
     done
-    snap interfaces | MATCH "net-dummy-"
+    snap interfaces | MATCH "net-dummy-dummy0"
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local snap-hotplug-dummy
+
+    snap connect snap-hotplug-dummy:dummy :net-dummy-dummy0

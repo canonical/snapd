@@ -158,7 +158,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				logger.Noticef("Failed to create slot %q for interface %s", slot.Name, slot.Interface)
 				continue
 			}
-			logger.Noticef("Added hotplug slot %q of interface %s for device key %q", slot.Name, slot.Interface, key)
+			logger.Noticef("Added hotplug slot %s:%s of interface %s for device key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, key)
 		}
 
 		chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slots of interface %s", iface))

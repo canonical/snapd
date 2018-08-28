@@ -1,0 +1,5 @@
+name: snap-hotplug-dummy
+version: 1.0
+plugs:
+    dummy:
+        interface: dummy
