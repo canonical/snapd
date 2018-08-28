@@ -313,10 +313,11 @@ func (s *Snap) Build(buildDir string) error {
 			"-no-fragments",
 			"-no-progress",
 		).CombinedOutput()
-		if err == nil {
-			return nil
+		if err != nil {
+			return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))
 		}
-		return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))
+
+		return nil
 	})
 }
 
