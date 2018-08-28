@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func init() {
@@ -112,9 +113,31 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 	return data
 }
 
-// ParseValueWithUnit parses a value like 500kB and returns the number
+// splitUnit takes a string of the form "123unit" and splits
+// it into the number and non-number parts (123,"unit").
+func splitUnit(inp string) (number int64, unit string, err error) {
+	// go after the number first, break on first non-digit
+	var nonDigit int
+	for i, c := range inp {
+		if !unicode.IsDigit(c) {
+			number, err = strconv.ParseInt(inp[0:i], 10, 64)
+			if err != nil {
+				return 0, "", err
+			}
+			nonDigit = i
+			break
+		}
+	}
+	if nonDigit == 0 {
+		return 0, "", fmt.Errorf("need a number with a unit as input")
+	}
+
+	return number, inp[nonDigit:], nil
+}
+
+// ParseByteSize parses a value like 500kB and returns the number
 // in bytes. The case of the unit will be ignored for user convenience.
-func ParseValueWithUnit(inp string) (int64, error) {
+func ParseByteSize(inp string) (int64, error) {
 	unitMultiplier := map[string]int64{
 		"B": 1,
 		// strictly speaking this is "kB" but we ignore cases
@@ -125,27 +148,21 @@ func ParseValueWithUnit(inp string) (int64, error) {
 		"PB": 1000 * 1000 * 1000 * 1000 * 1000,
 		"EB": 1000 * 1000 * 1000 * 1000 * 1000 * 1000,
 	}
-	if len(inp) < 2 {
-		return 0, fmt.Errorf("cannot parse %q: need a unit", inp)
+
+	errPrefix := fmt.Sprintf("cannot parse %q: ", inp)
+
+	val, unit, err := splitUnit(inp)
+	if err != nil {
+		return 0, fmt.Errorf(errPrefix+"%s", err)
 	}
-	// most users will use a unit with two chars (e.g. "1024kB"),
-	// so check that first
-	unit := strings.ToUpper(inp[len(inp)-2:])
-	if mul, ok := unitMultiplier[unit]; ok {
-		val, err := strconv.ParseInt(inp[:len(inp)-2], 10, 64)
-		if err != nil {
-			return 0, err
-		}
-		return val * int64(mul), nil
+	if unit == "" {
+		return 0, fmt.Errorf(errPrefix + "need a number with a unit as input")
 	}
 
-	// check for the simple case, e.g. "1234B"
-	if lastCh := inp[len(inp)-1]; lastCh != 'B' {
-		return 0, fmt.Errorf("cannot use unit in %q: try 'kB' or 'MB'", inp)
+	mul, ok := unitMultiplier[strings.ToUpper(unit)]
+	if !ok {
+		return 0, fmt.Errorf(errPrefix + "try 'kB' or 'MB'")
 	}
-	asByte, err := strconv.ParseInt(inp[:len(inp)-1], 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return asByte, nil
+
+	return val * mul, nil
 }

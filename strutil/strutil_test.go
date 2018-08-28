@@ -158,9 +158,9 @@ func (ts *strutilSuite) TestParseValueWithUnitHappy(c *check.C) {
 		{"6PB", 6 * 1000 * 1000 * 1000 * 1000 * 1000},
 		{"8EB", 8 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
 	} {
-		val, err := strutil.ParseValueWithUnit(t.str)
+		val, err := strutil.ParseByteSize(t.str)
 		c.Check(err, check.IsNil)
-		c.Check(val, check.Equals, t.expected)
+		c.Check(val, check.Equals, t.expected, check.Commentf("incorrect result for input %q", t.str))
 	}
 }
 
@@ -169,13 +169,15 @@ func (ts *strutilSuite) TestParseValueWithUnitUnhappy(c *check.C) {
 		str    string
 		errStr string
 	}{
-		{"", `cannot parse "": need a unit`},
-		{"1", `cannot parse "1": need a unit`},
-		{"400x", `cannot use unit in "400x": try 'kB' or 'MB'`},
-		{"400xx", `cannot use unit in "400xx": try 'kB' or 'MB'`},
-		{"1k", `cannot use unit in "1k": try 'kB' or 'MB'`},
+		{"", `cannot parse "": need a number with a unit as input`},
+		{"1", `cannot parse "1": need a number with a unit as input`},
+		{"11", `cannot parse "11": need a number with a unit as input`},
+		{"400x", `cannot parse "400x": try 'kB' or 'MB'`},
+		{"400xx", `cannot parse "400xx": try 'kB' or 'MB'`},
+		{"1k", `cannot parse "1k": try 'kB' or 'MB'`},
+		{"200KiB", `cannot parse "200KiB": try 'kB' or 'MB'`},
 	} {
-		_, err := strutil.ParseValueWithUnit(t.str)
-		c.Check(err, check.ErrorMatches, t.errStr)
+		_, err := strutil.ParseByteSize(t.str)
+		c.Check(err, check.ErrorMatches, t.errStr, check.Commentf("incorrect error for %q", t.str))
 	}
 }
