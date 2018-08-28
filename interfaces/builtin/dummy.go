@@ -21,9 +21,6 @@ package builtin
 
 import (
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -73,12 +70,11 @@ func (iface *dummyInterface) HotplugDeviceKey(di *hotplug.HotplugDeviceInfo) (st
 		return "", nil
 	}
 
-	hwaddrPath := filepath.Join(di.DevicePath(), "address")
-	addr, err := ioutil.ReadFile(hwaddrPath)
-	if err != nil {
-		return "", fmt.Errorf("cannot determine hardware address of device %q: %s", di.DevicePath(), err)
+	ifname, ok := di.Attribute("INTERFACE") // e.g. dummy0
+	if !ok {
+		return "", fmt.Errorf("INTERFACE attribute not present for device %s", di.DevicePath())
 	}
-	return fmt.Sprintf(strings.TrimSpace(string(addr))), nil
+	return ifname, nil
 }
 
 func (iface *dummyInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
