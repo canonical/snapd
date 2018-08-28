@@ -2060,31 +2060,6 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 }
 
-func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
-	s.rsnaps = []*snap.Info{{
-		SideInfo: snap.SideInfo{
-			RealName: "remote",
-		},
-		Publisher: snap.StoreAccount{
-			ID:          "foo-id",
-			Username:    "foo",
-			DisplayName: "Foo",
-			Validation:  "unproven",
-		},
-	}}
-	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
-
-	req, err := http.NewRequest("GET", "/v2/snaps?sources=unknown", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
-
-	c.Check(rsp.Sources, check.DeepEquals, []string{"local"})
-
-	snaps := snapList(rsp.Result)
-	c.Check(snaps, check.HasLen, 1)
-}
-
 func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
 	s.rsnaps = nil
 
