@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -101,6 +102,11 @@ var (
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
 
+const (
+	aggressiveSettleTimeout = 50 * time.Millisecond
+	connectRetryTimeout     = 70 * time.Millisecond
+)
+
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
 	dirs.SetRootDir(ms.tempdir)
@@ -111,13 +117,13 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
-	restoreUDevMon := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
+
+	restoreConnectRetryTimeout := ifacestate.MockConnectRetryTimeout(connectRetryTimeout)
+
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
-		restoreUDevMon()
+		restoreConnectRetryTimeout()
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -156,6 +162,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 	ms.o = o
 	st := ms.o.State()
 	st.Lock()
@@ -2031,6 +2038,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 	s.o = o
 
 	st := o.State()
@@ -2471,20 +2479,30 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	// force hold state on first removal task to hit Retry error
 	ts2.Tasks()[0].SetStatus(state.HoldStatus)
 
-	st.Unlock()
-	err = ms.o.Settle(3 * time.Second)
-	st.Lock()
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `Settle is not converging`)
-
+	// Settle is not converging here because of the task in Hold status, therefore
+	// it always hits given timeout before we carry on with the test. We're
+	// interested in hitting the retry condition on auto-connect task, so
+	// instead of passing a generous timeout to Settle(), repeat Settle() a number
+	// of times with an aggressive timeout and break as soon as we reach the desired
+	// state of auto-connect task.
 	var retryCheck bool
-	for _, t := range st.Tasks() {
-		if t.Kind() == "auto-connect" {
-			c.Assert(strings.Join(t.Log(), ""), Matches, `.*Waiting for conflicting change in progress...`)
-			retryCheck = true
+	var autoconnectLog string
+	for i := 0; i < 50 && !retryCheck; i++ {
+		st.Unlock()
+		ms.o.Settle(aggressiveSettleTimeout)
+		st.Lock()
+
+		for _, t := range st.Tasks() {
+			if t.Kind() == "auto-connect" && t.Status() == state.DoingStatus && strings.Contains(strings.Join(t.Log(), ""), "Waiting") {
+				autoconnectLog = strings.Join(t.Log(), "")
+				retryCheck = true
+				break
+			}
 		}
 	}
-	c.Assert(retryCheck, Equals, true)
+
+	c.Check(retryCheck, Equals, true)
+	c.Assert(autoconnectLog, Matches, `.*Waiting for conflicting change in progress...`)
 
 	// back to default state, that will unblock autoconnect
 	ts2.Tasks()[0].SetStatus(state.DefaultStatus)

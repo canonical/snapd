@@ -20,6 +20,7 @@ package ifacestate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -47,6 +48,22 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
+}
+
+func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface) (restore func()) {
+	old := createUdevMonitor
+	createUdevMonitor = new
+	return func() {
+		createUdevMonitor = old
+	}
+}
+
+func MockUdevInitRetryTimeout(t time.Duration) (restore func()) {
+	old := udevInitRetryTimeout
+	udevInitRetryTimeout = t
+	return func() {
+		udevInitRetryTimeout = old
+	}
 }
 
 // UpperCaseConnState returns a canned connection state map.

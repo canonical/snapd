@@ -45,9 +45,7 @@ import (
 
 func TestOverlord(t *testing.T) { TestingT(t) }
 
-type overlordSuite struct {
-	restoreUDevMon func()
-}
+type overlordSuite struct{}
 
 var _ = Suite(&overlordSuite{})
 
@@ -56,14 +54,10 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
-	ovs.restoreUDevMon = overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return nil
-	})
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
-	ovs.restoreUDevMon()
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
@@ -88,6 +82,8 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
+
+	o.InterfaceManager().DisableUdevMonitor()
 
 	s := o.State()
 	c.Check(s, NotNil)
@@ -217,6 +213,7 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 func (ovs *overlordSuite) TestUnknownTasks(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 
 	markSeeded(o)
 	// make sure we don't try to talk to the store
@@ -751,41 +748,4 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
-}
-
-type udevMonMock struct {
-	ConnectCalled, RunCalled, StopCalled bool
-}
-
-func (u *udevMonMock) Connect() error {
-	u.ConnectCalled = true
-	return nil
-}
-
-func (u *udevMonMock) Run() error {
-	u.RunCalled = true
-	return nil
-}
-
-func (u *udevMonMock) Stop() error {
-	u.StopCalled = true
-	return nil
-}
-
-func (ovs *overlordSuite) TestUDevMonBasic(c *C) {
-	u := udevMonMock{}
-	restore := overlord.MockCreateUDevMonitor(func(overlord.DeviceAddedCallback, overlord.DeviceRemovedCallback) overlord.UDevMon {
-		return &u
-	})
-	defer restore()
-
-	o, err := overlord.New()
-	c.Assert(err, IsNil)
-
-	o.Loop()
-	o.Stop()
-
-	c.Assert(u.ConnectCalled, Equals, true)
-	c.Assert(u.RunCalled, Equals, true)
-	c.Assert(u.StopCalled, Equals, true)
 }

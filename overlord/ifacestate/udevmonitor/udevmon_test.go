@@ -17,25 +17,28 @@
  *
  */
 
-package overlord_test
+package udevmonitor_test
 
 import (
+	"testing"
 	"time"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
+
+func TestHotplug(t *testing.T) { TestingT(t) }
 
 type udevMonitorSuite struct{}
 
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := overlord.NewUDevMonitor(nil, nil)
+	mon := udevmonitor.New(nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
@@ -50,12 +53,12 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	callbackChannel := make(chan struct{}, 2)
 	defer close(callbackChannel)
 
-	addedCb := func(inf *hotplug.HotplugDeviceInfo) {
+	added := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
 		addInfos = append(addInfos, inf)
 		callbackChannel <- struct{}{}
 	}
-	removedCb := func(inf *hotplug.HotplugDeviceInfo) {
+	removed := func(inf *hotplug.HotplugDeviceInfo) {
 		removeCalled = true
 		remInfo = inf
 		callbackChannel <- struct{}{}
@@ -69,21 +72,28 @@ E: DEVNAME=name
 E: foo=bar
 E: DEVPATH=/a/path
 E: SUBSYSTEM=tty
+
+P: def
+N: bar
+E: DEVPATH=def
+E: SUBSYSTEM=tty
+E: MINOR=3
+E: MAJOR=0
+E: DEVNAME=ghi
+E: DEVTYPE=bzz
 `)
 	defer cmd.Restore()
 
-	mon := overlord.NewUDevMonitor(addedCb, removedCb)
-	c.Assert(mon, NotNil)
-	udevmon, _ := mon.(*overlord.UDevMonitor)
+	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
 
 	// stop channels are normally created by netlink crawler/monitor, but since
 	// we don't create them with Connect(), they must be mocked.
 	mstop := make(chan struct{})
 
-	event := make(chan netlink.UEvent)
+	event := make(chan netlink.UEvent, 3)
 
-	overlord.MockUDevMonitorStopChannel(udevmon, mstop)
-	overlord.MockUDevMonitorChannel(udevmon, event)
+	udevmonitor.MockUDevMonitorStopChannel(udevmon, mstop)
+	udevmonitor.MockUDevMonitorChannel(udevmon, event)
 
 	c.Assert(udevmon.Run(), IsNil)
 
@@ -92,7 +102,7 @@ E: SUBSYSTEM=tty
 		KObj:   "foo",
 		Env: map[string]string{
 			"DEVPATH":   "abc",
-			"SUBSYSTEM": "usb",
+			"SUBSYSTEM": "tty",
 			"MINOR":     "1",
 			"MAJOR":     "2",
 			"DEVNAME":   "def",
@@ -114,7 +124,7 @@ E: SUBSYSTEM=tty
 		KObj:   "bar",
 		Env: map[string]string{
 			"DEVPATH":   "def",
-			"SUBSYSTEM": "usb",
+			"SUBSYSTEM": "tty",
 			"MINOR":     "3",
 			"MAJOR":     "0",
 			"DEVNAME":   "ghi",
@@ -122,14 +132,14 @@ E: SUBSYSTEM=tty
 		},
 	}
 
-	// expect two devices - one from udev event, one from enumeration.
-	const numExpectedDevices = 2
+	// expect three add events - one from udev event, two from enumeration.
+	const numExpectedDevices = 3
 
 	var done bool
 	for !done {
 		select {
 		case <-callbackChannel:
-			if len(addInfos) == numExpectedDevices && removeCalled {
+			if len(addInfos) >= numExpectedDevices && removeCalled == true {
 				done = true
 			}
 		case <-time.After(3 * time.Second):
@@ -160,16 +170,21 @@ E: SUBSYSTEM=tty
 	c.Assert(addInfo.Subsystem(), Equals, "tty")
 
 	addInfo = addInfos[1]
+	c.Assert(addInfo.DeviceName(), Equals, "ghi")
+	c.Assert(addInfo.DevicePath(), Equals, "/sys/def")
+	c.Assert(addInfo.Subsystem(), Equals, "tty")
+
+	addInfo = addInfos[2]
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
-	c.Assert(addInfo.Subsystem(), Equals, "usb")
+	c.Assert(addInfo.Subsystem(), Equals, "tty")
 	c.Assert(addInfo.DevicePath(), Equals, "/sys/abc")
 	c.Assert(addInfo.Major(), Equals, "2")
 	c.Assert(addInfo.Minor(), Equals, "1")
 
 	c.Assert(remInfo.DeviceName(), Equals, "ghi")
 	c.Assert(remInfo.DeviceType(), Equals, "bzz")
-	c.Assert(remInfo.Subsystem(), Equals, "usb")
+	c.Assert(remInfo.Subsystem(), Equals, "tty")
 	c.Assert(remInfo.DevicePath(), Equals, "/sys/def")
 	c.Assert(remInfo.Major(), Equals, "0")
 	c.Assert(remInfo.Minor(), Equals, "3")

@@ -17,26 +17,16 @@
  *
  */
 
-package selftest
+package udevmonitor
 
-var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
-	ApparmorUsable     = apparmorUsable
+import (
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
-	}
+func MockUDevMonitorChannel(mon *Monitor, events chan netlink.UEvent) {
+	mon.netlinkEvents = events
 }
 
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+func MockUDevMonitorStopChannel(mon *Monitor, monitorStop chan struct{}) {
+	mon.monitorStop = monitorStop
 }

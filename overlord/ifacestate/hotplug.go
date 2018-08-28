@@ -74,6 +74,7 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 	return fmt.Sprintf("%s:%s:%s:%s", vendor, model, rev, serial)
 }
 
+// HotplugDeviceAdded gets called when a device is added to the system.
 func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
 	st := m.state
 	st.Lock()
@@ -158,6 +159,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	}
 }
 
+// HotplugDeviceRemoved gets called when a device is removed from the system.
 func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
 	st := m.state
 	st.Lock()
