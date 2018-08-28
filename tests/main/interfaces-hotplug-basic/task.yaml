@@ -1,10 +1,11 @@
 summary: Basic hotplug tests
 
-# temporarily disabled, udevadm not present on core.
-systems: [-ubuntu-core-*]
-
 prepare: |
-    snap install core
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+    if is_classic_system; then
+        snap install core
+    fi
 
 execute: |
     echo "Enable hotplug"
