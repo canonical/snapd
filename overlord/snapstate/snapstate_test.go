@@ -3520,6 +3520,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
+		},
 	}
 
 	// ensure all our tasks ran
@@ -3708,6 +3713,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
 	}
 
@@ -5310,6 +5320,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:   "remove-snap-data-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapDataDir, "some-snap"),
+		},
+		{
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			stype: "app",
@@ -5317,6 +5332,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		{
 			op:   "discard-namespace",
 			name: "some-snap",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -5430,6 +5450,12 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
 		{
+			op:             "remove-snap-data-dir",
+			name:           "some-snap_instance",
+			path:           filepath.Join(dirs.SnapDataDir, "some-snap"),
+			otherInstances: true,
+		},
+		{
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			stype: "app",
@@ -5437,6 +5463,12 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:   "discard-namespace",
 			name: "some-snap_instance",
+		},
+		{
+			op:             "remove-snap-dir",
+			name:           "some-snap_instance",
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap"),
+			otherInstances: true,
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -5493,6 +5525,104 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 
 	// the non-instance snap is still there
 	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// pretend we have both a regular snap and a parallel instance
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
+	snapstate.Set(s.state, "some-snap_other", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "other",
+	})
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0))
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:             "remove-snap-data-dir",
+			name:           "some-snap_instance",
+			path:           filepath.Join(dirs.SnapDataDir, "some-snap"),
+			otherInstances: true,
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			stype: "app",
+		},
+		{
+			op:   "discard-namespace",
+			name: "some-snap_instance",
+		},
+		{
+			op:             "remove-snap-dir",
+			name:           "some-snap_instance",
+			path:           filepath.Join(dirs.SnapMountDir, "some-snap"),
+			otherInstances: true,
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// the other instance is still there
+	err = snapstate.Get(s.state, "some-snap_other", &snapst)
 	c.Assert(err, IsNil)
 }
 
@@ -5578,6 +5708,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/5"),
 		},
 		{
+			op:   "remove-snap-data-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapDataDir, "some-snap"),
+		},
+		{
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/5"),
 			stype: "app",
@@ -5585,6 +5720,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		{
 			op:   "discard-namespace",
 			name: "some-snap",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -5743,7 +5883,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 5)
+	c.Check(len(s.fakeBackend.ops), Equals, 7)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -5759,6 +5899,11 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
 		{
+			op:   "remove-snap-data-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapDataDir, "some-snap"),
+		},
+		{
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 			stype: "app",
@@ -5766,6 +5911,11 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		{
 			op:   "discard-namespace",
 			name: "some-snap",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -7312,6 +7462,11 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -9832,6 +9987,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
 		{
+			op:   "remove-snap-data-dir",
+			name: "ubuntu-core",
+			path: filepath.Join(dirs.SnapDataDir, "ubuntu-core"),
+		},
+		{
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 			stype: "os",
@@ -9839,6 +9999,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "discard-namespace",
 			name: "ubuntu-core",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "ubuntu-core",
+			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
 		},
 		{
 			op:    "cleanup-trash",
@@ -9918,6 +10083,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
 		{
+			op:   "remove-snap-data-dir",
+			name: "ubuntu-core",
+			path: filepath.Join(dirs.SnapDataDir, "ubuntu-core"),
+		},
+		{
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 			stype: "os",
@@ -9925,6 +10095,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:   "discard-namespace",
 			name: "ubuntu-core",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "ubuntu-core",
+			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -11669,6 +11844,78 @@ func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
 		SnapID:   "some-snap-id",
 	})
 	c.Check(snapsup.Type, Equals, snap.Type(""))
+}
+
+func (s snapmgrTestSuite) TestOtherSnapsLike(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+		},
+		Current:     snap.R(3),
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	other, err := snapstate.OtherSnapsLike(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, true)
+	other, err = snapstate.OtherSnapsLike(s.state, "some-snap_instance")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, true)
+	other, err = snapstate.OtherSnapsLike(s.state, "some-other-snap")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, false)
+	// other snaps like only looks at the name of the refence snap
+	other, err = snapstate.OtherSnapsLike(s.state, "some-other-snap_instance")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, true)
+
+	// remove the snap without instance key
+	snapstate.Set(s.state, "some-snap", nil)
+	// some-snap_instance is like some-snap
+	other, err = snapstate.OtherSnapsLike(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, true)
+	other, err = snapstate.OtherSnapsLike(s.state, "some-snap_instance")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, false)
+
+	// add another snap with instance key
+	snapstate.Set(s.state, "some-snap_other", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+		},
+		Current:     snap.R(3),
+		SnapType:    "app",
+		InstanceKey: "other",
+	})
+	other, err = snapstate.OtherSnapsLike(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, true)
+	other, err = snapstate.OtherSnapsLike(s.state, "some-snap_instance")
+	c.Assert(err, IsNil)
+	c.Assert(other, Equals, true)
 }
 
 type canDisableSuite struct{}

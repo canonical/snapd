@@ -122,6 +122,11 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 			path:  filepath.Join(dirs.SnapMountDir, "core/2"),
 			stype: "os",
 		},
+		{
+			op:   "remove-snap-dir",
+			name: "core",
+			path: filepath.Join(dirs.SnapMountDir, "core"),
+		},
 	})
 
 }
@@ -181,6 +186,11 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 			name:  "borken",
 			path:  filepath.Join(dirs.SnapMountDir, "borken/2"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "borken",
+			path: filepath.Join(dirs.SnapMountDir, "borken"),
 		},
 	})
 }
@@ -243,6 +253,11 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 			name:  "not-there",
 			path:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "not-there",
+			path: filepath.Join(dirs.SnapMountDir, "not-there"),
 		},
 	})
 }
