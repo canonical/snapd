@@ -17,26 +17,24 @@
  *
  */
 
-package selftest
+package selftest_test
 
-var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
-	ApparmorUsable     = apparmorUsable
+import (
+	"os"
+	"path/filepath"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/selftest"
 )
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
-	}
-}
+func (s *selftestSuite) TestApparmorUsable(c *C) {
+	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
+	restore := selftest.MockAppArmorProfilesPath(epermProfilePath)
+	defer restore()
+	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
+	c.Assert(err, IsNil)
 
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+	err = selftest.ApparmorUsable()
+	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
 }
