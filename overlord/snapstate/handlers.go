@@ -414,7 +414,7 @@ func autoRefreshRateLimited(st *state.State) (rate int64) {
 	if err != nil {
 		return 0
 	}
-	val, err := strutil.ParseValueWithUnit(rateLimit)
+	val, err := strutil.ParseByteSize(rateLimit)
 	if err != nil {
 		return 0
 	}

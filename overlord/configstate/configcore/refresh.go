@@ -126,7 +126,7 @@ func validateRefreshRateLimit(tr Conf) error {
 	if len(refreshRateLimit) == 0 {
 		return nil
 	}
-	if _, err := strutil.ParseValueWithUnit(refreshRateLimit); err != nil {
+	if _, err := strutil.ParseByteSize(refreshRateLimit); err != nil {
 		return err
 	}
 	return nil
