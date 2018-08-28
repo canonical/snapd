@@ -111,7 +111,7 @@ type Config struct {
 	// CacheDownloads is the number of downloads that should be cached
 	CacheDownloads int
 
-	// Callback what (http) Proxy to use when talking to the store
+	// Proxy returns the HTTP proxy to use when talking to the store
 	Proxy func(*http.Request) (*url.URL, error)
 }
 
