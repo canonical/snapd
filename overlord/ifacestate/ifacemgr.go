@@ -41,7 +41,6 @@ type InterfaceManager struct {
 	udevMon             udevmonitor.Interface
 	udevInitTime        time.Time
 	udevMonitorDisabled bool
-	hotplug             bool
 }
 
 // Manager returns a new InterfaceManager.
@@ -67,11 +66,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	s.Lock()
 	ifacerepo.Replace(s, m.repo)
 
-	hotplug, err := m.hotplugEnabled()
-	if err != nil {
-		return nil, err
-	}
-	m.hotplug = hotplug
 	s.Unlock()
 
 	taskKinds := map[string]bool{}

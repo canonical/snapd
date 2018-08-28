@@ -1,0 +1,19 @@
+summary: Basic hotplug tests
+
+prepare: |
+    snap install core
+
+execute: |
+    echo "Enable hotplug"
+    snap set core experimental.hotplug=true
+
+    # load dummy network device module
+    modprobe dummy
+
+    # hotplug event may take a few moments to be processed
+    for i in $(seq 5); do
+        if snap interfaces | MATCH "net-dummy-"; then
+            break
+        fi
+        sleep 1
+    done

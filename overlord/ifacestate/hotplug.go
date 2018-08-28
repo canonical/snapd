@@ -95,6 +95,12 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	hotplugIfaces := m.repo.AllHotplugInterfaces()
 	defaultKey := defaultDeviceKey(devinfo)
 
+	hotplugFeature, err := m.hotplugEnabled()
+	if err != nil {
+		logger.Noticef(err.Error())
+		return
+	}
+
 	// iterate over all hotplug interfaces
 	for _, iface := range hotplugIfaces {
 		hotplugHandler := iface.(hotplug.Definer)
@@ -121,7 +127,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			continue
 		}
 
-		if !m.hotplug {
+		if !hotplugFeature {
 			logger.Noticef("Hotplug 'add' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
@@ -169,6 +175,12 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	st.Lock()
 	defer st.Unlock()
 
+	hotplugFeature, err := m.hotplugEnabled()
+	if err != nil {
+		logger.Noticef(err.Error())
+		return
+	}
+
 	defaultKey := defaultDeviceKey(devinfo)
 	for _, iface := range m.repo.AllHotplugInterfaces() {
 		// determine device key for the interface; note that interface might provide own device keys.
@@ -191,7 +203,7 @@ func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 			continue
 		}
 
-		if !m.hotplug {
+		if !hotplugFeature {
 			logger.Noticef("Hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name())
 			continue
 		}
