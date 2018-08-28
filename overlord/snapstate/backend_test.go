@@ -60,6 +60,8 @@ type fakeOp struct {
 	rmAliases []*backend.Alias
 
 	userID int
+
+	otherInstances bool
 }
 
 type fakeOps []fakeOp
@@ -794,6 +796,26 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
+	f.ops = append(f.ops, fakeOp{
+		op:             "remove-snap-data-dir",
+		name:           info.InstanceName(),
+		path:           snap.BaseDataDir(info.SnapName()),
+		otherInstances: otherInstances,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
+	f.ops = append(f.ops, fakeOp{
+		op:             "remove-snap-dir",
+		name:           s.InstanceName(),
+		path:           snap.BaseDir(snap.InstanceSnap(s.InstanceName())),
+		otherInstances: otherInstances,
 	})
 	return nil
 }
