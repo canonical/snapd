@@ -130,11 +130,15 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 
 		// add slots to the repo based on the slot specs returned by the interface
 		for _, ss := range slotSpecs {
+			attrs := ss.Attrs
+			if attrs == nil {
+				attrs = make(map[string]interface{})
+			}
 			slot := &snap.SlotInfo{
 				Name:             ss.Name,
 				Snap:             coreSnapInfo,
 				Interface:        iface.Name(),
-				Attrs:            ss.Attrs,
+				Attrs:            attrs,
 				HotplugDeviceKey: key,
 			}
 			if iface, ok := iface.(interfaces.SlotSanitizer); ok {
