@@ -435,7 +435,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			return err
 		}
 		if info.Base != "" && !strutil.ListContains(snaps, info.Base) {
-			return fmt.Errorf("cannot add snap %q without seeding base %q, please add the missing base", name, info.Base)
+			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
 		}
 
 		seen[name] = true
