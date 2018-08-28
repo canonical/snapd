@@ -1447,7 +1447,7 @@ func (s *imageSuite) TestBootstrapWithMissingBase(c *C) {
 	c.Assert(err, IsNil)
 
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without seeding base "other-base", please add the missing base`)
+	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
 type toolingAuthContextSuite struct {
