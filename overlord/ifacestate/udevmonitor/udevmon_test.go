@@ -72,6 +72,15 @@ E: DEVNAME=name
 E: foo=bar
 E: DEVPATH=/a/path
 E: SUBSYSTEM=tty
+
+P: def
+N: bar
+E: DEVPATH=def
+E: SUBSYSTEM=tty
+E: MINOR=3
+E: MAJOR=0
+E: DEVNAME=ghi
+E: DEVTYPE=bzz
 `)
 	defer cmd.Restore()
 
@@ -93,7 +102,7 @@ E: SUBSYSTEM=tty
 		KObj:   "foo",
 		Env: map[string]string{
 			"DEVPATH":   "abc",
-			"SUBSYSTEM": "usb",
+			"SUBSYSTEM": "tty",
 			"MINOR":     "1",
 			"MAJOR":     "2",
 			"DEVNAME":   "def",
@@ -115,7 +124,7 @@ E: SUBSYSTEM=tty
 		KObj:   "bar",
 		Env: map[string]string{
 			"DEVPATH":   "def",
-			"SUBSYSTEM": "usb",
+			"SUBSYSTEM": "tty",
 			"MINOR":     "3",
 			"MAJOR":     "0",
 			"DEVNAME":   "ghi",
@@ -123,14 +132,14 @@ E: SUBSYSTEM=tty
 		},
 	}
 
-	// expect two devices - one from udev event, one from enumeration.
-	const numExpectedDevices = 2
+	// expect three add events - one from udev event, two from enumeration.
+	const numExpectedDevices = 3
 
 	var done bool
 	for !done {
 		select {
 		case <-callbackChannel:
-			if len(addInfos) >= numExpectedDevices && removeCalled {
+			if len(addInfos) >= numExpectedDevices && removeCalled == true {
 				done = true
 			}
 		case <-time.After(3 * time.Second):
@@ -161,16 +170,21 @@ E: SUBSYSTEM=tty
 	c.Assert(addInfo.Subsystem(), Equals, "tty")
 
 	addInfo = addInfos[1]
+	c.Assert(addInfo.DeviceName(), Equals, "ghi")
+	c.Assert(addInfo.DevicePath(), Equals, "/sys/def")
+	c.Assert(addInfo.Subsystem(), Equals, "tty")
+
+	addInfo = addInfos[2]
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
-	c.Assert(addInfo.Subsystem(), Equals, "usb")
+	c.Assert(addInfo.Subsystem(), Equals, "tty")
 	c.Assert(addInfo.DevicePath(), Equals, "/sys/abc")
 	c.Assert(addInfo.Major(), Equals, "2")
 	c.Assert(addInfo.Minor(), Equals, "1")
 
 	c.Assert(remInfo.DeviceName(), Equals, "ghi")
 	c.Assert(remInfo.DeviceType(), Equals, "bzz")
-	c.Assert(remInfo.Subsystem(), Equals, "usb")
+	c.Assert(remInfo.Subsystem(), Equals, "tty")
 	c.Assert(remInfo.DevicePath(), Equals, "/sys/def")
 	c.Assert(remInfo.Major(), Equals, "0")
 	c.Assert(remInfo.Minor(), Equals, "3")

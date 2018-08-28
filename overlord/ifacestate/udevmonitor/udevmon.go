@@ -46,10 +46,16 @@ type Monitor struct {
 	deviceRemoved DeviceRemovedFunc
 	netlinkConn   *netlink.UEventConn
 	// channels used by netlink connection and monitor
-	monitorStop         chan struct{}
-	netlinkErrors       chan error
-	netlinkEvents       chan netlink.UEvent
-	queuedNetlinkEvents []*netlink.UEvent
+	monitorStop   chan struct{}
+	netlinkErrors chan error
+	netlinkEvents chan netlink.UEvent
+
+	// devices lookup keeps track of all observed devices to know
+	// when to ignore a spurious event (in case it happens, e.g. when device gets reported by both
+	// the enumeration and monitor on startup).
+	// the lookup is based on device paths which are guaranteed to be unique and stable till device gets removed.
+	// the lookup is not persisted and gets populated and updated in response to enumeration and hotplug events.
+	devices map[string]bool
 }
 
 func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
@@ -57,6 +63,7 @@ func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
 		deviceAdded:   added,
 		deviceRemoved: removed,
 		netlinkConn:   &netlink.UEventConn{},
+		devices:       make(map[string]bool),
 	}
 
 	m.netlinkEvents = make(chan netlink.UEvent)
@@ -102,11 +109,16 @@ func (m *Monitor) Run() error {
 		for !finished {
 			select {
 			case dev, ok := <-existingDevices:
-				if ok && m.deviceAdded != nil {
-					m.deviceAdded(dev)
+				if dev != nil {
+					if _, seen := m.devices[dev.DevicePath()]; seen {
+						break
+					}
+					m.devices[dev.DevicePath()] = true
+					if ok && m.deviceAdded != nil {
+						m.deviceAdded(dev)
+					}
 				}
 				if !ok {
-					existingDevices = nil
 					finished = true
 				}
 			case err, ok := <-udevadmErrors:
@@ -116,7 +128,6 @@ func (m *Monitor) Run() error {
 					udevadmErrors = nil
 				}
 			case <-m.tomb.Dying():
-				m.queuedNetlinkEvents = nil
 				return m.Disconnect()
 			}
 		}
@@ -129,7 +140,6 @@ func (m *Monitor) Run() error {
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tomb.Dying():
-				m.queuedNetlinkEvents = nil
 				return m.Disconnect()
 			}
 		}
@@ -156,21 +166,30 @@ func (m *Monitor) udevEvent(ev *netlink.UEvent) {
 }
 
 func (m *Monitor) addDevice(kobj string, env map[string]string) {
-	di, err := hotplug.NewHotplugDeviceInfo(env)
+	dev, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
+	if _, seen := m.devices[dev.DevicePath()]; seen {
+		return
+	}
+	m.devices[dev.DevicePath()] = true
 	if m.deviceAdded != nil {
-		m.deviceAdded(di)
+		m.deviceAdded(dev)
 	}
 }
 
 func (m *Monitor) removeDevice(kobj string, env map[string]string) {
-	di, err := hotplug.NewHotplugDeviceInfo(env)
+	dev, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
+	if _, seen := m.devices[dev.DevicePath()]; !seen {
+		logger.Noticef("received device remove event, but device %q was not seen before", dev.DevicePath())
+		return
+	}
+	delete(m.devices, dev.DevicePath())
 	if m.deviceRemoved != nil {
-		m.deviceRemoved(di)
+		m.deviceRemoved(dev)
 	}
 }
