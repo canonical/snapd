@@ -81,7 +81,7 @@ E: SUBSYSTEM=tty
 	// we don't create them with Connect(), they must be mocked.
 	mstop := make(chan struct{})
 
-	event := make(chan netlink.UEvent)
+	event := make(chan netlink.UEvent, 3)
 
 	udevmonitor.MockUDevMonitorStopChannel(udevmon, mstop)
 	udevmonitor.MockUDevMonitorChannel(udevmon, event)
@@ -130,7 +130,7 @@ E: SUBSYSTEM=tty
 	for !done {
 		select {
 		case <-callbackChannel:
-			if len(addInfos) == numExpectedDevices && removeCalled {
+			if len(addInfos) >= numExpectedDevices && removeCalled {
 				done = true
 			}
 		case <-time.After(3 * time.Second):
