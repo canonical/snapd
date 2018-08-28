@@ -22,6 +22,7 @@ package selftest
 var (
 	TrySquashfsMount   = trySquashfsMount
 	CheckKernelVersion = checkKernelVersion
+	ApparmorUsable     = apparmorUsable
 )
 
 func MockChecks(mockChecks []func() error) (restore func()) {
@@ -29,5 +30,13 @@ func MockChecks(mockChecks []func() error) (restore func()) {
 	checks = mockChecks
 	return func() {
 		checks = oldChecks
+	}
+}
+
+func MockAppArmorProfilesPath(path string) (restorer func()) {
+	old := apparmorProfilesPath
+	apparmorProfilesPath = path
+	return func() {
+		apparmorProfilesPath = old
 	}
 }
