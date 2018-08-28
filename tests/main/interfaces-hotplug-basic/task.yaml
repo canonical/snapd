@@ -1,5 +1,8 @@
 summary: Basic hotplug tests
 
+# temporarily disabled, udevadm not present on core.
+systems: [-ubuntu-core-*]
+
 prepare: |
     snap install core
 
@@ -17,3 +20,4 @@ execute: |
         fi
         sleep 1
     done
+    snap interfaces | MATCH "net-dummy-"
