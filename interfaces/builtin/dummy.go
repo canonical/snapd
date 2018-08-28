@@ -21,9 +21,13 @@ package builtin
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -52,6 +56,48 @@ func (iface *dummyInterface) StaticInfo() interfaces.StaticInfo {
 		Summary:              dummyInterfaceSummary,
 		BaseDeclarationSlots: dummyInterfaceBaseDeclarationSlots,
 	}
+}
+
+func supported(di *hotplug.HotplugDeviceInfo) bool {
+	if di.Subsystem() != "net" {
+		return false
+	}
+	if driver, _ := di.Attribute("ID_NET_DRIVER"); driver != "dummy" {
+		return false
+	}
+	return true
+}
+
+func HotplugDeviceKey(di *hotplug.HotplugDeviceInfo) (string, error) {
+	if !supported(di) {
+		return "", nil
+	}
+
+	hwaddrPath := filepath.Join(di.DevicePath(), "address")
+	addr, err := ioutil.ReadFile(hwaddrPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot determine hardware address of device %q: %s", di.DevicePath(), err)
+	}
+	return fmt.Sprintf(strings.TrimSpace(string(addr))), nil
+}
+
+func (iface *dummyInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+	if !supported(di) {
+		return nil
+	}
+
+	ifname, ok := di.Attribute("INTERFACE") // e.g. dummy0
+	if !ok {
+		return fmt.Errorf("INTERFACE attribute not present for device %s", di.DevicePath())
+	}
+	slot := hotplug.SlotSpec{
+		Name:  fmt.Sprintf("net-dummy-%s", ifname),
+		Label: dummyInterfaceSummary,
+		Attrs: map[string]interface{}{
+			"path": di.DevicePath(),
+		},
+	}
+	return spec.AddSlot(&slot)
 }
 
 func (iface *dummyInterface) BeforePreparePlug(plug *snap.PlugInfo) error {

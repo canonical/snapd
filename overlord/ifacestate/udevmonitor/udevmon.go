@@ -91,6 +91,11 @@ func (m *Monitor) Connect() error {
 					"SUBSYSTEM": "tty",
 				},
 			},
+			{
+				Env: map[string]string{
+					"SUBSYSTEM": "net",
+				},
+			},
 		},
 	}
 
