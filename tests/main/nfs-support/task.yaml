@@ -117,7 +117,7 @@ execute: |
     # Ensure that this removed the extra permissions.
     ensure_normal_perms
 
-    # Skip udp protocal on arch-linux because it is not supported
+    # Skip udp protocol on arch-linux because it is not supported
     # Error displayed: mount.nfs: requested NFS version or transport protocol is not supported
     if [[ ! "$SPREAD_SYSTEM" =~ arch-* ]]; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
