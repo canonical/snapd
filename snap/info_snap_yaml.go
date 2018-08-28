@@ -206,6 +206,11 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	// TODO: once we have epochs transition to the snapd type for real
+	if y.Name == "snapd" {
+		typ = TypeSnapd
+	}
+
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
