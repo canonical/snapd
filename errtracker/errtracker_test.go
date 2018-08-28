@@ -164,7 +164,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"CoreSnapdBuildID":   s.coreBuildID,
 				"SnapdVersion":       "some-snapd-version",
 				"Date":               "Fri Feb 17 09:51:00 2017",
-				"KernelVersion":      release.KernelVersion(),
+				"KernelVersion":      osutil.KernelVersion(),
 				"ErrorMessage":       "failed to do stuff",
 				"DuplicateSignature": "[failed to do stuff]",
 				"Architecture":       arch.UbuntuArchitecture(),
@@ -311,7 +311,7 @@ func (s *ErrtrackerTestSuite) TestReportRepair(c *C) {
 				"CoreSnapdBuildID": s.coreBuildID,
 				"SnapdVersion":     "some-snapd-version",
 				"Date":             "Fri Feb 17 09:51:00 2017",
-				"KernelVersion":    release.KernelVersion(),
+				"KernelVersion":    osutil.KernelVersion(),
 				"Architecture":     arch.UbuntuArchitecture(),
 				"DidSnapdReExec":   "yes",
 

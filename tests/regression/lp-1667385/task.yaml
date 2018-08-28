@@ -1,15 +1,20 @@
 summary: Regression check for https://bugs.launchpad.net/snappy/+bug/1667385
-# run on ubuntu-{14,16,18,20+} and ubuntu-core-16-*
-systems: [ubuntu-1*, ubuntu-2*, ubuntu-3*, ubuntu-core-16-*]
+
 details: |
   When disabling and then enabling a snap, the flags saved in state
   (e.g. from when the user installed it) should be preserved.
+
+# run on ubuntu-{14,16,18,20+} and ubuntu-core-16-*
+systems: [ubuntu-1*, ubuntu-2*, ubuntu-3*, ubuntu-core-16-*]
+
 environment:
   FLAG/jailmode: jailmode
   FLAG/devmode: devmode
   SNAP: test-snapd-devmode
+
 prepare: |
   snap install --edge "--$FLAG" "$SNAP"
+
 execute: |
   # sanity check
   snap list $SNAP | MATCH "$FLAG$"

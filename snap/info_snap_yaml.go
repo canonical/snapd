@@ -58,7 +58,8 @@ type snapYaml struct {
 type appYaml struct {
 	Aliases []string `yaml:"aliases,omitempty"`
 
-	Command string `yaml:"command"`
+	Command      string   `yaml:"command"`
+	CommandChain []string `yaml:"command-chain,omitempty"`
 
 	Daemon string `yaml:"daemon"`
 
@@ -91,9 +92,10 @@ type appYaml struct {
 }
 
 type hookYaml struct {
-	PlugNames   []string           `yaml:"plugs,omitempty"`
-	SlotNames   []string           `yaml:"slots,omitempty"`
-	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+	PlugNames    []string           `yaml:"plugs,omitempty"`
+	SlotNames    []string           `yaml:"slots,omitempty"`
+	Environment  strutil.OrderedMap `yaml:"environment,omitempty"`
+	CommandChain []string           `yaml:"command-chain,omitempty"`
 }
 
 type layoutYaml struct {
@@ -294,6 +296,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Name:            appName,
 			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
+			CommandChain:    yApp.CommandChain,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
@@ -388,9 +391,10 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap:        snap,
-			Name:        hookName,
-			Environment: yHook.Environment,
+			Snap:         snap,
+			Name:         hookName,
+			Environment:  yHook.Environment,
+			CommandChain: yHook.CommandChain,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)

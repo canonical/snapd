@@ -252,6 +252,30 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
 }
 
+func (s *SnapSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, check.IsNil)
+	info.SideInfo.Revision = snap.R(42)
+	info.InstanceKey = "foo"
+
+	fakeHome := c.MkDir()
+	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	})
+	defer restorer()
+
+	err = snaprun.CreateUserDataDirs(info)
+	c.Assert(err, check.IsNil)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
+	// mount point for snap instance mapping has been created
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname")), check.Equals, true)
+	// and it's empty inside
+	m, err := filepath.Glob(filepath.Join(fakeHome, "/snap/snapname/*"))
+	c.Assert(err, check.IsNil)
+	c.Assert(m, check.HasLen, 0)
+}
+
 func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 

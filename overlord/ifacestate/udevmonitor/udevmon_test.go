@@ -17,25 +17,28 @@
  *
  */
 
-package overlord_test
+package udevmonitor_test
 
 import (
+	"testing"
 	"time"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
+
+func TestHotplug(t *testing.T) { TestingT(t) }
 
 type udevMonitorSuite struct{}
 
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := overlord.NewUDevMonitor(nil, nil)
+	mon := udevmonitor.New(nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
@@ -50,12 +53,12 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	callbackChannel := make(chan struct{}, 2)
 	defer close(callbackChannel)
 
-	addedCb := func(inf *hotplug.HotplugDeviceInfo) {
+	added := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
 		addInfos = append(addInfos, inf)
 		callbackChannel <- struct{}{}
 	}
-	removedCb := func(inf *hotplug.HotplugDeviceInfo) {
+	removed := func(inf *hotplug.HotplugDeviceInfo) {
 		removeCalled = true
 		remInfo = inf
 		callbackChannel <- struct{}{}
@@ -72,9 +75,7 @@ E: SUBSYSTEM=tty
 `)
 	defer cmd.Restore()
 
-	mon := overlord.NewUDevMonitor(addedCb, removedCb)
-	c.Assert(mon, NotNil)
-	udevmon, _ := mon.(*overlord.UDevMonitor)
+	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
 
 	// stop channels are normally created by netlink crawler/monitor, but since
 	// we don't create them with Connect(), they must be mocked.
@@ -82,8 +83,8 @@ E: SUBSYSTEM=tty
 
 	event := make(chan netlink.UEvent)
 
-	overlord.MockUDevMonitorStopChannel(udevmon, mstop)
-	overlord.MockUDevMonitorChannel(udevmon, event)
+	udevmonitor.MockUDevMonitorStopChannel(udevmon, mstop)
+	udevmonitor.MockUDevMonitorChannel(udevmon, event)
 
 	c.Assert(udevmon.Run(), IsNil)
 

@@ -83,6 +83,8 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.CommandManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
 
+	o.InterfaceManager().DisableUdevMonitor()
+
 	s := o.State()
 	c.Check(s, NotNil)
 	c.Check(o.Engine().State(), Equals, s)
@@ -211,6 +213,7 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 func (ovs *overlordSuite) TestUnknownTasks(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUdevMonitor()
 
 	markSeeded(o)
 	// make sure we don't try to talk to the store
