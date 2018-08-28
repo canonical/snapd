@@ -57,6 +57,10 @@ func (s *typeSuite) TestJsonMarshalTypes(c *C) {
 	out, err = json.Marshal(TypeBase)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"base\"")
+
+	out, err = json.Marshal(TypeSnapd)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"snapd\"")
 }
 
 func (s *typeSuite) TestJsonUnmarshalTypes(c *C) {
@@ -85,6 +89,10 @@ func (s *typeSuite) TestJsonUnmarshalTypes(c *C) {
 	err = json.Unmarshal([]byte("\"base\""), &st)
 	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeBase)
+
+	err = json.Unmarshal([]byte("\"snapd\""), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeSnapd)
 }
 
 func (s *typeSuite) TestJsonUnmarshalInvalidTypes(c *C) {

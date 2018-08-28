@@ -222,7 +222,8 @@ func (s *RepositorySuite) TestBackends(c *C) {
 	b2 := &ifacetest.TestSecurityBackend{BackendName: "b2"}
 	c.Assert(s.emptyRepo.AddBackend(b2), IsNil)
 	c.Assert(s.emptyRepo.AddBackend(b1), IsNil)
-	c.Assert(s.emptyRepo.Backends(), DeepEquals, []SecurityBackend{b1, b2})
+	// The order of insertion is retained.
+	c.Assert(s.emptyRepo.Backends(), DeepEquals, []SecurityBackend{b2, b1})
 }
 
 // Tests for Repository.Interface()
