@@ -112,7 +112,17 @@ type apiBaseSuite struct {
 	restoreSanitize func()
 }
 
+func (s *apiBaseSuite) pokeStateLock() {
+	// the store should be called without the state lock held. Try
+	// to acquire it.
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Unlock()
+}
+
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	s.pokeStateLock()
+
 	s.user = user
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
@@ -121,6 +131,8 @@ func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*sna
 }
 
 func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+	s.pokeStateLock()
+
 	s.storeSearch = *search
 	s.user = user
 
@@ -128,6 +140,8 @@ func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap
 }
 
 func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	s.pokeStateLock()
+
 	if ctx == nil {
 		panic("context required")
 	}
@@ -139,21 +153,29 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
+	s.pokeStateLock()
+
 	return s.suggestedCurrency
 }
 
 func (s *apiBaseSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
+	s.pokeStateLock()
+
 	s.buyOptions = options
 	s.user = user
 	return s.buyResult, s.err
 }
 
 func (s *apiBaseSuite) ReadyToBuy(user *auth.UserState) error {
+	s.pokeStateLock()
+
 	s.user = user
 	return s.err
 }
 
 func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
+	s.pokeStateLock()
+
 	return s.connectivityResult, s.err
 }
 
@@ -647,6 +669,8 @@ UnitFileState=potatoes
 }
 
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
+	s.daemon(c)
+
 	state := snapCmd.d.overlord.State()
 	state.Lock()
 	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
@@ -1534,6 +1558,8 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 }
 
 func (s *apiSuite) TestFind(c *check.C) {
+	s.daemon(c)
+
 	s.suggestedCurrency = "EUR"
 
 	s.rsnaps = []*snap.Info{{
@@ -1797,6 +1823,8 @@ func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
 }
 
 func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
+	s.daemon(c)
+
 	s.err = store.ErrBadQuery
 	req, err := http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil)
 	c.Assert(err, check.IsNil)
@@ -1809,6 +1837,8 @@ func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 }
 
 func (s *apiSuite) TestFindPriced(c *check.C) {
+	s.daemon(c)
+
 	s.suggestedCurrency = "GBP"
 
 	s.rsnaps = []*snap.Info{{
@@ -1850,6 +1880,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 }
 
 func (s *apiSuite) TestFindScreenshotted(c *check.C) {
+	s.daemon(c)
+
 	s.rsnaps = []*snap.Info{{
 		Type:    snap.TypeApp,
 		Version: "v2",
@@ -1930,6 +1962,8 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
+	s.daemon(c)
+
 	s.rsnaps = []*snap.Info{
 		{
 			// no explicit confinement in this one
@@ -1971,6 +2005,8 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
+	s.daemon(c)
+
 	state := snapCmd.d.overlord.State()
 	state.Lock()
 	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
@@ -2086,6 +2122,8 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.daemon(c)
+
 	s.rsnaps = nil
 
 	req, err := http.NewRequest("GET", "/v2/snaps?q=foo&sources=store", nil)
@@ -5264,6 +5302,8 @@ var buyTests = []struct {
 }
 
 func (s *apiSuite) TestBuySnap(c *check.C) {
+	s.daemon(c)
+
 	for _, test := range buyTests {
 		s.buyResult = test.result
 		s.err = test.err
@@ -5339,6 +5379,8 @@ var readyToBuyTests = []struct {
 }
 
 func (s *apiSuite) TestReadyToBuy(c *check.C) {
+	s.daemon(c)
+
 	for _, test := range readyToBuyTests {
 		s.err = test.input
 
