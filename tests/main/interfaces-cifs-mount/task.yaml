@@ -23,7 +23,7 @@ prepare: |
 
     # Configure samba
     cp /etc/samba/smb.conf /etc/samba/smb.conf.back
-    { echo "[data]"; echo "path=$(pwd)/local_share"; echo "writable=yes"; echo "browsable=yes"; } >> /etc/samba/smb.conf
+    echo -e "[data]\npath=$(pwd)/local_share\nwritable=yes\nbrowsable=yes\n" >> /etc/samba/smb.conf
 
     systemctl restart smbd.service
 
