@@ -116,7 +116,9 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures = release.AppArmorFeatures()
+	if release.AppArmorLevel() != release.NoAppArmor {
+		sk.AppArmorFeatures = release.AppArmorFeatures()
+	}
 
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our

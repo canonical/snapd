@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -75,6 +76,15 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	}
 }
 
+// MockAppArmorFeaturesSysPath mocks the path to AppArmor sysfs directory
+func MockAppArmorFeaturesSysPath(path string) (restore func()) {
+	old := appArmorFeaturesSysPath
+	appArmorFeaturesSysPath = path
+	return func() {
+		appArmorFeaturesSysPath = old
+	}
+}
+
 // probe related code
 var (
 	appArmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
@@ -89,6 +99,7 @@ var (
 		"ptrace",
 		"signal",
 	}
+	apparmorUserspaceExists = apparmorUserspaceExistsImpl
 )
 
 // isDirectoy is like osutil.IsDirectory but we cannot import this
@@ -101,9 +112,18 @@ func isDirectory(path string) bool {
 	return stat.IsDir()
 }
 
+func apparmorUserspaceExistsImpl() bool {
+	_, err := exec.LookPath("apparmor_parser")
+
+	return err == nil
+}
+
 func probeAppArmor() (AppArmorLevelType, string) {
 	if !isDirectory(appArmorFeaturesSysPath) {
 		return NoAppArmor, "apparmor not enabled"
+	}
+	if !apparmorUserspaceExists() {
+		return NoAppArmor, "apparmor is enabled but user-space tooling is missing"
 	}
 	var missing []string
 	for _, feature := range requiredAppArmorFeatures {

@@ -32,11 +32,13 @@ func MockOSReleasePath(filename string) (restore func()) {
 	}
 }
 
-func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
-	old := appArmorFeaturesSysPath
-	appArmorFeaturesSysPath = path
+func MockAppArmorUserspaceExists(exists bool) (restore func()) {
+	old := apparmorUserspaceExists
+	apparmorUserspaceExists = func() bool {
+		return exists
+	}
 	return func() {
-		appArmorFeaturesSysPath = old
+		apparmorUserspaceExists = old
 	}
 }
 

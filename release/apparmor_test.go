@@ -49,9 +49,23 @@ func (s *apparmorSuite) TestProbeAppArmorNoAppArmor(c *C) {
 	c.Check(summary, Equals, "apparmor not enabled")
 }
 
+func (s *apparmorSuite) TestProbeAppArmorNoAppArmorParser(c *C) {
+	fakeSysPath := c.MkDir()
+	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
+	defer restore()
+	restore = release.MockAppArmorUserspaceExists(false)
+	defer restore()
+
+	level, summary := release.ProbeAppArmor()
+	c.Check(level, Equals, release.NoAppArmor)
+	c.Check(summary, Equals, "apparmor is enabled but user-space tooling is missing")
+}
+
 func (s *apparmorSuite) TestProbeAppArmorPartialAppArmor(c *C) {
 	fakeSysPath := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
+	defer restore()
+	restore = release.MockAppArmorUserspaceExists(true)
 	defer restore()
 
 	level, summary := release.ProbeAppArmor()
@@ -62,6 +76,8 @@ func (s *apparmorSuite) TestProbeAppArmorPartialAppArmor(c *C) {
 func (s *apparmorSuite) TestProbeAppArmorFullAppArmor(c *C) {
 	fakeSysPath := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
+	defer restore()
+	restore = release.MockAppArmorUserspaceExists(true)
 	defer restore()
 
 	for _, feature := range release.RequiredAppArmorFeatures {
