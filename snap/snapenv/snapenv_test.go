@@ -136,21 +136,23 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
-			"HOME":               fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
-			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_ARCH":          arch.UbuntuArchitecture(),
-			"SNAP_COMMON":        "/var/snap/snapname/common",
-			"SNAP_DATA":          "/var/snap/snapname/42",
 			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 			"SNAP_NAME":          "snapname",
 			"SNAP_INSTANCE_NAME": "snapname",
 			"SNAP_INSTANCE_KEY":  "",
 			"SNAP_REEXEC":        "",
 			"SNAP_REVISION":      "42",
-			"SNAP_USER_COMMON":   fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
-			"SNAP_USER_DATA":     fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"SNAP_VERSION":       "1.0",
-			"XDG_RUNTIME_DIR":    fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
+
+			"SNAP":        fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_COMMON": "/var/snap/snapname/common",
+			"SNAP_DATA":   "/var/snap/snapname/42",
+
+			"SNAP_USER_COMMON": fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_USER_DATA":   fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
+			"HOME":             fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 		})
 	}
 }
@@ -176,21 +178,27 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
-			"HOME":               fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
-			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_ARCH":          arch.UbuntuArchitecture(),
-			"SNAP_COMMON":        "/var/snap/snapname/common",
-			"SNAP_DATA":          "/var/snap/snapname/42",
 			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 			"SNAP_NAME":          "snapname",
 			"SNAP_INSTANCE_NAME": "snapname_foo",
 			"SNAP_INSTANCE_KEY":  "foo",
 			"SNAP_REEXEC":        "",
 			"SNAP_REVISION":      "42",
-			"SNAP_USER_COMMON":   fmt.Sprintf("%s/snap/snapname_foo/common", usr.HomeDir),
-			"SNAP_USER_DATA":     fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
-			"XDG_RUNTIME_DIR":    fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
 			"SNAP_VERSION":       "1.0",
+
+			// NOTE: those are mapped by mount namespace setup
+			"SNAP":        fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_COMMON": "/var/snap/snapname/common",
+			"SNAP_DATA":   "/var/snap/snapname/42",
+
+			// NOTE: currently we cannot do the user bind mounts in
+			// a secure way, thus the instance-specific user's data
+			// directories are not mapped to snap-specific ones
+			"SNAP_USER_COMMON": fmt.Sprintf("%s/snap/snapname_foo/common", usr.HomeDir),
+			"SNAP_USER_DATA":   fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
+			"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
+			"HOME":             fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
 		})
 	}
 }
