@@ -236,7 +236,6 @@ func debugShowChanges(changes []*Change, header string) {
 var osGetenv = os.Getenv
 
 func extractUserHomeSnapDir(snapName, instanceUserDataPath string) string {
-	// /home/joe/snap/foo_bar/123 -> /home/joe/snap
 	snapDir := path.Dir(instanceUserDataPath)
 	if !strings.HasSuffix(snapDir, "/"+snapName) {
 		return ""
@@ -253,6 +252,7 @@ func applyUserFstab(snapName string) error {
 
 	userHomeSnapDir := ""
 	if ud := osGetenv("SNAP_INSTANCE_USER_DATA"); ud != "" {
+		// /home/joe/snap/foo_bar/123 -> /home/joe/snap
 		userHomeSnapDir = extractUserHomeSnapDir(snapName, ud)
 	}
 	if userHomeSnapDir == "" {
