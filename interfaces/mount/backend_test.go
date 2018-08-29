@@ -181,7 +181,6 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
-	userEntry := osutil.MountEntry{Name: "$USER_HOME_SNAP_DIR/snap-name_instance", Dir: "$USER_HOME_SNAP_DIR/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()}, DumpFrequency: 0, CheckPassNumber: 0}
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
@@ -203,10 +202,9 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name_instance.fstab")
 	c.Check(fn, testutil.FileEquals, expected)
 
-	// Check that the user-fstab file was written with parallel instance setup and the user mount
-	expected = strings.Join([]string{userEntry.String(), fsEntry3.String()}, "\n") + "\n"
+	// Check that the user-fstab file was written with user mount only
 	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name_instance.user-fstab")
-	c.Check(fn, testutil.FileEquals, expected)
+	c.Check(fn, testutil.FileEquals, fsEntry3.String()+"\n")
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {

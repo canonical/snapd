@@ -255,10 +255,4 @@ func (spec *Specification) AddParallelInstanceMapping(info *snap.Info) {
 		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
 		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
 	})
-	// $HOME/snap/foo_bar -> $HOME/snap/foo
-	spec.AddParallelInstanceUserMountEntry(osutil.MountEntry{
-		Name:    path.Join("$USER_HOME_SNAP_DIR", info.InstanceName()),
-		Dir:     path.Join("$USER_HOME_SNAP_DIR", info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
-	})
 }
