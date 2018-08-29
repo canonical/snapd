@@ -138,7 +138,7 @@ func (ts *strutilSuite) TestTruncateOutput(c *check.C) {
 	c.Assert(out, check.HasLen, 0)
 }
 
-func (ts *strutilSuite) TestParseValueWithUnitHappy(c *check.C) {
+func (ts *strutilSuite) TestParseByteSizeHappy(c *check.C) {
 	for _, t := range []struct {
 		str      string
 		expected int64
@@ -164,7 +164,7 @@ func (ts *strutilSuite) TestParseValueWithUnitHappy(c *check.C) {
 	}
 }
 
-func (ts *strutilSuite) TestParseValueWithUnitUnhappy(c *check.C) {
+func (ts *strutilSuite) TestParseByteSizeUnhappy(c *check.C) {
 	for _, t := range []struct {
 		str    string
 		errStr string
