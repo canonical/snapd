@@ -490,7 +490,7 @@ var classicTemplate = `
   /** pix,
 
   capability,
-  change_profile,
+  change_profile unsafe /**,
   dbus,
   network,
   mount,
