@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -298,6 +299,12 @@ var ClientConfig = client.Config{
 
 // Client returns a new client using ClientConfig as configuration.
 func Client() *client.Client {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
+This command has been left available for documentation purposes only.
+`), runtime.GOOS)
+		os.Exit(1)
+	}
 	return client.New(&ClientConfig)
 }
 
