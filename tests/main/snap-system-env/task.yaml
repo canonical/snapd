@@ -4,8 +4,13 @@ summary: Ensure systemd environment generator works
 systems: [ubuntu-18.04-*]
 
 execute: |
-    echo "Re-exec systemd to ensure it really picked up the config"
-    systemctl daemon-reexec
+    # FIXME: we can avoid the reboot once issue:
+    #   https://github.com/systemd/systemd/issues/9972
+    # is fixed
+    echo "Ensure to reboot at least once"
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT
+    fi
 
     echo "Ensure PATH is correct in systemd system units"
     systemd-run --unit testenv env
