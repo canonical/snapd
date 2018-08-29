@@ -24,14 +24,14 @@ execute: |
 
     # instance environment variables are correctly set up
     su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools_foo'
-    su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_INSTANCE_COMMON=/var/snap/test-snapd-tools_foo/common'
     su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_NAME=test-snapd-tools'
+    su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_INSTANCE_KEY=foo'
     su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'
 
     # and non-instance one's are too
     su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools'
-    su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_INSTANCE_COMMON=/var/snap/test-snapd-tools/common'
     su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_NAME=test-snapd-tools'
+    su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_INSTANCE_KEY=$'
     su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'
 
     mkdir /var/snap/test-snapd-tools_foo/common/foobar

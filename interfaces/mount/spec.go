@@ -37,11 +37,10 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layoutMountEntries               []osutil.MountEntry
-	mountEntries                     []osutil.MountEntry
-	userMountEntries                 []osutil.MountEntry
-	parallelInstanceMountEntries     []osutil.MountEntry
-	parallelInstanceUserMountEntries []osutil.MountEntry
+	layoutMountEntries           []osutil.MountEntry
+	mountEntries                 []osutil.MountEntry
+	userMountEntries             []osutil.MountEntry
+	parallelInstanceMountEntries []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
@@ -60,13 +59,6 @@ func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
 // instances support.
 func (spec *Specification) AddParallelInstanceMountEntry(e osutil.MountEntry) error {
 	spec.parallelInstanceMountEntries = append(spec.parallelInstanceMountEntries, e)
-	return nil
-}
-
-// AddParallelInstanceUserMountEntry adds a new user mount entry for parallel snap
-// instances support.
-func (spec *Specification) AddParallelInstanceUserMountEntry(e osutil.MountEntry) error {
-	spec.parallelInstanceUserMountEntries = append(spec.parallelInstanceUserMountEntries, e)
 	return nil
 }
 
@@ -157,9 +149,8 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 
 // UserMountEntries returns a copy of the added user mount entries.
 func (spec *Specification) UserMountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, 0, len(spec.parallelInstanceUserMountEntries)+len(spec.userMountEntries))
-	result = append(result, spec.parallelInstanceUserMountEntries...)
-	result = append(result, spec.userMountEntries...)
+	result := make([]osutil.MountEntry, len(spec.userMountEntries))
+	copy(result, spec.userMountEntries)
 	unclashMountEntries(result)
 	return result
 }
@@ -253,12 +244,6 @@ func (spec *Specification) AddParallelInstanceMapping(info *snap.Info) {
 	spec.AddParallelInstanceMountEntry(osutil.MountEntry{
 		Name:    path.Join(dirs.SnapDataDir, info.InstanceName()),
 		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
-	})
-	// $HOME/snap/foo_bar -> $HOME/snap/foo
-	spec.AddParallelInstanceUserMountEntry(osutil.MountEntry{
-		Name:    path.Join("$USER_HOME_SNAP_DIR", info.InstanceName()),
-		Dir:     path.Join("$USER_HOME_SNAP_DIR", info.SnapName()),
 		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
 	})
 }

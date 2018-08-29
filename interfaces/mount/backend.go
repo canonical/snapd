@@ -61,9 +61,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
-	if snapInfo.InstanceKey != "" {
-		spec.(*Specification).AddParallelInstanceMapping(snapInfo)
-	}
+	spec.(*Specification).AddParallelInstanceMapping(snapInfo)
 	spec.(*Specification).AddSnapLayout(snapInfo)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem

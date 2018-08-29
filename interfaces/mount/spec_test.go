@@ -223,8 +223,5 @@ func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {
 		// /var/snap/foo_instance -> /var/snap/foo
 		{Name: "/var/snap/foo_instance", Dir: "/var/snap/foo", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
 	})
-	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
-		// Parallel instance mappings come first
-		{Dir: "$USER_HOME_SNAP_DIR/foo", Name: "$USER_HOME_SNAP_DIR/foo_instance", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
-	})
+	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
 }

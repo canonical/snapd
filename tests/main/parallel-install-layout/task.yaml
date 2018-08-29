@@ -37,7 +37,7 @@ execute: |
         $name.sh -c "test -f /etc/demo.conf"
         $name.sh -c "test -h /etc/demo.cfg"
         #shellcheck disable=SC2016
-        test "$($name.sh -c "readlink /etc/demo.cfg")" = "$($name.sh -c 'echo $SNAP_INSTANCE_COMMON/etc/demo.conf')"
+        test "$($name.sh -c "readlink /etc/demo.cfg")" = "$($name.sh -c 'echo /var/snap/$SNAP_INSTANCE_NAME/common/etc/demo.conf')"
         $name.sh -c "test -d /usr/share/demo"
         $name.sh -c "test -d /var/lib/demo"
         $name.sh -c "test -d /var/cache/demo"

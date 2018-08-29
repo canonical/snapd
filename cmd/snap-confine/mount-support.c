@@ -817,16 +817,6 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
 			envp[last_env++] = xdg_runtime_dir_env;
 		}
-		const char *snap_instance_user_data =
-		    getenv("SNAP_INSTANCE_USER_DATA");
-		char snap_instance_user_data_env[PATH_MAX];
-		if (snap_instance_user_data != NULL) {
-			sc_must_snprintf(snap_instance_user_data_env,
-					 sizeof(snap_instance_user_data_env),
-					 "SNAP_INSTANCE_USER_DATA=%s",
-					 snap_instance_user_data);
-			envp[last_env++] = snap_instance_user_data_env;
-		}
 
 		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
 		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
