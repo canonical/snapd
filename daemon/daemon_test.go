@@ -310,7 +310,7 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 
 	// if the user dismisses the auth request, forbid access
 	s.err = polkit.ErrDismissed
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessCancelled)
 }
 
 func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {

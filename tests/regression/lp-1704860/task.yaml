@@ -1,5 +1,7 @@
 summary: Work-in-progress on reproducing lp:1704860
+
 systems: [ubuntu-16.04-64]
+
 details: |
     In this bug, an app belonging go a snap using classic confinement confuses
     the re-execution system in a way that causes distribution version of
@@ -15,6 +17,7 @@ details: |
     --shell.  Since neither snap-confine nor snap-exec re-execute themselves
     (instead they rely on snap run to run the right tool in the first place)
     this is safe to do.
+
 execute: |
     . $TESTSLIB/snaps.sh
     install_local_classic test-snapd-classic-confinement
