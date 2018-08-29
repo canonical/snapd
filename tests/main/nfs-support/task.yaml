@@ -64,7 +64,6 @@ execute: |
         fedora-*)
             # Enable udp protocol for nfs on fedora which is disable by default           
             sed -i -e 's/RPCNFSDARGS=.*/RPCNFSDARGS="--udp"/g' /etc/sysconfig/nfs
-            systemctl enable nfs
             systemctl restart nfs
             ;;
         arch-*)
