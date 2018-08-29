@@ -1354,6 +1354,11 @@ func (m *InterfaceManager) doHotplugRemoveSlots(task *state.Task, _ *tomb.Tomb) 
 		return err
 	}
 
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return err
+	}
+
 	slots, err := m.repo.SlotsForDeviceKey(deviceKey, ifaceName)
 	if err != nil {
 		return fmt.Errorf("cannot determine slots: %s", err)
@@ -1363,7 +1368,10 @@ func (m *InterfaceManager) doHotplugRemoveSlots(task *state.Task, _ *tomb.Tomb) 
 		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
 			return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
 		}
+		delete(stateSlots, slot.Name)
 	}
+
+	setHotplugSlots(st, stateSlots)
 
 	return nil
 }

@@ -63,6 +63,34 @@ func addImplicitSlots(snapInfo *snap.Info) {
 	}
 }
 
+// addHotplugSLots add hotplug slots to a given OS snap.
+func addHotplugSlots(snapInfo *snap.Info, hotplugSlots map[string]hotplugSlotDef) {
+	// Implicit slots can be added to the special "snapd" snap or to snaps with
+	// type "os". Currently there are no other snaps that gain implicit
+	// interfaces.
+	if snapInfo.Type != snap.TypeOS && snapInfo.InstanceName() != "snapd" {
+		return
+	}
+
+	// If the manager has chosen to put implicit slots on the "snapd" snap
+	// then stop adding them to any other core snaps.
+	if shouldSnapdHostImplicitSlots(mapper) && snapInfo.InstanceName() != "snapd" {
+		return
+	}
+
+	for _, slot := range hotplugSlots {
+		if _, ok := snapInfo.Slots[slot.Name]; !ok {
+			snapInfo.Slots[slot.Name] = &snap.SlotInfo{
+				Name:             slot.Name,
+				Snap:             snapInfo,
+				Interface:        slot.Interface,
+				Attrs:            slot.StaticAttrs,
+				HotplugDeviceKey: slot.HotplugDeviceKey,
+			}
+		}
+	}
+}
+
 func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {
 	return &snap.SlotInfo{
 		Name:      ifaceName,

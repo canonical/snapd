@@ -134,7 +134,12 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 
 		logger.Debugf("HotplugDeviceAdded: %s (default key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), defaultKey, devinfo.DeviceName(), devinfo.Subsystem())
 
-		// add slots to the repo based on the slot specs returned by the interface
+		stateSlots, err := getHotplugSlots(st)
+		if err != nil {
+			logger.Noticef(err.Error())
+			return
+		}
+		// add slots to the repo and state based on the slot specs returned by the interface
 		for _, ss := range slotSpecs {
 			attrs := ss.Attrs
 			if attrs == nil {
@@ -158,8 +163,16 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				logger.Noticef("Failed to create slot %q for interface %s", slot.Name, slot.Interface)
 				continue
 			}
+			stateSlots[slot.Name] = hotplugSlotDef{
+				Name:             slot.Name,
+				Interface:        slot.Interface,
+				StaticAttrs:      slot.Attrs,
+				HotplugDeviceKey: slot.HotplugDeviceKey,
+			}
 			logger.Noticef("Added hotplug slot %s:%s of interface %s for device key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, key)
 		}
+
+		setHotplugSlots(st, stateSlots)
 
 		chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slots of interface %s", iface))
 		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of device %q", key))
@@ -245,4 +258,27 @@ func (m *InterfaceManager) hotplugEnabled() (bool, error) {
 		return false, err
 	}
 	return featureFlagHotplug, nil
+}
+
+type hotplugSlotDef struct {
+	Name             string                 `json:"name"`
+	Interface        string                 `json:"interface"`
+	StaticAttrs      map[string]interface{} `json:"static-attrs,omitempty"`
+	HotplugDeviceKey string                 `json:"device-key"`
+}
+
+func getHotplugSlots(st *state.State) (map[string]hotplugSlotDef, error) {
+	var slots map[string]hotplugSlotDef
+	err := st.Get("hotplug-slots", &slots)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		slots = make(map[string]hotplugSlotDef)
+	}
+	return slots, nil
+}
+
+func setHotplugSlots(st *state.State, slots map[string]hotplugSlotDef) {
+	st.Set("hotplug-slots", slots)
 }

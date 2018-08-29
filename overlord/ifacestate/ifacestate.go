@@ -248,7 +248,13 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 		return nil, nil, err
 	}
 
+	hotplugSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return nil, nil, err
+	}
 	addImplicitSlots(snapInfo)
+	addHotplugSlots(snapInfo, hotplugSlots)
+
 	slot, ok := snapInfo.Slots[slotName]
 	if !ok {
 		return nil, nil, fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
