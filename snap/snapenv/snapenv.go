@@ -101,10 +101,10 @@ func basicEnv(info *snap.Info) map[string]string {
 		// always mounted on /snap OR it is a classically confined snap where
 		// /snap is a part of the distribution package.
 		//
-		// NOTE for parallel-installs snap-confine takes care of making
-		// the environment of each snap instance appear as if it's the
-		// only snap, i.e. SNAP paths point to the same locations within
-		// the mount namespace
+		// NOTE for parallel-installs the mount namespace setup is
+		// making the environment of each snap instance appear as if
+		// it's the only snap, i.e. SNAP paths point to the same
+		// locations within the mount namespace
 		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
 		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
 		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
