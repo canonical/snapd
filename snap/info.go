@@ -741,7 +741,8 @@ type HookInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment strutil.OrderedMap
+	Environment  strutil.OrderedMap
+	CommandChain []string
 }
 
 // File returns the path to the *.socket file
@@ -1074,4 +1075,14 @@ func InstanceName(snapName, instanceKey string) string {
 		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
 	return snapName
+}
+
+// ByType sorts the given slice of snap info by types. The most
+// important types will come first.
+type ByType []*Info
+
+func (r ByType) Len() int      { return len(r) }
+func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r ByType) Less(i, j int) bool {
+	return r[i].Type.SortsBefore(r[j].Type)
 }
