@@ -36,4 +36,4 @@ usr/bin/ubuntu-core-launcher
 usr/lib/snapd/snap-gdb-shim
 
 # use "usr/lib" here because apparently systemd looks only there
-usr/lib/snapd/snapd-env-generator /usr/lib/systemd/systemd-environment-generators
+usr/lib/systemd/system-environment-generators

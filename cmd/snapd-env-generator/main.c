@@ -25,10 +25,13 @@
 // in Ubuntu 17.10+
 int main(int argc, char **argv)
 {
+        const char *snap_bin_dir = SNAP_MOUNT_DIR"/bin";
+
 	char *path = getenv("PATH");
-	if (strstr(path, "/snap/bin") != NULL) {
+	if (strstr(path, snap_bin_dir) != NULL) {
 		return 0;
 	}
-	printf("%s:%s/bin\n", path, SNAP_MOUNT_DIR);
+
+	printf("PATH=%s:%s\n", path, snap_bin_dir);
 	return 0;
 }

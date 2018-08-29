@@ -516,7 +516,6 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
 install -d -p %{buildroot}%{_datadir}/polkit-1/actions
-install -d -p %{buildroot}%{_systemdgeneratordir}
 install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 %if 0%{?with_selinux}
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
@@ -530,10 +529,6 @@ install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
-
-# Move the systemd generators
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_systemdgeneratordir}
-mv %{buildroot}%{_libexecdir}/snapd/snapd-env-generator %{buildroot}%{_systemd_system_env_generator_dir}
 
 %if 0%{?with_selinux}
 # Install SELinux module
@@ -716,7 +711,6 @@ popd
 %{_libexecdir}/snapd/system-shutdown
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snapd-generator
-%{_systemdgeneratordir}/snapd-generator
 %{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*

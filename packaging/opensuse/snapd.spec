@@ -284,9 +284,6 @@ install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 # move snapd-generator
 install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
 mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/
-# move snapd-env-generator
-install -m 755 -d %{buildroot}%{_prefix}/usr/lib/systemd/systemd-environment-generators/
-mv %{buildroot}%{_libexecdir}/snapd/snapd-env-generator %{buildroot}%{_prefix}/usr/lib/systemd/systemd-environment-generators/
 
 # Don't ship apparmor helper service when AppArmor is not enabled
 %if ! %{with apparmor}
@@ -402,7 +399,7 @@ fi
 %endif
 %{_environmentdir}/990-snapd.conf
 %{buildroot}%{_prefix}/lib/systemd/system-generators/snapd-generator
-%{_prefix}/usr/lib/systemd/systemd-environment-generators/snapd-env-generator
+%{_prefix}/usr/lib/systemd/system-environment-generators/snapd-env-generator
 
 %changelog
 

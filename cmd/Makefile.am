@@ -7,6 +7,9 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
+# FIXME: get this via something like pkgconf once it is defined there
+SYSTEMD_SYSTEM_ENV_GENERATOR_DIR=/usr/lib/systemd/system-environment-generators
+
 CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
 	-Wno-missing-field-initializers -Wno-unused-parameter
 
@@ -469,7 +472,8 @@ snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
 ## snapd-env-generator
 ##
 
-libexec_PROGRAMS += snapd-env-generator/snapd-env-generator
+systemdsystemenvgeneratordir=$(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
+systemdsystemenvgenerator_PROGRAMS = snapd-env-generator/snapd-env-generator
 
 snapd_env_generator_snapd_env_generator_SOURCES = snapd-env-generator/main.c
 
