@@ -106,18 +106,14 @@ func (iface *dummyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	var value string
-	if err := plug.Attr("before-connect", &value); err != nil {
-		return err
-	}
+	plug.Attr("before-connect", &value)
 	value = fmt.Sprintf("plug-changed(%s)", value)
 	return plug.SetAttr("before-connect", value)
 }
 
 func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
 	var value string
-	if err := slot.Attr("before-connect", &value); err != nil {
-		return err
-	}
+	slot.Attr("before-connect", &value)
 	value = fmt.Sprintf("slot-changed(%s)", value)
 	return slot.SetAttr("before-connect", value)
 }
