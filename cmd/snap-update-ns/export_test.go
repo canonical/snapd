@@ -40,9 +40,8 @@ var (
 	ExecWritableMimic = execWritableMimic
 
 	// main
-	ComputeAndSaveChanges  = computeAndSaveChanges
-	ApplyUserFstab         = applyUserFstab
-	ExtractUserHomeSnapDir = extractUserHomeSnapDir
+	ComputeAndSaveChanges = computeAndSaveChanges
+	ApplyUserFstab        = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError

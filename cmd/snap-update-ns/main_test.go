@@ -439,36 +439,3 @@ $USER_HOME_SNAP_DIR/foo_bar $USER_HOME_SNAP_DIR/foo none bind,rw 0 0`
 	c.Assert(changes[1].Entry.Dir, Matches, filepath.Join(xdgRuntimeDir, "doc"))
 
 }
-
-func (s *mainSuite) TestExtractUserHomeSnapDir(c *C) {
-	for _, tc := range []struct {
-		snap string
-		path string
-		exp  string
-	}{{
-		snap: "foo",
-		path: "/home/joe/snap/foobar/123",
-		exp:  "",
-	}, {
-		snap: "bar",
-		path: "/home/joe/snap/foo_bar/123",
-		exp:  "",
-	}, {
-		snap: "foo_bar",
-		path: "/home/joe/snap/foo_bar/123",
-		exp:  "/home/joe/snap",
-	}, {
-		snap: "home",
-		path: "/home/joe/snap/home/123",
-		exp:  "/home/joe/snap",
-	}, {
-		snap: "other-snap",
-		path: "/home/joe/snap/foo/123",
-		exp:  "",
-	}} {
-		c.Logf("trying: %+v", tc)
-
-		res := update.ExtractUserHomeSnapDir(tc.snap, tc.path)
-		c.Check(res, Equals, tc.exp)
-	}
-}

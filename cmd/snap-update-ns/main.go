@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -235,14 +234,6 @@ func debugShowChanges(changes []*Change, header string) {
 
 var osGetenv = os.Getenv
 
-func extractUserHomeSnapDir(snapName, instanceUserDataPath string) string {
-	snapDir := path.Dir(instanceUserDataPath)
-	if !strings.HasSuffix(snapDir, "/"+snapName) {
-		return ""
-	}
-	return path.Dir(snapDir)
-}
-
 func applyUserFstab(snapName string) error {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
@@ -253,7 +244,9 @@ func applyUserFstab(snapName string) error {
 	userHomeSnapDir := ""
 	if ud := osGetenv("SNAP_INSTANCE_USER_DATA"); ud != "" {
 		// /home/joe/snap/foo_bar/123 -> /home/joe/snap
-		userHomeSnapDir = extractUserHomeSnapDir(snapName, ud)
+		if split := strings.SplitN(ud, "/"+snapName+"/", 2); len(split) == 2 {
+			userHomeSnapDir = split[0]
+		}
 	}
 	if userHomeSnapDir == "" {
 		return fmt.Errorf("cannot determine user %v home snap dir", os.Getuid())
