@@ -2353,7 +2353,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return state.NewTaskSet(t), nil
 	}
 
-	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 
 		c.Check(path, testutil.FileEquals, "xyzzy")
@@ -2362,7 +2362,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 		installQueue = append(installQueue, si.RealName+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+		return state.NewTaskSet(t), &snap.Info{SuggestedName: name}, nil
 	}
 
 	buf := bytes.NewBufferString(content)
@@ -2498,7 +2498,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName: "x",
@@ -2506,7 +2506,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 			Revision: snap.R(41),
 		})
 
-		return state.NewTaskSet(), nil
+		return state.NewTaskSet(), &snap.Info{SuggestedName: "x"}, nil
 	}
 
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
@@ -2593,8 +2593,8 @@ func (s *apiSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		return &snap.Info{SuggestedName: "foo"}, nil
 	}
 
-	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
-		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+		return nil, nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	}
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))

@@ -1,31 +1,24 @@
 summary: Ensure that certain directories are coming from the core snap
+
 details: |
   The snap-confine program bind mounts the /etc directory from the
   classic distribution into the snap execution environment.
   Certain directories however, if they exist on the host's /etc
   are actually, bind-mounted from the core snap for a more
   consistent behaviour across various distributions.
-systems:
-    # This test only applies to classic systems
-    - -ubuntu-core-*
+
+environment:
+    DIRECTORY/ssl: /etc/ssl
+
+# This test only applies to classic systems
+systems: [-ubuntu-core-*]
+
 prepare: |
     echo "Having installed the test snap"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
-    # Arch does not use /etc/alternatives
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-        mkdir /etc/alternatives
-    fi
-restore: |
-    # Arch does not use /etc/alternatives
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-        rmdir /etc/alternatives
-    fi
 
-environment:
-    DIRECTORY/alternatives: /etc/alternatives
-    DIRECTORY/ssl: /etc/ssl
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
