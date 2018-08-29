@@ -1,0 +1,9 @@
+summary: Ensure systemd environment generator works
+
+# systemd environment generators are only supported on 17.10+
+systems: [ubuntu-18.04-*]
+
+execute: |
+    echo "Ensure PATH is correct in systemd system units"
+    systemd-run --unit testenv env
+    journalctl -u testenv | MATCH 'PATH=.*:/snap/bin.*'

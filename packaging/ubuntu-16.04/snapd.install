@@ -39,3 +39,7 @@ usr/lib/snapd/snap-gdb-shim
 
 # install squashfuse as snapfuse to ensure it is available in e.g. lxd
 vendor/github.com/snapcore/squashfuse/src/snapfuse usr/bin
+
+# use "usr/lib" here because apparently systemd looks only there
+usr/lib/snapd/snapd-env-generator /usr/lib/systemd/systemd-environment-generators
+
