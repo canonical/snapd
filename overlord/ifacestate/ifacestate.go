@@ -80,7 +80,6 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 
 type connectOpts struct {
 	ByGadget    bool
-	ByHotplug   bool
 	AutoConnect bool
 }
 
@@ -171,10 +170,6 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	}
 	if flags.ByGadget {
 		connectInterface.Set("by-gadget", true)
-	}
-	// XXX: is this needed?
-	if flags.ByHotplug {
-		connectInterface.Set("by-hotplug", true)
 	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
@@ -276,6 +271,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 
 type disconnectOpts struct {
 	AutoDisconnect bool
+	ByHotplug      bool
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -306,6 +302,9 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 
 	if flags.AutoDisconnect {
 		disconnectTask.Set("auto-disconnect", true)
+	}
+	if flags.ByHotplug {
+		disconnectTask.Set("by-hotplug", true)
 	}
 
 	ts := state.NewTaskSet()

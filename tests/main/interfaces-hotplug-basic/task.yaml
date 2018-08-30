@@ -7,24 +7,65 @@ prepare: |
         snap install core
     fi
 
+environment:
+    HOTPLUG_SLOT: net-dummy-dummy0
+
 execute: |
+    check_slot_exists() {
+        # hotplug event may take a few moments to be processed
+            for i in $(seq 5); do
+                if snap interfaces | MATCH "$HOTPLUG_SLOT"; then
+                    break
+                fi
+                sleep 1
+            done
+            snap interfaces | MATCH "$HOTPLUG_SLOT"
+    }
+
+    check_slot_connected() {
+        # hotplug event may take a few moments to be processed
+            for i in $(seq 5); do
+                if snap interfaces | MATCH "$HOTPLUG_SLOT"; then
+                    break
+                fi
+                sleep 1
+            done
+            snap interfaces | MATCH ":$HOTPLUG_SLOT .*snap-hotplug-dummy:dummy"
+    }
+
     echo "Enable hotplug"
     snap set core experimental.hotplug=true
 
     # load dummy network device module
     modprobe dummy
 
-    # hotplug event may take a few moments to be processed
-    for i in $(seq 5); do
-        if snap interfaces | MATCH "net-dummy-"; then
-            break
-        fi
-        sleep 1
-    done
-    snap interfaces | MATCH "net-dummy-dummy0"
+    echo "Checking that the $HOTPLUG_SLOT slot gets created"
+    check_slot_exists
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local snap-hotplug-dummy
 
-    snap connect snap-hotplug-dummy:dummy :net-dummy-dummy0
+    snap connect snap-hotplug-dummy:dummy :"$HOTPLUG_SLOT"
+    check_slot_connected
+
+    # removing dummy network interface triggers hotplug remove event
+    rmmod dummy
+
+    echo "Checking that the $HOTPLUG_SLOT slot gets removed"
+    for i in $(seq 5); do
+        if ! snap interfaces | MATCH "$HOTPLUG_SLOT"; then
+            break
+        fi
+        sleep 1
+    done
+    if snap interfaces | MATCH "$HOTPLUG_SLOT"; then
+        echo "Expected $HOTPLUG_SLOT to disappear"
+        exit 1
+    fi
+
+    modprobe dummy
+
+    echo "Checking that the $HOTPLUG_SLOT is recreated and reconnected"
+    check_slot_connected
+

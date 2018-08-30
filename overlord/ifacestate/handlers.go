@@ -504,14 +504,26 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("auto-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
 		return fmt.Errorf("internal error: failed to read 'auto-disconnect' flag: %s", err)
 	}
-	if conn.Auto && !autoDisconnect {
+
+	// "by-hotplug" flag indicates it's a disconnect triggered by hotplug remove event;
+	// we want to keep information of the connection and just mark it as hotplug-removed.
+	var byHotplug bool
+	if err := task.Get("by-hotplug", &byHotplug); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: failed to read 'hotplug-disconnect' flag: %s", err)
+	}
+
+	switch {
+	case byHotplug:
+		conn.HotplugRemoved = true
+		conns[cref.ID()] = conn
+	case conn.Auto && !autoDisconnect:
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
 		conn.DynamicSlotAttrs = nil
 		conn.StaticPlugAttrs = nil
 		conn.StaticSlotAttrs = nil
 		conns[cref.ID()] = conn
-	} else {
+	default:
 		delete(conns, cref.ID())
 	}
 	setConns(st, conns)
@@ -1183,9 +1195,8 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 				connRef := interfaces.NewConnRef(plug, slot)
 				key := connRef.ID()
-				if _, ok := conns[key]; ok {
+				if conn, ok := conns[key]; ok && !conn.HotplugRemoved {
 					// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
-					// NOTE: we don't log anything here as this is a normal and common condition.
 					continue
 				}
 
@@ -1213,7 +1224,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		autots := state.NewTaskSet()
 		// Create connect tasks and interface hooks
 		for _, conn := range newconns {
-			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true})
+			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{})
 			if err != nil {
 				return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 			}
@@ -1262,17 +1273,17 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// Create connect tasks and interface hooks
 	if len(newconns) > 0 {
-		ts := state.NewTaskSet()
+		connectTs := state.NewTaskSet()
 		for _, conn := range newconns {
-			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true, ByHotplug: true})
+			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{})
 			if err != nil {
 				return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
 			}
-			ts.AddAll(ts)
+			connectTs.AddAll(ts)
 		}
 
-		if len(ts.Tasks()) > 0 {
-			snapstate.InjectTasks(task, ts)
+		if len(connectTs.Tasks()) > 0 {
+			snapstate.InjectTasks(task, connectTs)
 			st.EnsureBefore(0)
 		}
 
@@ -1324,10 +1335,8 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 			if err != nil {
 				break
 			}
-			// "auto-disconnect" flag indicates it's a disconnect triggered as part of hotplug removal, in which
-			// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
-			// them so they can be automatically connected if the snap is installed again.
-			ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
+			// "by-hotplug" flag indicates it's a disconnect triggered as part of hotplug removal.
+			ts, err := disconnectTasks(st, conn, disconnectOpts{ByHotplug: true})
 			if err != nil {
 				return err
 			}
