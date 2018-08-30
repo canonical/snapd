@@ -601,6 +601,41 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
 	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
 }
 
+func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "arch"})
+	defer restore()
+	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreClassicTemplate()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("snippet")
+		return nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
+}
+
 const coreYaml = `name: core
 version: 1
 type: os
@@ -1345,4 +1380,31 @@ apps:
   mount options=(rw rbind) /snap/some-snap_instance/ -> /snap/some-snap/,
   mount options=(rw rbind) /var/snap/some-snap_instance/ -> /var/snap/some-snap/,
 `)
+}
+
+func (s *backendSuite) TestDowngradeConfinement(c *C) {
+
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+
+	for _, tc := range []struct {
+		distro   string
+		kernel   string
+		expected bool
+	}{
+		{"opensuse-tumbleweed", "4.16.10-1-default", false},
+		{"opensuse-tumbleweed", "4.14.1-default", true},
+		{"arch", "4.18.2.a-1-hardened", false},
+		{"arch", "4.18.5-arch1-1-ARCH", true},
+		{"arch", "4.17.4-hardened", false},
+		{"arch", "4.17.4-1-ARCH", true},
+		{"arch", "4.18.6-arch1-1-ARCH", true},
+	} {
+		c.Logf("trying: %+v", tc)
+		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})
+		defer restore()
+		restore = osutil.MockKernelVersion(tc.kernel)
+		defer restore()
+		c.Check(apparmor.DowngradeConfinement(), Equals, tc.expected, Commentf("unexpected result for %+v", tc))
+	}
 }
