@@ -132,7 +132,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			continue
 		}
 
-		logger.Debugf("HotplugDeviceAdded: %s (default key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), defaultKey, devinfo.DeviceName(), devinfo.Subsystem())
+		logger.Debugf("HotplugDeviceAdded: %s (interface: %s, device key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), iface, key, devinfo.DeviceName(), devinfo.Subsystem())
 
 		stateSlots, err := getHotplugSlots(st)
 		if err != nil {
@@ -253,11 +253,7 @@ func findConnsForDeviceKey(conns *map[string]connState, coreSnapName, ifaceName,
 
 func (m *InterfaceManager) hotplugEnabled() (bool, error) {
 	tr := config.NewTransaction(m.state)
-	var featureFlagHotplug bool
-	if err := tr.GetMaybe("core", "experimental.hotplug", &featureFlagHotplug); err != nil {
-		return false, err
-	}
-	return featureFlagHotplug, nil
+	return snapstate.GetFeatureFlagBool(tr, "experimental.hotplug")
 }
 
 type hotplugSlotDef struct {
