@@ -8,7 +8,7 @@
 
 # Compat macros
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
-%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/usr/lib/systemd/system-environment-generators}
+%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
 # With Amazon Linux 2+, we're going to provide the /snap symlink by default,
 # since classic snaps currently require it... :(
@@ -667,11 +667,11 @@ popd
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.autoimport.service
-%{_unitdir}/snapd.seeded.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_systemd_system_env_generator_dir}/snapd-env-generator
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -712,7 +712,6 @@ popd
 %{_libexecdir}/snapd/system-shutdown
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snapd-generator
-%{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void

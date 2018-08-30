@@ -398,8 +398,7 @@ fi
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %{_environmentdir}/990-snapd.conf
-%{buildroot}%{_prefix}/lib/systemd/system-generators/snapd-generator
-%{_prefix}/usr/lib/systemd/system-environment-generators/snapd-env-generator
+%{_prefix}/lib/systemd/system-environment-generators/snapd-env-generator
 
 %changelog
 
