@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -140,11 +139,6 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	return func() {
 		IsOnMeteredConnection = old
 	}
-}
-
-func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
-	sort.Sort(byKind(snaps))
-	return snaps
 }
 
 func MockModelWithBase(baseName string) (restore func()) {
