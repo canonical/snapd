@@ -147,6 +147,12 @@ func UserCommonDataDir(home string, name string) string {
 	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
 }
 
+// UserSnapDir returns the user-specific directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserSnapDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name)
+}
+
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
 // given snap name. The name can be either a snap name or snap instance name.
 func UserXdgRuntimeDir(euid sys.UserID, name string) string {
@@ -735,7 +741,8 @@ type HookInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment strutil.OrderedMap
+	Environment  strutil.OrderedMap
+	CommandChain []string
 }
 
 // File returns the path to the *.socket file
@@ -1068,4 +1075,14 @@ func InstanceName(snapName, instanceKey string) string {
 		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
 	return snapName
+}
+
+// ByType supports sorting the given slice of snap info by types. The most
+// important types will come first.
+type ByType []*Info
+
+func (r ByType) Len() int      { return len(r) }
+func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r ByType) Less(i, j int) bool {
+	return r[i].Type.SortsBefore(r[j].Type)
 }
