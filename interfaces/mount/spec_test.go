@@ -174,10 +174,10 @@ func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
 		{Dir: "/snap/vanguard", Name: "/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
 		{Dir: "/var/snap/vanguard", Name: "/var/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
 		// Layout result is sorted by mount path.
-		{Dir: "/etc/foo.conf", Name: "/snap/vanguard_instance/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
-		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard_instance/42/link/target", "x-snapd.origin=layout"}},
+		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
+		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
 		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
-		{Dir: "/usr", Name: "/snap/vanguard_instance/42/usr", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
 	})
 }
 
