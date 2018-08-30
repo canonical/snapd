@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var (
+	selftestRun = selftest.Run
+)
+
 func init() {
 	err := logger.SimpleSetup()
 	if err != nil {
@@ -48,7 +52,10 @@ func init() {
 
 func main() {
 	cmd.ExecInCoreSnap()
-	if err := run(); err != nil {
+
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	if err := run(ch); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
@@ -84,12 +91,9 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 	return wt, nil
 }
 
-func run() error {
+func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
-
-	ch := make(chan os.Signal, 2)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -102,10 +106,10 @@ func run() error {
 	// Run selftest now, if anything goes wrong with the selftest we go
 	// into "degraded" mode where we always report the given error to
 	// any snap client.
-	if err := selftest.Run(); err != nil {
-		degradedErr := fmt.Errorf("selftest failed: %s", err)
+	if err := selftestRun(); err != nil {
+		degradedErr := fmt.Errorf("selftest failed with: %s", err)
 		logger.Noticef("%s", degradedErr)
-		logger.Noticef("Entering degraded mode")
+		logger.Noticef("entering degraded mode")
 		d.DegradedMode(degradedErr)
 	}
 
