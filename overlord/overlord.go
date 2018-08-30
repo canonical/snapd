@@ -267,11 +267,6 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
-			// without snaps on the system we may go into
-			// socket activation mode
-			if o.CanGoSocketActivated() {
-				o.State().RequestRestart(state.RestartSocket)
-			}
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -284,37 +279,6 @@ func (o *Overlord) Loop() {
 			}
 		}
 	})
-}
-
-// CanGoSocketActivated returns true if the main ensure loop can go into
-// "socket-activation" mode. This is only possible once seeding is done
-// and there are no snaps on the system. This is to reduce the memory
-// footprint on e.g. containers.
-func (o *Overlord) CanGoSocketActivated() bool {
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	// check if there are snaps
-	if n, err := snapstate.NumSnaps(st); err != nil || n > 0 {
-		return false
-	}
-	// check if seeding is done
-	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil {
-		return false
-	}
-	if !seeded {
-		return false
-	}
-	// check if there are any changes in flight
-	for _, chg := range st.Changes() {
-		if !chg.Status().Ready() || !chg.IsClean() {
-			return false
-		}
-	}
-
-	return true
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.
