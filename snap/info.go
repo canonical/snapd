@@ -435,7 +435,6 @@ func (s *Info) ExpandSnapMountVariables(path string) string {
 			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
-			return s.DataDir()
 		case "SNAP_COMMON":
 			return CommonDataDir(s.SnapName())
 		}
