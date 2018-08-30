@@ -753,6 +753,67 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+		},
+		Current:     snap.R(3),
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	// ensure stable ordering of updates list
+	if updates[0] != "some-snap" {
+		updates[1], updates[0] = updates[0], updates[1]
+	}
+
+	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
+
+	var snapsup, snapsupInstance *snapstate.SnapSetup
+
+	// ensure stable ordering of task sets list
+	snapsup, err = snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	if snapsup.InstanceName() != "some-snap" {
+		tts[0], tts[1] = tts[1], tts[0]
+		snapsup, err = snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+		c.Assert(err, IsNil)
+	}
+	snapsupInstance, err = snapstate.TaskSnapSetup(tts[1].Tasks()[0])
+	c.Assert(err, IsNil)
+
+	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsupInstance.InstanceName(), Equals, "some-snap_instance")
+
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tts[0], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tts[1], s.state)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -852,22 +913,6 @@ func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
 	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 0)
-}
-
-func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
-	core := &snap.Info{Type: snap.TypeOS}
-	base := &snap.Info{Type: snap.TypeBase}
-	app := &snap.Info{Type: snap.TypeApp}
-	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
-
-	c.Check(snapstate.ByKindOrder(base, core), DeepEquals, []*snap.Info{core, base})
-	c.Check(snapstate.ByKindOrder(app, core), DeepEquals, []*snap.Info{core, app})
-	c.Check(snapstate.ByKindOrder(app, base), DeepEquals, []*snap.Info{base, app})
-	c.Check(snapstate.ByKindOrder(app, base, core), DeepEquals, []*snap.Info{core, base, app})
-	c.Check(snapstate.ByKindOrder(app, core, base), DeepEquals, []*snap.Info{core, base, app})
-
-	c.Check(snapstate.ByKindOrder(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
-	c.Check(snapstate.ByKindOrder(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
@@ -11560,6 +11605,18 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
 	// but snapd do not for install
 	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+}
+
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {

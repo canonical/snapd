@@ -5,7 +5,7 @@ summary: Check that snap info works
 systems: [-ubuntu-core-18-*, -amazon-*]
 
 prepare: |
-    snap pack $TESTSLIB/snaps/basic
+    snap pack "$TESTSLIB"/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
 
@@ -15,16 +15,17 @@ restore: |
 
 execute: |
     echo "With no arguments, errors out"
-    snap info && exit 1 || true
+    ! snap info
 
     echo "With one non-snap argument, errors out"
-    snap info /etc/passwd && exit 1 || true
+    ! snap info /etc/passwd
 
-    snap info basic_1.0_all.snap $TESTSLIB/snaps/basic-desktop test-snapd-tools test-snapd-devmode core /etc/passwd test-snapd-python-webserver > out
+    snap info basic_1.0_all.snap "$TESTSLIB"/snaps/basic-desktop test-snapd-tools test-snapd-devmode core /etc/passwd test-snapd-python-webserver > out
     PYTHONIOENCODING=utf8 python3 check.py < out
 
-    . $TESTSLIB/snaps.sh
-    snap info --verbose $TESTSLIB/snaps/basic-desktop|MATCH "path: "
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    snap info --verbose "$TESTSLIB"/snaps/basic-desktop|MATCH "path: "
     install_local basic-desktop
     snap info basic-desktop|MATCH "license:[ ]+GPL-3.0"
 
