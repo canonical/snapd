@@ -1,20 +1,25 @@
 summary: Ensure that snap layouts are applied
+
 details: |
     This test installs a test snap that uses layout declarations.
     The layout changes which directories and files exist in the filesystem
     in the area beyond the $SNAP directory. In addition all applications and
     hooks get permissions to access those areas.
+
 prepare: |
     echo "Ensure feature flag is enabled"
     snap set core experimental.layouts=true
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-layout
+
 debug: |
     ls -ld /etc || :
     ls -ld /etc/demo || :
     ls -ld /etc/demo.conf || :
     ls -ld /etc/demo.cfg || :
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
@@ -90,3 +95,8 @@ execute: |
         test-snapd-layout.sh -c 'test -w $SNAP/bin-very-weird-place'
         test-snapd-layout.sh -c 'test -w /bin/very-weird-place'
     done
+
+restore:
+    # cleanup after the trespassing bug, see: https://github.com/snapcore/snapd/pull/4889
+    # TODO: remove this once the problem is addressed
+    rm -rf /etc/demo /etc/demo.conf /etc/demo.cfg
