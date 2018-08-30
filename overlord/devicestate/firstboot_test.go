@@ -1564,5 +1564,5 @@ snaps:
 	defer st.Unlock()
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st)
-	c.Assert(err, ErrorMatches, `cannot use gadget snap because base "" is different from model base "core18"`)
+	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
