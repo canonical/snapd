@@ -21,23 +21,37 @@ package patch_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type patchSuite struct{}
+type patchSuite struct {
+	restoreSanitize func()
+}
 
 var _ = Suite(&patchSuite{})
+
+func (s *patchSuite) SetUpTest(c *C) {
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+}
+
+func (s *patchSuite) TearDownTest(c *C) {
+	s.restoreSanitize()
+}
 
 func (s *patchSuite) TestInit(c *C) {
 	restore := patch.Mock(2, 1, nil)
@@ -315,7 +329,6 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
 		6: {p60, p61, p62},
 	})
-
 	defer restore()
 
 	st := state.New(nil)
@@ -323,18 +336,24 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 
 	// simulate the situation where core was refreshed
 	// from a revision with patch level 6 that's not sublevel-aware back to 6.2.
-	st.Set("last-refresh", time.Now().Add(-23*time.Hour))
 	st.Set("patch-level", 6)
 	st.Set("patch-sublevel", 2)
 
+	const coreYaml = `name: core
+version: 1
+type: os
+`
 	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(5142)}
 	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
+	snaptest.MockSnapCurrent(c, coreYaml, siCore2)
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
 		Sequence: []*snap.SideInfo{siCore1, siCore2},
 		Current:  siCore2.Revision,
 	})
+	pastTime := time.Now().Add(-23 * time.Hour)
+	c.Assert(os.Chtimes(filepath.Join(dirs.SnapMountDir, "core", "current"), pastTime, pastTime), IsNil)
 	st.Unlock()
 
 	c.Assert(patch.Apply(st), IsNil)
@@ -373,7 +392,6 @@ func (s *patchSuite) TestRefreshBackFromLevel60ShortSequence(c *C) {
 	// simulate the situation where core was refreshed
 	// from a revision with patch level 6 that's not sublevel-aware back to 6.2,
 	// but sequence for core is missing.
-	st.Set("last-refresh", time.Now().Add(-23*time.Hour))
 	st.Set("patch-level", 6)
 	st.Set("patch-sublevel", 2)
 

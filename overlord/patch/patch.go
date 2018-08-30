@@ -21,8 +21,11 @@ package patch
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -109,10 +112,11 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	}
 
 	var sublevelResetTime time.Time
-	var lastRefresh time.Time
-	if err := s.Get("last-refresh", &lastRefresh); err != nil && err != state.ErrNoState {
-		return fmt.Errorf("cannot read last-refresh: %s", err)
+	lastRefresh, err := getCoreRefreshTime()
+	if err != nil {
+		return fmt.Errorf("cannot determine core refresh time: %s", err)
 	}
+
 	err = s.Get("patch-sublevel-reset", &sublevelResetTime)
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot read patch-sublevel-reset: %s", err)
@@ -124,6 +128,15 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	}
 
 	return nil
+}
+
+func getCoreRefreshTime() (time.Time, error) {
+	path := filepath.Join(dirs.SnapMountDir, "/core/current")
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
 }
 
 // Apply applies any necessary patches to update the provided state to
