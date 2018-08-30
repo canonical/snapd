@@ -573,6 +573,9 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 		bootvar := ""
 
 		info := downloadedSnapsInfoForBootConfig[fn]
+		if info == nil {
+			return fmt.Errorf("cannot get download info for snap %s", fn)
+		}
 		switch info.Type {
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
