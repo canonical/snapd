@@ -20,7 +20,7 @@ execute: |
     snap changes | MATCH "Done.*Initialize system state"
 
     echo "And then goes into socket activation mode"
-    for _ in $(seq 30); do
+    for _ in $(seq 120); do
         if systemctl status snapd.service | grep -q -E "Active: inactive"; then
             break
         fi
