@@ -20,6 +20,7 @@
 package patch
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,8 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Level is the current implemented patch level of the state format and content.
@@ -75,6 +76,26 @@ func applySublevelPatches(level, firstSublevel int, s *state.State) error {
 	return nil
 }
 
+type patchSnapState struct {
+	Sequence []*patchSideInfo `json:"sequence"`
+	Current  snap.Revision    `json:"current"`
+}
+
+type patchSideInfo struct {
+	Revision snap.Revision `json:"revision"`
+}
+
+// lastIndex returns the last index of the given revision in the
+// snapst.Sequence
+func (snapst *patchSnapState) lastIndex(revision snap.Revision) int {
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		if snapst.Sequence[i].Revision == revision {
+			return i
+		}
+	}
+	return -1
+}
+
 // maybeResetSublevelForLevel60 checks if the previously installed core revision was a patch 6 sublevel 0
 // i.e. unaware of sublevels and the need for resetting sublevel state and if so, resets sublevel to 0
 // to re-apply sublevel patches.
@@ -82,32 +103,46 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	s.Lock()
 	defer s.Unlock()
 
-	core, err := snapstate.CoreInfo(s)
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
 	if err == state.ErrNoState {
-		// no core snap - nothing to do.
 		return nil
 	}
 	if err != nil {
 		return err
 	}
 
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(s, core.InstanceName(), &snapst); err != nil {
-		return err
-	}
-	if len(snapst.Sequence) < 2 {
+	raw, ok := snaps["core"]
+	if err == state.ErrNoState || !ok {
+		// no core snap - nothing to do.
 		return nil
 	}
-	currentIndex := snapst.LastIndex(snapst.Current)
-	if currentIndex < 0 {
+
+	var snapst patchSnapState
+	if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
+		return fmt.Errorf("cannot unmarshal snap state: %v", err)
+	}
+
+	seqlen := len(snapst.Sequence)
+	if seqlen < 2 {
+		return nil
+	}
+	current := snapst.lastIndex(snapst.Current)
+	if current < 0 {
 		return fmt.Errorf("internal error: couldn't find current core revision in the snap sequence")
 	}
 
-	prevRev := snapst.Sequence[currentIndex-1].Revision
-
 	// check if core revision is for patch level 6.0.
-	// the revision number here is the highest rev number from candidate channels of all architectures
-	if prevRev.N > 5332 {
+	// the revision number here is the highest rev number from candidate channels of all architectures;
+	// we check previous and next revision in the snap sequence to support refresh and revert cases.
+	var lvl60rev bool
+	if current > 0 && snapst.Sequence[current-1].Revision.N <= 5332 {
+		lvl60rev = true
+	}
+	if current < seqlen-1 && snapst.Sequence[current+1].Revision.N <= 5332 {
+		lvl60rev = true
+	}
+	if !lvl60rev {
 		return nil
 	}
 
@@ -131,7 +166,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 }
 
 func getCoreRefreshTime() (time.Time, error) {
-	path := filepath.Join(dirs.SnapMountDir, "/core/current")
+	path := filepath.Join(dirs.SnapMountDir, "core", "current")
 	info, err := os.Stat(path)
 	if err != nil {
 		return time.Time{}, err
