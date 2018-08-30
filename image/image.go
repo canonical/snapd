@@ -434,6 +434,12 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		if err != nil {
 			return err
 		}
+		// Sanity check, note that we could support this case
+		// if we have a use-case but it requires changes in the
+		// devicestate/firstboot.go ordering code.
+		if info.Type == snap.TypeGadget && info.Base != model.Base() {
+			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
+		}
 		if info.Base != "" && !strutil.ListContains(snaps, info.Base) {
 			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
 		}
