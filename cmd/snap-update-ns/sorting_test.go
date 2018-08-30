@@ -39,9 +39,31 @@ func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
 		{Dir: "/a/b-1/3"},
 		{Dir: "/a/b/c"},
 	}
-	sort.Sort(byMagicDir(entries))
+	sort.Sort(byOriginAndMagicDir(entries))
 	// Entries sorted as if they had a trailing slash.
 	c.Assert(entries, DeepEquals, []osutil.MountEntry{
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/a/b"},
+		{Dir: "/a/b/c"},
+	})
+}
+
+func (s *sortSuite) TestParallelInstancesAndSimple(c *C) {
+	// Naively sorted entries.
+	entries := []osutil.MountEntry{
+		{Dir: "/a/b"},
+		{Dir: "/a/b-1"},
+		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/foo/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
+		{Dir: "/a/b/c"},
+	}
+	sort.Sort(byOriginAndMagicDir(entries))
+	// Entries sorted as if they had a trailing slash.
+	c.Assert(entries, DeepEquals, []osutil.MountEntry{
+		{Dir: "/foo/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
+		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
 		{Dir: "/a/b"},
