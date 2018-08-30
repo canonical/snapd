@@ -354,6 +354,50 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	c.Assert(patch.Apply(st), IsNil)
 	c.Assert(sequence, DeepEquals, []int{63})
 }
+func (s *patchSuite) TestRefreshBackFromLevel60ShortSequence(c *C) {
+	var sequence []int
+
+	p60 := generatePatchFunc(60, &sequence)
+	p61 := generatePatchFunc(61, &sequence)
+	p62 := generatePatchFunc(62, &sequence)
+
+	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+		6: {p60, p61, p62},
+	})
+
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+
+	// simulate the situation where core was refreshed
+	// from a revision with patch level 6 that's not sublevel-aware back to 6.2,
+	// but sequence for core is missing.
+	st.Set("last-refresh", time.Now().Add(-23*time.Hour))
+	st.Set("patch-level", 6)
+	st.Set("patch-sublevel", 2)
+
+	siCore := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore},
+		Current:  siCore.Revision,
+	})
+	st.Unlock()
+
+	c.Assert(patch.Apply(st), IsNil)
+	c.Assert(sequence, HasLen, 0)
+
+	st.Lock()
+	defer st.Unlock()
+	var level, sublevel int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(level, Equals, 6)
+	c.Check(sublevel, Equals, 2)
+}
+
 func (s *patchSuite) TestSanity(c *C) {
 	patches := patch.PatchesForTest()
 	levels := make([]int, 0, len(patches))
