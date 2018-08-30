@@ -421,8 +421,9 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
-func (s *Info) ExpandSnapVariables(path string) string {
+// ExpandSnapMountVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
+// snap's mount namespace.
+func (s *Info) ExpandSnapMountVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
@@ -431,11 +432,12 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
 			// TODO parallel-install: use of proper instance/store name
-			return filepath.Join(dirs.CoreSnapMountDir, s.InstanceName(), s.Revision.String())
+			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
+			return DataDir(s.SnapName(), s.Revision)
 			return s.DataDir()
 		case "SNAP_COMMON":
-			return s.CommonDataDir()
+			return CommonDataDir(s.SnapName())
 		}
 		return ""
 	})
