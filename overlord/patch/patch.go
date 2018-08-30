@@ -175,13 +175,13 @@ func Apply(s *state.State) error {
 	}
 
 	// at the lower Level - apply all new level and sublevel patches
-	for level := stateLevel; level < Level; level++ {
-		sublevels := patches[level+1]
-		logger.Noticef("Patching system state from level %d to %d", level, level+1)
+	for level := stateLevel + 1; level <= Level; level++ {
+		sublevels := patches[level]
+		logger.Noticef("Patching system state from level %d to %d", level-1, level)
 		if sublevels == nil {
-			return fmt.Errorf("cannot upgrade: snapd is too new for the current system state (patch level %d)", level)
+			return fmt.Errorf("cannot upgrade: snapd is too new for the current system state (patch level %d)", level-1)
 		}
-		if err := applySublevelPatches(level+1, 0, s); err != nil {
+		if err := applySublevelPatches(level, 0, s); err != nil {
 			return err
 		}
 	}
