@@ -8,6 +8,7 @@
 
 # Compat macros
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/usr/lib/systemd/system-environment-generators}
 
 # With Amazon Linux 2+, we're going to provide the /snap symlink by default,
 # since classic snaps currently require it... :(
