@@ -357,6 +357,10 @@ func (d *Daemon) Init() error {
 // the daemon cannot work because e.g. a selftest failed.
 func (d *Daemon) DegradedMode(err error) {
 	d.router = mux.NewRouter()
+	// handle sysinfo so that e.g. snap version works
+	d.router.Handle(sysInfoCmd.Path, sysInfoCmd).Name(sysInfoCmd.Path)
+	// but everything else gives an internal error with the details
+	// why the system is in degraded mode
 	d.router.PathPrefix("/").Handler(InternalError(err.Error()))
 }
 
