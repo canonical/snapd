@@ -187,14 +187,14 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP_REVISION":      "42",
 			"SNAP_VERSION":       "1.0",
 
-			// NOTE: those are mapped by mount namespace setup
+			// Those are mapped to snap-specific directories by
+			// mount namespace setup
 			"SNAP":        fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON": "/var/snap/snapname/common",
 			"SNAP_DATA":   "/var/snap/snapname/42",
 
-			// NOTE: currently we cannot do the user bind mounts in
-			// a secure way, thus the instance-specific user's data
-			// directories are not mapped to snap-specific ones
+			// User's data directories are not mapped to
+			// snap-specific ones
 			"SNAP_USER_COMMON": fmt.Sprintf("%s/snap/snapname_foo/common", usr.HomeDir),
 			"SNAP_USER_DATA":   fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
