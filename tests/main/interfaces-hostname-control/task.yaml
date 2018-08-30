@@ -3,6 +3,9 @@ summary: Ensure that the hostname-control interface works
 details: |
     The hostname-control interface allows to configure the system hostname
 
+# ubuntu-core-18 is skipped until hostnamectl is fixed
+systems: [-ubuntu-core-18-*]
+
 prepare: |
     echo "Install test hostname-control snap"
     #shellcheck source=tests/lib/snaps.sh
@@ -18,7 +21,7 @@ execute: |
 
     hostname="$(hostname)"
 
-    echo "Then the plug is disconnected by default"
+    echo "The plug is disconnected by default"
     snap interfaces -i hostname-control | MATCH -- '- +test-snapd-hostname-control:hostname-control'
     
     echo "When the plug is connected"
@@ -34,7 +37,7 @@ execute: |
         test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname"
     fi
 
-    echo "And hostname can be set/set through dbus"
+    echo "And hostname can be get/set through dbus"
     test-snapd-hostname-control.sh -c "hostnamectl" | MATCH "$hostname"
     test-snapd-hostname-control.sh -c "hostnamectl set-hostname $hostname"
     
