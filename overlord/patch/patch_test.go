@@ -319,6 +319,11 @@ func (s *patchSuite) TestError(c *C) {
 	c.Check(n, Equals, 10)
 }
 
+const coreYaml = `name: core
+version: 1
+type: os
+`
+
 func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	var sequence []int
 
@@ -326,52 +331,62 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 	p61 := generatePatchFunc(61, &sequence)
 	p62 := generatePatchFunc(62, &sequence)
 
-	restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
-		6: {p60, p61, p62},
-	})
-	defer restore()
+	currentPath := filepath.Join(dirs.SnapMountDir, "core", "current")
+	for _, coreRev := range []struct{ current, first, second int }{
+		{5500, 5142, 5500},
+		{5555, 5555, 5142},
+	} {
+		restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
+			6: {p60, p61, p62},
+		})
+		defer restore()
 
-	st := state.New(nil)
-	st.Lock()
+		sequence = []int{}
+		st := state.New(nil)
+		st.Lock()
 
-	// simulate the situation where core was refreshed
-	// from a revision with patch level 6 that's not sublevel-aware back to 6.2.
-	st.Set("patch-level", 6)
-	st.Set("patch-sublevel", 2)
+		// simulate the situation where core was refreshed
+		// from a revision with patch level 6 that's not sublevel-aware back to 6.2.
+		st.Set("patch-level", 6)
+		st.Set("patch-sublevel", 2)
 
-	const coreYaml = `name: core
-version: 1
-type: os
-`
-	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(5142)}
-	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
-	snaptest.MockSnapCurrent(c, coreYaml, siCore2)
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{siCore1, siCore2},
-		Current:  siCore2.Revision,
-	})
-	pastTime := time.Now().Add(-23 * time.Hour)
-	c.Assert(os.Chtimes(filepath.Join(dirs.SnapMountDir, "core", "current"), pastTime, pastTime), IsNil)
-	st.Unlock()
+		siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(coreRev.first)}
+		siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(coreRev.second)}
+		if coreRev.current == coreRev.first {
+			snaptest.MockSnapCurrent(c, coreYaml, siCore1)
+		} else {
+			snaptest.MockSnapCurrent(c, coreYaml, siCore2)
+		}
 
-	c.Assert(patch.Apply(st), IsNil)
-	c.Assert(sequence, DeepEquals, []int{61, 62})
+		snapstate.Set(st, "core", &snapstate.SnapState{
+			SnapType: "os",
+			Active:   true,
+			Sequence: []*snap.SideInfo{siCore1, siCore2},
+			Current:  snap.R(coreRev.current),
+		})
+		pastTime := time.Now().Add(-23 * time.Hour)
+		c.Assert(os.Chtimes(currentPath, pastTime, pastTime), IsNil)
+		st.Unlock()
 
-	// the patches shouldn't be applied again
-	sequence = []int{}
-	c.Assert(patch.Apply(st), IsNil)
-	c.Assert(sequence, HasLen, 0)
+		c.Assert(patch.Apply(st), IsNil)
+		c.Assert(sequence, DeepEquals, []int{61, 62})
 
-	// new sublevel patch 6.3 gets implemented, and is applied
-	p63 := generatePatchFunc(63, &sequence)
-	patch.Mock(6, 3, map[int][]patch.PatchFunc{
-		6: {p60, p61, p62, p63},
-	})
+		// the patches shouldn't be applied again
+		sequence = []int{}
+		c.Assert(patch.Apply(st), IsNil)
+		c.Assert(sequence, HasLen, 0)
 
-	c.Assert(patch.Apply(st), IsNil)
-	c.Assert(sequence, DeepEquals, []int{63})
+		// new sublevel patch 6.3 gets implemented, and is applied
+		p63 := generatePatchFunc(63, &sequence)
+		patch.Mock(6, 3, map[int][]patch.PatchFunc{
+			6: {p60, p61, p62, p63},
+		})
+
+		c.Assert(patch.Apply(st), IsNil)
+		c.Assert(sequence, DeepEquals, []int{63})
+
+		os.Remove(currentPath)
+	}
 }
 func (s *patchSuite) TestRefreshBackFromLevel60ShortSequence(c *C) {
 	var sequence []int
