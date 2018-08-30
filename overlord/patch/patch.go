@@ -145,7 +145,7 @@ func Apply(s *state.State) error {
 		return fmt.Errorf("cannot downgrade: snapd is too old for the current system state (patch level %d)", stateLevel)
 	}
 
-	// check we refreshed from 6.0 which was not aware of sublevels
+	// check if we refreshed from 6.0 which was not aware of sublevels
 	if stateLevel == 6 && stateSublevel > 0 {
 		if err := maybeResetSublevelForLevel60(s, &stateSublevel); err != nil {
 			return err
