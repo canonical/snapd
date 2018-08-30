@@ -14,4 +14,10 @@ execute: |
 
     echo "Ensure PATH is correct in systemd system units"
     systemd-run --unit testenv env
+    for _ in $(seq 30); do
+        if journalctl -u testenv | grep -E 'PATH=.*:/snap/bin.*'; then
+            break
+        fi
+        sleep 1
+    done
     journalctl -u testenv | MATCH 'PATH=.*:/snap/bin.*'
