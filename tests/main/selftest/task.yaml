@@ -17,14 +17,14 @@ execute: |
     wait_for_service snapd
 
     for _ in $(seq 120); do
-        if journalctl -u snapd | grep "selftest failed: cannot mount squashfs image"; then
+        if journalctl -u snapd | grep "selftest failed with: cannot mount squashfs image"; then
             break
         fi
         sleep 1
     done
 
     echo "Ensure selftest error is reported in the journal"
-    journalctl -u snapd | MATCH "selftest failed: cannot mount squashfs image"
+    journalctl -u snapd | MATCH "selftest failed with: cannot mount squashfs image"
     
     echo "Ensure snap commands reply with selftest error"
-    snap list 2>&1 | MATCH "selftest failed: cannot mount squashfs image"
+    snap list 2>&1 | MATCH "selftest failed with: cannot mount squashfs image"
