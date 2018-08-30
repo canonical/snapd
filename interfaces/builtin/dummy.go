@@ -93,7 +93,7 @@ func (iface *dummyInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo
 			"path": di.DevicePath(),
 		},
 	}
-	return spec.AddSlot(&slot)
+	return spec.SetSlot(&slot)
 }
 
 func (iface *dummyInterface) BeforePreparePlug(plug *snap.PlugInfo) error {

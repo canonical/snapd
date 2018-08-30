@@ -223,7 +223,7 @@ func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDevic
 				"path": di.DeviceName(),
 			},
 		}
-		return spec.AddSlot(&slot)
+		return spec.SetSlot(&slot)
 	}
 	return nil
 }

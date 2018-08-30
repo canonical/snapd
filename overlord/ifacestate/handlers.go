@@ -1159,7 +1159,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// we see this device for the first time (or it didn't have any connected slots before)
 	if len(connsForDevice) == 0 {
-		slots, err := m.repo.SlotsForDeviceKey(deviceKey, ifaceName)
+		slot, err := m.repo.SlotForDeviceKey(deviceKey, ifaceName)
 		if err != nil {
 			return err
 		}
@@ -1171,54 +1171,49 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 		var newconns []*interfaces.ConnRef
 		// Auto-connect the slots
-		for _, slot := range slots {
-			snapName := slot.Snap.InstanceName()
-			candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
-			if len(candidates) == 0 {
+
+		snapName := slot.Snap.InstanceName()
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		for _, plug := range candidates {
+			// make sure slot is the only viable
+			// connection for plug, same check as if we were
+			// considering auto-connections from plug
+			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
+
+			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
+				crefs := make([]string, len(candSlots))
+				for i, candidate := range candSlots {
+					crefs[i] = candidate.String()
+				}
+				task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
 				continue
 			}
 
-			for _, plug := range candidates {
-				// make sure slot is the only viable
-				// connection for plug, same check as if we were
-				// considering auto-connections from plug
-				candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
-
-				if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
-					crefs := make([]string, len(candSlots))
-					for i, candidate := range candSlots {
-						crefs[i] = candidate.String()
-					}
-					task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
-					continue
-				}
-
-				connRef := interfaces.NewConnRef(plug, slot)
-				key := connRef.ID()
-				if conn, ok := conns[key]; ok && !conn.HotplugRemoved {
-					// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
-					continue
-				}
-
-				ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
-				if err != nil {
-					return err
-				}
-
-				if ignore {
-					continue
-				}
-
-				if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-					if _, retry := err.(*state.Retry); retry {
-						logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
-						task.Logf("Waiting for conflicting change in progress...")
-						return err // will retry
-					}
-					return fmt.Errorf("auto-connect conflict check failed: %s", err)
-				}
-				newconns = append(newconns, connRef)
+			connRef := interfaces.NewConnRef(plug, slot)
+			key := connRef.ID()
+			if conn, ok := conns[key]; ok && !conn.HotplugRemoved {
+				// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
+				continue
 			}
+
+			ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+			if err != nil {
+				return err
+			}
+
+			if ignore {
+				continue
+			}
+
+			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+				if _, retry := err.(*state.Retry); retry {
+					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					task.Logf("Waiting for conflicting change in progress...")
+					return err // will retry
+				}
+				return fmt.Errorf("auto-connect conflict check failed: %s", err)
+			}
+			newconns = append(newconns, connRef)
 		}
 
 		autots := state.NewTaskSet()
@@ -1351,9 +1346,9 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	return nil
 }
 
-// doHotplugRemoveSlots removes all slots of given hotplug device and interface from the repository.
-// Note, this task must necessarily be run after all affected slots get disconnected.
-func (m *InterfaceManager) doHotplugRemoveSlots(task *state.Task, _ *tomb.Tomb) error {
+// doHotplugRemoveSlot removes hotplug slot for given device from the repository.
+// Note, this task must necessarily be run after all affected slot gets disconnected.
+func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1368,17 +1363,15 @@ func (m *InterfaceManager) doHotplugRemoveSlots(task *state.Task, _ *tomb.Tomb) 
 		return err
 	}
 
-	slots, err := m.repo.SlotsForDeviceKey(deviceKey, ifaceName)
+	slot, err := m.repo.SlotForDeviceKey(deviceKey, ifaceName)
 	if err != nil {
 		return fmt.Errorf("cannot determine slots: %s", err)
 	}
 
-	for _, slot := range slots {
-		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
-			return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
-		}
-		delete(stateSlots, slot.Name)
+	if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
+		return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
 	}
+	delete(stateSlots, slot.Name)
 
 	setHotplugSlots(st, stateSlots)
 
