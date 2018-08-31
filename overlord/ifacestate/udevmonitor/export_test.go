@@ -19,14 +19,6 @@
 
 package udevmonitor
 
-import (
-	"github.com/snapcore/snapd/osutil/udev/netlink"
-)
-
-func MockUDevMonitorChannel(mon *Monitor, events chan netlink.UEvent) {
-	mon.netlinkEvents = events
-}
-
 func MockUDevMonitorStopChannel(mon *Monitor, monitorStop chan struct{}) {
 	mon.monitorStop = monitorStop
 }
