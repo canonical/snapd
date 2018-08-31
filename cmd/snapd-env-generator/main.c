@@ -18,6 +18,9 @@
 #include<stdlib.h>
 #include<string.h>
 #include<stdio.h>
+#include<linux/limits.h>
+
+#include "libsnap-confine-private/string-utils.h"
 
 #include "config.h"
 
@@ -28,8 +31,17 @@ int main(int argc, char **argv)
 	const char *snap_bin_dir = SNAP_MOUNT_DIR "/bin";
 
 	char *path = getenv("PATH");
-	if (strstr(path, snap_bin_dir) != NULL) {
-		return 0;
+	if (path == NULL)
+		path = "";
+	char buf[PATH_MAX + 1] = { 0 };
+	strncpy(buf, path, sizeof(buf) - 1);
+	char *s = buf;
+
+	char *tok = strsep(&s, ":");
+	while (tok != NULL) {
+		if (sc_streq(tok, snap_bin_dir))
+			return 0;
+		tok = strsep(&s, ":");
 	}
 
 	printf("PATH=%s:%s\n", path, snap_bin_dir);

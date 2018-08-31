@@ -476,6 +476,17 @@ systemdsystemenvgeneratordir=$(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
 systemdsystemenvgenerator_PROGRAMS = snapd-env-generator/snapd-env-generator
 
 snapd_env_generator_snapd_env_generator_SOURCES = snapd-env-generator/main.c
+snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.a
+EXTRA_DIST += snapd-env-generator/snapd-env-generator.rst
+
+if HAVE_RST2MAN
+snapd-env-generator/%.7: snapd-env-generator/%.rst
+	mkdir -p snapd-env-generator
+	$(HAVE_RST2MAN) $^ > $@
+
+dist_man_MANS += snapd-env-generator/snapd-env-generator.7
+CLEANFILES += snapd-env-generator/snapd-env-generator.7
+endif
 
 ##
 ## snapd-apparmor
