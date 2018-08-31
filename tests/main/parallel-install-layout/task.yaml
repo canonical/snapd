@@ -4,15 +4,12 @@ details: |
     installed under its regular name as well as a parallel instance. The test
     verifies that the layout requested by snap works and operates only on the
     data owned by given snap instance.
+
 prepare: |
     echo "Ensure feature flags are enabled"
     snap set system experimental.layouts=true
     snap set system experimental.parallel-instances=true
-debug: |
-    ls -ld /etc || :
-    ls -ld /etc/demo || :
-    ls -ld /etc/demo.conf || :
-    ls -ld /etc/demo.cfg || :
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
@@ -37,7 +34,7 @@ execute: |
         $name.sh -c "test -f /etc/demo.conf"
         $name.sh -c "test -h /etc/demo.cfg"
         #shellcheck disable=SC2016
-        test "$($name.sh -c "readlink /etc/demo.cfg")" = "$($name.sh -c 'echo /var/snap/$SNAP_INSTANCE_NAME/common/etc/demo.conf')"
+        test "$($name.sh -c "readlink /etc/demo.cfg")" = "$($name.sh -c 'echo /var/snap/$SNAP_NAME/common/etc/demo.conf')"
         $name.sh -c "test -d /usr/share/demo"
         $name.sh -c "test -d /var/lib/demo"
         $name.sh -c "test -d /var/cache/demo"

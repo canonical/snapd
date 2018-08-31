@@ -304,7 +304,7 @@ func (s *Snap) Build(buildDir string) error {
 	}
 
 	return osutil.ChDir(buildDir, func() error {
-		return exec.Command(
+		output, err := exec.Command(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-noappend",
@@ -312,7 +312,12 @@ func (s *Snap) Build(buildDir string) error {
 			"-no-xattrs",
 			"-no-fragments",
 			"-no-progress",
-		).Run()
+		).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))
+		}
+
+		return nil
 	})
 }
 

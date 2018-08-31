@@ -1,0 +1,79 @@
+summary: check that content interface works with parallel instances
+
+details: |
+    Use the content interface along with parallel instances of snaps. Verify
+    that the content is made available to each snap instance when connected.
+    Make sure that data access works.
+
+environment:
+    VAR/data: SNAP_DATA
+    VAR/common: SNAP_COMMON
+    VAR/snap: SNAP
+    CONTENT/data: data
+    CONTENT/common: common
+    CONTENT/snap: snap
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    path="$(make_snap test-snapd-content-advanced-plug)"
+
+    install_local test-snapd-content-advanced-slot
+
+    devmode=
+    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        # TODO prallel-install: disable devmode once AppArmor profile updates are in
+        devmode=--devmode
+    fi
+
+    snap install --dangerous --name test-snapd-content-advanced-plug "$path"
+    snap install --dangerous $devmode --name test-snapd-content-advanced-plug_foo "$path"
+    snap install --dangerous $devmode --name test-snapd-content-advanced-plug_bar "$path"
+
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target' "$VAR")"
+
+    # connect one of the instances
+    snap connect "test-snapd-content-advanced-plug_foo:$CONTENT" "test-snapd-content-advanced-slot:$CONTENT"
+
+    # the target directory must exist in this instance only
+    test-snapd-content-advanced-plug_foo.sh -c "$(printf 'test -d $%s/target' "$VAR")"
+    test-snapd-content-advanced-plug.sh     -c "$(printf 'test ! -e $%s/target' "$VAR")"
+    test-snapd-content-advanced-plug_bar.sh -c "$(printf 'test ! -e $%s/target' "$VAR")"
+    # and the source directory exists too
+    test-snapd-content-advanced-slot.sh     -c "$(printf 'test -d $%s/source' "$VAR")"
+
+    # connect the rest
+    snap connect "test-snapd-content-advanced-plug:$CONTENT" "test-snapd-content-advanced-slot:$CONTENT"
+    snap connect "test-snapd-content-advanced-plug_bar:$CONTENT" "test-snapd-content-advanced-slot:$CONTENT"
+
+    if [[ "$VAR" != "SNAP" ]]; then
+        # write some test data in one of the instances
+        test-snapd-content-advanced-plug_bar.sh -c "$(printf 'echo hello from $SNAP_INSTANCE_NAME >> $%s/target/canary' "$VAR")"
+        # should be visible in the other one now
+        test-snapd-content-advanced-plug_foo.sh -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'hello from test-snapd-content-advanced-plug_bar'
+        # some more data
+        test-snapd-content-advanced-plug_foo.sh -c "$(printf 'echo hello from $SNAP_INSTANCE_NAME >> $%s/target/canary' "$VAR")"
+        # all of it is visible
+        test-snapd-content-advanced-plug.sh     -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'hello from test-snapd-content-advanced-plug_bar
+    hello from test-snapd-content-advanced-plug_foo'
+
+        test-snapd-content-advanced-slot.sh     -c "$(printf 'cat $%s/source/canary' "$VAR")" | MATCH 'hello from test-snapd-content-advanced-plug_bar
+    hello from test-snapd-content-advanced-plug_foo'
+
+    else
+        test-snapd-content-advanced-plug_foo.sh -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'just some data'
+        test-snapd-content-advanced-plug_bar.sh -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'just some data'
+        test-snapd-content-advanced-plug.sh     -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'just some data'
+    fi
+
+    # when the interface is disconnected
+    snap disconnect "test-snapd-content-advanced-plug:$CONTENT" "test-snapd-content-advanced-slot:$CONTENT"
+    snap disconnect "test-snapd-content-advanced-plug_bar:$CONTENT" "test-snapd-content-advanced-slot:$CONTENT"
+    snap disconnect "test-snapd-content-advanced-plug_foo:$CONTENT" "test-snapd-content-advanced-slot:$CONTENT"
+    # the content is not visible anymore
+    test-snapd-content-advanced-plug_bar.sh -c "$(printf 'test ! -e $%s/target/canary' "$VAR")"
+    test-snapd-content-advanced-plug_foo.sh -c "$(printf 'test ! -e $%s/target/canary' "$VAR")"
+    test-snapd-content-advanced-plug.sh     -c "$(printf 'test ! -e $%s/target/canary' "$VAR")"

@@ -232,6 +232,10 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP//", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42")+"//")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info), Equals, "/var/snap/name/42/")
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info), Equals, "/snap/name/42/$PRUNE/bar")
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/$SNAP/bar", info), Equals, "/snap/name/42/foo/snap/$SNAP/bar")
 }
 
 // Check that legacy syntax works and allows sharing read-only snap content

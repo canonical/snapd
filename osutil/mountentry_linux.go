@@ -427,9 +427,9 @@ func XSnapdOriginLayout() string {
 	return "x-snapd.origin=layout"
 }
 
-// XSnapdOriginLayout returns the string "x-snapd.origin=parallel-instance"
-func XSnapdOriginParallelInstance() string {
-	return "x-snapd.origin=parallel-instance"
+// XSnapdOriginOvername returns the string "x-snapd.origin=overname"
+func XSnapdOriginOvername() string {
+	return "x-snapd.origin=overname"
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".
