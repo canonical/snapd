@@ -574,7 +574,13 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 
 		info := downloadedSnapsInfoForBootConfig[fn]
 		if info == nil {
-			return fmt.Errorf("cannot get download info for snap %s", fn)
+			// this should never happen, if it does print some
+			// debug info
+			keys := make([]string, 0, len(downloadedSnapsInfoForBootConfig))
+			for k := range downloadedSnapsInfoForBootConfig {
+				keys = append(keys, k)
+			}
+			return fmt.Errorf("cannot get download info for snap %s, available infos: %v", fn, keys)
 		}
 		switch info.Type {
 		case snap.TypeOS, snap.TypeBase:
