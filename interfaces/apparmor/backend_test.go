@@ -1372,7 +1372,7 @@ apps:
 	snapInfo := snaptest.MockInfo(c, trivialSnapYaml, &snap.SideInfo{Revision: snap.R(222)})
 	snapInfo.InstanceKey = "instance"
 
-	s.InstallSnapInstance(c, interfaces.ConfinementOptions{}, "some-snap_instance", trivialSnapYaml, 1)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "some-snap_instance", trivialSnapYaml, 1)
 	profileUpdateNS := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap_instance")
 	c.Check(profileUpdateNS, testutil.FileContains, `profile snap-update-ns.some-snap_instance (`)
 	c.Check(profileUpdateNS, testutil.FileContains, `

@@ -161,13 +161,6 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	c.Assert(err, IsNil)
 	return snapInfo
 }
-func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
-	return s.installSnap(c, opts, "", snapYaml, revision)
-}
-
-func (s *BackendSuite) InstallSnapInstance(c *C, opts interfaces.ConfinementOptions, instanceName string, snapYaml string, revision int) *snap.Info {
-	return s.installSnap(c, opts, instanceName, snapYaml, revision)
-}
 
 // UpdateSnap "updates" an existing snap from YAML.
 func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {

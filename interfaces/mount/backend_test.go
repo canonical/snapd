@@ -195,7 +195,7 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 	}
 
 	// confinement options are irrelevant to this security backend
-	s.InstallSnapInstance(c, interfaces.ConfinementOptions{}, "snap-name_instance", mockSnapYaml, 0)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "snap-name_instance", mockSnapYaml, 0)
 
 	// Check that snap fstab file contains parallel instance setup and data from interfaces
 	expected := strings.Join([]string{snapEntry.String(), dataEntry.String(), fsEntry2.String(), fsEntry1.String()}, "\n") + "\n"
