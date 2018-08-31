@@ -84,7 +84,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
 		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 	}
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "samba", ifacetest.SambaYamlV1, 1)
 	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	// the service file was created
 	_, err := os.Stat(service)
@@ -104,7 +104,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 1)
+		snapInfo := s.InstallSnap(c, opts, "samba", ifacetest.SambaYamlV1, 1)
 		s.systemctlArgs = nil
 		s.RemoveSnap(c, snapInfo)
 		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
@@ -129,7 +129,7 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 		}
 		return spec.AddService("snap.samba.interface.bar.service", &systemd.Service{ExecStart: "/bin/false"})
 	}
-	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "samba", ifacetest.SambaYamlV1, 1)
 	s.systemctlArgs = nil
 	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	serviceBar := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.bar.service")
