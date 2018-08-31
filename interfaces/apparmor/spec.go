@@ -160,14 +160,14 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	}
 }
 
-// AddParallelInstanceMapping adds AppArmor snippets allowing remapping of snap
+// AddOvername adds AppArmor snippets allowing remapping of snap
 // directories for parallel installed snaps
 //
 // Specifically snap-update-ns will apply the following bind mounts
 // - /snap/foo_bar -> /snap/foo
 // - /var/snap/foo_bar -> /var/snap/foo
 // - /home/joe/snap/foo_bar -> /home/joe/snap/foo
-func (spec *Specification) AddParallelInstanceMapping(si *snap.Info) {
+func (spec *Specification) AddOvername(si *snap.Info) {
 	if si.InstanceKey == "" {
 		return
 	}

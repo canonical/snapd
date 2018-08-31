@@ -293,7 +293,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// Add snippets for parallel snap installation mapping
-	spec.(*Specification).AddParallelInstanceMapping(snapInfo)
+	spec.(*Specification).AddOvername(snapInfo)
 
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddSnapLayout(snapInfo)
