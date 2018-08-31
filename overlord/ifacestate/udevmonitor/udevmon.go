@@ -65,6 +65,10 @@ func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
 	return m
 }
 
+func (m *Monitor) EventsChannel() chan netlink.UEvent {
+	return m.netlinkEvents
+}
+
 func (m *Monitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
@@ -82,7 +86,10 @@ func (m *Monitor) Connect() error {
 }
 
 func (m *Monitor) Disconnect() error {
-	close(m.monitorStop)
+	select {
+	case m.monitorStop <- struct{}{}:
+	default:
+	}
 	return m.netlinkConn.Close()
 }
 
