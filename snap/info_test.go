@@ -1170,16 +1170,16 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
-	c.Assert(info.ExpandSnapMountVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
-	c.Assert(info.ExpandSnapMountVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
-	c.Assert(info.ExpandSnapMountVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
-	c.Assert(info.ExpandSnapMountVariables("$GARBAGE/rocks"), Equals, "/rocks")
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 
 	info.InstanceKey = "instance"
-	c.Assert(info.ExpandSnapMountVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
-	c.Assert(info.ExpandSnapMountVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
-	c.Assert(info.ExpandSnapMountVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
-	c.Assert(info.ExpandSnapMountVariables("$GARBAGE/rocks"), Equals, "/rocks")
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {

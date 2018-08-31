@@ -64,17 +64,17 @@ func (spec *Specification) AddOvernameMountEntry(e osutil.MountEntry) error {
 func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	var entry osutil.MountEntry
 
-	mountPoint := layout.Snap.ExpandSnapMountVariables(layout.Path)
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	entry.Dir = mountPoint
 
 	// XXX: what about ro mounts?
 	if layout.Bind != "" {
-		mountSource := layout.Snap.ExpandSnapMountVariables(layout.Bind)
+		mountSource := layout.Snap.ExpandSnapVariables(layout.Bind)
 		entry.Options = []string{"rbind", "rw"}
 		entry.Name = mountSource
 	}
 	if layout.BindFile != "" {
-		mountSource := layout.Snap.ExpandSnapMountVariables(layout.BindFile)
+		mountSource := layout.Snap.ExpandSnapVariables(layout.BindFile)
 		entry.Options = []string{"bind", "rw", osutil.XSnapdKindFile()}
 		entry.Name = mountSource
 	}
@@ -85,7 +85,7 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	}
 
 	if layout.Symlink != "" {
-		oldname := layout.Snap.ExpandSnapMountVariables(layout.Symlink)
+		oldname := layout.Snap.ExpandSnapVariables(layout.Symlink)
 		entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(oldname)}
 	}
 

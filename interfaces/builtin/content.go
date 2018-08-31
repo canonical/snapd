@@ -175,10 +175,10 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	// NOTE: the variables are expanded in the context of the snap's mount namespace
 	switch prefix {
 	case "$SNAP", "$SNAP_DATA", "$SNAP_COMMON":
-		return snapInfo.ExpandSnapMountVariables(path)
+		return snapInfo.ExpandSnapVariables(path)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snapInfo.ExpandSnapMountVariables("$SNAP"), path)
+	return filepath.Join(snapInfo.ExpandSnapVariables("$SNAP"), path)
 }
 
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {

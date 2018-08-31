@@ -421,9 +421,9 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapMountVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
 // snap's mount namespace.
-func (s *Info) ExpandSnapMountVariables(path string) string {
+func (s *Info) ExpandSnapVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":

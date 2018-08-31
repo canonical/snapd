@@ -128,10 +128,10 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 		var buf bytes.Buffer
 		l := si.Layout[path]
 		fmt.Fprintf(&buf, "  # Layout %s\n", l.String())
-		path := si.ExpandSnapMountVariables(l.Path)
+		path := si.ExpandSnapVariables(l.Path)
 		switch {
 		case l.Bind != "":
-			bind := si.ExpandSnapMountVariables(l.Bind)
+			bind := si.ExpandSnapVariables(l.Bind)
 			// Allow bind mounting the layout element.
 			fmt.Fprintf(&buf, "  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
@@ -139,7 +139,7 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 			WritableProfile(&buf, path)
 			WritableProfile(&buf, bind)
 		case l.BindFile != "":
-			bindFile := si.ExpandSnapMountVariables(l.BindFile)
+			bindFile := si.ExpandSnapVariables(l.BindFile)
 			// Allow bind mounting the layout element.
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
 			fmt.Fprintf(&buf, "  umount %s,\n", path)
@@ -392,7 +392,7 @@ func (spec *Specification) UpdateNS() []string {
 }
 
 func snippetFromLayout(layout *snap.Layout) string {
-	mountPoint := layout.Snap.ExpandSnapMountVariables(layout.Path)
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	if layout.Bind != "" || layout.Type == "tmpfs" {
 		return fmt.Sprintf("# Layout path: %s\n%s{,/**} mrwklix,", mountPoint, mountPoint)
 	} else if layout.BindFile != "" {
