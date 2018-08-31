@@ -35,10 +35,10 @@ func (c byOriginAndMagicDir) Less(i, j int) bool {
 	iMe := c[i]
 	jMe := c[j]
 
-	if iOrigin, jOrigin := iMe.XSnapdOrigin(), jMe.XSnapdOrigin(); iOrigin != jOrigin {
-		if iOrigin == "parallel-instance" {
-			return true
-		}
+	iOrigin := iMe.XSnapdOrigin()
+	jOrigin := jMe.XSnapdOrigin()
+	if iOrigin == "overname" && iOrigin != jOrigin {
+		return true
 	}
 
 	iDir := c[i].Dir

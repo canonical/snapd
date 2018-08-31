@@ -276,7 +276,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 
 	const snapName = "mysnap"
 	const currentProfileContent = ""
-	const desiredProfileContent = "/snap/mysnap_foo /snap/mysnap none rbind,x-snapd.origin=parallel-instance 0 0"
+	const desiredProfileContent = "/snap/mysnap_foo /snap/mysnap none rbind,x-snapd.origin=overname 0 0"
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
@@ -296,7 +296,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 				Entry: osutil.MountEntry{
 					Name: "/snap/mysnap_foo",
 					Dir:  "/snap/mysnap", Type: "none",
-					Options: []string{"rbind", "x-snapd.origin=parallel-instance"},
+					Options: []string{"rbind", "x-snapd.origin=overname"},
 				},
 			})
 			return nil, fmt.Errorf("testing")

@@ -168,11 +168,11 @@ func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
 	snapInfo.InstanceKey = "instance"
 	s.spec.AddLayout(snapInfo)
-	s.spec.AddParallelInstanceMapping(snapInfo)
+	s.spec.AddOvername(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Parallel instance mappings come first
-		{Dir: "/snap/vanguard", Name: "/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
-		{Dir: "/var/snap/vanguard", Name: "/var/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
+		{Dir: "/snap/vanguard", Name: "/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=overname"}},
+		{Dir: "/var/snap/vanguard", Name: "/var/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=overname"}},
 		// Layout result is sorted by mount path.
 		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
 		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
@@ -208,7 +208,7 @@ layout:
 
 func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {
 	snapInfo := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(42)}}
-	s.spec.AddParallelInstanceMapping(snapInfo)
+	s.spec.AddOvername(snapInfo)
 	c.Assert(s.spec.MountEntries(), HasLen, 0)
 	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
 
@@ -216,12 +216,12 @@ func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {
 
 func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {
 	snapInfo := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(42)}, InstanceKey: "instance"}
-	s.spec.AddParallelInstanceMapping(snapInfo)
+	s.spec.AddOvername(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// /snap/foo_instance -> /snap/foo
-		{Name: "/snap/foo_instance", Dir: "/snap/foo", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
+		{Name: "/snap/foo_instance", Dir: "/snap/foo", Options: []string{"rbind", "x-snapd.origin=overname"}},
 		// /var/snap/foo_instance -> /var/snap/foo
-		{Name: "/var/snap/foo_instance", Dir: "/var/snap/foo", Options: []string{"rbind", "x-snapd.origin=parallel-instance"}},
+		{Name: "/var/snap/foo_instance", Dir: "/var/snap/foo", Options: []string{"rbind", "x-snapd.origin=overname"}},
 	})
 	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
 }

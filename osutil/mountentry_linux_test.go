@@ -369,9 +369,9 @@ func (s *entrySuite) TestXSnapdOrigin(c *C) {
 	c.Assert(osutil.XSnapdOriginLayout(), Equals, "x-snapd.origin=layout")
 
 	// Origin can also indicate a parallel snap instance setup
-	e = &osutil.MountEntry{Options: []string{osutil.XSnapdOriginParallelInstance()}}
-	c.Assert(e.XSnapdOrigin(), Equals, "parallel-instance")
-	c.Assert(osutil.XSnapdOriginParallelInstance(), Equals, "x-snapd.origin=parallel-instance")
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdOriginOvername()}}
+	c.Assert(e.XSnapdOrigin(), Equals, "overname")
+	c.Assert(osutil.XSnapdOriginOvername(), Equals, "x-snapd.origin=overname")
 }
 
 func (s *entrySuite) TestXSnapdDetach(c *C) {

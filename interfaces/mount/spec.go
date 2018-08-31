@@ -37,10 +37,10 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layout                       []osutil.MountEntry
-	general                      []osutil.MountEntry
-	user                         []osutil.MountEntry
-	parallelInstanceMountEntries []osutil.MountEntry
+	layout   []osutil.MountEntry
+	general  []osutil.MountEntry
+	user     []osutil.MountEntry
+	overname []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
@@ -55,10 +55,9 @@ func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
 	return nil
 }
 
-// AddParallelInstanceMountEntry adds a new mount entry for parallel snap
-// instances support.
-func (spec *Specification) AddParallelInstanceMountEntry(e osutil.MountEntry) error {
-	spec.parallelInstanceMountEntries = append(spec.parallelInstanceMountEntries, e)
+// AddOvernameMountEntry adds a new overname mount entry.
+func (spec *Specification) AddOvernameMountEntry(e osutil.MountEntry) error {
+	spec.overname = append(spec.overname, e)
 	return nil
 }
 
@@ -139,8 +138,8 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, 0, len(spec.parallelInstanceMountEntries)+len(spec.layout)+len(spec.general))
-	result = append(result, spec.parallelInstanceMountEntries...)
+	result := make([]osutil.MountEntry, 0, len(spec.overname)+len(spec.layout)+len(spec.general))
+	result = append(result, spec.overname...)
 	result = append(result, spec.layout...)
 	result = append(result, spec.general...)
 	unclashMountEntries(result)
@@ -218,32 +217,30 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	return nil
 }
 
-// AddParallelInstanceMapping records mappings of snap instance directories
+// AddOvername records mappings of snap directories.
 //
 // When the snap is installed with an instance key, set up it's mount namespace
 // such that it appears as a non-instance key snap. This ensures compatibility
-// with code making assumptions about
-// $SNAP{,_DATA,_COMMON,_USER_DATA,_USER_COMMON} locations. That is, given a
-// snap foo_bar, the mappings added are:
+// with code making assumptions about $SNAP{,_DATA,_COMMON} locations. That is,
+// given a snap foo_bar, the mappings added are:
 //
-// - /snap/foo_bar -> /snap/foo
-// - /var/snap/foo_bar -> /var/snap/foo
-// - $HOME/snap/foo_bar -> $HOME/snap/foo
-func (spec *Specification) AddParallelInstanceMapping(info *snap.Info) {
+// - /snap/foo_bar      -> /snap/foo
+// - /var/snap/foo_bar  -> /var/snap/foo
+func (spec *Specification) AddOvername(info *snap.Info) {
 	if info.InstanceKey == "" {
 		return
 	}
 
 	// /snap/foo_bar -> /snap/foo
-	spec.AddParallelInstanceMountEntry(osutil.MountEntry{
+	spec.AddOvernameMountEntry(osutil.MountEntry{
 		Name:    path.Join(dirs.CoreSnapMountDir, info.InstanceName()),
 		Dir:     path.Join(dirs.CoreSnapMountDir, info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
+		Options: []string{"rbind", osutil.XSnapdOriginOvername()},
 	})
 	// /var/snap/foo_bar -> /var/snap/foo
-	spec.AddParallelInstanceMountEntry(osutil.MountEntry{
+	spec.AddOvernameMountEntry(osutil.MountEntry{
 		Name:    path.Join(dirs.SnapDataDir, info.InstanceName()),
 		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
-		Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()},
+		Options: []string{"rbind", osutil.XSnapdOriginOvername()},
 	})
 }

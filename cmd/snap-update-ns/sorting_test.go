@@ -54,16 +54,16 @@ func (s *sortSuite) TestParallelInstancesAndSimple(c *C) {
 	entries := []osutil.MountEntry{
 		{Dir: "/a/b"},
 		{Dir: "/a/b-1"},
-		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
+		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b-1/3"},
-		{Dir: "/foo/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
+		{Dir: "/foo/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b/c"},
 	}
 	sort.Sort(byOriginAndMagicDir(entries))
 	// Entries sorted as if they had a trailing slash.
 	c.Assert(entries, DeepEquals, []osutil.MountEntry{
-		{Dir: "/foo/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
-		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginParallelInstance()}},
+		{Dir: "/foo/bar", Options: []string{osutil.XSnapdOriginOvername()}},
+		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
 		{Dir: "/a/b"},

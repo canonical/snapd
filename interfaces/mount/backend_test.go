@@ -176,8 +176,8 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 		dirs.SnapDataDir = old
 	}()
 	dirs.SnapDataDir = "/var/snap"
-	snapEntry := osutil.MountEntry{Name: "/snap/snap-name_instance", Dir: "/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()}, DumpFrequency: 0, CheckPassNumber: 0}
-	dataEntry := osutil.MountEntry{Name: "/var/snap/snap-name_instance", Dir: "/var/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginParallelInstance()}, DumpFrequency: 0, CheckPassNumber: 0}
+	snapEntry := osutil.MountEntry{Name: "/snap/snap-name_instance", Dir: "/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginOvername()}, DumpFrequency: 0, CheckPassNumber: 0}
+	dataEntry := osutil.MountEntry{Name: "/var/snap/snap-name_instance", Dir: "/var/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginOvername()}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
