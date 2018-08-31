@@ -423,6 +423,9 @@ func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 }
 
 func (srv *shutdownServer) numActiveConns() int {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
 	n := 0
 	for _, state := range srv.conns {
 		if state != http.StateIdle {
