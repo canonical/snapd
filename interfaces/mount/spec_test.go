@@ -154,7 +154,7 @@ layout:
 
 func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Layout result is sorted by mount path.
 		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
@@ -167,7 +167,7 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
 	snapInfo.InstanceKey = "instance"
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	s.spec.AddParallelInstanceMapping(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Parallel instance mappings come first
@@ -193,7 +193,7 @@ layout:
 	entry := osutil.MountEntry{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"}
 	s.spec.AddMountEntry(entry)
 	s.spec.AddUserMountEntry(entry)
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
 		// This is the non-layout entry, it was renamed to "foo-2"

@@ -62,7 +62,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
 	spec.(*Specification).AddParallelInstanceMapping(snapInfo)
-	spec.(*Specification).AddSnapLayout(snapInfo)
+	spec.(*Specification).AddLayout(snapInfo)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
