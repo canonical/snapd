@@ -50,7 +50,7 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addInfos []*hotplug.HotplugDeviceInfo
 	var remInfo *hotplug.HotplugDeviceInfo
 
-	callbackChannel := make(chan struct{}, 4)
+	callbackChannel := make(chan struct{})
 	added := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
 		addInfos = append(addInfos, inf)
@@ -87,46 +87,47 @@ E: DEVTYPE=bzz
 	// stop channels are normally created by netlink crawler/monitor, but since
 	// we don't create them with Connect(), they must be mocked.
 	mstop := make(chan struct{})
-	event := make(chan netlink.UEvent, 3)
+	event := udevmon.EventsChannel()
 	udevmonitor.MockUDevMonitorStopChannel(udevmon, mstop)
-	udevmonitor.MockUDevMonitorChannel(udevmon, event)
 
 	c.Assert(udevmon.Run(), IsNil)
 
-	event <- netlink.UEvent{
-		Action: netlink.ADD,
-		KObj:   "foo",
-		Env: map[string]string{
-			"DEVPATH":   "abc",
-			"SUBSYSTEM": "tty",
-			"MINOR":     "1",
-			"MAJOR":     "2",
-			"DEVNAME":   "def",
-			"DEVTYPE":   "boo",
-		},
-	}
-	// the 2nd device will be ignored by de-duplication logic since it's also reported by udevadm mock.
-	event <- netlink.UEvent{
-		Action: netlink.ADD,
-		KObj:   "foo",
-		Env: map[string]string{
-			"DEVPATH":   "/a/path",
-			"SUBSYSTEM": "tty",
-			"DEVNAME":   "name",
-		},
-	}
-	event <- netlink.UEvent{
-		Action: netlink.REMOVE,
-		KObj:   "bar",
-		Env: map[string]string{
-			"DEVPATH":   "def",
-			"SUBSYSTEM": "tty",
-			"MINOR":     "3",
-			"MAJOR":     "0",
-			"DEVNAME":   "ghi",
-			"DEVTYPE":   "bzz",
-		},
-	}
+	go func() {
+		event <- netlink.UEvent{
+			Action: netlink.ADD,
+			KObj:   "foo",
+			Env: map[string]string{
+				"DEVPATH":   "abc",
+				"SUBSYSTEM": "tty",
+				"MINOR":     "1",
+				"MAJOR":     "2",
+				"DEVNAME":   "def",
+				"DEVTYPE":   "boo",
+			},
+		}
+		// the 2nd device will be ignored by de-duplication logic since it's also reported by udevadm mock.
+		event <- netlink.UEvent{
+			Action: netlink.ADD,
+			KObj:   "foo",
+			Env: map[string]string{
+				"DEVPATH":   "/a/path",
+				"SUBSYSTEM": "tty",
+				"DEVNAME":   "name",
+			},
+		}
+		event <- netlink.UEvent{
+			Action: netlink.REMOVE,
+			KObj:   "bar",
+			Env: map[string]string{
+				"DEVPATH":   "def",
+				"SUBSYSTEM": "tty",
+				"MINOR":     "3",
+				"MAJOR":     "0",
+				"DEVNAME":   "ghi",
+				"DEVTYPE":   "bzz",
+			},
+		}
+	}()
 
 	// expect three add events - one from udev event, two from enumeration.
 	const numExpectedDevices = 3

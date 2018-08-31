@@ -72,6 +72,10 @@ func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
 	return m
 }
 
+func (m *Monitor) EventsChannel() chan netlink.UEvent {
+	return m.netlinkEvents
+}
+
 func (m *Monitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
