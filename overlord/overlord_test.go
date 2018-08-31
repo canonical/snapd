@@ -89,9 +89,11 @@ func (ovs *overlordSuite) TestNew(c *C) {
 
 	s.Lock()
 	defer s.Unlock()
-	var patchLevel int
+	var patchLevel, patchSublevel int
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
+	s.Get("patch-sublevel", &patchSublevel)
+	c.Check(patchSublevel, Equals, 2)
 
 	// store is setup
 	sto := snapstate.Store(s)
@@ -163,7 +165,7 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 
 	var sublevel int
 	c.Assert(state.Get("patch-sublevel", &sublevel), IsNil)
-	c.Check(sublevel, Equals, 2)
+	c.Check(sublevel, Equals, 1)
 
 	var b bool
 	err = state.Get("patched", &b)
