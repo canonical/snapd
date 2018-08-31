@@ -139,7 +139,7 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	}
 
 	// confinement options are irrelevant to this security backend
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "snap-name", mockSnapYaml, 0)
 
 	// ensure both security effects from iface/iface2 are combined
 	// (because mount profiles are global in the whole snap)
@@ -167,7 +167,7 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 
 	// Ensure that backend.Setup() creates the required dir on demand
 	os.Remove(dirs.SnapMountPolicyDir)
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "snap-name", mockSnapYaml, 0)
 }
 
 func (s *backendSuite) TestParallelInstanceSetup(c *C) {
@@ -195,7 +195,7 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 	}
 
 	// confinement options are irrelevant to this security backend
-	s.InstallSnapInstance(c, interfaces.ConfinementOptions{}, "snap-name_instance", mockSnapYaml, 0)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "snap-name_instance", mockSnapYaml, 0)
 
 	// Check that snap fstab file contains parallel instance setup and data from interfaces
 	expected := strings.Join([]string{snapEntry.String(), dataEntry.String(), fsEntry2.String(), fsEntry1.String()}, "\n") + "\n"

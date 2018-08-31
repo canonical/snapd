@@ -1,4 +1,4 @@
-summary: Checks for parallel installation of sideloaded snaps
+summary: Checks for parallel installation of a local snap files
 
 prepare: |
     # ensure we have no snap user data directory yet
