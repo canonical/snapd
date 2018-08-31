@@ -26,8 +26,7 @@ usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-discard-ns
 usr/lib/snapd/snap-mgmt
-usr/share/man/man1/snap-confine.1
-usr/share/man/man5/snap-discard-ns.5
+usr/share/man/
 # for compatibility with ancient snap installs that wrote the shell based
 # wrapper scripts instead of the modern symlinks
 usr/bin/ubuntu-core-launcher

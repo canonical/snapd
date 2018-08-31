@@ -26,7 +26,7 @@ execute: |
 
 
     # some unit tests
-    SENV=/usr/lib/systemd/system-environment-generators/snapd-env
+    SENV=/usr/lib/systemd/system-environment-generators/snapd-env-generator
 
     PATH=/bin:/sbin $SENV         | MATCH /bin:/sbin:/snap/bin
     PATH=/bin:/snap/bin/bar $SENV | MATCH /bin:/snap/bin/bar:/snap/bin
