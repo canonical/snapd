@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -17,26 +18,11 @@
  *
  */
 
-package selftest
+package cmd
 
-var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
-	ApparmorUsable     = apparmorUsable
-)
-
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
-	}
-}
-
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+// ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
+// the snapd/core snap.
+// On this OS this is a stub.
+func ExecInSnapdOrCoreSnap() {
+	return
 }
