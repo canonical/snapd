@@ -50,9 +50,7 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addInfos []*hotplug.HotplugDeviceInfo
 	var remInfo *hotplug.HotplugDeviceInfo
 
-	callbackChannel := make(chan struct{}, 2)
-	defer close(callbackChannel)
-
+	callbackChannel := make(chan struct{}, 4)
 	added := func(inf *hotplug.HotplugDeviceInfo) {
 		addCalled = true
 		addInfos = append(addInfos, inf)
@@ -89,9 +87,7 @@ E: DEVTYPE=bzz
 	// stop channels are normally created by netlink crawler/monitor, but since
 	// we don't create them with Connect(), they must be mocked.
 	mstop := make(chan struct{})
-
 	event := make(chan netlink.UEvent, 3)
-
 	udevmonitor.MockUDevMonitorStopChannel(udevmon, mstop)
 	udevmonitor.MockUDevMonitorChannel(udevmon, event)
 
@@ -134,17 +130,17 @@ E: DEVTYPE=bzz
 
 	// expect three add events - one from udev event, two from enumeration.
 	const numExpectedDevices = 3
-
-	var done bool
-	for !done {
+Loop:
+	for {
 		select {
 		case <-callbackChannel:
 			if len(addInfos) >= numExpectedDevices && removeCalled == true {
-				done = true
+				close(callbackChannel)
+				break Loop
 			}
 		case <-time.After(3 * time.Second):
-			done = true
 			c.Error("Did not receive expected devices before timeout")
+			break Loop
 		}
 	}
 
