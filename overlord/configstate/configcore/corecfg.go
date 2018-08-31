@@ -22,6 +22,7 @@ package configcore
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -57,6 +58,7 @@ var supportedConfigurations = map[string]bool{
 	"core.experimental.layouts":            true,
 	"core.experimental.parallel-instances": true,
 	"core.experimental.hotplug":            true,
+	"core.experimental.snapd-snap":         true,
 }
 
 func validateBoolFlag(tr Conf, flag string) error {
@@ -74,14 +76,13 @@ func validateBoolFlag(tr Conf, flag string) error {
 }
 
 func validateExperimentalSettings(tr Conf) error {
-	if err := validateBoolFlag(tr, "experimental.layouts"); err != nil {
-		return err
-	}
-	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
-		return err
-	}
-	if err := validateBoolFlag(tr, "experimental.hotplug"); err != nil {
-		return err
+	for k := range supportedConfigurations {
+		if !strings.HasPrefix(k, "core.experimental.") {
+			continue
+		}
+		if err := validateBoolFlag(tr, strings.TrimPrefix(k, "core.")); err != nil {
+			return err
+		}
 	}
 	return nil
 }
