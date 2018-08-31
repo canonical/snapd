@@ -156,7 +156,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot read patch-sublevel-reset: %s", err)
 	}
-	if sublevelResetTime != lastRefresh || err == state.ErrNoState {
+	if !sublevelResetTime.Equal(lastRefresh) || err == state.ErrNoState {
 		*sublevel = 0
 		s.Set("patch-sublevel", *sublevel)
 		s.Set("patch-sublevel-reset", lastRefresh)
