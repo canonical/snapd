@@ -147,10 +147,15 @@ slots:
 // Support code for tests
 
 // InstallSnap "installs" a snap from YAML.
-func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
+func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int) *snap.Info {
 	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
+
+	_, instanceKey := snap.SplitInstanceName(instanceName)
+	snapInfo.InstanceKey = instanceKey
+	c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+
 	s.addPlugsSlots(c, snapInfo)
 	err := s.Backend.Setup(snapInfo, opts, s.Repo)
 	c.Assert(err, IsNil)
