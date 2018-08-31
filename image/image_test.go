@@ -217,6 +217,13 @@ version: 1.0
 type: gadget
 `
 
+const packageGadgetWithBase = `
+name: pc18
+version: 1.0
+type: gadget
+base: core18
+`
+
 const packageKernel = `
 name: pc-kernel
 version: 4.4-1
@@ -257,6 +264,12 @@ confinement: devmode
 const requiredSnap1 = `
 name: required-snap1
 version: 1.0
+`
+
+const snapReqOtherBase = `
+name: snap-req-other-base
+version: 1.0
+base: other-base
 `
 
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
@@ -527,9 +540,16 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
-	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1))
-	s.addSystemSnapAssertions(c, "pc", publishers["pc"])
+	if _, ok := publishers["pc"]; ok {
+		s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
+		s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1))
+		s.addSystemSnapAssertions(c, "pc", publishers["pc"])
+	}
+	if _, ok := publishers["pc18"]; ok {
+		s.downloadedSnaps["pc18"] = snaptest.MakeTestSnapWithFiles(c, packageGadgetWithBase, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
+		s.storeSnapInfo["pc18"] = infoFromSnapYaml(c, packageGadgetWithBase, snap.R(4))
+		s.addSystemSnapAssertions(c, "pc18", publishers["pc18"])
+	}
 
 	s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
 	s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
@@ -555,6 +575,10 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
 	s.storeSnapInfo["required-snap1"].Contact = "foo@example.com"
 	s.addSystemSnapAssertions(c, "required-snap1", "other")
+
+	s.downloadedSnaps["snap-req-other-base"] = snaptest.MakeTestSnapWithFiles(c, snapReqOtherBase, nil)
+	s.storeSnapInfo["snap-req-other-base"] = infoFromSnapYaml(c, snapReqOtherBase, snap.R(5))
+	s.addSystemSnapAssertions(c, "snap-req-other-base", "other")
 }
 
 func (s *imageSuite) TestBootstrapToRootDir(c *C) {
@@ -844,7 +868,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 		"brand-id":       "my-brand",
 		"model":          "my-model",
 		"architecture":   "amd64",
-		"gadget":         "pc",
+		"gadget":         "pc18",
 		"kernel":         "pc-kernel",
 		"base":           "core18",
 		"required-snaps": []interface{}{"other-base"},
@@ -857,7 +881,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"core18":     "canonical",
-		"pc":         "canonical",
+		"pc18":       "canonical",
 		"pc-kernel":  "canonical",
 		"snapd":      "canonical",
 		"other-base": "other",
@@ -880,7 +904,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	c.Check(seed.Snaps, HasLen, 5)
 
 	// check the files are in place
-	for i, name := range []string{"snapd", "core18_18.snap", "pc-kernel", "pc", "other-base"} {
+	for i, name := range []string{"snapd", "core18_18.snap", "pc-kernel", "pc18", "other-base"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
@@ -1333,7 +1357,7 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		"model":          "my-model",
 		"architecture":   "amd64",
 		"base":           "core18",
-		"gadget":         "pc",
+		"gadget":         "pc18",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"required-snap1"},
 		"timestamp":      time.Now().Format(time.RFC3339),
@@ -1346,7 +1370,7 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"core18":    "canonical",
 		"core":      "canonical",
-		"pc":        "canonical",
+		"pc18":      "canonical",
 		"pc-kernel": "canonical",
 	})
 
@@ -1387,9 +1411,9 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		File:   "pc-kernel_2.snap",
 	})
 	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
-		Name:   "pc",
-		SnapID: "pc-Id",
-		File:   "pc_1.snap",
+		Name:   "pc18",
+		SnapID: "pc18-Id",
+		File:   "pc18_4.snap",
 	})
 	c.Check(seed.Snaps[5], DeepEquals, &snap.SeedSnap{
 		Name:    "required-snap1",
@@ -1397,6 +1421,41 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		File:    "required-snap1_3.snap",
 		Contact: "foo@example.com",
 	})
+}
+func (s *imageSuite) TestBootstrapGadgetBaseModelBaseMismatch(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+	// replace model with a model that uses core18 and a gadget
+	// without a base
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core18":    "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
 
 type toolingAuthContextSuite struct {

@@ -140,7 +140,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.o.TaskRunner(), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
 		addForeignTaskHandlers(s.o.TaskRunner())
-		mgr.DisableUdevMonitor()
+		mgr.DisableUDevMonitor()
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
@@ -3696,10 +3696,10 @@ func (u *udevMonitorMock) Stop() error {
 	return nil
 }
 
-func (s *interfaceManagerSuite) TestUdevMonitorInit(c *C) {
+func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	u := udevMonitorMock{}
 
-	restoreTimeout := ifacestate.MockUdevInitRetryTimeout(0 * time.Second)
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
 
 	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
@@ -3721,12 +3721,12 @@ func (s *interfaceManagerSuite) TestUdevMonitorInit(c *C) {
 	c.Assert(u.StopCalls, Equals, 1)
 }
 
-func (s *interfaceManagerSuite) TestUdevMonitorInitErrors(c *C) {
+func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	u := udevMonitorMock{
 		ConnectError: fmt.Errorf("Connect failed"),
 	}
 
-	restoreTimeout := ifacestate.MockUdevInitRetryTimeout(0 * time.Second)
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
 
 	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
