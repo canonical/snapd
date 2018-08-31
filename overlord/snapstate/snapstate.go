@@ -503,7 +503,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-// InstallPath returns a set of tasks for installing snap from a file path.
+// InstallPath returns a set of tasks for installing a snap from a file path
+// and the snap.Info for the given snap.
+//
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it

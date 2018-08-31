@@ -101,10 +101,10 @@ func basicEnv(info *snap.Info) map[string]string {
 		// always mounted on /snap OR it is a classically confined snap where
 		// /snap is a part of the distribution package.
 		//
-		// NOTE for parallel-installs the mount namespace setup is
-		// making the environment of each snap instance appear as if
-		// it's the only snap, i.e. SNAP paths point to the same
-		// locations within the mount namespace
+		// For parallel-installs the mount namespace setup is making the
+		// environment of each snap instance appear as if it's the only
+		// snap, i.e. SNAP paths point to the same locations within the
+		// mount namespace
 		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
 		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
 		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
@@ -125,10 +125,8 @@ func basicEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func userEnv(info *snap.Info, home string) map[string]string {
-	// TODO parallel-install: we do not have a way to make the mounts from
-	// instance-specific to snap-specific directories at user controlled
-	// location completely safe, make sure we use instance-specific
-	// directories always
+	// To keep things simple the user variables always point to the
+	// instance-specific directories.
 	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
