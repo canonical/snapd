@@ -152,9 +152,11 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		Revision: snap.R(revision),
 	})
 
-	_, instanceKey := snap.SplitInstanceName(instanceName)
-	snapInfo.InstanceKey = instanceKey
-	c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+	if instanceName != "" {
+		_, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+	}
 
 	s.addPlugsSlots(c, snapInfo)
 	err := s.Backend.Setup(snapInfo, opts, s.Repo)
