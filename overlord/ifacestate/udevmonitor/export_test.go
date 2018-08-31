@@ -18,7 +18,3 @@
  */
 
 package udevmonitor
-
-func MockUDevMonitorStopChannel(mon *Monitor, monitorStop chan struct{}) {
-	mon.monitorStop = monitorStop
-}

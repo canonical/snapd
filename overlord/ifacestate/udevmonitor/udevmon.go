@@ -93,7 +93,10 @@ func (m *Monitor) Connect() error {
 }
 
 func (m *Monitor) Disconnect() error {
-	close(m.monitorStop)
+	select {
+	case m.monitorStop <- struct{}{}:
+	default:
+	}
 	return m.netlinkConn.Close()
 }
 
