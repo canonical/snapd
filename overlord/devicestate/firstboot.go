@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -134,21 +135,21 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		baseSnap = model.Base()
 	}
 
-	installSeedEssential := func(snapName string, last int) error {
+	installSeedEssential := func(snapName string, last int) (*snap.Info, error) {
 		seedSnap := seeding[snapName]
 		if seedSnap == nil {
-			return fmt.Errorf("cannot proceed without seeding %q", snapName)
+			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, _, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
+		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if last >= 0 {
 			ts.WaitAll(tsAll[last])
 		}
 		tsAll = append(tsAll, ts)
 		alreadySeeded[snapName] = true
-		return nil
+		return info, nil
 	}
 
 	last := -1
@@ -156,12 +157,12 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" {
-			if err := installSeedEssential("snapd", last); err != nil {
+			if _, err := installSeedEssential("snapd", last); err != nil {
 				return nil, err
 			}
 			last++
 		}
-		if err := installSeedEssential(baseSnap, last); err != nil {
+		if _, err := installSeedEssential(baseSnap, last); err != nil {
 			return nil, err
 		}
 		// we *always* configure "core" here even if bases are used
@@ -172,7 +173,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 
 	lastConf := 0
 	if kernelName := model.Kernel(); kernelName != "" {
-		if err := installSeedEssential(kernelName, last); err != nil {
+		if _, err := installSeedEssential(kernelName, last); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
@@ -183,10 +184,21 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		lastConf++
 	}
 
+	// FIXME: ensure that any base is ordered before the gadget so that
+	//        the gadget can use bases that are not the model base
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		if err := installSeedEssential(gadgetName, last); err != nil {
+		info, err := installSeedEssential(gadgetName, last)
+		if err != nil {
 			return nil, err
 		}
+		// Sanity check, note that we could support this if we have
+		// a use-case. However this requires that we do the sorting
+		// different, i.e. other bases will have to be sorted before
+		// the gadget.
+		if info.Base != model.Base() {
+			return nil, fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
+		}
+
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
 		// wait for the previous configTss
 		configTs.WaitAll(configTss[lastConf])
@@ -206,6 +218,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		last += len(configTss)
 	}
 
+	// ensure we install in the right order
+	infoToTs := make(map[*snap.Info]*state.TaskSet, len(seed.Snaps))
+	infos := make([]*snap.Info, 0, len(seed.Snaps))
+
 	for _, sn := range seed.Snaps {
 		if alreadySeeded[sn.Name] {
 			continue
@@ -216,10 +232,19 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			flags.Required = true
 		}
 
-		ts, _, err := installSeedSnap(st, sn, flags)
+		ts, info, err := installSeedSnap(st, sn, flags)
 		if err != nil {
 			return nil, err
 		}
+		infos = append(infos, info)
+		infoToTs[info] = ts
+	}
+
+	// now add/chain the tasksets in the right order, note that we
+	// only have tasksets that we did not already seeded
+	sort.Stable(snap.ByType(infos))
+	for _, info := range infos {
+		ts := infoToTs[info]
 		ts.WaitAll(tsAll[last])
 		tsAll = append(tsAll, ts)
 		last++
