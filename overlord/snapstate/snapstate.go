@@ -67,7 +67,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			tr := config.NewTransaction(st)
+			experimentalAllowSnapd, err := getFeatureFlagBool(tr, "experimental.snapd-snap")
+			if err != nil && !config.IsNoOption(err) {
+				return nil, err
+			}
+			if !experimentalAllowSnapd {
+				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			}
 		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {
@@ -496,7 +503,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-// InstallPath returns a set of tasks for installing snap from a file path.
+// InstallPath returns a set of tasks for installing a snap from a file path
+// and the snap.Info for the given snap.
+//
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it

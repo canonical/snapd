@@ -47,7 +47,7 @@ func init() {
 }
 
 func main() {
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	if err := run(); err != nil {
 		if err == daemon.ErrRestartSocket {
 			// Note that we don't prepend: "error: " here because
