@@ -178,6 +178,9 @@
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
 
+    mount options=(rw rbind) /var/lib/extrausers/ -> /tmp/snap.rootfs_*/var/lib/extrausers/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/lib/extrausers/,
+
     mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/modules/ -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
 
