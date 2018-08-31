@@ -97,36 +97,22 @@ func (m *Monitor) Disconnect() error {
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
 func (m *Monitor) Run() error {
+	// Gather devices from udevadm info output (enumeration on startup).
+	devices, parseErrors, err := hotplug.EnumerateExistingDevices()
+	if err != nil {
+		return fmt.Errorf("cannot enumerate existing devices: %s", err)
+	}
 	m.tomb.Go(func() error {
-		existingDevices := make(chan *hotplug.HotplugDeviceInfo)
-		udevadmErrors := make(chan error)
-
-		// Gather devices from udevadm info output (enumeration on startup).
-		if err := hotplug.EnumerateExistingDevices(existingDevices, udevadmErrors); err != nil {
-			return fmt.Errorf("cannot enumerate existing devices: %s", err)
+		for _, perr := range parseErrors {
+			logger.Noticef("udev enumeration error: %q\n", perr)
 		}
-	enumerateLoop:
-		for {
-			select {
-			case dev, ok := <-existingDevices:
-				if !ok {
-					break enumerateLoop
-				}
-				if _, seen := m.devices[dev.DevicePath()]; seen {
-					break
-				}
-				m.devices[dev.DevicePath()] = true
-				if ok && m.deviceAdded != nil {
-					m.deviceAdded(dev)
-				}
-			case err, ok := <-udevadmErrors:
-				if ok {
-					logger.Noticef("udevadm error: %q\n", err)
-				} else {
-					udevadmErrors = nil
-				}
-			case <-m.tomb.Dying():
-				return m.Disconnect()
+		for _, dev := range devices {
+			if _, seen := m.devices[dev.DevicePath()]; seen {
+				continue
+			}
+			m.devices[dev.DevicePath()] = true
+			if m.deviceAdded != nil {
+				m.deviceAdded(dev)
 			}
 		}
 
