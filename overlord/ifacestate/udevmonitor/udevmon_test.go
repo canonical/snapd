@@ -46,18 +46,17 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 }
 
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
-	var addCalled, removeCalled bool
 	var addInfos []*hotplug.HotplugDeviceInfo
 	var remInfo *hotplug.HotplugDeviceInfo
 
 	callbackChannel := make(chan struct{})
+	defer close(callbackChannel)
+
 	added := func(inf *hotplug.HotplugDeviceInfo) {
-		addCalled = true
 		addInfos = append(addInfos, inf)
 		callbackChannel <- struct{}{}
 	}
 	removed := func(inf *hotplug.HotplugDeviceInfo) {
-		removeCalled = true
 		remInfo = inf
 		callbackChannel <- struct{}{}
 	}
@@ -83,17 +82,12 @@ E: DEVTYPE=bzz
 	defer cmd.Restore()
 
 	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
-
-	// stop channels are normally created by netlink crawler/monitor, but since
-	// we don't create them with Connect(), they must be mocked.
-	mstop := make(chan struct{})
-	event := udevmon.EventsChannel()
-	udevmonitor.MockUDevMonitorStopChannel(udevmon, mstop)
+	events := udevmon.EventsChannel()
 
 	c.Assert(udevmon.Run(), IsNil)
 
 	go func() {
-		event <- netlink.UEvent{
+		events <- netlink.UEvent{
 			Action: netlink.ADD,
 			KObj:   "foo",
 			Env: map[string]string{
@@ -106,7 +100,7 @@ E: DEVTYPE=bzz
 			},
 		}
 		// the 2nd device will be ignored by de-duplication logic since it's also reported by udevadm mock.
-		event <- netlink.UEvent{
+		events <- netlink.UEvent{
 			Action: netlink.ADD,
 			KObj:   "foo",
 			Env: map[string]string{
@@ -115,7 +109,7 @@ E: DEVTYPE=bzz
 				"DEVNAME":   "name",
 			},
 		}
-		event <- netlink.UEvent{
+		events <- netlink.UEvent{
 			Action: netlink.REMOVE,
 			KObj:   "bar",
 			Env: map[string]string{
@@ -135,31 +129,20 @@ Loop:
 	for {
 		select {
 		case <-callbackChannel:
-			if len(addInfos) >= numExpectedDevices && removeCalled == true {
-				close(callbackChannel)
+			if len(addInfos) == numExpectedDevices && remInfo != nil {
 				break Loop
 			}
 		case <-time.After(3 * time.Second):
 			c.Error("Did not receive expected devices before timeout")
 			break Loop
+		default:
 		}
 	}
 
-	c.Assert(addCalled, Equals, true)
-	c.Assert(removeCalled, Equals, true)
+	c.Assert(remInfo, NotNil)
 	c.Assert(addInfos, HasLen, numExpectedDevices)
 
 	c.Assert(udevmon.Stop(), IsNil)
-
-	// test that stop channel was closed
-	more := true
-	timeout := time.After(2 * time.Second)
-	select {
-	case _, more = <-mstop:
-	case <-timeout:
-		c.Fatalf("mstop channel was not closed")
-	}
-	c.Assert(more, Equals, false)
 
 	addInfo := addInfos[0]
 	c.Assert(addInfo.DeviceName(), Equals, "name")
