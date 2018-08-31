@@ -51,10 +51,12 @@ execute: |
 
     if [[ "$VAR" != "SNAP" ]]; then
         # write some test data in one of the instances
+        # shellcheck disable=SC2016
         test-snapd-content-advanced-plug_bar.sh -c "$(printf 'echo hello from $SNAP_INSTANCE_NAME >> $%s/target/canary' "$VAR")"
         # should be visible in the other one now
         test-snapd-content-advanced-plug_foo.sh -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'hello from test-snapd-content-advanced-plug_bar'
         # some more data
+        # shellcheck disable=SC2016
         test-snapd-content-advanced-plug_foo.sh -c "$(printf 'echo hello from $SNAP_INSTANCE_NAME >> $%s/target/canary' "$VAR")"
         # all of it is visible
         test-snapd-content-advanced-plug.sh     -c "$(printf 'cat $%s/target/canary' "$VAR")" | MATCH 'hello from test-snapd-content-advanced-plug_bar
