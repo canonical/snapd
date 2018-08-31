@@ -168,8 +168,13 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+	prefix := path
+	if idx := strings.IndexByte(path, '/'); idx != -1 {
+		prefix = path[:idx]
+	}
 	// NOTE: the variables are expanded in the context of the snap's mount namespace
-	if strings.HasPrefix(path, "$") {
+	switch prefix {
+	case "$SNAP", "$SNAP_DATA", "$SNAP_COMMON":
 		return snapInfo.ExpandSnapMountVariables(path)
 	}
 	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
