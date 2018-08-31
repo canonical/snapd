@@ -105,21 +105,19 @@ func (m *Monitor) Run() error {
 		if err := hotplug.EnumerateExistingDevices(existingDevices, udevadmErrors); err != nil {
 			return fmt.Errorf("cannot enumerate existing devices: %s", err)
 		}
-		var finished bool
-		for !finished {
+	enumerateLoop:
+		for {
 			select {
 			case dev, ok := <-existingDevices:
-				if dev != nil {
-					if _, seen := m.devices[dev.DevicePath()]; seen {
-						break
-					}
-					m.devices[dev.DevicePath()] = true
-					if ok && m.deviceAdded != nil {
-						m.deviceAdded(dev)
-					}
-				}
 				if !ok {
-					finished = true
+					break enumerateLoop
+				}
+				if _, seen := m.devices[dev.DevicePath()]; seen {
+					break
+				}
+				m.devices[dev.DevicePath()] = true
+				if ok && m.deviceAdded != nil {
+					m.deviceAdded(dev)
 				}
 			case err, ok := <-udevadmErrors:
 				if ok {
@@ -136,7 +134,7 @@ func (m *Monitor) Run() error {
 		for {
 			select {
 			case err := <-m.netlinkErrors:
-				logger.Noticef("netlink error: %q\n", err)
+				logger.Noticef("udev event error: %q\n", err)
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tomb.Dying():
@@ -185,7 +183,7 @@ func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 		return
 	}
 	if _, seen := m.devices[dev.DevicePath()]; !seen {
-		logger.Noticef("received device remove event, but device %q was not seen before", dev.DevicePath())
+		logger.Noticef("udev monitor observed remove event for unknown device %q", dev.DevicePath())
 		return
 	}
 	delete(m.devices, dev.DevicePath())
