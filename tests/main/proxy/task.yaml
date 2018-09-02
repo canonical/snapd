@@ -1,0 +1,32 @@
+summary: Ensure that the core.proxy.* settings are honored
+
+# Limited to ubuntu 18.04 because the squid there is well tested. We
+# could add a squid (or custom go proxy) snap instead and run
+# everywhere.
+systems: [ubuntu-18.04-64]
+
+restore: |
+    snap set core proxy.https=
+    apt autoremove --purge -y squid
+
+prepare: |
+    # ensure we start from a clean state
+    rm -rf /var/log/squid/*
+    apt install -y squid
+
+execute: |
+    echo "Setup proxy config"
+    snap set core proxy.https=http://localhost:3128
+
+    echo "Check that the commands go through the proxy"
+    snap find test-snapd-tools | MATCH test-snapd-tools
+
+    # ensure squid wrote the access.log
+    systemctl restart squid
+    for _ in $(seq 10); do
+        if grep api.snapcraft.io /var/log/squid/access.log; then
+            break
+        fi
+        sleep 1
+    done
+    MATCH "CONNECT api.snapcraft.io" < /var/log/squid/access.log
