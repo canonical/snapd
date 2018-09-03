@@ -56,7 +56,7 @@ func parseEnvBlock(block string) (map[string]string, error) {
 			if kv := strings.SplitN(line[3:], "=", 2); len(kv) == 2 {
 				env[kv[0]] = kv[1]
 			} else {
-				return nil, fmt.Errorf("failed to parse udevadm output %q", line)
+				return nil, fmt.Errorf("cannot parse udevadm output %q", line)
 			}
 		}
 	}
@@ -81,62 +81,48 @@ func scanDoubleNewline(data []byte, atEOF bool) (advance int, token []byte, err 
 	return 0, nil, nil
 }
 
-func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner, devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) {
-	defer close(devices)
-	defer close(parseErrors)
-
+func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner) (devices []*HotplugDeviceInfo, parseErrors []error) {
 	for rd.Scan() {
 		block := rd.Text()
 		env, err := parseEnvBlock(block)
 		if err != nil {
-			parseErrors <- err
+			parseErrors = append(parseErrors, err)
 		} else {
-			outputDevice(env, devices, parseErrors)
+			dev, err := NewHotplugDeviceInfo(env)
+			if err != nil {
+				parseErrors = append(parseErrors, err)
+			} else {
+				devices = append(devices, dev)
+			}
 		}
 	}
 
 	if err := rd.Err(); err != nil {
-		parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
+		parseErrors = append(parseErrors, fmt.Errorf("cannot read udevadm output: %s", err))
 	}
 	if err := cmd.Wait(); err != nil {
-		parseErrors <- fmt.Errorf("failed to read udevadm output: %s", err)
+		parseErrors = append(parseErrors, fmt.Errorf("cannot to read udevadm output: %s", err))
 	}
+	return devices, parseErrors
 }
 
 // EnumerateExistingDevices all devices by parsing 'udevadm info -e' command output and reports them
 // via devices channel. The devices channel gets closed to indicate that all devices were processed.
 // Parsing errors are reported to parseErrors channel. Fatal errors encountered when starting udevadm
 // are reported by the error return value.
-func EnumerateExistingDevices(devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) error {
+func EnumerateExistingDevices() (devices []*HotplugDeviceInfo, parseErrors []error, fatalError error) {
 	cmd := exec.Command(udevadmBin, "info", "-e")
 	stdout, err := cmd.StdoutPipe()
-	defer func() {
-		if err != nil {
-			close(devices)
-			close(parseErrors)
-		}
-	}()
-
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	rd := bufio.NewScanner(stdout)
 	rd.Split(scanDoubleNewline)
 	if err = cmd.Start(); err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	go parseUdevadmOutput(cmd, rd, devices, parseErrors)
-
-	return nil
-}
-
-func outputDevice(env map[string]string, devices chan<- *HotplugDeviceInfo, parseErrors chan<- error) {
-	dev, err := NewHotplugDeviceInfo(env)
-	if err != nil {
-		parseErrors <- err
-	} else {
-		devices <- dev
-	}
+	devices, parseErrors = parseUdevadmOutput(cmd, rd)
+	return devices, parseErrors, nil
 }

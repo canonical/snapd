@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -17,16 +18,11 @@
  *
  */
 
-package udevmonitor
+package cmd
 
-import (
-	"github.com/snapcore/snapd/osutil/udev/netlink"
-)
-
-func MockUDevMonitorChannel(mon *Monitor, events chan netlink.UEvent) {
-	mon.netlinkEvents = events
-}
-
-func MockUDevMonitorStopChannel(mon *Monitor, monitorStop chan struct{}) {
-	mon.monitorStop = monitorStop
+// ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
+// the snapd/core snap.
+// On this OS this is a stub.
+func ExecInSnapdOrCoreSnap() {
+	return
 }

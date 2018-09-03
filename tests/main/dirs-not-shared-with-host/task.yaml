@@ -8,7 +8,6 @@ details: |
   consistent behaviour across various distributions.
 
 environment:
-    DIRECTORY/alternatives: /etc/alternatives
     DIRECTORY/ssl: /etc/ssl
 
 # This test only applies to classic systems
@@ -19,16 +18,6 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
-    # Arch does not use /etc/alternatives
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-        mkdir /etc/alternatives
-    fi
-
-restore: |
-    # Arch does not use /etc/alternatives
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-        rmdir /etc/alternatives
-    fi
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
