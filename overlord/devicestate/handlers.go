@@ -352,7 +352,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		return a.(*asserts.Serial), nil
 	}
 
-	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout:    30 * time.Second,
 		MayLogBody: true,
 	})
