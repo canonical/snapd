@@ -113,7 +113,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	}
 
 	raw, ok := snaps["core"]
-	if err == state.ErrNoState || !ok {
+	if !ok {
 		// no core snap - nothing to do.
 		return nil
 	}
@@ -167,7 +167,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 
 func getCoreRefreshTime() (time.Time, error) {
 	path := filepath.Join(dirs.SnapMountDir, "core", "current")
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return time.Time{}, err
 	}
