@@ -73,7 +73,7 @@ func (spec *Specification) AddUpdateNS(snippet string) {
 	spec.updateNS = append(spec.updateNS, snippet)
 }
 
-// AddSnapLayout adds apparmor snippets based on the layout of the snap.
+// AddLayout adds apparmor snippets based on the layout of the snap.
 //
 // The per-snap snap-update-ns profiles are composed via a template and
 // snippets for the snap. The snippets may allow (depending on the snippet):
@@ -90,7 +90,7 @@ func (spec *Specification) AddUpdateNS(snippet string) {
 //   the data)
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
-func (spec *Specification) AddSnapLayout(si *snap.Info) {
+func (spec *Specification) AddLayout(si *snap.Info) {
 	if len(si.Layout) == 0 {
 		return
 	}
@@ -160,14 +160,14 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	}
 }
 
-// AddParallelInstanceMapping adds AppArmor snippets allowing remapping of snap
+// AddOvername adds AppArmor snippets allowing remapping of snap
 // directories for parallel installed snaps
 //
 // Specifically snap-update-ns will apply the following bind mounts
 // - /snap/foo_bar -> /snap/foo
 // - /var/snap/foo_bar -> /var/snap/foo
 // - /home/joe/snap/foo_bar -> /home/joe/snap/foo
-func (spec *Specification) AddParallelInstanceMapping(si *snap.Info) {
+func (spec *Specification) AddOvername(si *snap.Info) {
 	if si.InstanceKey == "" {
 		return
 	}

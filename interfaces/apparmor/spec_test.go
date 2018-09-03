@@ -170,7 +170,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
 	defer restore()
 
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
 			"# Layout path: /etc/foo.conf\n/etc/foo.conf mrwklix,",
@@ -370,7 +370,7 @@ func (s *specSuite) TestApparmorParallelInstanceSnippetsNotInstanceKeyed(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap.app"})
 	defer restore()
 
-	s.spec.AddParallelInstanceMapping(snapInfo)
+	s.spec.AddOvername(snapInfo)
 	c.Assert(s.spec.Snippets(), HasLen, 0)
 	// non instance-keyed snaps require no extra snippets
 	c.Assert(s.spec.UpdateNS(), HasLen, 0)
@@ -383,7 +383,7 @@ func (s *specSuite) TestApparmorParallelInstanceSnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap_instace.app"})
 	defer restore()
 
-	s.spec.AddParallelInstanceMapping(snapInfo)
+	s.spec.AddOvername(snapInfo)
 	c.Assert(s.spec.Snippets(), HasLen, 0)
 
 	updateNS := s.spec.UpdateNS()
