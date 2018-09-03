@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/systemd"
@@ -109,8 +108,6 @@ const (
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
-
-var goSocketActivateWait = 5 * time.Second
 
 // canAccess checks the following properties:
 //
@@ -422,7 +419,7 @@ func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 	srv.conns[conn] = state
 }
 
-func (srv *shutdownServer) numActiveConns() int {
+func (srv *shutdownServer) NumActiveConns() int {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
@@ -465,41 +462,6 @@ func (srv *shutdownServer) finishShutdown() error {
 	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
 }
 
-// canGoSocketActivated returns true if the main ensure loop can go into
-// "socket-activation" mode. This is only possible once seeding is done
-// and there are no snaps on the system. This is to reduce the memory
-// footprint on e.g. containers.
-func (d *Daemon) canGoSocketActivated() bool {
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	// check if there are snaps
-	if n, err := snapstate.NumSnaps(st); err != nil || n > 0 {
-		return false
-	}
-	// check if seeding is done
-	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil {
-		return false
-	}
-	if !seeded {
-		return false
-	}
-	// check if there are any changes in flight
-	for _, chg := range st.Changes() {
-		if !chg.Status().Ready() || !chg.IsClean() {
-			return false
-		}
-	}
-	// check if there are any connections
-	if (d.snapdServe != nil && d.snapdServe.numActiveConns() > 0) || (d.snapServe != nil && d.snapServe.numActiveConns() > 0) {
-		return false
-	}
-
-	return true
-}
-
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
@@ -533,16 +495,12 @@ func (d *Daemon) Start() {
 	}
 	d.snapdServe = newShutdownServer(d.snapdListener, logit(d.router))
 
+	// make sure idle handling works
+	d.overlord.IdleManager().AddConnTracker(d.snapdServe)
+	d.overlord.IdleManager().AddConnTracker(d.snapServe)
+
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
-
-	// see if we can go into socket activation mode
-	go func() {
-		time.Sleep(goSocketActivateWait)
-		if d.canGoSocketActivated() {
-			d.overlord.State().RequestRestart(state.RestartSocket)
-		}
-	}()
 
 	d.tomb.Go(func() error {
 		if d.snapListener != nil {
@@ -636,7 +594,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		//
 		// If this is the case we do a "normal" snapd restart
 		// to process the new changes.
-		if !d.canGoSocketActivated() {
+		if !d.overlord.IdleManager().CanGoSocketActivated() {
 			d.restartSocket = false
 		}
 	}
