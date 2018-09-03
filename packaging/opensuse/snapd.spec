@@ -360,6 +360,7 @@ fi
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.*
 %{_mandir}/man5/snap-discard-ns.5.*
+%{_mandir}/man7/snapd-env-generator.7*
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
@@ -400,6 +401,7 @@ fi
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %{_environmentdir}/990-snapd.conf
+%{_prefix}/lib/systemd/system-environment-generators/snapd-env-generator
 
 %changelog
 
