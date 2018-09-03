@@ -4,50 +4,17 @@ systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
 
 backends: [-autopkgtest]
 
-# TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
     GADGET: /tmp/root/gadget
-    STORE_DIR: $(pwd)/fake-store-blobdir
-    STORE_ADDR: localhost:11028
-
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB/store.sh"
-    setup_fake_store "$STORE_DIR"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB/store.sh"
-    teardown_fake_store "$STORE_DIR"
     rm -rf "$ROOT"
-
+    
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    echo Expose the needed assertions through the fakestore
-    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR"/asserts
-    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR"/asserts
-    # have snap use the fakestore for assertions (but nothing else)
-    export SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
-
     echo Running prepare-image
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc-w-base.model $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/ubuntu-core-18-amd64.model $ROOT" test
 
     echo Verifying the result
     ls -lR "$IMAGE"

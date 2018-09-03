@@ -2504,17 +2504,23 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 }
 
 func (s *deviceMgrSuite) TestNewEnoughProxyParse(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	log, restore := logger.MockLogger()
 	defer restore()
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	badURL := &url.URL{Opaque: "%a"} // url.Parse(badURL.String()) needs to fail, which isn't easy :-)
-	c.Check(devicestate.NewEnoughProxy(badURL, http.DefaultClient), Equals, false)
+	c.Check(devicestate.NewEnoughProxy(s.state, badURL, http.DefaultClient), Equals, false)
 	c.Check(log.String(), Matches, "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: parse .*")
 }
 
 func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	expectedUserAgent := httputil.UserAgent()
 	log, restore := logger.MockLogger()
 	defer restore()
@@ -2558,7 +2564,7 @@ func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 	c.Assert(err, IsNil)
 	for _, expected := range expecteds {
 		log.Reset()
-		c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, false)
+		c.Check(devicestate.NewEnoughProxy(s.state, u, http.DefaultClient), Equals, false)
 		if len(expected) > 0 {
 			expected = "(?m).* DEBUG: Cannot check whether proxy store supports a custom serial vault: " + expected
 		}
@@ -2568,7 +2574,7 @@ func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 
 	// and success at last
 	log.Reset()
-	c.Check(devicestate.NewEnoughProxy(u, http.DefaultClient), Equals, true)
+	c.Check(devicestate.NewEnoughProxy(s.state, u, http.DefaultClient), Equals, true)
 	c.Check(log.String(), Equals, "")
 	c.Check(n, Equals, len(expecteds)+1)
 }
