@@ -168,6 +168,9 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+	// Content cannot be mounted at arbitrary locations, expect the path to
+	// start with $SNAP, $SNAP_DATA, $SNAP_COMMON. If the prefix is none of
+	// these, place it under $SNAP.
 	prefix := path
 	rest := ""
 	if idx := strings.IndexByte(path, '/'); idx != -1 {
