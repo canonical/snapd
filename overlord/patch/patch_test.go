@@ -388,6 +388,7 @@ func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
 		os.Remove(currentPath)
 	}
 }
+
 func (s *patchSuite) TestRefreshBackFromLevel60ShortSequence(c *C) {
 	var sequence []int
 
