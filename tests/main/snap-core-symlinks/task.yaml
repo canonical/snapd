@@ -2,7 +2,6 @@ summary: Check that the seed symlinks work
 
 systems: [ubuntu-core-16-*]
 
-
 execute: |
     echo "Ensure that the core snap is a symlink into the seed"
     core_symlink="$(readlink -f /var/lib/snapd/snaps/core_*.snap)"

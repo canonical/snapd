@@ -19,8 +19,9 @@ prepare: |
         exit
     fi
 
-    . $TESTSLIB/store.sh
-    setup_fake_store $STORE_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    setup_fake_store "$STORE_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -28,9 +29,10 @@ restore: |
         exit
     fi
 
-    . $TESTSLIB/store.sh
-    teardown_fake_store $STORE_DIR
-    rm -rf $ROOT
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$STORE_DIR"
+    rm -rf "$ROOT"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -39,8 +41,8 @@ execute: |
     fi
 
     echo Expose the needed assertions through the fakestore
-    cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
-    cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
     # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
@@ -48,23 +50,23 @@ execute: |
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result
-    ls -lR $IMAGE
+    ls -lR "$IMAGE"
     for f in pc pc-kernel core snapweb; do
-        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
+        ls "$IMAGE"/var/lib/snapd/seed/snaps/"${f}"*.snap
     done
-    MATCH snap_core=core < $IMAGE/boot/grub/grubenv
-    MATCH snap_kernel=pc-kernel < $IMAGE/boot/grub/grubenv
+    MATCH snap_core=core < "$IMAGE/boot/grub/grubenv"
+    MATCH snap_kernel=pc-kernel < "$IMAGE/boot/grub/grubenv"
 
     # check copied assertions
-    cmp $TESTSLIB/assertions/developer1-pc.model $IMAGE/var/lib/snapd/seed/assertions/model
-    cmp $TESTSLIB/assertions/developer1.account $IMAGE/var/lib/snapd/seed/assertions/developer1.account
+    cmp "$TESTSLIB"/assertions/developer1-pc.model "$IMAGE/var/lib/snapd/seed/assertions/model"
+    cmp "$TESTSLIB"/assertions/developer1.account "$IMAGE/var/lib/snapd/seed/assertions/developer1.account"
 
     echo Verify the unpacked gadget
-    ls -lR $GADGET
-    ls $GADGET/meta/snap.yaml
+    ls -lR "$GADGET"
+    ls "$GADGET/meta/snap.yaml"
 
     echo "Verify that we have valid looking seed.yaml"
-    cat $IMAGE/var/lib/snapd/seed/seed.yaml
+    cat "$IMAGE/var/lib/snapd/seed/seed.yaml"
 
     # snap-id of core
     if [ "$REMOTE_STORE" = production ]; then
@@ -72,13 +74,13 @@ execute: |
     else
         core_snap_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
     fi
-    MATCH "snap-id: ${core_snap_id}" < $IMAGE/var/lib/snapd/seed/seed.yaml
+    MATCH "snap-id: ${core_snap_id}" < "$IMAGE/var/lib/snapd/seed/seed.yaml"
 
     for snap in pc pc-kernel core; do
-        MATCH "name: $snap" < $IMAGE/var/lib/snapd/seed/seed.yaml
+        MATCH "name: $snap" < "$IMAGE/var/lib/snapd/seed/seed.yaml"
     done
 
     echo "Verify that we got some snap assertions"
     for name in pc pc-kernel core; do
-        cat $IMAGE/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
+        cat "$IMAGE"/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
     done

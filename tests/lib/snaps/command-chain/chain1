@@ -1,0 +1,6 @@
+#!/bin/sh
+
+export CHAIN_1_RAN=1
+printf "chain1 "
+printf "chain1 " > "$SNAP_DATA/breadcrumb"
+exec "$@"

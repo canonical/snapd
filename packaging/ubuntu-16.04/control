@@ -33,6 +33,7 @@ Build-Depends: autoconf,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
+               tzdata,
                udev,
                xfslibs-dev
 Standards-Version: 3.9.7
