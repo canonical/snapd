@@ -1,7 +1,9 @@
 summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
+
 systems: [ubuntu-core-16-64]
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -46,6 +48,7 @@ prepare: |
     cp test-snapd-with-configure_*.assert /var/lib/snapd/seed/assertions
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -93,6 +96,7 @@ restore: |
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

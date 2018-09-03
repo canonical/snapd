@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func init() {
@@ -110,4 +111,58 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 		bytes--
 	}
 	return data
+}
+
+// splitUnit takes a string of the form "123unit" and splits
+// it into the number and non-number parts (123,"unit").
+func splitUnit(inp string) (number int64, unit string, err error) {
+	// go after the number first, break on first non-digit
+	var nonDigit int
+	for i, c := range inp {
+		if !unicode.IsDigit(c) {
+			number, err = strconv.ParseInt(inp[0:i], 10, 64)
+			if err != nil {
+				return 0, "", err
+			}
+			nonDigit = i
+			break
+		}
+	}
+	if nonDigit == 0 {
+		return 0, "", fmt.Errorf("need a number with a unit as input")
+	}
+
+	return number, inp[nonDigit:], nil
+}
+
+// ParseByteSize parses a value like 500kB and returns the number
+// in bytes. The case of the unit will be ignored for user convenience.
+func ParseByteSize(inp string) (int64, error) {
+	unitMultiplier := map[string]int64{
+		"B": 1,
+		// strictly speaking this is "kB" but we ignore cases
+		"KB": 1000,
+		"MB": 1000 * 1000,
+		"GB": 1000 * 1000 * 1000,
+		"TB": 1000 * 1000 * 1000 * 1000,
+		"PB": 1000 * 1000 * 1000 * 1000 * 1000,
+		"EB": 1000 * 1000 * 1000 * 1000 * 1000 * 1000,
+	}
+
+	errPrefix := fmt.Sprintf("cannot parse %q: ", inp)
+
+	val, unit, err := splitUnit(inp)
+	if err != nil {
+		return 0, fmt.Errorf(errPrefix+"%s", err)
+	}
+	if unit == "" {
+		return 0, fmt.Errorf(errPrefix + "need a number with a unit as input")
+	}
+
+	mul, ok := unitMultiplier[strings.ToUpper(unit)]
+	if !ok {
+		return 0, fmt.Errorf(errPrefix + "try 'kB' or 'MB'")
+	}
+
+	return val * mul, nil
 }
