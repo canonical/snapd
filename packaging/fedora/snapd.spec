@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35
+Version:        2.35.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -800,6 +800,18 @@ fi
 %endif
 
 %changelog
+* Mon Sep 03 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.1
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+ - snapcraft: do not use --diry in mkversion.sh
+ - cmd: add systemd environment generator
+ - snap-confine: map /var/lib/extrausers into snaps mount-namespace
+ - tests: cherry-pick test fixes from master for 2.35
+ - systemd: do not run "snapd.snap-repair.service.in on firstboot
+   bootstrap
+ - interfaces: retain order of inserted security backends
+ - selftest: detect if apparmor is unusable and error
+
 * Sat Aug 25 2018 Neal Gompa <ngompa13@gmail.com> - 2.35-1
 - Release 2.35 to Fedora (RH#1598946)
 
