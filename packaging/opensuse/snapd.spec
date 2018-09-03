@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.35
+Version:        2.35.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
