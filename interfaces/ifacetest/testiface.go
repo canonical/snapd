@@ -412,7 +412,7 @@ func (t *TestInterface) HotplugDeviceKey(deviceInfo *hotplug.HotplugDeviceInfo) 
 }
 
 func (t *TestInterface) HotplugDeviceDetected(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-	if t.HotplugDeviceDetected != nil {
+	if t.HotplugDeviceDetectedCallback != nil {
 		return t.HotplugDeviceDetectedCallback(deviceInfo, spec)
 	}
 	return nil
