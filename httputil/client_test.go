@@ -46,9 +46,9 @@ func (p *proxyProvider) proxyCallback(*http.Request) (*url.URL, error) {
 	return p.proxy, nil
 }
 
-func (s *clientSuite) TestClientOptsWithProxy(c *check.C) {
+func (s *clientSuite) TestClientOptionsWithProxy(c *check.C) {
 	pp := proxyProvider{proxy: mustParse(c, "http://some-proxy:3128")}
-	cli := httputil.NewHTTPClient(&httputil.ClientOpts{
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Proxy: pp.proxyCallback,
 	})
 	c.Assert(cli, check.NotNil)
