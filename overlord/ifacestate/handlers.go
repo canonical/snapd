@@ -1333,7 +1333,7 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 			// "by-hotplug" flag indicates it's a disconnect triggered as part of hotplug removal.
 			ts, err := disconnectTasks(st, conn, disconnectOpts{ByHotplug: true})
 			if err != nil {
-				return err
+				return fmt.Errorf("internal error: cannot create disconnect tasks: %s", err)
 			}
 			dts.AddAll(ts)
 		}
@@ -1367,12 +1367,11 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return fmt.Errorf("cannot determine slots: %s", err)
 	}
-
 	if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
 		return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
 	}
-	delete(stateSlots, slot.Name)
 
+	delete(stateSlots, slot.Name)
 	setHotplugSlots(st, stateSlots)
 
 	return nil

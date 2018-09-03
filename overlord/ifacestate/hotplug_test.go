@@ -22,15 +22,19 @@ package ifacestate_test
 import (
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
@@ -49,6 +53,7 @@ var _ = Suite(&hotplugSuite{})
 func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
+	dirs.SetRootDir(c.MkDir())
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 
@@ -79,8 +84,11 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	s.state.Unlock()
 
-	var err error
-	s.mgr, err = ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+
+	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
 	testIface1 := &ifacetest.TestInterface{
@@ -204,13 +212,46 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	c.Assert(slots[0].HotplugDeviceKey, Equals, "vendor:model:revision:serial")
 }
 
-func (s *hotplugSuite) TestHotplugRemoveNotConnected(c *C) {
+var testSnapYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test-a
+`
+
+func (s *hotplugSuite) TestHotplugRemove(c *C) {
+	st := s.state
+	st.Lock()
+
+	conns := map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":       "test-a",
+			"hotplug-key":     "key-1",
+			"hotplug-removed": false,
+		},
+	}
+	st.Set("conns", conns)
+
 	repo := s.mgr.Repository()
-	s.state.Lock()
+
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
+	c.Assert(repo.AddPlug(&snap.PlugInfo{
+		Interface: "test-a",
+		Name:      "plug",
+		Attrs:     map[string]interface{}{},
+		Snap:      testSnap,
+	}), IsNil)
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
 	core, err := snapstate.CoreInfo(s.state)
 	c.Assert(err, IsNil)
-	s.state.Unlock()
-
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:        "test-a",
 		Name:             "hotplugslot",
@@ -218,6 +259,15 @@ func (s *hotplugSuite) TestHotplugRemoveNotConnected(c *C) {
 		Snap:             core,
 		HotplugDeviceKey: "key-1",
 	}), IsNil)
+
+	conn, err := repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"},
+	}, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
+
+	st.Unlock()
 
 	// sanity check
 	c.Assert(repo.Slots("core"), HasLen, 1)
@@ -234,10 +284,19 @@ func (s *hotplugSuite) TestHotplugRemoveNotConnected(c *C) {
 
 	c.Assert(s.o.Settle(5*time.Second), IsNil)
 
-	s.state.Lock()
-	defer s.state.Unlock()
+	st.Lock()
+	defer st.Unlock()
 
 	c.Assert(repo.Slots("core"), HasLen, 0)
 	slot, _ = repo.SlotForDeviceKey("key-1", "test-a")
 	c.Assert(slot, IsNil)
+
+	var newconns map[string]interface{}
+	c.Assert(st.Get("conns", &newconns), IsNil)
+	c.Assert(newconns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":       "test-a",
+			"hotplug-key":     "key-1",
+			"hotplug-removed": true,
+		}})
 }

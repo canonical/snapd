@@ -342,7 +342,7 @@ type connState struct {
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
 	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
 	HotplugRemoved   bool                   `json:"hotplug-removed,omitempty"`
-	HotplugDeviceKey string                 `json:"hotplug-device,omitempty"`
+	HotplugDeviceKey string                 `json:"hotplug-key,omitempty"`
 }
 
 type autoConnectChecker struct {
