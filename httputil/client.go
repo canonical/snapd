@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-type ClientOpts struct {
+type ClientOptions struct {
 	Timeout    time.Duration
 	TLSConfig  *tls.Config
 	MayLogBody bool
@@ -35,9 +35,9 @@ type ClientOpts struct {
 
 // NewHTTPCLient returns a new http.Client with a LoggedTransport, a
 // Timeout and preservation of range requests across redirects
-func NewHTTPClient(opts *ClientOpts) *http.Client {
+func NewHTTPClient(opts *ClientOptions) *http.Client {
 	if opts == nil {
-		opts = &ClientOpts{}
+		opts = &ClientOptions{}
 	}
 
 	transport := newDefaultTransport()
