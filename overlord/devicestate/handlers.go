@@ -358,7 +358,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 
 	st := t.State()
 	proxyConf := proxyconf.New(st)
-	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout:    30 * time.Second,
 		MayLogBody: true,
 		Proxy:      proxyConf.Conf,
