@@ -39,7 +39,9 @@ func deviceKey(defaultDeviceKey string, device *hotplug.HotplugDeviceInfo, iface
 		if err != nil {
 			return "", fmt.Errorf("failed to create device key for interface %q: %s", iface.Name(), err)
 		}
-		return deviceKey, nil
+		if deviceKey != "" {
+			return deviceKey, nil
+		}
 	}
 	return defaultDeviceKey, nil
 }

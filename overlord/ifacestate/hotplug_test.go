@@ -41,6 +41,7 @@ type hotplugSuite struct {
 	o       *overlord.Overlord
 	state   *state.State
 	udevMon *udevMonitorMock
+	mgr     *ifacestate.InterfaceManager
 }
 
 var _ = Suite(&hotplugSuite{})
@@ -77,14 +78,9 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	tr.Commit()
 
 	s.state.Unlock()
-}
 
-func (s *hotplugSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-}
-
-func (s *hotplugSuite) TestHotplugAdd(c *C) {
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	var err error
+	s.mgr, err = ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
 	testIface1 := &ifacetest.TestInterface{
@@ -93,13 +89,12 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 			return "KEY-1", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			spec.SetSlot(&hotplug.SlotSpec{
+			return spec.SetSlot(&hotplug.SlotSpec{
 				Name: "hotplugslot-a",
 				Attrs: map[string]interface{}{
 					"slot-a-attr1": "a",
 				},
 			})
-			return nil
 		},
 	}
 	testIface2 := &ifacetest.TestInterface{
@@ -108,13 +103,12 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 			return "KEY-2", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			spec.SetSlot(&hotplug.SlotSpec{
+			return spec.SetSlot(&hotplug.SlotSpec{
 				Name: "hotplugslot-b",
 			})
-			return nil
 		},
 	}
-	// 3rd hotplug interface doesn't create a slot (doesn't support the device)
+	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
 	testIface3 := &ifacetest.TestInterface{
 		InterfaceName: "test-c",
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
@@ -124,13 +118,28 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 			return nil
 		},
 	}
-	mgr.Repository().AddInterface(testIface1)
-	mgr.Repository().AddInterface(testIface2)
-	mgr.Repository().AddInterface(testIface3)
+	testIface4 := &ifacetest.TestInterface{
+		InterfaceName: "test-d",
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+			return spec.SetSlot(&hotplug.SlotSpec{
+				Name: "hotplugslot-d",
+			})
+		},
+	}
+	s.mgr.Repository().AddInterface(testIface1)
+	s.mgr.Repository().AddInterface(testIface2)
+	s.mgr.Repository().AddInterface(testIface3)
+	s.mgr.Repository().AddInterface(testIface4)
 
 	// single Ensure to have udev monitor created and wired up by interface manager
-	c.Assert(mgr.Ensure(), IsNil)
+	c.Assert(s.mgr.Ensure(), IsNil)
+}
 
+func (s *hotplugSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
+func (s *hotplugSuite) TestHotplugAdd(c *C) {
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":   "a/path",
 		"ACTION":    "add",
@@ -145,7 +154,7 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 	defer s.state.Unlock()
 
 	// make sure slots have been created in the repo
-	repo := mgr.Repository()
+	repo := s.mgr.Repository()
 	ok, err := repo.HasHotplugSlot("KEY-1", "test-a")
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, true)
@@ -155,6 +164,7 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 	c.Assert(slots[0].Attrs, DeepEquals, map[string]interface{}{
 		"slot-a-attr1": "a",
 	})
+	c.Assert(slots[0].HotplugDeviceKey, Equals, "KEY-1")
 
 	ok, err = repo.HasHotplugSlot("KEY-2", "test-b")
 	c.Assert(err, IsNil)
@@ -163,4 +173,30 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 	ok, err = repo.HasHotplugSlot("KEY-3", "test-c")
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, false)
+}
+
+func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":         "a/path",
+		"ACTION":          "add",
+		"SUBSYSTEM":       "foo",
+		"ID_VENDOR_ID":    "vendor",
+		"ID_MODEL_ID":     "model",
+		"ID_REVISION":     "revision",
+		"ID_SERIAL_SHORT": "serial",
+	})
+	c.Assert(err, IsNil)
+	s.udevMon.AddDevice(di)
+
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// make sure the slot has been created
+	repo := s.mgr.Repository()
+	slots := repo.AllSlots("test-d")
+	c.Assert(slots, HasLen, 1)
+	c.Assert(slots[0].Name, Equals, "hotplugslot-d")
+	c.Assert(slots[0].HotplugDeviceKey, Equals, "vendor:model:revision:serial")
 }
