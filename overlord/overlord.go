@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/idlestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -80,6 +81,7 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
+	idleMgr   *idlestate.IdleManager
 }
 
 var storeNew = store.New
@@ -144,6 +146,9 @@ func New() (*Overlord, error) {
 
 	configstateInit(hookMgr)
 
+	// idle manager must be added after snapstate.Manager
+	o.addManager(idlestate.Manager(s))
+
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
 
@@ -177,6 +182,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *idlestate.IdleManager:
+		o.idleMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -396,6 +403,12 @@ func (o *Overlord) TaskRunner() *state.TaskRunner {
 // the overlord.
 func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
+}
+
+// IdleManager returns the snap manager responsible for snaps under
+// the overlord.
+func (o *Overlord) IdleManager() *idlestate.IdleManager {
+	return o.idleMgr
 }
 
 // AssertManager returns the assertion manager enforcing assertions

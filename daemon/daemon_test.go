@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/idlestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
@@ -817,7 +818,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 }
 
 func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
-	restore := MockCanGoSocketActivateWait(10 * time.Millisecond)
+	restore := idlestate.MockCanGoSocketActivateWait(5 * time.Millisecond)
 	defer restore()
 
 	d := newTestDaemon(c)
@@ -828,6 +829,12 @@ func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
 	s.markSeeded(d)
 
 	d.Start()
+	// pretend some ensure happend
+	for i := 0; i < 5; i++ {
+		d.overlord.StateEngine().Ensure()
+		time.Sleep(5 * time.Millisecond)
+	}
+
 	select {
 	case <-d.Dying():
 		// exit the loop
@@ -840,7 +847,7 @@ func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
 }
 
 func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
-	restore := MockCanGoSocketActivateWait(10 * time.Millisecond)
+	restore := idlestate.MockCanGoSocketActivateWait(5 * time.Millisecond)
 	defer restore()
 
 	d := newTestDaemon(c)
@@ -852,6 +859,12 @@ func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
 	st := d.overlord.State()
 
 	d.Start()
+	// pretend some ensure happend
+	for i := 0; i < 5; i++ {
+		d.overlord.StateEngine().Ensure()
+		time.Sleep(5 * time.Millisecond)
+	}
+
 	select {
 	case <-d.Dying():
 		// Pretend we got change while shutting down, this can
@@ -874,87 +887,4 @@ func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
 	c.Check(d.restartSocket, check.Equals, false)
-}
-
-func (s *daemonSuite) TestCanGoSocketActivatedNotSeeded(c *check.C) {
-	d := newTestDaemon(c)
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", false)
-	st.Unlock()
-
-	c.Check(d.canGoSocketActivated(), check.Equals, false)
-}
-
-func (s *daemonSuite) TestCanGoSocketActivatedSeeded(c *check.C) {
-	d := newTestDaemon(c)
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", true)
-	st.Unlock()
-
-	c.Check(d.canGoSocketActivated(), check.Equals, true)
-}
-
-func (s *daemonSuite) TestCanGoSocketActivatedSnaps(c *check.C) {
-	d := newTestDaemon(c)
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", true)
-	snapstate.Set(st, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(1)},
-		},
-		Current: snap.R(1),
-		Active:  true,
-	})
-	st.Unlock()
-
-	c.Check(d.canGoSocketActivated(), check.Equals, false)
-}
-
-func (s *daemonSuite) TestCanGoSocketPendingChanges(c *check.C) {
-	d := newTestDaemon(c)
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", true)
-	chg := st.NewChange("foo", "fake change")
-	chg.AddTask(st.NewTask("bar", "fake task"))
-	c.Assert(chg.Status(), check.Equals, state.DoStatus)
-	st.Unlock()
-
-	c.Check(d.canGoSocketActivated(), check.Equals, false)
-}
-
-func (s *daemonSuite) TestCanGoSocketPendingCleans(c *check.C) {
-	d := newTestDaemon(c)
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", true)
-	t := st.NewTask("bar", "fake task")
-	chg := st.NewChange("foo", "fake change")
-	chg.AddTask(t)
-	t.SetStatus(state.DoneStatus)
-	c.Assert(chg.Status(), check.Equals, state.DoneStatus)
-	c.Assert(t.IsClean(), check.Equals, false)
-	st.Unlock()
-
-	c.Check(d.canGoSocketActivated(), check.Equals, false)
-}
-
-func (s *daemonSuite) TestCanGoSocketOnlyDonePendingChanges(c *check.C) {
-	d := newTestDaemon(c)
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("seeded", true)
-	t := st.NewTask("bar", "fake task")
-	chg := st.NewChange("foo", "fake change")
-	chg.AddTask(t)
-	t.SetStatus(state.DoneStatus)
-	t.SetClean()
-	c.Assert(chg.Status(), check.Equals, state.DoneStatus)
-	c.Assert(t.IsClean(), check.Equals, true)
-	st.Unlock()
-
-	c.Check(d.canGoSocketActivated(), check.Equals, true)
 }
