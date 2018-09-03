@@ -2787,7 +2787,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	return chg
 }
 
-func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
+func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
@@ -2808,14 +2808,12 @@ func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
+
+	// "consumer:plug producer:slot" wouldn't normally be present in conns when connecting because
+	// ifacestate.Connect() checks for existing connection; it's used here to test removal on undo.
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface":    "test",
-			"plug-static":  map[string]interface{}{"foo1": "bar1"},
-			"slot-static":  map[string]interface{}{"foo2": "bar2"},
-			"plug-dynamic": map[string]interface{}{"foo3": "bar3"},
-			"slot-dynamic": map[string]interface{}{"foo4": "bar4"},
-		},
+		"snap1:plug snap2:slot":       map[string]interface{}{},
+		"consumer:plug producer:slot": map[string]interface{}{},
 	})
 
 	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
@@ -2834,17 +2832,12 @@ func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
 		c.Assert(t.Status(), Equals, state.UndoneStatus)
 	}
 
-	// Information about the connection is intact
+	// connection is removed from conns, other connection is left intact
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface":    "test",
-			"plug-static":  map[string]interface{}{"foo1": "bar1"},
-			"plug-dynamic": map[string]interface{}{"foo3": "bar3"},
-			"slot-static":  map[string]interface{}{"foo2": "bar2"},
-			"slot-dynamic": map[string]interface{}{"foo4": "bar4"},
-		}})
+		"snap1:plug snap2:slot": map[string]interface{}{},
+	})
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {
