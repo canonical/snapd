@@ -86,7 +86,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	testIface1 := &ifacetest.TestInterface{
 		InterfaceName: "test-a",
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
-			return "KEY-1", nil
+			return "key-1", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
 			return spec.SetSlot(&hotplug.SlotSpec{
@@ -100,7 +100,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	testIface2 := &ifacetest.TestInterface{
 		InterfaceName: "test-b",
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
-			return "KEY-2", nil
+			return "key-2", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
 			return spec.SetSlot(&hotplug.SlotSpec{
@@ -112,7 +112,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	testIface3 := &ifacetest.TestInterface{
 		InterfaceName: "test-c",
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
-			return "KEY-3", nil
+			return "key-3", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
 			return nil
@@ -130,6 +130,9 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr.Repository().AddInterface(testIface2)
 	s.mgr.Repository().AddInterface(testIface3)
 	s.mgr.Repository().AddInterface(testIface4)
+
+	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
 
 	// single Ensure to have udev monitor created and wired up by interface manager
 	c.Assert(s.mgr.Ensure(), IsNil)
@@ -155,7 +158,7 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 
 	// make sure slots have been created in the repo
 	repo := s.mgr.Repository()
-	ok, err := repo.HasHotplugSlot("KEY-1", "test-a")
+	ok, err := repo.HasHotplugSlot("key-1", "test-a")
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, true)
 	slots := repo.AllSlots("test-a")
@@ -164,13 +167,13 @@ func (s *hotplugSuite) TestHotplugAdd(c *C) {
 	c.Assert(slots[0].Attrs, DeepEquals, map[string]interface{}{
 		"slot-a-attr1": "a",
 	})
-	c.Assert(slots[0].HotplugDeviceKey, Equals, "KEY-1")
+	c.Assert(slots[0].HotplugDeviceKey, Equals, "key-1")
 
-	ok, err = repo.HasHotplugSlot("KEY-2", "test-b")
+	ok, err = repo.HasHotplugSlot("key-2", "test-b")
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, true)
 
-	ok, err = repo.HasHotplugSlot("KEY-3", "test-c")
+	ok, err = repo.HasHotplugSlot("key-3", "test-c")
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, false)
 }
@@ -199,4 +202,42 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	c.Assert(slots, HasLen, 1)
 	c.Assert(slots[0].Name, Equals, "hotplugslot-d")
 	c.Assert(slots[0].HotplugDeviceKey, Equals, "vendor:model:revision:serial")
+}
+
+func (s *hotplugSuite) TestHotplugRemoveNotConnected(c *C) {
+	repo := s.mgr.Repository()
+	s.state.Lock()
+	core, err := snapstate.CoreInfo(s.state)
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	c.Assert(repo.AddSlot(&snap.SlotInfo{
+		Interface:        "test-a",
+		Name:             "hotplugslot",
+		Attrs:            map[string]interface{}{},
+		Snap:             core,
+		HotplugDeviceKey: "key-1",
+	}), IsNil)
+
+	// sanity check
+	c.Assert(repo.Slots("core"), HasLen, 1)
+	slot, _ := repo.SlotForDeviceKey("key-1", "test-a")
+	c.Assert(slot, NotNil)
+
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":   "a/path",
+		"ACTION":    "add",
+		"SUBSYSTEM": "foo",
+	})
+	c.Assert(err, IsNil)
+	s.udevMon.RemoveDevice(di)
+
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(repo.Slots("core"), HasLen, 0)
+	slot, _ = repo.SlotForDeviceKey("key-1", "test-a")
+	c.Assert(slot, IsNil)
 }
