@@ -553,6 +553,35 @@ func (s *lowLevelSuite) TestFstatfsSuccess(c *check.C) {
 	})
 }
 
+func (s *lowLevelSuite) TestFstatfsChain(c *check.C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`,
+		syscall.Statfs_t{Type: 0x123}, syscall.Statfs_t{Type: 0x456})
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, check.IsNil)
+	var buf syscall.Statfs_t
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, check.IsNil)
+	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x123})
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, check.IsNil)
+	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x456})
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, check.IsNil)
+	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x456})
+	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
+		`open "/foo" 0 0`, // -> 3
+		`fstatfs 3 <ptr>`, // -> Type: 0x123
+		`fstatfs 3 <ptr>`, // -> Type: 0x456
+		`fstatfs 3 <ptr>`, // -> Type: 0x456
+	})
+	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
+		{C: `open "/foo" 0 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: 0x123}},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: 0x456}},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: 0x456}},
+	})
+}
+
 func (s *lowLevelSuite) TestFstatfsFailure(c *check.C) {
 	s.sys.InsertFault(`fstatfs 3 <ptr>`, syscall.EPERM)
 	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
