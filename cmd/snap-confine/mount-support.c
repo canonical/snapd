@@ -655,6 +655,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			// compatibility with the first version of base snaps that was
 			// released.
 			{"/mnt",.is_optional = true},	// to support the removable-media interface
+			{"/var/lib/extrausers",.is_optional = true},	// access to UID/GID of extrausers (if available)
 			{},
 		};
 		char rootfs_dir[PATH_MAX] = { 0 };
