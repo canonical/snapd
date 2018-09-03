@@ -3698,6 +3698,17 @@ func (u *udevMonitorMock) Stop() error {
 
 func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	u := udevMonitorMock{}
+	st := s.state
+	st.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	st.Unlock()
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
@@ -3725,6 +3736,17 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	u := udevMonitorMock{
 		ConnectError: fmt.Errorf("Connect failed"),
 	}
+	st := s.state
+	st.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	st.Unlock()
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
