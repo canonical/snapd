@@ -110,6 +110,9 @@ type Config struct {
 
 	// CacheDownloads is the number of downloads that should be cached
 	CacheDownloads int
+
+	// Proxy returns the HTTP proxy to use when talking to the store
+	Proxy func(*http.Request) (*url.URL, error)
 }
 
 // setBaseURL updates the store API's base URL in the Config. Must not be used
@@ -154,6 +157,7 @@ type Store struct {
 	suggestedCurrency string
 
 	cacher downloadCache
+	proxy  func(*http.Request) (*url.URL, error)
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -346,10 +350,12 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		infoFields:      infoFields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+		proxy:           cfg.Proxy,
 
-		client: httputil.NewHTTPClient(&httputil.ClientOpts{
+		client: httputil.NewHTTPClient(&httputil.ClientOptions{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
+			Proxy:      cfg.Proxy,
 		}),
 	}
 	store.SetCacheDownloads(cfg.CacheDownloads)
@@ -1222,9 +1228,10 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	}
 
 	// do not log body for catalog updates (its huge)
-	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		MayLogBody: false,
 		Timeout:    10 * time.Second,
+		Proxy:      s.proxy,
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, client, reqOptions, nil)
@@ -1485,7 +1492,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(nil), reqOptions, user)
+		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
@@ -2095,10 +2102,16 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		// due to privacy concerns, avoid sending the local names to the
-		// backend and instead just number current snaps, this requires
-		// extra hoops to translate instance key -> instance name
-		instanceKey := fmt.Sprintf("%d-%s", i, curSnap.SnapID)
+		instanceKey := curSnap.SnapID
+		if _, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName); snapInstanceKey != "" {
+			// due to privacy concerns, avoid sending the local names to the
+			// backend and instead just number current snaps, this requires
+			// extra hoops to translate instance key -> instance name
+
+			// TODO parallel-install: ensure that instance key is
+			// stable across refreshes
+			instanceKey = fmt.Sprintf("%d-%s", i, curSnap.SnapID)
+		}
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 

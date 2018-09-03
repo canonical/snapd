@@ -26,6 +26,12 @@ if [ "$GOPACKAGE" = "cmd" ]; then
     GO_GENERATE_BUILDDIR="$(pwd)/.."
 fi
 
+OUTPUT_ONLY=false
+if [ "$1" = "--output-only" ]; then
+    OUTPUT_ONLY=true
+    shift
+fi
+
 # If the version is passed in as an argument to mkversion.sh, let's use that.
 if [ ! -z "$1" ]; then
     v="$1"
@@ -35,7 +41,9 @@ fi
 if [ -z "$v" ]; then
     # Let's try to derive the version from git..
     if command -v git >/dev/null; then
-        v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
+        # not using "--dirty" here until the following bug is fixed:
+        # https://bugs.launchpad.net/snapcraft/+bug/1662388
+        v="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
         o=git
     fi
 fi
@@ -50,6 +58,11 @@ fi
 
 if [ -z "$v" ]; then
     exit 1
+fi
+
+if [ "$OUTPUT_ONLY" = true ]; then
+    echo "$v"
+    exit 0
 fi
 
 echo "*** Setting version to '$v' from $o." >&2

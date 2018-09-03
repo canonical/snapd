@@ -8,6 +8,7 @@
 
 # Compat macros
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
 # With Amazon Linux 2+, we're going to provide the /snap symlink by default,
 # since classic snaps currently require it... :(
@@ -20,6 +21,9 @@
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
+
+# Enforce hardened build, even on EL7
+%global _hardened_build 1
 
 %global with_devel 1
 %global with_debug 1
@@ -81,6 +85,10 @@
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 %endif
 
+# Compat path macros
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
+
 # SELinux policy does not build on Amazon Linux 2 at the moment, fails with
 # checkmodule complaining about missing 'map' permission for 'file' class
 %if 0%{?amzn2} == 1
@@ -88,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.34.3
+Version:        2.35
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -150,6 +158,8 @@ BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
+BuildRequires: golang(github.com/kr/pretty)
+BuildRequires: golang(github.com/kr/text)
 BuildRequires: golang(github.com/mvo5/goconfigparser)
 BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
@@ -227,7 +237,7 @@ runs properly under an environment with SELinux enabled.
 
 %if 0%{?with_devel}
 %package devel
-Summary:       %{summary}
+Summary:       Development files for %{name}
 BuildArch:     noarch
 
 %if 0%{?with_check} && ! 0%{?with_bundled}
@@ -241,6 +251,8 @@ Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
+Requires:      golang(github.com/kr/pretty)
+Requires:      golang(github.com/kr/text)
 Requires:      golang(github.com/mvo5/goconfigparser)
 Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
@@ -267,6 +279,8 @@ Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
+Provides:      bundled(golang(github.com/kr/pretty))
+Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
@@ -308,6 +322,7 @@ Provides:      golang(%{import_path}/interfaces/apparmor) = %{version}-%{release
 Provides:      golang(%{import_path}/interfaces/backends) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/builtin) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/dbus) = %{version}-%{release}
+Provides:      golang(%{import_path}/interfaces/hotplug) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/ifacetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/kmod) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/mount) = %{version}-%{release}
@@ -315,10 +330,16 @@ Provides:      golang(%{import_path}/interfaces/policy) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/udev) = %{version}-%{release}
+Provides:      golang(%{import_path}/interfaces/utils) = %{version}-%{release}
 Provides:      golang(%{import_path}/jsonutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/jsonutil/safejson) = %{version}-%{release}
 Provides:      golang(%{import_path}/logger) = %{version}-%{release}
+Provides:      golang(%{import_path}/netutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/squashfs) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/sys) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/udev/crawler) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/udev/netlink) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/assertstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
@@ -326,6 +347,7 @@ Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/configcore) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/configstate/settings) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{release}
@@ -334,6 +356,7 @@ Provides:      golang(%{import_path}/overlord/ifacestate) = %{version}-%{release
 Provides:      golang(%{import_path}/overlord/ifacestate/ifacerepo) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/patch) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/servicestate) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/snapshotstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/state) = %{version}-%{release}
@@ -345,6 +368,7 @@ Provides:      golang(%{import_path}/polkit) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress/progresstest) = %{version}-%{release}
 Provides:      golang(%{import_path}/release) = %{version}-%{release}
+Provides:      golang(%{import_path}/selftest) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/pack) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
@@ -356,6 +380,7 @@ Provides:      golang(%{import_path}/store) = %{version}-%{release}
 Provides:      golang(%{import_path}/store/storetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil/quantity) = %{version}-%{release}
+Provides:      golang(%{import_path}/strutil/shlex) = %{version}-%{release}
 Provides:      golang(%{import_path}/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/refresh) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/store) = %{version}-%{release}
@@ -366,10 +391,9 @@ Provides:      golang(%{import_path}/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/userd/ui) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
+Provides:      golang(%{import_path}/xdgopenproxy) = %{version}-%{release}
 
 %description devel
-%{summary}
-
 This package contains library source intended for
 building other packages which use import path with
 %{import_path} prefix.
@@ -388,8 +412,6 @@ Summary:         Unit tests for %{name} package
 Requires:        %{name}-devel = %{version}-%{release}
 
 %description unit-test-devel
-%{summary}
-
 This package contains unit tests for project
 providing packages with %{import_path} prefix.
 %endif
@@ -408,7 +430,7 @@ rm -rf vendor/*
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
 
-# We don't want/need squashfuse in the rpm
+# We don't want/need squashfuse in the rpm, as it's available in Fedora and EPEL
 sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
 
 # Build snapd
@@ -493,6 +515,8 @@ popd
 install -d -p %{buildroot}%{_bindir}
 install -d -p %{buildroot}%{_libexecdir}/snapd
 install -d -p %{buildroot}%{_mandir}/man1
+install -d -p %{buildroot}%{_environmentdir}
+install -d -p %{buildroot}%{_systemdgeneratordir}
 install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
@@ -510,6 +534,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
 install -d -p %{buildroot}%{_datadir}/polkit-1/actions
+install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 %if 0%{?with_selinux}
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
@@ -549,6 +574,8 @@ chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
+# Move systemd-generator to the right place
+mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_systemdgeneratordir}
 popd
 
 # Install all systemd and dbus units, and env files
@@ -643,6 +670,7 @@ popd
 %doc README.md docs/*
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_environmentdir}/990-snapd.conf
 %dir %{_libexecdir}/snapd
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec
@@ -654,16 +682,17 @@ popd
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
+%{_mandir}/man7/snapd-env-generator.7*
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
-%{_unitdir}/snapd.seeded.service
-%{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.autoimport.service
+%{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_systemd_system_env_generator_dir}/snapd-env-generator
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -685,7 +714,6 @@ popd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/snap/README
-%{_environmentdir}/990-snapd.conf
 %if %{with snap_symlink}
 /snap
 %endif
@@ -697,15 +725,15 @@ popd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
 %attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
+%{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
-%{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/system-shutdown
-%{_libexecdir}/snapd/snap-gdb-shim
-%{_libexecdir}/snapd/snapd-generator
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
+%{_systemdgeneratordir}/snapd-generator
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
 %if 0%{?with_selinux}
@@ -772,23 +800,241 @@ fi
 %endif
 
 %changelog
+* Sat Aug 25 2018 Neal Gompa <ngompa13@gmail.com> - 2.35-1
+- Release 2.35 to Fedora (RH#1598946)
+
+* Mon Aug 20 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35
+ - snapstate: add support for gadget tracks in model assertion
+ - image: add support for "gadget=track"
+ - asserts: add support for gadget tracks in the model assertion
+ - interfaces: add new "sysfs-name" to i2c interfaces code
+ - overlord: handle sigterm during shutdown better
+ - wayland: add extra sockets that are used by older toolkits
+ - snap: fix advice json
+ - tests: fix autopkgtest failures in cosmic
+ - store: backward compatible instance-key handling for non-instance
+   snaps
+ - snapstate: ensure normal snaps wait for the "snapd" snap on
+   refresh
+ - interfaces: add cpu-control for setting CPU tunables
+ - debian: add missing breaks on comisc
+ - overlord/devicestate: DTRT w/a snap proxy to reach a serial vault
+ - devicestate: only run device-hook when fully seeded
+ - seccomp: conditionally add socketcall() based on system and base
+ - interfaces/builtin: addtl network-manager resolved DBus fix
+ - hookstate: simplify some hook tests
+ - udev: skip TestParseUdevEvent on ppc
+ - interfaces: miscellaneous policy updates
+ - debian: add tzdata to build-dep to ensure snapd builds correctly
+ - interfaces/builtin: network-manager resolved DBus changes
+ - tests: add spread test for fedora29 base snap
+ - cmd/libsnap: treat distributions with VARIANT_ID=snappy as "core"
+ - dirs: fix SnapMountDir inside a Fedora base snap
+ - tests: fix snapd-failover for core18 with external backend
+ - overlord/snapstate: always clean SnapState when doing Get()
+ - overlod/ifacestate: always use a new SnapState when fetching the
+   snap state
+ - overlord/devicestate: have the serial request talk to the proxy if
+   set
+ - interfaces/hotplug: udevadm output parser
+ - tests: New test for daemon-notify interface
+ - image: ensure "core" is ordered early if base: and core is used
+ - cmd/snap-confine: snap-device-helper parallel installs support
+ - tests: enable interfaces-framebuffer everywhere
+ - tests: reduce nc wait time from 2 to 1 second
+ - snap/snapenv: add snap instance specific variables
+ - cmd/snap-confine: add minimal test for snap-device-helper
+ - tests: enable snapctl test on core18
+ - overlord: added UDevMonitor for future hotplug support
+ - wrappers: do not glob when removing desktop files
+ - tests: add dbus monitor log to interfaces-accounts-service
+ - tests: add core-18 systems to external backend
+ - wrappers: account for changed app wrapper in parallel installed
+   snaps
+ - wrappers: make sure that the tests pass on non-Ubuntu too
+ - many: add snapd snap failure handling
+ - tests: new test for dvb interface
+ - configstate: accept refresh.timer=managed
+ - tests: new test for snap logs command
+ - wrapper: generate all the snapd unit files when generating
+   wrappers
+ - store: keep all files with link-count > 1 in the cache
+ - store: be less verbose in the common refresh case of "no updates"
+ - snap-confine: update snappy-app-dev path
+ - debian: ensure dependency on fixed apt on 18.04
+ - snapd: add initial software watchdog for snapd
+ - daemon, systemd: change journalctl -n=all to --no-tail
+ - systemd: fix snapd.apparmor.service.in dependencies
+ - snapstate: refuse to remove bases or core if snaps need them
+ - snap: introduce package-level helpers for building snap related
+   directory/file paths
+ - overlord/devicestate: deny parallel install of kernel or gadget
+   snaps
+ - store: clean up parallel-install TODOs in store tests
+ - timeutil: fix first weekday of the month schedule
+ - interfaces: match all possible tty but console
+ - tests: shellchecks part 5
+ - cmd/snap-confine: allow ptrace read for 4.18 kernels
+ - advise: make the bolt database do the atomic rename dance
+ - tests/main/apt-hooks: debug dump of commands.db
+ - tests/lib/prepare-restore: update Arch Linux kernel LOCALVERSION
+   handling
+ - snap: validate instance name as part of Validate()
+ - daemon: if a snap is inactive, don't ask systemd about its
+   services.
+ - udev: skip TestParseUdevEvent on s390x
+ - tests: switch core-amd64-18 to use `kernel: pc-kernel=18`
+ - asserts,image: add support for new kernel=track syntax
+ - tests: new gce image for fedora 27
+ - interfaces/apparmor: use the cache in mtime-resilient way
+ - store, overlord/snapstate: introduce instance name in store APIs
+ - tests: drive-by cleanup of redudant pkgname matching
+ - tests: ensure apt-hook is only run after catalog update ran
+ - tests: use pkill instead of kilall
+ - tests/main: another bunch of updates for Amazon Linux 2
+ - tests/lib/snaps: avoid using relative command paths that go up in
+   the  directory tree
+ - tests: disable/fix more tests for Amazon Linux 2
+ - overlord: introduce InstanceKey to SnapState and SnapSetup,
+   renames
+ - daemon: make sure most change generating handlers can produce
+   errors with kinds
+ - tests/main/interfaces-calendar-service: skip the test on AMZN2
+ - tests/lib/snaps: avoid using relative command paths that go up in
+   the directory tree
+ - cmd/snap: add a green check mark to verified publishers
+ - cmd/snap: fix two issues in the cmd/snap unit tests
+ - packaging/fedora: fix target path of /snap symlink
+ - cmd/snap: support `--last=<type>?` to mean "no error on empty"
+ - cmd/snap-confine: (nvidia) pick up libnvidia-glvkspirv.so
+ - strutil: detect and bail out of Unmarshal on duplicate key
+ - packaging/fedora(amzn2): disable SELinux, drop dependency on
+   squashfuse for AMZN2
+ - spread, tests: add support for Amazon Linux 2
+ - packaging/fedora: Add Amazon Linux 2 support
+ - many: make Wait/Stop optional on StateManagers
+ - snap/squashfs: stop printing unsquashfs info to stderr
+ - snap: add support for `snap advise-snap --from-apt`
+ - overlord/ifacestate: ignore connect if already connected
+ - tests: change the service snap used instead of network-bind-
+   consumer
+ - interfaces/network-control: update for wpa-supplicant and ifupdown
+ - tests: fix raciness in stop mode tests
+ - logger: try to not have double dates
+ - debian: use deb-systemd-invoke instead of systemctl directly
+ - tests: run all main tests on core18
+ - many: finish sharing a single TaskRunner with all the the managers
+ - interfaces/repo: added AllHotplugInterfaces helper
+ - snapstate: ensure kernel-track is honored on switch/refresh
+ - overlord/ifacestate: support implicit slots on snapd
+ - image: add support for "kernel-track" in `snap prepare-image`
+ - tests: add test that ensures we do not boot any system in degraded
+   state
+ - tests: update tests to work on core18
+ - cmd/snap: check for typographic dashes in command
+ - tests: fix tests expecting old email address
+ - client: add some existing error kinds that were not listed in
+   client.go
+ - tests: add missing slots in classic and core provider test snaps
+ - overlord,daemon,cmd: re-map snap names around the edges of snapd
+ - tests: use install_local in snap-run-hooks
+ - coreconfig: add support for `snap set system network.disable-
+   ipv6`
+ - overlord/snapstate: dedupe default content providers
+ - osutil/udev: sync with upstream
+ - debian: do not ship snapd.apparmor.service on ubuntu
+ - overlord: have SnapManager use a passed in TaskRunner created by
+   Overlord
+ - many: streamline the generic conflict check mechanisms
+ - tests: remove unneeded setup code in snap-run-symlink
+ - cmd/snap: print unset license as "unset", instead of "unknown"
+ - asserts: add (optional) kernel-track to model assertion
+ - snap/squashfs, tests: pass -n[o-progress] to {mk,un}squashfs
+ - interfaces/pulseaudio: be clear that the interface allows playback
+   and record
+ - snap: support hook environment
+ - interfaces: fix typo "daemonNotify" (add missing "n")
+ - interfaces: tweak tests of daemon-notify, use common naming
+ - interfaces: allow invoking systemd-notify when daemon-notify is
+   connected
+ - store: make snap blobs be 0600
+ - interfaces,daemon: move JSON types to the daemon
+ - tests: prepare needs to handle bin/snapctl being a symlink
+ - tests: do not mask errors in interfaces-timezone-control (#5405)
+ - packaging: put snapctl into /usr/lib/snapd and symlink in usr/bin
+ - tests: add basic integration test for spread hold
+ - overlord/snapstate: improve PlugsOnly comment
+ - many: assorted shellcheck fixes
+ - store, daemon, client, cmd/snap: expose "scope", default to wide
+ - snapstate: allow setting "refresh.timer=managed"
+ - cmd/snap: display a link to data privacy notice for interactive
+   snap login
+ - client, cmd/snap: pass snap instance name when installing from
+   file
+ - cmd/snap: add 'debug paths' command
+ - snapstate: make sure all *link-*snap tasks carry a snap type and
+   further hints
+ - devicestate: fix race when refreshing a snap with snapd-control
+ - tests: fix tests on arch
+ - tests: start active system units on reset
+ - tests: new test for joystick interface
+ - tests: moving install of dependencies to pkgdb helper
+ - tests: enable new fedora image with test dependencies installed
+ - tests: start using the new opensuse image with test dependencies
+ - tests: check catalog refresh before and after restart snapd
+ - tests: stop restarting journald service on prepare
+ - interfaces: make core-support a no-op interface
+ - interfaces: prefer "snapd" when resolving implicit connections
+ - interfaces/hotplug: add hotplug Specification and
+   HotplugDeviceInfo
+ - many: lessen the use of core-support
+ - tests: fixes for the autopkgtest failures in cosmic
+ - tests: remove extra ' which breaks interfaces-bluetooth-control
+   test
+ - dirs: fix antergos typo
+ - tests: use grep to avoid non-matching messages from MATCH
+ - dirs: improve distro detection for Antegros
+ - vendor: switch to latest bson
+ - interfaces/builtin: create can-bus interface
+ - tests: "snap connect" is idempotent so just connect
+ - many: use extra "releases" information on store "revision-not-
+   found" errors to produce better errors
+ - interfaces: treat "snapd" snap as type:os
+ - interfaces: tweak tests to have less repetition of "core" and
+   "ubuntu…
+ - tests: simplify econnreset test
+ - snap: add helper for renaming slots
+ - devicestate: fix panic in firstboot code when no snaps are seeded
+ - tests: add artful for sru validation on google backend
+ - snap,interfaces: move interface name validation to snap
+ - overlord/snapstate: introduce path to fake backend ops
+ - cmd/snap-confine: fix snaps running on core18
+ - many: expose publisher's validation throughout the API
+
 * Fri Jul 27 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.34.3
  - interfaces/apparmor: use the cache in mtime-resilient way
  - cmd/snap-confine: (nvidia) pick up libnvidia-glvkspirv.so
  - snapstate: allow setting "refresh.timer=managed"
  - spread: switch Fedora and openSUSE images
 
 * Thu Jul 19 2018 Michael Vogt <mvo@ubuntu.com>
-  - packaging: fix bogus date in fedora snapd.spec
-  - tests: fix tests expecting old email address
+- New upstream release 2.34.2
+ - packaging: fix bogus date in fedora snapd.spec
+ - tests: fix tests expecting old email address
 
 * Tue Jul 17 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.34.1
  - tests: cherry-pick test fixes from master for 2.34
  - coreconfig: add support for `snap set system network.disable-
    ipv6`
  - debian: do not ship snapd.apparmor.service on ubuntu
  - overlord/snapstate: dedupe default content providers
  - interfaces/builtin: create can-bus interface
+
+* Sat Jul 14 2018 Fedora Release Engineering <releng@fedoraproject.org> - 2.33.1-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_29_Mass_Rebuild
 
 * Fri Jul 06 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.34
@@ -1039,6 +1285,9 @@ fi
  - packaging: filter out verbose flags from "dh-golang"
  - packaging: fix description
  - snapcraft.yaml: add minimal snapcraft.yaml with custom build
+
+* Fri Jun 22 2018 Neal Gompa <ngompa13@gmail.com> - 2.33.1-1
+- Release 2.33.1 to Fedora (RH#1567916)
 
 * Thu Jun 21 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.33.1
@@ -1486,6 +1735,9 @@ fi
    not mounted in doMountSnap
  - daemon: support 'system' as nickname of the core snap
 
+* Thu Apr 12 2018 Neal Gompa <ngompa13@gmail.com> - 2.32.4-1
+- Release 2.32.4 to Fedora (RH#1553734)
+
 * Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.4
  - cmd/snap: user session application autostart
@@ -1806,6 +2058,9 @@ fi
  - systemd, wrappers: start all snap services in one systemctl
    call
  - tests: disable interfaces-location-control on s390x
+
+* Mon Mar 05 2018 Neal Gompa <ngompa13@gmail.com> - 2.31.1-2
+- Fix dependencies for devel subpackage
 
 * Sun Mar 04 2018 Neal Gompa <ngompa13@gmail.com> - 2.31.1-1
 - Release 2.31.1 to Fedora (RH#1542483)

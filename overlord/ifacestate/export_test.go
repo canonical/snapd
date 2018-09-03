@@ -24,14 +24,18 @@ import (
 )
 
 var (
-	AddImplicitSlots          = addImplicitSlots
-	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
-	CheckConnectConflicts     = checkConnectConflicts
-	FindSymmetricAutoconnect  = findSymmetricAutoconnect
-	ConnectPriv               = connect
-	GetConns                  = getConns
-	SetConns                  = setConns
+	AddImplicitSlots             = addImplicitSlots
+	SnapsWithSecurityProfiles    = snapsWithSecurityProfiles
+	CheckAutoconnectConflicts    = checkAutoconnectConflicts
+	FindSymmetricAutoconnectTask = findSymmetricAutoconnectTask
+	ConnectPriv                  = connect
+	GetConns                     = getConns
+	SetConns                     = setConns
 )
+
+func NewConnectOptsWithAutoSet() connectOpts {
+	return connectOpts{AutoConnect: true, ByGadget: false}
+}
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
 	old := removeStaleConnections
