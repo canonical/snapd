@@ -21,6 +21,9 @@
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
 
+# Enforce hardened build, even on EL7
+%global _hardened_build 1
+
 %global with_devel 1
 %global with_debug 1
 %global with_check 0
@@ -80,6 +83,10 @@
 %define gobuild(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 %endif
+
+# Compat path macros
+%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 
 # SELinux policy does not build on Amazon Linux 2 at the moment, fails with
 # checkmodule complaining about missing 'map' permission for 'file' class
@@ -229,7 +236,7 @@ runs properly under an environment with SELinux enabled.
 
 %if 0%{?with_devel}
 %package devel
-Summary:       %{summary}
+Summary:       Development files for %{name}
 BuildArch:     noarch
 
 %if 0%{?with_check} && ! 0%{?with_bundled}
@@ -314,6 +321,7 @@ Provides:      golang(%{import_path}/interfaces/apparmor) = %{version}-%{release
 Provides:      golang(%{import_path}/interfaces/backends) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/builtin) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/dbus) = %{version}-%{release}
+Provides:      golang(%{import_path}/interfaces/hotplug) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/ifacetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/kmod) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/mount) = %{version}-%{release}
@@ -321,10 +329,16 @@ Provides:      golang(%{import_path}/interfaces/policy) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/udev) = %{version}-%{release}
+Provides:      golang(%{import_path}/interfaces/utils) = %{version}-%{release}
 Provides:      golang(%{import_path}/jsonutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/jsonutil/safejson) = %{version}-%{release}
 Provides:      golang(%{import_path}/logger) = %{version}-%{release}
+Provides:      golang(%{import_path}/netutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/squashfs) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/sys) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/udev/crawler) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/udev/netlink) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/assertstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
@@ -332,6 +346,7 @@ Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/configcore) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/configstate/settings) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{release}
@@ -340,6 +355,7 @@ Provides:      golang(%{import_path}/overlord/ifacestate) = %{version}-%{release
 Provides:      golang(%{import_path}/overlord/ifacestate/ifacerepo) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/patch) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/servicestate) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/snapshotstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/state) = %{version}-%{release}
@@ -351,6 +367,7 @@ Provides:      golang(%{import_path}/polkit) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress/progresstest) = %{version}-%{release}
 Provides:      golang(%{import_path}/release) = %{version}-%{release}
+Provides:      golang(%{import_path}/selftest) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/pack) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
@@ -362,6 +379,7 @@ Provides:      golang(%{import_path}/store) = %{version}-%{release}
 Provides:      golang(%{import_path}/store/storetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil/quantity) = %{version}-%{release}
+Provides:      golang(%{import_path}/strutil/shlex) = %{version}-%{release}
 Provides:      golang(%{import_path}/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/refresh) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/store) = %{version}-%{release}
@@ -372,10 +390,9 @@ Provides:      golang(%{import_path}/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/userd/ui) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
+Provides:      golang(%{import_path}/xdgopenproxy) = %{version}-%{release}
 
 %description devel
-%{summary}
-
 This package contains library source intended for
 building other packages which use import path with
 %{import_path} prefix.
@@ -394,8 +411,6 @@ Summary:         Unit tests for %{name} package
 Requires:        %{name}-devel = %{version}-%{release}
 
 %description unit-test-devel
-%{summary}
-
 This package contains unit tests for project
 providing packages with %{import_path} prefix.
 %endif
@@ -414,7 +429,7 @@ rm -rf vendor/*
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
 
-# We don't want/need squashfuse in the rpm
+# We don't want/need squashfuse in the rpm, as it's available in Fedora and EPEL
 sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
 
 # Build snapd
@@ -499,6 +514,8 @@ popd
 install -d -p %{buildroot}%{_bindir}
 install -d -p %{buildroot}%{_libexecdir}/snapd
 install -d -p %{buildroot}%{_mandir}/man1
+install -d -p %{buildroot}%{_environmentdir}
+install -d -p %{buildroot}%{_systemdgeneratordir}
 install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
@@ -555,6 +572,8 @@ chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
+# Move systemd-generator to the right place
+mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_systemdgeneratordir}
 popd
 
 # Install all systemd and dbus units, and env files
@@ -649,6 +668,7 @@ popd
 %doc README.md docs/*
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_environmentdir}/990-snapd.conf
 %dir %{_libexecdir}/snapd
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec
@@ -662,9 +682,8 @@ popd
 %{_sysconfdir}/profile.d/snapd.sh
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
-%{_unitdir}/snapd.seeded.service
-%{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.autoimport.service
+%{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
@@ -691,7 +710,6 @@ popd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/snap/README
-%{_environmentdir}/990-snapd.conf
 %if %{with snap_symlink}
 /snap
 %endif
@@ -703,15 +721,15 @@ popd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
 %attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
+%{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
-%{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/system-shutdown
-%{_libexecdir}/snapd/snap-gdb-shim
-%{_libexecdir}/snapd/snapd-generator
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
+%{_systemdgeneratordir}/snapd-generator
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
 %if 0%{?with_selinux}
@@ -778,7 +796,11 @@ fi
 %endif
 
 %changelog
+* Sat Aug 25 2018 Neal Gompa <ngompa13@gmail.com> - 2.35-1
+- Release 2.35 to Fedora (RH#1598946)
+
 * Mon Aug 20 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35
  - snapstate: add support for gadget tracks in model assertion
  - image: add support for "gadget=track"
  - asserts: add support for gadget tracks in the model assertion
@@ -987,22 +1009,28 @@ fi
  - many: expose publisher's validation throughout the API
 
 * Fri Jul 27 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.34.3
  - interfaces/apparmor: use the cache in mtime-resilient way
  - cmd/snap-confine: (nvidia) pick up libnvidia-glvkspirv.so
  - snapstate: allow setting "refresh.timer=managed"
  - spread: switch Fedora and openSUSE images
 
 * Thu Jul 19 2018 Michael Vogt <mvo@ubuntu.com>
-  - packaging: fix bogus date in fedora snapd.spec
-  - tests: fix tests expecting old email address
+- New upstream release 2.34.2
+ - packaging: fix bogus date in fedora snapd.spec
+ - tests: fix tests expecting old email address
 
 * Tue Jul 17 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.34.1
  - tests: cherry-pick test fixes from master for 2.34
  - coreconfig: add support for `snap set system network.disable-
    ipv6`
  - debian: do not ship snapd.apparmor.service on ubuntu
  - overlord/snapstate: dedupe default content providers
  - interfaces/builtin: create can-bus interface
+
+* Sat Jul 14 2018 Fedora Release Engineering <releng@fedoraproject.org> - 2.33.1-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_29_Mass_Rebuild
 
 * Fri Jul 06 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.34
@@ -1253,6 +1281,9 @@ fi
  - packaging: filter out verbose flags from "dh-golang"
  - packaging: fix description
  - snapcraft.yaml: add minimal snapcraft.yaml with custom build
+
+* Fri Jun 22 2018 Neal Gompa <ngompa13@gmail.com> - 2.33.1-1
+- Release 2.33.1 to Fedora (RH#1567916)
 
 * Thu Jun 21 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.33.1
@@ -1700,6 +1731,9 @@ fi
    not mounted in doMountSnap
  - daemon: support 'system' as nickname of the core snap
 
+* Thu Apr 12 2018 Neal Gompa <ngompa13@gmail.com> - 2.32.4-1
+- Release 2.32.4 to Fedora (RH#1553734)
+
 * Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.4
  - cmd/snap: user session application autostart
@@ -2020,6 +2054,9 @@ fi
  - systemd, wrappers: start all snap services in one systemctl
    call
  - tests: disable interfaces-location-control on s390x
+
+* Mon Mar 05 2018 Neal Gompa <ngompa13@gmail.com> - 2.31.1-2
+- Fix dependencies for devel subpackage
 
 * Sun Mar 04 2018 Neal Gompa <ngompa13@gmail.com> - 2.31.1-1
 - Release 2.31.1 to Fedora (RH#1542483)
