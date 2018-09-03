@@ -3674,6 +3674,8 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 type udevMonitorMock struct {
 	ConnectError, RunError                             error
 	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
+	AddDevice                                          udevmonitor.DeviceAddedFunc
+	RemoveDevice                                       udevmonitor.DeviceRemovedFunc
 }
 
 func (u *udevMonitorMock) Connect() error {

@@ -75,20 +75,15 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 }
 
 // HotplugDeviceAdded gets called when a device is added to the system.
-func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
+func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
 
 	// FIXME: agreement needed how to find about system snap and where to attach interfaces.
-	coreSnapName, err := m.repo.GuessSystemSnapName()
+	coreSnapInfo, err := snapstate.CoreInfo(st)
 	if err != nil {
-		logger.Noticef("cannot determine system snap name: %s", err)
-		return
-	}
-	coreSnapInfo, err := snapstate.CurrentInfo(st, coreSnapName)
-	if err != nil {
-		logger.Noticef("%q snap not available, hotplug events ignored", coreSnapName)
+		logger.Noticef("core snap not available, hotplug events ignored")
 		return
 	}
 
@@ -182,7 +177,7 @@ func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 }
 
 // HotplugDeviceRemoved gets called when a device is removed from the system.
-func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
+func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
