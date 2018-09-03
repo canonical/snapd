@@ -352,7 +352,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat:     deltaFormat,
 		proxy:           cfg.Proxy,
 
-		client: httputil.NewHTTPClient(&httputil.ClientOpts{
+		client: httputil.NewHTTPClient(&httputil.ClientOptions{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 			Proxy:      cfg.Proxy,
@@ -1228,7 +1228,7 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	}
 
 	// do not log body for catalog updates (its huge)
-	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		MayLogBody: false,
 		Timeout:    10 * time.Second,
 		Proxy:      s.proxy,
@@ -1492,7 +1492,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOpts{Proxy: s.proxy}), reqOptions, user)
+		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
