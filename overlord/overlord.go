@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -150,8 +151,11 @@ func New() (*Overlord, error) {
 	s.Lock()
 	defer s.Unlock()
 	// setting up the store
+	proxyConf := proxyconf.New(s)
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	sto := storeNew(nil, authContext)
+	cfg := store.DefaultConfig()
+	cfg.Proxy = proxyConf.Conf
+	sto := storeNew(cfg, authContext)
 	sto.SetCacheDownloads(defaultCachedDownloads)
 
 	snapstate.ReplaceStore(s, sto)
