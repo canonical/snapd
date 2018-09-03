@@ -563,7 +563,7 @@ profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
 
 }
 `
-	snapInfo := s.InstallSnapInstance(c, interfaces.ConfinementOptions{}, "samba_foo", ifacetest.SambaYamlV1, 1)
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "samba_foo", ifacetest.SambaYamlV1, 1)
 	c.Assert(snapInfo, NotNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba_foo.smbd")
 	stat, err := os.Stat(profile)
