@@ -37,6 +37,9 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
+	// The mount profile is internally re-sorted by snap-update-ns based on
+	// some arrangement of MountEntry.Dir and other attributes.
+
 	layout   []osutil.MountEntry
 	general  []osutil.MountEntry
 	user     []osutil.MountEntry
@@ -219,7 +222,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 
 // AddOvername records mappings of snap directories.
 //
-// When the snap is installed with an instance key, set up it's mount namespace
+// When the snap is installed with an instance key, set up its mount namespace
 // such that it appears as a non-instance key snap. This ensures compatibility
 // with code making assumptions about $SNAP{,_DATA,_COMMON} locations. That is,
 // given a snap foo_bar, the mappings added are:
