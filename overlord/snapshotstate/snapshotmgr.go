@@ -27,6 +27,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -238,13 +239,19 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	status := task.Status()
-	if err := task.Get("restore-state", &restoreState); err != nil {
-		// this is bad: we somehow lost the information to restore things
-		return taskGetErrMsg(task, err, "snapshot restore")
-	}
+	err := task.Get("restore-state", &restoreState)
 	st.Unlock()
 
 	if status != state.DoneStatus {
+		// only need to clean up restores that worked
+		return nil
+	}
+
+	if err != nil {
+		// this is bad: we somehow lost the information to restore things
+		// but if we return the error we'll just get called again :-(
+		// TODO: use warnings :-)
+		logger.Noticef("%v %v", taskGetErrMsg(task, err, "snapshot restore"), status)
 		return nil
 	}
 
