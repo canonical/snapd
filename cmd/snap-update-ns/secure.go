@@ -166,7 +166,6 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 			return fmt.Errorf("cannot recover from trespassing over /")
 		}
 		// If writing is not allowed then report a trespassing error.
-		// FIXME: we don't know the desired path here so the error is mildly unhelpful.
 		return &TrespassingError{ViolatedPath: dirName, DesiredPath: rs.desiredPath}
 	}
 	return nil
