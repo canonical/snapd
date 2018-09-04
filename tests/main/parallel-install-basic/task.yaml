@@ -5,12 +5,12 @@ prepare: |
     rm -rf /home/test/snap
     rm -rf /var/snap/test-snapd-tools /var/snap/test-snapd-tools_foo
 
+    snap set system experimental.parallel-instances=true
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     path="$(make_snap test-snapd-tools)"
-
-    snap set system experimental.parallel-instances=true
 
     devmode=
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
@@ -29,23 +29,27 @@ execute: |
     su -l -c 'test -d ~/snap/test-snapd-tools_foo' test
 
     # instance environment variables are correctly set up
-    su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools_foo'
-    su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_NAME=test-snapd-tools'
-    su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_INSTANCE_KEY=foo'
-    su -l -c 'test-snapd-tools_foo.env' test | MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'
+    su -l -c 'test-snapd-tools_foo.env' test > snap_foo-env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools_foo'                      < snap_foo-env.txt
+    MATCH 'SNAP_NAME=test-snapd-tools'                                   < snap_foo-env.txt
+    MATCH 'SNAP_INSTANCE_KEY=foo'                                        < snap_foo-env.txt
+    MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'                < snap_foo-env.txt
+    MATCH 'SNAP_DATA=/var/snap/test-snapd-tools/x1'                      < snap_foo-env.txt
+    MATCH 'SNAP_USER_DATA=/home/test/snap/test-snapd-tools_foo/x1'       < snap_foo-env.txt
+    MATCH 'SNAP_USER_COMMON=/home/test/snap/test-snapd-tools_foo/common' < snap_foo-env.txt
 
     # and non-instance one's are too
-    su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools'
-    su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_NAME=test-snapd-tools'
-    su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_INSTANCE_KEY=$'
-    su -l -c 'test-snapd-tools.env' test | MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'
+    su -l -c 'test-snapd-tools.env' test > snap-env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools'           < snap-env.txt
+    MATCH 'SNAP_NAME=test-snapd-tools'                    < snap-env.txt
+    MATCH 'SNAP_INSTANCE_KEY=$'                           < snap-env.txt
 
     mkdir /var/snap/test-snapd-tools_foo/common/foobar
-    chmod 777 /var/snap/test-snapd-tools_foo/common/foobar
+    chown test:test /var/snap/test-snapd-tools_foo/common/foobar
     echo canary-instance > /var/snap/test-snapd-tools_foo/common/foobar/data
 
     mkdir /var/snap/test-snapd-tools/common/foobar
-    chmod 777 /var/snap/test-snapd-tools/common/foobar
+    chown test:test /var/snap/test-snapd-tools/common/foobar
     echo canary-regular > /var/snap/test-snapd-tools/common/foobar/data
 
     echo "Make sure snap data writes and reads work"
