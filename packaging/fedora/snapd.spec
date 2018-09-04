@@ -8,6 +8,7 @@
 
 # Compat macros
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
 # With Amazon Linux 2+, we're going to provide the /snap symlink by default,
 # since classic snaps currently require it... :(
@@ -95,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35
+Version:        2.35.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -533,6 +534,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
 install -d -p %{buildroot}%{_datadir}/polkit-1/actions
+install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 %if 0%{?with_selinux}
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
@@ -680,6 +682,7 @@ popd
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
+%{_mandir}/man7/snapd-env-generator.7*
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
@@ -689,6 +692,7 @@ popd
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_systemd_system_env_generator_dir}/snapd-env-generator
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -796,6 +800,18 @@ fi
 %endif
 
 %changelog
+* Mon Sep 03 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.1
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+ - snapcraft: do not use --diry in mkversion.sh
+ - cmd: add systemd environment generator
+ - snap-confine: map /var/lib/extrausers into snaps mount-namespace
+ - tests: cherry-pick test fixes from master for 2.35
+ - systemd: do not run "snapd.snap-repair.service.in on firstboot
+   bootstrap
+ - interfaces: retain order of inserted security backends
+ - selftest: detect if apparmor is unusable and error
+
 * Sat Aug 25 2018 Neal Gompa <ngompa13@gmail.com> - 2.35-1
 - Release 2.35 to Fedora (RH#1598946)
 

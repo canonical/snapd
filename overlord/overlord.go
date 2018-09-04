@@ -288,9 +288,9 @@ func (o *Overlord) Loop() {
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
 	o.loopTomb.Kill(nil)
-	err1 := o.loopTomb.Wait()
+	err := o.loopTomb.Wait()
 	o.stateEng.Stop()
-	return err1
+	return err
 }
 
 func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
