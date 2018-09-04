@@ -439,6 +439,19 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	verifyStopReason(c, ts, "remove")
 }
 
+func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
+	for _, t := range tasks {
+		if t.Kind() == "download-snap" {
+			var snapsup snapstate.SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			c.Assert(err, IsNil)
+			c.Check(snapsup.IsAutoRefresh, Equals, expected)
+			return
+		}
+	}
+	c.Fatalf("cannot find download-snap task in %q", tasks)
+}
+
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
 	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
 		{Revision: snap.R(7)},
@@ -751,6 +764,8 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
@@ -7723,6 +7738,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	c.Check(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.IsReady(), Equals, false)
 	s.verifyRefreshLast(c)
+
+	checkIsAutoRefresh(c, chg.Tasks(), true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
