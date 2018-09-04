@@ -286,7 +286,7 @@ func (c *Change) lowLevelPerform(sec *Secure) error {
 		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
-			// symlinks are handled in createInode directly, nothing to do here.
+			// symlinks are handled in createPath directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Use Secure.BindMount for bind mounts

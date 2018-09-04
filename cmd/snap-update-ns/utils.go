@@ -127,6 +127,7 @@ type ReadOnlyFsError struct {
 	Path string
 }
 
+// Error returns a formatted error message.
 func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
@@ -195,16 +196,18 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 	}
 	iter.Next() // Advance iterator to '/'
 
-	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	// Open the root directory and start there.
 	//
 	// NOTE: We don't have to check for possible trespassing on / here because
 	// we are going to check for it in sec.MkDir call below (which verifies
 	// that / is not violated)
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open root directory: %v", err)
 	}
+
+	// Now progress through subsequent directories.
 	for iter.Next() {
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
@@ -214,7 +217,6 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 			return -1, err
 		}
 	}
-
 	return fd, nil
 }
 
@@ -231,7 +233,6 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 
 	made := true
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
-
 	if err := sysMkdirat(dirFd, name, uint32(perm.Perm())); err != nil {
 		switch err {
 		case syscall.EEXIST:
@@ -290,7 +291,6 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 	// Open the final path segment as a file. Try to create the file (so that
 	// we know if we need to chown it) but fall back to just opening an
 	// existing one.
-
 	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, uint32(perm.Perm()))
 	if err != nil {
 		switch err {
@@ -333,7 +333,6 @@ func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restr
 	}
 
 	// Create the final path segment as a symlink.
-	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
 		switch err {
 		case syscall.EEXIST:
@@ -474,7 +473,6 @@ func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID
 	if oldname == "" {
 		return fmt.Errorf("cannot create symlink with empty target: %q", path)
 	}
-
 	base, name := filepath.Split(path)
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
@@ -507,7 +505,6 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
-	logger.Debugf("create-writable-mimic %q", dir)
 	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
 
 	var changes []*Change
