@@ -291,7 +291,7 @@ func (c *Change) lowLevelPerform(sec *Secure) error {
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
-				err = sec.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
 			} else {
 				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			}
