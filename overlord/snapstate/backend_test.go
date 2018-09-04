@@ -97,6 +97,7 @@ type fakeDownload struct {
 	name     string
 	macaroon string
 	target   string
+	opts     *store.DownloadOptions
 }
 
 type byName []store.CurrentSnap
@@ -495,10 +496,15 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if user != nil {
 		macaroon = user.StoreMacaroon
 	}
+	// only add the options if they contain anything interessting
+	if *dlOpts == (store.DownloadOptions{}) {
+		dlOpts = nil
+	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
 		name:     name,
 		target:   targetFn,
+		opts:     dlOpts,
 	})
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 
