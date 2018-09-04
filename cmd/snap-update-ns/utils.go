@@ -151,7 +151,7 @@ func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) erro
 //
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
 // and O_CLOEXEC flags.
-func (sec *Secure) OpenPath(path string) (int, error) {
+func OpenPath(path string) (int, error) {
 	iter, err := strutil.NewPathIterator(path)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open path: %s", err)
