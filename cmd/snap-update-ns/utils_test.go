@@ -426,6 +426,7 @@ var _ = Suite(&realSystemSuite{})
 
 func (s *realSystemSuite) SetUpTest(c *C) {
 	s.sec = &update.Secure{}
+	s.sec.AddUnrestrictedPrefixes("/tmp")
 }
 
 // Check that we can actually create directories.
