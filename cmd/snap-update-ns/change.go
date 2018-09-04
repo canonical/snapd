@@ -293,6 +293,9 @@ func (c *Change) lowLevelPerform(sec *Secure) error {
 				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			}
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+			if err == nil {
+				sec.AddChange(c)
+			}
 		}
 		return err
 	case Unmount:
@@ -307,6 +310,9 @@ func (c *Change) lowLevelPerform(sec *Secure) error {
 				flags |= syscall.MNT_DETACH
 			}
 			err = sysUnmount(c.Entry.Dir, flags)
+			if err == nil {
+				sec.AddChange(c)
+			}
 			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
 		}
 		return err
