@@ -281,7 +281,7 @@ func NewRunner() *Runner {
 	run := &Runner{
 		sequenceNext: make(map[string]int),
 	}
-	opts := httputil.ClientOpts{
+	opts := httputil.ClientOptions{
 		MayLogBody: false,
 		TLSConfig: &tls.Config{
 			Time: run.now,
