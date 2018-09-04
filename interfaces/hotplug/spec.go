@@ -21,9 +21,9 @@ package hotplug
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/snapcore/snapd/interfaces/utils"
+
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -42,23 +42,20 @@ type SlotSpec struct {
 	Attrs map[string]interface{}
 }
 
-// Specification contains data about all slots that a hotplug interface wants to have created in response to uevent.
+// Specification contains a slot definition to create in response to uevent.
 type Specification struct {
-	// slots are indexed by slot name to ensure unique names
-	slots map[string]*SlotSpec
+	slot *SlotSpec
 }
 
 // NewSpecification creates an empty hotplug Specification.
 func NewSpecification() *Specification {
-	return &Specification{
-		slots: make(map[string]*SlotSpec),
-	}
+	return &Specification{}
 }
 
-// AddSlot adds a specification of a slot.
-func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
-	if _, ok := h.slots[slotSpec.Name]; ok {
-		return fmt.Errorf("slot %q already exists", slotSpec.Name)
+// SetSlot adds a specification of a slot.
+func (h *Specification) SetSlot(slotSpec *SlotSpec) error {
+	if h.slot != nil {
+		return fmt.Errorf("slot specification already created")
 	}
 	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
 		return err
@@ -69,7 +66,7 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	} else {
 		attrs = utils.CopyAttributes(slotSpec.Attrs)
 	}
-	h.slots[slotSpec.Name] = &SlotSpec{
+	h.slot = &SlotSpec{
 		Name:  slotSpec.Name,
 		Label: slotSpec.Label,
 		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
@@ -77,17 +74,7 @@ func (h *Specification) AddSlot(slotSpec *SlotSpec) error {
 	return nil
 }
 
-// Slots returns specifications of all slots created by given interface.
-func (h *Specification) Slots() []*SlotSpec {
-	keys := make([]string, 0, len(h.slots))
-	for k := range h.slots {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	slots := make([]*SlotSpec, 0, len(h.slots))
-	for _, k := range keys {
-		slots = append(slots, h.slots[k])
-	}
-	return slots
+// Slot returns specification of the slot created by given interface.
+func (h *Specification) Slot() *SlotSpec {
+	return h.slot
 }
