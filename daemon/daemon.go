@@ -50,6 +50,8 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
+
 var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
@@ -66,6 +68,9 @@ type Daemon struct {
 	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
 	restartSystem bool
+	// set to remember that we need to exit the daemon in a way that
+	// prevents systemd from restarting it
+	restartSocket bool
 	mu            sync.Mutex
 }
 
@@ -236,6 +241,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			maintTransmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
 			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+		case state.RestartSocket:
+			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is stopping to wait for socket activation")
 		}
 	}
 
@@ -412,6 +419,19 @@ func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 	srv.conns[conn] = state
 }
 
+func (srv *shutdownServer) NumActiveConns() int {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	n := 0
+	for _, state := range srv.conns {
+		if state != http.StateIdle {
+			n++
+		}
+	}
+	return n
+}
+
 func (srv *shutdownServer) finishShutdown() error {
 	toutC := time.After(shutdownTimeout)
 
@@ -461,6 +481,9 @@ func (d *Daemon) Start() {
 			// remember we need to restart the system
 			d.restartSystem = true
 			d.tomb.Kill(nil)
+		case state.RestartSocket:
+			d.restartSocket = true
+			d.tomb.Kill(nil)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)
@@ -471,6 +494,10 @@ func (d *Daemon) Start() {
 		d.snapServe = newShutdownServer(d.snapListener, logit(d.router))
 	}
 	d.snapdServe = newShutdownServer(d.snapdListener, logit(d.router))
+
+	// make sure idle handling works
+	d.overlord.IdleManager().AddConnTracker(d.snapdServe)
+	d.overlord.IdleManager().AddConnTracker(d.snapServe)
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
@@ -524,6 +551,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	d.mu.Lock()
 	restartSystem := d.restartSystem
+	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
 	d.snapdListener.Close()
@@ -557,6 +585,19 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	}
 
+	if restartSocket {
+		// At this point we processed all open requests (and
+		// stopped accepting new requests) - before going into
+		// socket activated mode we need to check if any of
+		// those open requests resulted in something that
+		// prevents us from going into socket activation mode.
+		//
+		// If this is the case we do a "normal" snapd restart
+		// to process the new changes.
+		if !d.overlord.IdleManager().CanGoSocketActivated() {
+			d.restartSocket = false
+		}
+	}
 	d.overlord.Stop()
 
 	err := d.tomb.Wait()
@@ -590,6 +631,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 		time.Sleep(rebootWaitTimeout)
 		return fmt.Errorf("expected reboot did not happen")
+	}
+	if d.restartSocket {
+		return ErrRestartSocket
 	}
 
 	return nil

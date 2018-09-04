@@ -43,8 +43,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/idlestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -424,6 +427,17 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
+	// and pretend we have snaps
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	st.Unlock()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -534,6 +548,17 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 
 	// mark as already seeded
 	s.markSeeded(d)
+	// and pretend we have snaps
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	st.Unlock()
 
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -790,5 +815,76 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+}
 
+func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
+	restore := idlestate.MockCanGoSocketActivateWait(5 * time.Millisecond)
+	defer restore()
+
+	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
+
+	// mark as already seeded, we also have no snaps so this will
+	// go into socket activation mode
+	s.markSeeded(d)
+
+	d.Start()
+	// pretend some ensure happend
+	for i := 0; i < 5; i++ {
+		d.overlord.StateEngine().Ensure()
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	select {
+	case <-d.Dying():
+		// exit the loop
+	case <-time.After(5 * time.Second):
+		c.Errorf("daemon did not stop after 5s")
+	}
+	err := d.Stop(nil)
+	c.Check(err, check.Equals, ErrRestartSocket)
+	c.Check(d.restartSocket, check.Equals, true)
+}
+
+func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
+	restore := idlestate.MockCanGoSocketActivateWait(5 * time.Millisecond)
+	defer restore()
+
+	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
+
+	// mark as already seeded, we also have no snaps so this will
+	// go into socket activation mode
+	s.markSeeded(d)
+	st := d.overlord.State()
+
+	d.Start()
+	// pretend some ensure happend
+	for i := 0; i < 5; i++ {
+		d.overlord.StateEngine().Ensure()
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	select {
+	case <-d.Dying():
+		// Pretend we got change while shutting down, this can
+		// happen when e.g. the user requested a `snap install
+		// foo` at the same time as the code in the overlord
+		// checked that it can go into socket activated
+		// mode. I.e. the daemon was processing the request
+		// but no change was generated at the time yet.
+		st.Lock()
+		chg := st.NewChange("fake-install", "fake install some snap")
+		chg.AddTask(st.NewTask("fake-install-task", "fake install task"))
+		chgStatus := chg.Status()
+		st.Unlock()
+		// ensure our change is valid and ready
+		c.Check(chgStatus, check.Equals, state.DoStatus)
+	case <-time.After(5 * time.Second):
+		c.Errorf("daemon did not stop after 5s")
+	}
+	// when the daemon got a pending change it just restarts
+	err := d.Stop(nil)
+	c.Check(err, check.IsNil)
+	c.Check(d.restartSocket, check.Equals, false)
 }
