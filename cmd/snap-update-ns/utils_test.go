@@ -536,10 +536,10 @@ func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
 
 // Ensure that we can detect read only filesystems.
 func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
-	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST) // just realistic
+	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EROFS)
 	err := update.MkfileAll("/rofs/path", 0755, 123, 456, nil)
-	c.Check(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
+	c.Assert(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -556,7 +556,7 @@ func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
 	err := update.MkfileAll("/abs/path", 0755, 123, 456, nil)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "abs" 0755`, E: syscall.EEXIST},
