@@ -148,12 +148,12 @@ func applyFstab(snapName string, fromSnapConfine bool) error {
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
-	sec := &Secure{}
-	sec.AddUnrestrictedPrefixes("/tmp", "/var/snap", "/snap/"+snapName)
-	return computeAndSaveChanges(snapName, sec)
+	as := &Assumptions{}
+	as.AddUnrestrictedPrefixes("/tmp", "/var/snap", "/snap/"+snapName)
+	return computeAndSaveChanges(snapName, as)
 }
 
-func computeAndSaveChanges(snapName string, sec *Secure) error {
+func computeAndSaveChanges(snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -172,10 +172,10 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
 	for _, entry := range currentBefore.Entries {
-		sec.AddChange(&Change{Action: Mount, Entry: entry})
+		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
 
-	currentAfter, err := applyProfile(snapName, currentBefore, desired, sec)
+	currentAfter, err := applyProfile(snapName, currentBefore, desired, as)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 	return nil
 }
 
-func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, sec *Secure) (*osutil.MountProfile, error) {
+func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -198,7 +198,7 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change, sec)
+		synthesised, err := changePerform(change, as)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -276,7 +276,7 @@ func applyUserFstab(snapName string) error {
 
 	// TODO: configure the secure helper and inform it about directories that
 	// can be created without trespassing.
-	sec := &Secure{}
-	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, sec)
+	as := &Assumptions{}
+	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }

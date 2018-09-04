@@ -26,34 +26,55 @@ import (
 	"syscall"
 )
 
-// Secure is a helper for making filesystem operations free from certain kinds of attacks.
-type Secure struct {
+// Assumptions track the assumptions about the state of the filesystem.
+//
+// Assumptions constitute the global part of the write restriction management.
+// Assumptions are global in the sense that they span multiple distinct write
+// operations. In contrast assumptions track per-operation state.
+type Assumptions struct {
 	unrestrictedPrefixes []string
 	pastChanges          []*Change
+}
+
+// Restrictions contains meta-data of a compound write operation.
+//
+// This structure helps various functions that write to the filesystem to keep
+// track of the ultimate destination across several calls (e.g. the function
+// that creates a file needs to call helpers to create subsequent directories).
+// Keeping track of the desired path aids in constructing useful error messages.
+//
+// In addition the context keeps track of the restricted write mode flag which
+// is based on the full path of the desired object being constructed. This allows
+// various write helpers to avoid trespassing on host filesystem in places that
+// are not expected to be written to by snapd (e.g. outside of $SNAP_DATA).
+type Restrictions struct {
+	assumptions *Assumptions
+	desiredPath string
+	restricted  bool
 }
 
 // AddUnrestrictedPrefixes adds a list of directories where writing is allowed
 // even if it would hit the real host filesystem (or transit through the host
 // filesystem). This is intended to be used with certain well-known locations
 // such as /tmp, $SNAP_DATA and $SNAP.
-func (sec *Secure) AddUnrestrictedPrefixes(prefixes ...string) {
+func (as *Assumptions) AddUnrestrictedPrefixes(prefixes ...string) {
 	for _, prefix := range prefixes {
-		sec.unrestrictedPrefixes = append(sec.unrestrictedPrefixes, filepath.Clean(prefix)+"/")
+		as.unrestrictedPrefixes = append(as.unrestrictedPrefixes, filepath.Clean(prefix)+"/")
 	}
 }
 
 // MockUnrestrictedPrefixes replaces the set of path prefixes without any restrictions.
-func (sec *Secure) MockUnrestrictedPrefixes(prefixes ...string) (restore func()) {
-	old := sec.unrestrictedPrefixes
-	sec.unrestrictedPrefixes = prefixes
+func (as *Assumptions) MockUnrestrictedPrefixes(prefixes ...string) (restore func()) {
+	old := as.unrestrictedPrefixes
+	as.unrestrictedPrefixes = prefixes
 	return func() {
-		sec.unrestrictedPrefixes = old
+		as.unrestrictedPrefixes = old
 	}
 }
 
 // AddChange records the fact that a change was applied to the system.
-func (sec *Secure) AddChange(change *Change) {
-	sec.pastChanges = append(sec.pastChanges, change)
+func (as *Assumptions) AddChange(change *Change) {
+	as.pastChanges = append(as.pastChanges, change)
 }
 
 // isRestricted returns true if a path follows restricted writing scheme.
@@ -65,10 +86,10 @@ func (sec *Secure) AddChange(change *Change) {
 //
 // Provided path is the full, absolute path of the entity that needs to be
 // created (directory, file or symbolic link).
-func (sec *Secure) isRestricted(path string) bool {
+func (as *Assumptions) isRestricted(path string) bool {
 	// Anything rooted at one of the unrestricted prefixes is not restricted.
 	// Those are for things like /var/snap/, for example.
-	for _, prefix := range sec.unrestrictedPrefixes {
+	for _, prefix := range as.unrestrictedPrefixes {
 		if strings.HasPrefix(path, prefix) {
 			return false
 		}
@@ -85,8 +106,8 @@ func (sec *Secure) isRestricted(path string) bool {
 //    places that may show up on the host, one of the examples being $SNAP_DATA.
 // 2) The directory is on a read-only filesystem.
 // 3) The directory is on a tmpfs created by snapd.
-func (sec *Secure) canWriteToDirectory(dirFd int, dirName string) (bool, error) {
-	if !sec.isRestricted(dirName) {
+func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, error) {
+	if !as.isRestricted(dirName) {
 		return true, nil
 	}
 	var fsData syscall.Statfs_t
@@ -100,7 +121,7 @@ func (sec *Secure) canWriteToDirectory(dirFd int, dirName string) (bool, error) 
 	}
 	// Writing to a trusted tmpfs is allowed because those are not leaking to
 	// the host.
-	if ok := IsSnapdCreatedPrivateTmpfs(dirFd, dirName, &fsData, sec.pastChanges); ok {
+	if ok := IsSnapdCreatedPrivateTmpfs(dirFd, dirName, &fsData, as.pastChanges); ok {
 		return true, nil
 	}
 	// If writing is not not allowed by one of the three rules above then it is
@@ -108,27 +129,10 @@ func (sec *Secure) canWriteToDirectory(dirFd int, dirName string) (bool, error) 
 	return false, nil
 }
 
-// Restrictions contains meta-data of a compound write operation.
-//
-// This structure helps various functions that write to the filesystem to keep
-// track of the ultimate destination across several calls (e.g. the function
-// that creates a file needs to call helpers to create subsequent directories).
-// Keeping track of the desired path aids in constructing useful error messages.
-//
-// In addition the context keeps track of the restricted write mode flag which
-// is based on the full path of the desired object being constructed. This allows
-// various write helpers to avoid trespassing on host filesystem in places that
-// are not expected to be written to by snapd (e.g. outside of $SNAP_DATA).
-type Restrictions struct {
-	sec         *Secure
-	desiredPath string
-	restricted  bool
-}
-
 // RestrictionsFor computes restrictions for the desired path.
-func (sec *Secure) RestrictionsFor(desiredPath string) *Restrictions {
-	if sec.isRestricted(desiredPath) {
-		return &Restrictions{sec: sec, desiredPath: desiredPath, restricted: true}
+func (as *Assumptions) RestrictionsFor(desiredPath string) *Restrictions {
+	if as.isRestricted(desiredPath) {
+		return &Restrictions{assumptions: as, desiredPath: desiredPath, restricted: true}
 	}
 	return nil
 }
@@ -153,7 +157,7 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 		return nil
 	}
 	// In restricted mode check the directory before attempting to write to it.
-	ok, err := rs.sec.canWriteToDirectory(dirFd, dirName)
+	ok, err := rs.assumptions.canWriteToDirectory(dirFd, dirName)
 	if err != nil {
 		return err
 	}

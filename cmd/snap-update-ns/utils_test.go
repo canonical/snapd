@@ -40,7 +40,7 @@ type utilsSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
 	log *bytes.Buffer
-	sec *update.Secure
+	as  *update.Assumptions
 }
 
 var _ = Suite(&utilsSuite{})
@@ -52,7 +52,7 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	buf, restore := logger.MockLogger()
 	s.BaseTest.AddCleanup(restore)
 	s.log = buf
-	s.sec = &update.Secure{}
+	s.as = &update.Assumptions{}
 }
 
 func (s *utilsSuite) TearDownTest(c *C) {
@@ -141,7 +141,7 @@ func (s *utilsSuite) TestSecureMkdirAllWithRestrictedEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	rs := s.sec.RestrictionsFor("/etc/demo")
+	rs := s.as.RestrictionsFor("/etc/demo")
 	err := update.MkdirAll("/etc/demo", 0755, 123, 456, rs)
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/demo" because it would affect the host in "/etc"`)
 	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc")
@@ -161,9 +161,9 @@ func (s *utilsSuite) TestSecureMkdirAllWithRestrictedEtc(c *C) {
 
 // Ensure that writes to /etc/demo allowed if /etc is unrestricted.
 func (s *utilsSuite) TestSecureMkdirAllWithUnrestrictedEtc(c *C) {
-	defer s.sec.MockUnrestrictedPrefixes("/etc")() // Mark /etc as unrestricted.
+	defer s.as.MockUnrestrictedPrefixes("/etc")() // Mark /etc as unrestricted.
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	rs := s.sec.RestrictionsFor("/etc/demo")
+	rs := s.as.RestrictionsFor("/etc/demo")
 	c.Assert(update.MkdirAll("/etc/demo", 0755, 123, 456, rs), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -345,14 +345,14 @@ func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 	}
 
 	// Mock the act of performing changes, each of the change we perform is coming from the plan.
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		c.Assert(plan, testutil.DeepContains, chg)
 		return nil, nil
 	})
 	defer restore()
 
 	// The executed plan leaves us with a simplified view of the plan that is suitable for undo.
-	undoPlan, err := update.ExecWritableMimic(plan, s.sec)
+	undoPlan, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, IsNil)
 	c.Assert(undoPlan, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -380,7 +380,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	// the recovery path are recorded.
 	var recoveryPlan []*update.Change
 	recovery := false
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		if !recovery {
 			c.Assert(plan, testutil.DeepContains, chg)
 			if chg.Entry.Name == "/tmp/.snap/foo/dir" {
@@ -395,7 +395,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	defer restore()
 
 	// The executed plan fails, leaving us with the error and an empty undo plan.
-	undoPlan, err := update.ExecWritableMimic(plan, s.sec)
+	undoPlan, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(undoPlan, HasLen, 0)
 	// The changes we managed to perform were undone correctly.
@@ -419,13 +419,13 @@ func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 	}
 
 	// Mock the act of performing changes and just fail on any request.
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		return nil, errTesting
 	})
 	defer restore()
 
 	// The executed plan fails, the recovery didn't fail (it's empty) so we just return that error.
-	undoPlan, err := update.ExecWritableMimic(plan, s.sec)
+	undoPlan, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(undoPlan, HasLen, 0)
 }
@@ -446,7 +446,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// execute function ends up in a situation where it cannot perform the
 	// recovery path and will have to return a fatal error.
 	i := -1
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		i++
 		if i > 0 {
 			return nil, fmt.Errorf("failure-%d", i)
@@ -456,21 +456,21 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	defer restore()
 
 	// The plan partially succeeded and we cannot undo those changes.
-	_, err := update.ExecWritableMimic(plan, s.sec)
+	_, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, ErrorMatches, `cannot undo change ".*" while recovering from earlier error failure-1: failure-2`)
 	c.Assert(err, FitsTypeOf, &update.FatalError{})
 }
 
 // realSystemSuite is not isolated / mocked from the system.
 type realSystemSuite struct {
-	sec *update.Secure
+	as *update.Assumptions
 }
 
 var _ = Suite(&realSystemSuite{})
 
 func (s *realSystemSuite) SetUpTest(c *C) {
-	s.sec = &update.Secure{}
-	s.sec.AddUnrestrictedPrefixes("/tmp")
+	s.as = &update.Assumptions{}
+	s.as.AddUnrestrictedPrefixes("/tmp")
 }
 
 // Check that we can actually create directories.
@@ -709,7 +709,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	rs := s.sec.RestrictionsFor("/etc/symlink")
+	rs := s.as.RestrictionsFor("/etc/symlink")
 	err := update.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname", rs)
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/symlink" because it would affect the host in "/etc"`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -729,7 +729,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	rs := s.sec.RestrictionsFor("/etc/some/other/stuff/symlink")
+	rs := s.as.RestrictionsFor("/etc/some/other/stuff/symlink")
 	err := update.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname", rs)
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/some/other/stuff/symlink" because it would affect the host in "/etc/"`)
 	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc/")
@@ -749,7 +749,7 @@ func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	rs := s.sec.RestrictionsFor("/etc/file")
+	rs := s.as.RestrictionsFor("/etc/file")
 	err := update.MkfileAll("/etc/file", 0755, 0, 0, rs)
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/file" because it would affect the host in "/etc"`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -768,7 +768,7 @@ func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	rs := s.sec.RestrictionsFor("/etc/dir")
+	rs := s.as.RestrictionsFor("/etc/dir")
 	err := update.MkdirAll("/etc/dir", 0755, 0, 0, rs)
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/dir" because it would affect the host in "/etc"`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -786,14 +786,14 @@ func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllInSNAP(c *C) {
 	// Allow creating directories under /snap/ related to this snap ("foo").
 	// This matches what is done inside main().
-	restore := s.sec.MockUnrestrictedPrefixes("/snap/foo")
+	restore := s.as.MockUnrestrictedPrefixes("/snap/foo")
 	defer restore()
 
 	s.sys.InsertFault(`mkdirat 3 "snap" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 4 "foo" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 5 "42" 0755`, syscall.EEXIST)
 
-	rs := s.sec.RestrictionsFor("/snap/foo/42/dir")
+	rs := s.as.RestrictionsFor("/snap/foo/42/dir")
 	err := update.MkdirAll("/snap/foo/42/dir", 0755, 0, 0, rs)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -821,11 +821,11 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
 	// /etc/symlink must be validated with step-by-step operation.
 	rootStatfs := syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
 	etcStatfs := syscall.Statfs_t{Type: update.TmpfsMagic}
-	s.sec.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, rootStatfs)
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, etcStatfs)
-	rs := s.sec.RestrictionsFor("/etc/symlink")
+	rs := s.as.RestrictionsFor("/etc/symlink")
 	err := update.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname", rs)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -845,8 +845,8 @@ func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	s.sec.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
-	rs := s.sec.RestrictionsFor("/etc/file")
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
+	rs := s.as.RestrictionsFor("/etc/file")
 	err := update.MkfileAll("/etc/file", 0755, 0, 0, rs)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -868,8 +868,8 @@ func (s *utilsSuite) TestSecureMkdirAllInEtcAfterMimic(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	s.sec.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
-	rs := s.sec.RestrictionsFor("/etc/dir")
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
+	rs := s.as.RestrictionsFor("/etc/dir")
 	err := update.MkdirAll("/etc/dir", 0755, 0, 0, rs)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
