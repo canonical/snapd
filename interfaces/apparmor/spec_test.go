@@ -365,7 +365,7 @@ apps:
     command: app-command
 `
 
-func (s *specSuite) TestApparmorParallelInstanceSnippetsNotInstanceKeyed(c *C) {
+func (s *specSuite) TestApparmorOvernameSnippetsNotInstanceKeyed(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapTrivial, &snap.SideInfo{Revision: snap.R(42)})
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap.app"})
 	defer restore()
@@ -376,7 +376,7 @@ func (s *specSuite) TestApparmorParallelInstanceSnippetsNotInstanceKeyed(c *C) {
 	c.Assert(s.spec.UpdateNS(), HasLen, 0)
 }
 
-func (s *specSuite) TestApparmorParallelInstanceSnippets(c *C) {
+func (s *specSuite) TestApparmorOvernameSnippets(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapTrivial, &snap.SideInfo{Revision: snap.R(42)})
 	snapInfo.InstanceKey = "instance"
 
