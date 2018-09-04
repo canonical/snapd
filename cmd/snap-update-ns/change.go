@@ -74,6 +74,9 @@ func mimicRequired(err error) (needsMimic bool, path string) {
 	case *ReadOnlyFsError:
 		rofsErr := err.(*ReadOnlyFsError)
 		return true, rofsErr.Path
+	case *TrespassingError:
+		tErr := err.(*TrespassingError)
+		return true, tErr.ViolatedPath
 	}
 	return false, ""
 }
@@ -104,7 +107,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	// TODO: re-factor this, if possible, with inspection and preemptive
 	// creation after the current release ships. This should be possible but
 	// will affect tests heavily (churn, not safe before release).
-	rs := nil
+	rs := sec.RestrictionsFor(path)
 	switch kind {
 	case "":
 		err = MkdirAll(path, mode, uid, gid, rs)
