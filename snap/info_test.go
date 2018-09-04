@@ -1337,7 +1337,7 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 	core := &snap.Info{Type: snap.TypeOS}
 	base := &snap.Info{Type: snap.TypeBase}
 	app := &snap.Info{Type: snap.TypeApp}
-	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
+	snapd := &snap.Info{snap.SideInfo: snap.SideInfo{RealName: "snapd"}}
 
 	byType := func(snaps ...*snap.Info) []*snap.Info {
 		sort.Stable(snap.ByType(snaps))
