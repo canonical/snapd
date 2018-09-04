@@ -1955,6 +1955,7 @@ type CurrentSnap struct {
 	RefreshedDate    time.Time
 	IgnoreValidation bool
 	Block            []snap.Revision
+	RequestSeed      string
 }
 
 type currentSnapV2JSON struct {
@@ -2102,6 +2103,7 @@ func genInstanceKey(curSnap *CurrentSnap) string {
 	// TODO parallel-install: include seed
 	h.Write([]byte(curSnap.SnapID))
 	h.Write([]byte(snapInstanceKey))
+	h.Write([]byte(curSnap.RequestSeed))
 	return fmt.Sprintf("%s-%x", curSnap.SnapID, h.Sum(nil)[39:])
 }
 
