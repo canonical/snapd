@@ -6331,7 +6331,6 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 			return
 		}
 		seenPaths[r.URL.Path]++
-		return
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
@@ -6364,7 +6363,6 @@ func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
 			return
 		}
 		seenPaths[r.URL.Path]++
-		return
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
