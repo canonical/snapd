@@ -26,7 +26,7 @@ import (
 )
 
 // List of attributes that determine the computation of default device key.
-// Attributes are grouped by similiarity, the first non-empty attribute within the group goes into the key.
+// Attributes are grouped by similarity, the first non-empty attribute within the group goes into the key.
 // The final key is composed of 4 attributes (some of which may be empty), separated by "/".
 var attrGroups = [][]string{
 	{"ID_V4L_PRODUCT", "NAME", "ID_NET_NAME", "PCI_SLOT_NAME"},
