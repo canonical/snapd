@@ -54,6 +54,8 @@ var mockServerJSON = `{
 }`
 
 func (t *userInfoSuite) SetUpTest(c *check.C) {
+	t.BaseTest.SetUpTest(c)
+
 	_, t.restoreLogger = logger.MockLogger()
 
 	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
@@ -65,6 +67,8 @@ func (t *userInfoSuite) SetUpTest(c *check.C) {
 }
 
 func (t *userInfoSuite) TearDownTest(c *check.C) {
+	t.BaseTest.TearDownTest(c)
+
 	t.restoreLogger()
 }
 

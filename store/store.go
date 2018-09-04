@@ -1452,7 +1452,9 @@ func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+var download = downloadImpl
+
+func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
