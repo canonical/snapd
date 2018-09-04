@@ -172,6 +172,8 @@ func (r *Reader) Check(ctx context.Context, usernames []string) error {
 // Logf is the type implemented by logging functions.
 type Logf func(format string, args ...interface{})
 
+var RevertedRestoreState *RestoreState
+
 // Restore the data from the snapshot.
 //
 // If successful this will replace the existing data (for the revision in the

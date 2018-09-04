@@ -161,6 +161,17 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 			Users: users,
 		}
 		task.Set("snapshot-setup", &snapshot)
+		// Here, note that a snapshot set behaves as a unit: it either
+		// succeeds, or fails, as a whole; we don't use lanes, to have
+		// some snaps' snapshot succeed and not others in a single set.
+		// In practice: either the snapshot will be automatic and only
+		// for one snap (already in a lane via refresh), or it will be
+		// done by hand and the user can remove failing snaps (or find
+		// the cause of the failure). A snapshot failure can happen if
+		// a user has dropped files they can't read in their directory,
+		// for example.
+		// Also note we aren't promising this behaviour; we can change
+		// it if we find it to be wrong.
 		ts.AddTask(task)
 	}
 
@@ -196,6 +207,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 			Filename: filenames[i],
 		}
 		task.Set("snapshot-setup", &snapshot)
+		// see the note about snapshots not using lanes, above.
 		ts.AddTask(task)
 	}
 
