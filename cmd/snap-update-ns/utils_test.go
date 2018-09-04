@@ -87,8 +87,6 @@ func (s *utilsSuite) TestSecureMkdirAllLevel0(c *C) {
 
 // Ensure that we can create a directory in the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
-	os.Setenv("SNAPD_DEBUG", "1")
-	defer os.Unsetenv("SNAPD_DEBUG")
 	c.Assert(s.sec.MkdirAll("/path", 0755, 123, 456), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
