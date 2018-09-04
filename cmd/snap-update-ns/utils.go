@@ -197,6 +197,10 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	// Open the root directory and start there.
+	//
+	// NOTE: We don't have to check for possible trespassing on / here because
+	// we are going to check for it in sec.MkDir call below (which verifies
+	// that / is not violated)
 	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open root directory: %v", err)
@@ -221,6 +225,9 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 // elements of some path. The return value contains the newly created file
 // descriptor for the new directory or -1 on error.
 func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) (int, error) {
+	if err := rs.Check(dirFd, dirName); err != nil {
+		return -1, err
+	}
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
@@ -260,6 +267,9 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 // a preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
 func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
+	if err := rs.Check(dirFd, dirName); err != nil {
+		return err
+	}
 
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
 	// translated to textual form. It is added here for explicitness.
@@ -306,6 +316,10 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 // convenience). This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
 func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restrictions) error {
+	if err := rs.Check(dirFd, dirName); err != nil {
+		return err
+	}
+
 	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
