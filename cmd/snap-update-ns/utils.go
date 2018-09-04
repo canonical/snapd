@@ -229,6 +229,7 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 		return -1, err
 	}
 
+	made := true
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
 	if err := sysMkdirat(dirFd, name, uint32(perm.Perm())); err != nil {
@@ -281,6 +282,7 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 		return err
 	}
 
+	made := true
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
 	// translated to textual form. It is added here for explicitness.
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_RDONLY
