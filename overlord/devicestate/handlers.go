@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -87,7 +88,10 @@ var (
 	devicesRef = mustParse("devices")
 )
 
-func newEnoughProxy(proxyURL *url.URL, client *http.Client) bool {
+func newEnoughProxy(st *state.State, proxyURL *url.URL, client *http.Client) bool {
+	st.Unlock()
+	defer st.Lock()
+
 	const prefix = "Cannot check whether proxy store supports a custom serial vault"
 
 	req, err := http.NewRequest("HEAD", proxyURL.String(), nil)
@@ -352,9 +356,12 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		return a.(*asserts.Serial), nil
 	}
 
+	st := t.State()
+	proxyConf := proxyconf.New(st)
 	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout:    30 * time.Second,
 		MayLogBody: true,
+		Proxy:      proxyConf.Conf,
 	})
 
 	cfg, err := getSerialRequestConfig(t, client)
@@ -477,7 +484,7 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 		}
 	}
 
-	if proxyURL != nil && svcURL != nil && !newEnoughProxy(proxyURL, client) {
+	if proxyURL != nil && svcURL != nil && !newEnoughProxy(st, proxyURL, client) {
 		logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
 		proxyURL = nil
 	}
