@@ -104,13 +104,14 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	// TODO: re-factor this, if possible, with inspection and preemptive
 	// creation after the current release ships. This should be possible but
 	// will affect tests heavily (churn, not safe before release).
+	rs := nil
 	switch kind {
 	case "":
-		err = sec.MkdirAll(path, mode, uid, gid)
+		err = MkdirAll(path, mode, uid, gid, rs)
 	case "file":
-		err = sec.MkfileAll(path, mode, uid, gid)
+		err = MkfileAll(path, mode, uid, gid, rs)
 	case "symlink":
-		err = sec.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
+		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
