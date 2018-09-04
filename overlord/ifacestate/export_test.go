@@ -32,6 +32,7 @@ var (
 	ConnectPriv                  = connect
 	GetConns                     = getConns
 	SetConns                     = setConns
+	DefaultDeviceKey             = defaultDeviceKey
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

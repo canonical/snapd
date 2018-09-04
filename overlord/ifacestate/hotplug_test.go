@@ -150,6 +150,56 @@ func (s *hotplugSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
+func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":        "a/path",
+		"ACTION":         "add",
+		"SUBSYSTEM":      "foo",
+		"ID_V4L_PRODUCT": "v4lproduct",
+		"NAME":           "name",
+		"ID_VENDOR_ID":   "vendor",
+		"ID_MODEL_ID":    "model",
+		"ID_SERIAL":      "serial",
+		"ID_REVISION":    "revision",
+	})
+	c.Assert(err, IsNil)
+	key := ifacestate.DefaultDeviceKey(di)
+	c.Assert(key, Equals, "v4lproduct/vendor/model/serial")
+
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":      "a/path",
+		"ACTION":       "add",
+		"SUBSYSTEM":    "foo",
+		"NAME":         "name",
+		"ID_WWN":       "wnn",
+		"ID_MODEL_ENC": "modelenc",
+		"ID_REVISION":  "revision",
+	})
+	c.Assert(err, IsNil)
+	key = ifacestate.DefaultDeviceKey(di)
+	c.Assert(key, Equals, "name/wnn/modelenc/revision")
+
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":       "a/path",
+		"ACTION":        "add",
+		"SUBSYSTEM":     "foo",
+		"PCI_SLOT_NAME": "pcislot",
+		"ID_MODEL_ENC":  "modelenc",
+	})
+	c.Assert(err, IsNil)
+	key = ifacestate.DefaultDeviceKey(di)
+	c.Assert(key, Equals, "pcislot//modelenc/")
+
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":   "a/path",
+		"ACTION":    "add",
+		"SUBSYSTEM": "foo",
+	})
+	c.Assert(err, IsNil)
+	key = ifacestate.DefaultDeviceKey(di)
+	c.Assert(key, Equals, "///")
+}
+
 func (s *hotplugSuite) TestHotplugAdd(c *C) {
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":   "a/path",
@@ -193,7 +243,6 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 		"SUBSYSTEM":       "foo",
 		"ID_VENDOR_ID":    "vendor",
 		"ID_MODEL_ID":     "model",
-		"ID_REVISION":     "revision",
 		"ID_SERIAL_SHORT": "serial",
 	})
 	c.Assert(err, IsNil)
@@ -209,7 +258,7 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	slots := repo.AllSlots("test-d")
 	c.Assert(slots, HasLen, 1)
 	c.Assert(slots[0].Name, Equals, "hotplugslot-d")
-	c.Assert(slots[0].HotplugDeviceKey, Equals, "vendor:model:revision:serial")
+	c.Assert(slots[0].HotplugDeviceKey, Equals, "/vendor/model/serial")
 }
 
 var testSnapYaml = `

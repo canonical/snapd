@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -68,12 +69,27 @@ func hotplugTaskGetAttrs(task *state.Task) (deviceKey, ifaceName string, err err
 	return deviceKey, ifaceName, err
 }
 
+// List of attributes that determine the computation of default device key.
+// Attributes are grouped by similiarity, the first non-empty attribute within the group goes into the key.
+// The final key is composed of 4 attributes (some of which may be empty), separated by "/".
+var attrGroups = [][]string{
+	{"ID_V4L_PRODUCT", "NAME", "ID_NET_NAME", "PCI_SLOT_NAME"},
+	{"ID_VENDOR_ID", "ID_VENDOR", "ID_WWN", "ID_WWN_WITH_EXTENSION", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR_ENC", "ID_OUI_FROM_DATABASE"},
+	{"ID_MODEL_ID", "ID_MODEL_ENC"},
+	{"ID_SERIAL", "ID_SERIAL_SHORT", "ID_NET_NAME_MAC", "ID_REVISION"},
+}
+
 func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
-	vendor, _ := devinfo.Attribute("ID_VENDOR_ID")
-	model, _ := devinfo.Attribute("ID_MODEL_ID")
-	rev, _ := devinfo.Attribute("ID_REVISION")
-	serial, _ := devinfo.Attribute("ID_SERIAL_SHORT")
-	return fmt.Sprintf("%s:%s:%s:%s", vendor, model, rev, serial)
+	key := make([]string, len(attrGroups))
+	for i, group := range attrGroups {
+		for _, attr := range group {
+			if val, ok := devinfo.Attribute(attr); ok && val != "" {
+				key[i] = val
+				break
+			}
+		}
+	}
+	return strings.Join(key, "/")
 }
 
 // HotplugDeviceAdded gets called when a device is added to the system.
