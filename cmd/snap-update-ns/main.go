@@ -151,6 +151,10 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
+	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
+	for _, entry := range currentBefore.Entries {
+		sec.AddChange(&Change{Action: Mount, Entry: entry})
+	}
 
 	currentAfter, err := applyProfile(snapName, currentBefore, desired, sec)
 	if err != nil {
