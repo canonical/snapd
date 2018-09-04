@@ -109,6 +109,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
+	ovld.InterfaceManager().DisableUDevMonitor()
 	s.overlord = ovld
 
 	// don't actually try to talk to the store on snapstate.Ensure
