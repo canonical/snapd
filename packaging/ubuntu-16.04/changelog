@@ -1,6 +1,38 @@
-snapd (2.35~pre3) xenial; urgency=medium
+snapd (2.35.1) xenial; urgency=medium
+
+  *  New upstream release, LP: #1786438
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+    - snapcraft: do not use --diry in mkversion.sh
+    - cmd: add systemd environment generator
+    - snap-confine: map /var/lib/extrausers into snaps mount-namespace
+    - tests: cherry-pick test fixes from master for 2.35
+    - systemd: do not run "snapd.snap-repair.service.in on firstboot
+      bootstrap
+    - interfaces: retain order of inserted security backends
+    - selftest: detect if apparmor is unusable and error
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 03 Sep 2018 14:44:06 +0200
+
+snapd (2.35) xenial; urgency=medium
 
   * New upstream release, LP: #1786438
+    - snapstate: add support for gadget tracks in model assertion
+    - image: add support for "gadget=track"
+    - asserts: add support for gadget tracks in the model assertion
+    - interfaces: add new "sysfs-name" to i2c interfaces code
+    - overlord: handle sigterm during shutdown better
+    - wayland: add extra sockets that are used by older toolkits
+    - snap: fix advice json
+    - tests: fix autopkgtest failures in cosmic
+    - store: backward compatible instance-key handling for non-instance
+      snaps
+    - snapstate: ensure normal snaps wait for the "snapd" snap on
+      refresh
+    - interfaces: add cpu-control for setting CPU tunables
+    - debian: add missing breaks on comisc
+    - overlord/devicestate: DTRT w/a snap proxy to reach a serial vault
+    - devicestate: only run device-hook when fully seeded
+    - seccomp: conditionally add socketcall() based on system and base
     - interfaces/builtin: addtl network-manager resolved DBus fix
     - hookstate: simplify some hook tests
     - udev: skip TestParseUdevEvent on ppc
@@ -191,7 +223,7 @@ snapd (2.35~pre3) xenial; urgency=medium
     - cmd/snap-confine: fix snaps running on core18
     - many: expose publisher's validation throughout the API
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 14 Aug 2018 17:52:02 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Aug 2018 12:36:33 +0200
 
 snapd (2.34.3) xenial; urgency=medium
 

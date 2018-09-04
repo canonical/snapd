@@ -17,7 +17,7 @@
  *
  */
 
-package overlord
+package udevmonitor
 
 import (
 	"fmt"
@@ -30,33 +30,33 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-type UDevMon interface {
+type Interface interface {
 	Connect() error
+	Disconnect() error
 	Run() error
 	Stop() error
 }
 
-type DeviceAddedCallback func(device *hotplug.HotplugDeviceInfo)
-type DeviceRemovedCallback func(device *hotplug.HotplugDeviceInfo)
+type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
+type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
 
-// UDevMonitor monitors kernel uevents making it possible to find USB devices.
-type UDevMonitor struct {
-	tmb             *tomb.Tomb
-	deviceAddedCb   DeviceAddedCallback
-	deviceRemovedCb DeviceRemovedCallback
-	netlinkConn     *netlink.UEventConn
+// Monitor monitors kernel uevents making it possible to find USB devices.
+type Monitor struct {
+	tomb          tomb.Tomb
+	deviceAdded   DeviceAddedFunc
+	deviceRemoved DeviceRemovedFunc
+	netlinkConn   *netlink.UEventConn
 	// channels used by netlink connection and monitor
 	monitorStop   chan struct{}
 	netlinkErrors chan error
 	netlinkEvents chan netlink.UEvent
 }
 
-func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback) UDevMon {
-	m := &UDevMonitor{
-		deviceAddedCb:   addedCb,
-		deviceRemovedCb: removedCb,
-		netlinkConn:     &netlink.UEventConn{},
-		tmb:             new(tomb.Tomb),
+func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
+	m := &Monitor{
+		deviceAdded:   added,
+		deviceRemoved: removed,
+		netlinkConn:   &netlink.UEventConn{},
 	}
 
 	m.netlinkEvents = make(chan netlink.UEvent)
@@ -65,7 +65,11 @@ func NewUDevMonitor(addedCb DeviceAddedCallback, removedCb DeviceRemovedCallback
 	return m
 }
 
-func (m *UDevMonitor) Connect() error {
+func (m *Monitor) EventsChannel() chan netlink.UEvent {
+	return m.netlinkEvents
+}
+
+func (m *Monitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
 		return fmt.Errorf("cannot connect: already connected")
@@ -81,21 +85,27 @@ func (m *UDevMonitor) Connect() error {
 	return nil
 }
 
+func (m *Monitor) Disconnect() error {
+	select {
+	case m.monitorStop <- struct{}{}:
+	default:
+	}
+	return m.netlinkConn.Close()
+}
+
 // Run enumerates existing USB devices and starts a new goroutine that
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
-func (m *UDevMonitor) Run() error {
-	m.tmb.Go(func() error {
+func (m *Monitor) Run() error {
+	m.tomb.Go(func() error {
 		for {
 			select {
 			case err := <-m.netlinkErrors:
 				logger.Noticef("netlink error: %q\n", err)
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
-			case <-m.tmb.Dying():
-				close(m.monitorStop)
-				m.netlinkConn.Close()
-				return nil
+			case <-m.tomb.Dying():
+				return m.Disconnect()
 			}
 		}
 	})
@@ -103,14 +113,14 @@ func (m *UDevMonitor) Run() error {
 	return nil
 }
 
-func (m *UDevMonitor) Stop() error {
-	m.tmb.Kill(nil)
-	err := m.tmb.Wait()
+func (m *Monitor) Stop() error {
+	m.tomb.Kill(nil)
+	err := m.tomb.Wait()
 	m.netlinkConn = nil
 	return err
 }
 
-func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
+func (m *Monitor) udevEvent(ev *netlink.UEvent) {
 	switch ev.Action {
 	case netlink.ADD:
 		m.addDevice(ev.KObj, ev.Env)
@@ -120,22 +130,22 @@ func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
 	}
 }
 
-func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
+func (m *Monitor) addDevice(kobj string, env map[string]string) {
 	di, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
-	if m.deviceAddedCb != nil {
-		m.deviceAddedCb(di)
+	if m.deviceAdded != nil {
+		m.deviceAdded(di)
 	}
 }
 
-func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
+func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 	di, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
-	if m.deviceRemovedCb != nil {
-		m.deviceRemovedCb(di)
+	if m.deviceRemoved != nil {
+		m.deviceRemoved(di)
 	}
 }

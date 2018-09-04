@@ -2,8 +2,7 @@ summary: Ensure that lxd works
 
 # only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# ubuntu-16.04-32: temporarily disable until container detection issues are resolved
-systems: [ubuntu-16.04-64, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -29,6 +28,7 @@ restore: |
 
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
+    rm -f conf.yaml 
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
@@ -48,7 +48,7 @@ execute: |
     }
 
     echo "Install lxd"
-    snap install lxd
+    snap install --candidate lxd
 
     echo "Create a trivial container using the lxd snap"
     wait_for_lxd
@@ -65,7 +65,7 @@ execute: |
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
     . /etc/os-release
-    lxd.lxc launch ubuntu:${VERSION_ID} my-ubuntu
+    lxd.lxc launch "ubuntu:${VERSION_ID}" my-ubuntu
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
@@ -104,3 +104,17 @@ execute: |
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
     snap connect lxd-demo-server:lxd lxd:lxd
+
+    echo "Check that we error in 'unconfined' lxd containers"
+    lxd.lxc config show my-ubuntu > conf.yaml
+    cat <<EOF >> conf.yaml
+    config:
+      raw.lxc: |
+        lxc.apparmor.profile=unconfined
+    EOF
+    lxd.lxc stop --force my-ubuntu
+    lxd.lxc config edit my-ubuntu < conf.yaml
+    lxd.lxc start my-ubuntu
+    # shellcheck disable=SC2016
+    lxd.lxc exec my-ubuntu -- sh -c 'set -x;for i in $(seq 120); do if journalctl -u snapd.service | grep -E "apparmor detected but insufficient permissions to use it"; then break; fi; sleep 1; done'
+    lxd.lxc exec my-ubuntu -- journalctl -u snapd | MATCH "apparmor detected but insufficient permissions to use it"
