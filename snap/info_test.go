@@ -1176,6 +1176,11 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 
 	info.InstanceKey = "instance"
+	// Despite setting the instance key the variables expand to the same
+	// value as before. This is because they are used from inside the mount
+	// namespace of the instantiated snap where the mount backend will
+	// ensure that the regular (non-instance) paths contain
+	// instance-specific code and data.
 	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
