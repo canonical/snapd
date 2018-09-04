@@ -6484,6 +6484,115 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
+func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
+	helloWorldFooInstanceKeyWithSeed := helloWorldSnapID + "-a2e406b6fec0531dbf7f134387dfb72b7871aa20925d2fd24e"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSeed,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldFooInstanceKeyWithSeed,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-a2e406b6fec0531dbf7f134387dfb72b7871aa20925d2fd24e",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	currentSnaps := []*CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+			RequestSeed:     "123",
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+			RequestSeed:     "123",
+		},
+	}
+	action := []*SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			Channel:      "stable",
+			InstanceName: "hello-world_foo",
+		},
+	}
+	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+
+	// another request with the same seed, gives same result
+	resultsAgain, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(resultsAgain, DeepEquals, results)
+}
+
 func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
