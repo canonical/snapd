@@ -47,7 +47,7 @@ func init() {
 }
 
 func main() {
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -123,5 +123,5 @@ func run() error {
 		// something called Stop()
 	}
 
-	return d.Stop()
+	return d.Stop(ch)
 }

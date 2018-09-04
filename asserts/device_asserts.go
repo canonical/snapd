@@ -73,25 +73,40 @@ func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
 }
 
-// Gadget returns the gadget snap the model uses.
-func (mod *Model) Gadget() string {
-	return mod.HeaderString("gadget")
+// snapWithTrack represents a snap that includes optional track
+// information like `snapName=trackName`
+type snapWithTrack string
+
+func (s snapWithTrack) Snap() string {
+	return strings.SplitN(string(s), "=", 2)[0]
 }
 
-// Kernel returns the kernel snap the model uses.
-func (mod *Model) Kernel() string {
-	kernel := mod.HeaderString("kernel")
-	return strings.SplitN(kernel, "=", 2)[0]
-}
-
-// KernelTrack returns the kernel track the model uses.
-func (mod *Model) KernelTrack() string {
-	kernel := mod.HeaderString("kernel")
-	l := strings.SplitN(kernel, "=", 2)
+func (s snapWithTrack) Track() string {
+	l := strings.SplitN(string(s), "=", 2)
 	if len(l) > 1 {
 		return l[1]
 	}
 	return ""
+}
+
+// Gadget returns the gadget snap the model uses.
+func (mod *Model) Gadget() string {
+	return snapWithTrack(mod.HeaderString("gadget")).Snap()
+}
+
+// GadgetTrack returns the gadget track the model uses.
+func (mod *Model) GadgetTrack() string {
+	return snapWithTrack(mod.HeaderString("gadget")).Track()
+}
+
+// Kernel returns the kernel snap the model uses.
+func (mod *Model) Kernel() string {
+	return snapWithTrack(mod.HeaderString("kernel")).Snap()
+}
+
+// KernelTrack returns the kernel track the model uses.
+func (mod *Model) KernelTrack() string {
+	return snapWithTrack(mod.HeaderString("kernel")).Track()
 }
 
 // Base returns the base snap the model uses.
@@ -131,26 +146,26 @@ var _ consistencyChecker = (*Model)(nil)
 // limit model to only lowercase for now
 var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
-func checkKernelHeader(headers map[string]interface{}) error {
-	_, ok := headers["kernel"]
+func checkSnapWithTrackHeader(header string, headers map[string]interface{}) error {
+	_, ok := headers[header]
 	if !ok {
 		return nil
 	}
-	kernel, ok := headers["kernel"].(string)
+	value, ok := headers[header].(string)
 	if !ok {
-		return fmt.Errorf(`"kernel" header must be a string`)
+		return fmt.Errorf(`%q header must be a string`, header)
 	}
-	l := strings.SplitN(kernel, "=", 2)
+	l := strings.SplitN(value, "=", 2)
 	if len(l) == 1 {
 		return nil
 	}
-	kernelTrack := l[1]
-	if strings.Count(kernelTrack, "/") != 0 {
-		return fmt.Errorf(`"kernel" channel selector must be a track name only`)
+	track := l[1]
+	if strings.Count(track, "/") != 0 {
+		return fmt.Errorf(`%q channel selector must be a track name only`, header)
 	}
 	channelRisks := []string{"stable", "candidate", "beta", "edge"}
-	if strutil.ListContains(channelRisks, kernelTrack) {
-		return fmt.Errorf(`"kernel" channel selector must be a track name`)
+	if strutil.ListContains(channelRisks, track) {
+		return fmt.Errorf(`%q channel selector must be a track name`, header)
 	}
 	return nil
 }
@@ -158,9 +173,6 @@ func checkKernelHeader(headers map[string]interface{}) error {
 func checkModel(headers map[string]interface{}) (string, error) {
 	s, err := checkStringMatches(headers, "model", validModel)
 	if err != nil {
-		return "", err
-	}
-	if err := checkKernelHeader(headers); err != nil {
 		return "", err
 	}
 
@@ -244,9 +256,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	// kernel-track is optional but must be a string.
-	_, err = checkOptionalString(assert.headers, "kernel-track")
-	if err != nil {
+	// kernel/gadget can have (optional) tracks - validate those
+	if err := checkSnapWithTrackHeader("kernel", assert.headers); err != nil {
+		return nil, err
+	}
+	if err := checkSnapWithTrackHeader("gadget", assert.headers); err != nil {
 		return nil, err
 	}
 

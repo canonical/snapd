@@ -1,0 +1,45 @@
+summary: Checks for parallel installation of sideloaded snaps containing desktop applications
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    path="$(make_snap basic-desktop)"
+
+    echo "Sideload the regular snap"
+    snap install --dangerous "$path"
+
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    snap set system experimental.parallel-instances=true
+
+    for instance in foo longname; do
+        echo "Sideload same snap as different instance named basic-desktop_$instance"
+        expected="^basic-desktop_$instance 1.0 installed\$"
+        snap install --dangerous --name "basic-desktop_$instance" "$path" | MATCH "$expected"
+
+        diff -u <(head -n4 "/var/lib/snapd/desktop/applications/basic-desktop_${instance}_echo.desktop") - <<-EOF
+    [Desktop Entry]
+    Name=Echo
+    Comment=It echos stuff
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo
+    EOF
+
+        test -d "$SNAP_MOUNT_DIR/basic-desktop_$instance/x1"
+    done
+
+    echo "All snaps are listed"
+    snap list | MATCH '^basic-desktop '
+    snap list | MATCH '^basic-desktop_foo '
+    snap list | MATCH '^basic-desktop_longname '
+
+    echo "Removing one instance does not remove other instances' data"
+    snap remove basic-desktop_foo
+    test -f /var/lib/snapd/desktop/applications/basic-desktop_longname_echo.desktop
+    test -f /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop
+
+    snap remove basic-desktop
+    test -f /var/lib/snapd/desktop/applications/basic-desktop_longname_echo.desktop
+
+restore:
+    snap set system experimental.parallel-instances=null
