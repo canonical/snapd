@@ -2089,6 +2089,22 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 }
 
+func genInstanceKey(curSnap *CurrentSnap) string {
+	_, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName)
+
+	if snapInstanceKey == "" {
+		return curSnap.SnapID
+	}
+
+	// due to privacy concerns, avoid sending the local names to the
+	// backend, instead hash the snap ID and instance key together
+	h := crypto.SHA512.New()
+	// TODO parallel-install: include seed
+	h.Write([]byte(curSnap.SnapID))
+	h.Write([]byte(snapInstanceKey))
+	return fmt.Sprintf("%s-%x", curSnap.SnapID, h.Sum(nil)[39:])
+}
+
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
 
 	// TODO: the store already requires instance-key but doesn't
@@ -2102,16 +2118,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		instanceKey := curSnap.SnapID
-		if _, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName); snapInstanceKey != "" {
-			// due to privacy concerns, avoid sending the local names to the
-			// backend and instead just number current snaps, this requires
-			// extra hoops to translate instance key -> instance name
-
-			// TODO parallel-install: ensure that instance key is
-			// stable across refreshes
-			instanceKey = fmt.Sprintf("%d-%s", i, curSnap.SnapID)
-		}
+		instanceKey := genInstanceKey(curSnap)
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 

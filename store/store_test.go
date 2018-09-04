@@ -1905,8 +1905,10 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 const (
 	funkyAppSnapID = "1e21e12ex4iim2xj1g2ul6f12f1"
 
-	helloWorldSnapID      = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-	helloWorldDeveloperID = "canonical"
+	helloWorldSnapID = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+	// instance key used in refresh action of snap hello-world_foo
+	helloWorldFooInstanceKey = helloWorldSnapID + "-40624f87d2a064043b83fae44b4d1d9ff2d2f93e9a78869d56"
+	helloWorldDeveloperID    = "canonical"
 )
 
 const mockOrdersJSON = `{
@@ -6409,7 +6411,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
-			"instance-key":     fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key":     helloWorldFooInstanceKey,
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
@@ -6417,7 +6419,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
-			"instance-key": fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key": helloWorldFooInstanceKey,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
 		})
@@ -6425,7 +6427,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
-     "instance-key": "1-buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-40624f87d2a064043b83fae44b4d1d9ff2d2f93e9a78869d56",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6508,7 +6510,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
-			"instance-key":     fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key":     helloWorldFooInstanceKey,
 			"revision":         float64(2),
 			"tracking-channel": "edge",
 			"refreshed-date":   helloRefreshedDateStr,
@@ -6521,7 +6523,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
-			"instance-key": fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key": helloWorldFooInstanceKey,
 			"snap-id":      helloWorldSnapID,
 		})
 		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
@@ -6543,7 +6545,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
      }
   }, {
      "result": "error",
-     "instance-key": "1-buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-40624f87d2a064043b83fae44b4d1d9ff2d2f93e9a78869d56",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "error": {
