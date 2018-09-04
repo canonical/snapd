@@ -20,7 +20,6 @@
 package store_test
 
 import (
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -433,14 +432,4 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
-}
-
-func (s *authTestSuite) TestStringish(c *C) {
-	var x store.StringList
-
-	c.Check(json.Unmarshal([]byte(`"hello"`), &x), IsNil)
-	c.Check(x, DeepEquals, store.StringList([]string{"hello"}))
-
-	c.Check(json.Unmarshal([]byte(`["hello", "world"]`), &x), IsNil)
-	c.Check(x, DeepEquals, store.StringList([]string{"hello", "world"}))
 }
