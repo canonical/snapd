@@ -37,6 +37,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/juju/ratelimit"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
@@ -933,6 +934,27 @@ func (s *storeTestSuite) TestDownloadCancellation(c *C) {
 	err := <-result
 	c.Check(n, Equals, 1)
 	c.Assert(err, Equals, "The download has been cancelled: context canceled")
+}
+
+func (s *storeTestSuite) TestActualDownloadRateLimited(c *C) {
+	var ratelimitReaderUsed bool
+	restore := MockRatelimitReader(func(r io.Reader, bucket *ratelimit.Bucket) io.Reader {
+		ratelimitReaderUsed = true
+		return r
+	})
+	defer restore()
+
+	canary := "downloaded data"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, canary)
+	}))
+	defer ts.Close()
+
+	var buf SillyBuffer
+	err := download(context.TODO(), "example-name", "", ts.URL, nil, s.store, &buf, 0, nil, &DownloadOptions{RateLimit: 1})
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, canary)
+	c.Check(ratelimitReaderUsed, Equals, true)
 }
 
 type nopeSeeker struct{ io.ReadWriter }
