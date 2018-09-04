@@ -45,6 +45,10 @@ var (
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
+
+	// trespassing
+	IsReadOnly                 = isReadOnly
+	IsSnapdCreatedPrivateTmpfs = isSnapdCreatedPrivateTmpfs
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -164,4 +168,12 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 	return func() {
 		osReadlink = old
 	}
+}
+
+func (as *Assumptions) IsRestricted(path string) bool {
+	return as.isRestricted(path)
+}
+
+func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
+	return as.canWriteToDirectory(dirFd, dirName)
 }
