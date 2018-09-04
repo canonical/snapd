@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -106,6 +107,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
 	if m.udevMon != nil || m.udevMonitorDisabled {
+		return nil
+	}
+
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+	// don't initialize udev monitor until we have a system snap
+	if _, err := snapstate.CoreInfo(st); err != nil {
 		return nil
 	}
 
