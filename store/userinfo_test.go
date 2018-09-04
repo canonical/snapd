@@ -17,7 +17,7 @@
  *
  */
 
-package store
+package store_test
 
 import (
 	"fmt"
@@ -30,6 +30,7 @@ import (
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -58,7 +59,7 @@ func (t *userInfoSuite) SetUpTest(c *check.C) {
 
 	_, t.restoreLogger = logger.MockLogger()
 
-	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
+	store.MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
 			Factor:  1.1,
@@ -96,7 +97,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 		n++
 	})
 
-	info, err := UserInfo("popper@lse.ac.uk")
+	info, err := store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 3) // number of requests after retries
 	c.Check(info.Username, check.Equals, "mvo")
@@ -112,7 +113,7 @@ func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 		n++
 	})
 
-	_, err := UserInfo("popper@lse.ac.uk")
+	_, err := store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
 	c.Assert(n, check.Equals, 6)
