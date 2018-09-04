@@ -26,7 +26,7 @@ import (
 
 // BindMount performs a bind mount between two absolute paths containing no
 // symlinks.
-func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint) error {
+func BindMount(sourceDir, targetDir string, flags uint) error {
 	// This function only attempts to handle bind mounts. Expanding to other
 	// mounts will require examining do_mount() from fs/namespace.c of the
 	// kernel that called functions (eventually) verify `DCACHE_CANT_MOUNT` is
