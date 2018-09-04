@@ -256,6 +256,16 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 			sysClose(newFd)
 			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
 		}
+		// As soon as we find a place that is safe to write we can switch off
+		// the restricted mode (and thus any subsequent checks). This is
+		// because we only allow "writing" to read-only filesystems where
+		// writes fail with EROFS or to a tmpfs that snapd has privately
+		// mounted inside the per-snap mount namespace. As soon as we start
+		// walking over such tmpfs any subsequent children are either read-
+		// only bind mounts from $SNAP, other tmpfs'es  (e.g. one explicitly
+		// constructed for a layout) or writable places that are bind-mounted
+		// from $SNAP_DATA or similar.
+		rs.LiftRestrictions()
 	}
 	return newFd, err
 }
