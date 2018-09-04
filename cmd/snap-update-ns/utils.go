@@ -131,21 +131,6 @@ func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
 
-// Secure is a helper for making filesystem operations free from certain kinds of attacks.
-type Secure struct{}
-
-// CheckTrespassing inspects if a filesystem operation on the given path
-// segment would trespass on the host.
-//
-// The idea of trespassing is so that we do not attempt to create a
-// directory, a file or a symlink in a directory that is usually beyond
-// control of snap applications. We are perfectly comfortable with creating
-// things in $SNAP_DATA or in /tmp but we don't want to do so in /etc or in
-// other sensitive places.
-func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) error {
-	return nil
-}
-
 // OpenPath creates a path file descriptor for the given
 // path, making sure no components are symbolic links.
 //
