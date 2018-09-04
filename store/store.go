@@ -1449,6 +1449,8 @@ func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	return &reqOptions
 }
 
+var ratelimitReader = ratelimit.Reader
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
 	if dlOpts == nil {
@@ -1532,7 +1534,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		limiter = resp.Body
 		if limit := dlOpts.RateLimit; limit > 0 {
 			bucket := ratelimit.NewBucketWithRate(float64(limit), 2*limit)
-			limiter = ratelimit.Reader(resp.Body, bucket)
+			limiter = ratelimitReader(resp.Body, bucket)
 		}
 		_, finalErr = io.Copy(mw, limiter)
 		pbar.Finished()
