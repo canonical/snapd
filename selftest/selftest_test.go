@@ -20,6 +20,14 @@
 package selftest_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"sort"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -66,4 +74,46 @@ func (s *selftestSuite) TestRunNotHappy(c *C) {
 	err := selftest.Run()
 	c.Check(err, IsNil)
 	c.Check(unhappyCheckRan, Equals, 1)
+}
+
+func (s *selftestSuite) TestUnexportedChecks(c *C) {
+
+	// collect what funcs we run in selftest.Check
+	var runCheckers []string
+	v := reflect.ValueOf(selftest.Checks)
+	for i := 0; i < v.Len(); i++ {
+		v := v.Index(i)
+		fname := runtime.FuncForPC(v.Pointer()).Name()
+		l := strings.Split(fname, ".")
+		runCheckers = append(runCheckers, l[len(l)-1])
+	}
+
+	// collect all "check*" functions
+	goFiles, err := filepath.Glob("*.go")
+	c.Assert(err, IsNil)
+	fset := token.NewFileSet()
+
+	var checkers []string
+	for _, fn := range goFiles {
+		f, err := parser.ParseFile(fset, fn, nil, 0)
+		c.Assert(err, IsNil)
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.File:
+				return true
+			case *ast.FuncDecl:
+				name := x.Name.Name
+				if strings.HasPrefix(name, "check") {
+					checkers = append(checkers, name)
+				}
+				return false
+			default:
+				return false
+			}
+		})
+	}
+
+	sort.Strings(checkers)
+	sort.Strings(runCheckers)
+	c.Check(checkers, DeepEquals, runCheckers)
 }
