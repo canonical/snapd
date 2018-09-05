@@ -95,7 +95,7 @@ func coreSupportsReExec(corePath string) bool {
 	// > 0 means our Version is bigger than the version of snapd in core
 	res, err := strutil.VersionCompare(Version, ver[1])
 	if err != nil {
-		logger.Debugf("cannot version compare %q and %q: %s", Version, ver[1], res)
+		logger.Debugf("cannot version compare %q and %q: %v", Version, ver[1], res)
 		return false
 	}
 	if res > 0 {
