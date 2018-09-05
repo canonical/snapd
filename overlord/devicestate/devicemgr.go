@@ -50,6 +50,7 @@ type DeviceManager struct {
 	bootRevisionsUpdated bool
 
 	ensureSeedInConfigRan bool
+	ensureSeedTimeSetRan  bool
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
@@ -427,6 +428,41 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 
 }
 
+func (m *DeviceManager) ensureSeedTimeSet() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensureSeedTimeSetRan {
+		return nil
+	}
+
+	// get global seeded option
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		// wait for ensure again, this is fine because
+		// doMarkSeeded will run "EnsureBefore(0)"
+		return nil
+	}
+
+	var seedTime time.Time
+	if err := m.state.Get("seed-time", &seedTime); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seedTime.IsZero() {
+		return nil
+	}
+
+	// Make sure that seed-time is set on older systems that did not
+	// have it.
+	m.state.Set("seed-time", time.Now())
+
+	m.ensureSeedTimeSetRan = true
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -458,6 +494,10 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if err := m.ensureSeedInConfig(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := m.ensureSeedTimeSet(); err != nil {
 		errs = append(errs, err)
 	}
 
