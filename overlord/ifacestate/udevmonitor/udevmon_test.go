@@ -17,24 +17,27 @@
  *
  */
 
-package overlord_test
+package udevmonitor_test
 
 import (
-	"github.com/snapcore/snapd/interfaces/hotplug"
-	"github.com/snapcore/snapd/osutil/udev/netlink"
-	"github.com/snapcore/snapd/overlord"
+	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
-	"time"
+	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/osutil/udev/netlink"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 )
+
+func TestHotplug(t *testing.T) { TestingT(t) }
 
 type udevMonitorSuite struct{}
 
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := overlord.NewUDevMonitor(nil, nil)
+	mon := udevmonitor.New(nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
@@ -42,69 +45,70 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 }
 
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
-	var addCalled, removeCalled bool
 	var addInfo, remInfo *hotplug.HotplugDeviceInfo
-	addedCb := func(inf *hotplug.HotplugDeviceInfo) {
-		addCalled = true
+
+	callbackChannel := make(chan struct{})
+	defer close(callbackChannel)
+
+	added := func(inf *hotplug.HotplugDeviceInfo) {
 		addInfo = inf
+		callbackChannel <- struct{}{}
 	}
-	removedCb := func(inf *hotplug.HotplugDeviceInfo) {
-		removeCalled = true
+	removed := func(inf *hotplug.HotplugDeviceInfo) {
 		remInfo = inf
+		callbackChannel <- struct{}{}
 	}
-	mon := overlord.NewUDevMonitor(addedCb, removedCb)
-	c.Assert(mon, NotNil)
-	udevmon, _ := mon.(*overlord.UDevMonitor)
 
-	// stop channels are normally created by netlink crawler/monitor, but since
-	// we don't create them with Connect(), they must be mocked.
-	mstop := make(chan struct{})
-
-	event := make(chan netlink.UEvent)
-
-	overlord.MockUDevMonitorStopChannel(udevmon, mstop)
-	overlord.MockUDevMonitorChannel(udevmon, event)
+	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
+	events := udevmon.EventsChannel()
 
 	c.Assert(udevmon.Run(), IsNil)
 
-	event <- netlink.UEvent{
-		Action: netlink.ADD,
-		KObj:   "foo",
-		Env: map[string]string{
-			"DEVPATH":   "abc",
-			"SUBSYSTEM": "usb",
-			"MINOR":     "1",
-			"MAJOR":     "2",
-			"DEVNAME":   "def",
-			"DEVTYPE":   "boo",
-		},
+	go func() {
+		events <- netlink.UEvent{
+			Action: netlink.ADD,
+			KObj:   "foo",
+			Env: map[string]string{
+				"DEVPATH":   "abc",
+				"SUBSYSTEM": "usb",
+				"MINOR":     "1",
+				"MAJOR":     "2",
+				"DEVNAME":   "def",
+				"DEVTYPE":   "boo",
+			},
+		}
+		events <- netlink.UEvent{
+			Action: netlink.REMOVE,
+			KObj:   "bar",
+			Env: map[string]string{
+				"DEVPATH":   "def",
+				"SUBSYSTEM": "usb",
+				"MINOR":     "3",
+				"MAJOR":     "0",
+				"DEVNAME":   "ghi",
+				"DEVTYPE":   "bzz",
+			},
+		}
+	}()
+
+Loop:
+	for {
+		select {
+		case <-callbackChannel:
+			if addInfo != nil && remInfo != nil {
+				break Loop
+			}
+		case <-time.After(3 * time.Second):
+			c.Error("Did not receive expected devices before timeout")
+			break Loop
+		default:
+		}
 	}
-	event <- netlink.UEvent{
-		Action: netlink.REMOVE,
-		KObj:   "bar",
-		Env: map[string]string{
-			"DEVPATH":   "def",
-			"SUBSYSTEM": "usb",
-			"MINOR":     "3",
-			"MAJOR":     "0",
-			"DEVNAME":   "ghi",
-			"DEVTYPE":   "bzz",
-		},
-	}
+
 	c.Assert(udevmon.Stop(), IsNil)
 
-	c.Assert(addCalled, Equals, true)
-	c.Assert(removeCalled, Equals, true)
-
-	// test that stop channel was closed
-	more := true
-	timeout := time.After(2 * time.Second)
-	select {
-	case _, more = <-mstop:
-	case <-timeout:
-		c.Fatalf("mstop channel was not closed")
-	}
-	c.Assert(more, Equals, false)
+	c.Assert(addInfo, NotNil)
+	c.Assert(remInfo, NotNil)
 
 	c.Assert(addInfo.DeviceName(), Equals, "def")
 	c.Assert(addInfo.DeviceType(), Equals, "boo")
