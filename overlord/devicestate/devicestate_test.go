@@ -2503,6 +2503,57 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
+func (s *deviceMgrSuite) TestMarkSeedTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// not seeded, seed-time is no set
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var when time.Time
+	err := st.Get("seed-time", &when)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// pretend we are seeded
+	s.state.Set("seeded", true)
+
+	ref1 := time.Now()
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+	ref2 := time.Now()
+
+	// seed-time should have been updated
+	err = st.Get("seed-time", &when)
+	c.Assert(err, IsNil)
+	c.Assert(when.IsZero(), Equals, false)
+	c.Assert(ref1.Before(when) || ref1.Equal(when), Equals, true, Commentf("seed-time set to %v", when))
+	c.Assert(ref2.After(when) || ref2.Equal(when), Equals, true, Commentf("seed-time set to %v", when))
+}
+
+func (s *deviceMgrSuite) TestMarkSeedAlreadySet(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// pretend we are seeded and seed-time is set
+	seedTime := time.Now().Add(-time.Hour)
+	s.state.Set("seeded", true)
+	st.Set("seed-time", &seedTime)
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var when time.Time
+	err := st.Get("seed-time", &when)
+	c.Assert(err, IsNil)
+	c.Assert(when.Equal(seedTime), Equals, true, Commentf("got %v expected %v", when, seedTime))
+}
+
 func (s *deviceMgrSuite) TestNewEnoughProxyParse(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
