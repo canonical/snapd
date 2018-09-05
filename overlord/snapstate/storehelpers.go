@@ -241,11 +241,21 @@ func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
 		return nil, err
 	}
 
-	curSnaps := collectCurrentSnaps(snapStates, nil)
+	if len(snapStates) == 0 {
+		// no snaps installed, do not bother any further
+		return nil, nil
+	}
+
+	var systemSeedTime string
+	if err := st.Get("seed-time", &systemSeedTime); err != nil {
+		return nil, err
+	}
+
+	curSnaps := collectCurrentSnaps(snapStates, nil, systemSeedTime)
 	return curSnaps, nil
 }
 
-func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState)) (curSnaps []*store.CurrentSnap) {
+func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState), requestSeed string) (curSnaps []*store.CurrentSnap) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
 	for _, snapst := range snapStates {
@@ -275,6 +285,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
+			RequestSeed:      requestSeed,
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -289,6 +300,11 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	var systemSeedTime string
+	if err := st.Get("seed-time", &systemSeedTime); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -351,7 +367,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		nCands++
 	}
 	// determine current snaps and collect candidates for refresh
-	curSnaps := collectCurrentSnaps(snapStates, addCand)
+	curSnaps := collectCurrentSnaps(snapStates, addCand, systemSeedTime)
 
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]

@@ -51,6 +51,8 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
+
+	s.state.Set("seed-time", time.Now())
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
