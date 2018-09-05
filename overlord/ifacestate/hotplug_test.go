@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord"
@@ -68,12 +69,13 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	})
 	s.BaseTest.AddCleanup(restoreCreate)
 
+	// mock core snap
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	snaptest.MockSnapInstance(c, "", coreSnapYaml, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1)},
-		},
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -134,10 +136,11 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 			})
 		},
 	}
-	s.mgr.Repository().AddInterface(testIface1)
-	s.mgr.Repository().AddInterface(testIface2)
-	s.mgr.Repository().AddInterface(testIface3)
-	s.mgr.Repository().AddInterface(testIface4)
+
+	for _, iface := range []interfaces.Interface{testIface1, testIface2, testIface3, testIface4} {
+		c.Assert(s.mgr.Repository().AddInterface(iface), IsNil)
+		s.AddCleanup(builtin.MockInterface(iface))
+	}
 
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
@@ -261,6 +264,50 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	c.Assert(slots[0].HotplugDeviceKey, Equals, "/vendor/model/serial")
 }
 
+func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
+	repo := s.mgr.Repository()
+	st := s.state
+
+	st.Lock()
+	// mock the consumer snap/plug
+	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
+	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
+	c.Assert(testSnap.Plugs, HasLen, 1)
+	c.Assert(testSnap.Plugs["plug"], NotNil)
+	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	st.Unlock()
+
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":   "a/path",
+		"ACTION":    "add",
+		"SUBSYSTEM": "foo",
+	})
+	c.Assert(err, IsNil)
+	s.udevMon.AddDevice(di)
+
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	// make sure slots have been created in the repo
+	ok, err := repo.HasHotplugSlot("key-1", "test-a")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	conn, err := repo.Connection(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot-a"}})
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
+}
+
 var testSnapYaml = `
 name: consumer
 version: 1
@@ -318,8 +365,6 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 
 	st.Unlock()
 
-	// sanity check
-	c.Assert(repo.Slots("core"), HasLen, 1)
 	slot, _ := repo.SlotForDeviceKey("key-1", "test-a")
 	c.Assert(slot, NotNil)
 
@@ -336,7 +381,6 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	c.Assert(repo.Slots("core"), HasLen, 0)
 	slot, _ = repo.SlotForDeviceKey("key-1", "test-a")
 	c.Assert(slot, IsNil)
 

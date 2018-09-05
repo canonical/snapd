@@ -1143,7 +1143,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	// to recreate old connections that are only remembered in the state.
 	connsForDevice := findConnsForDeviceKey(&conns, coreSnapName, ifaceName, deviceKey)
 
-	// we see this device for the first time (or it didn't have any connected slots before)
+	// we see this device for the first time (or it didn't have any connected slot before)
 	if len(connsForDevice) == 0 {
 		slot, err := m.repo.SlotForDeviceKey(deviceKey, ifaceName)
 		if err != nil {
@@ -1165,7 +1165,6 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			// connection for plug, same check as if we were
 			// considering auto-connections from plug
 			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
-
 			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
 				crefs := make([]string, len(candSlots))
 				for i, candidate := range candSlots {
@@ -1181,16 +1180,6 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 				// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 				continue
 			}
-
-			ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
-			if err != nil {
-				return err
-			}
-
-			if ignore {
-				continue
-			}
-
 			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 				if _, retry := err.(*state.Retry); retry {
 					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
