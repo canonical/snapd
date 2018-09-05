@@ -74,6 +74,8 @@ type snapmgrTestSuite struct {
 	user  *auth.UserState
 	user2 *auth.UserState
 	user3 *auth.UserState
+
+	requestSeed string
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -154,7 +156,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user3, err = auth.NewUser(s.state, "username3", "email2@test.com", "", nil)
 	c.Assert(err, IsNil)
 
-	s.state.Set("seed-time", time.Now())
+	now := time.Now()
+	s.state.Set("seed-time", now)
+	// same format as time.Time.MarshalJSON()
+	s.requestSeed = now.Format(time.RFC3339Nano)
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -2459,6 +2464,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
+				RequestSeed:     s.requestSeed,
 			}},
 			userID: 1,
 		},
@@ -2674,6 +2680,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
+				RequestSeed:     s.requestSeed,
 			}},
 			userID: 1,
 		},
@@ -3154,9 +3161,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 		case "storesvc-snap-action":
 			ir++
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
-				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
-				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
-				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1), RequestSeed: s.requestSeed},
+				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2), RequestSeed: s.requestSeed},
+				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5), RequestSeed: s.requestSeed},
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
@@ -3248,9 +3255,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 		case "storesvc-snap-action":
 			ir++
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
-				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
-				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
-				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1), RequestSeed: s.requestSeed},
+				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2), RequestSeed: s.requestSeed},
+				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5), RequestSeed: s.requestSeed},
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
@@ -3353,9 +3360,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 		case "storesvc-snap-action":
 			ir++
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
-				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
-				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
-				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+				{InstanceName: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1), RequestSeed: s.requestSeed},
+				{InstanceName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2), RequestSeed: s.requestSeed},
+				{InstanceName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5), RequestSeed: s.requestSeed},
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
@@ -3418,6 +3425,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				SnapID:        "some-snap-id",
 				Revision:      snap.R(7),
 				RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
+				RequestSeed:   s.requestSeed,
 			}},
 			userID: 1,
 		},
@@ -3594,6 +3602,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
+				RequestSeed:     s.requestSeed,
 			}},
 			userID: 1,
 		},
@@ -3882,6 +3891,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				Revision:        snap.R(7),
 				TrackingChannel: "other-channel",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
+				RequestSeed:     s.requestSeed,
 			}},
 			userID: 1,
 		},
@@ -4155,6 +4165,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Revision:         snap.R(7),
 			IgnoreValidation: false,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
+			RequestSeed:      s.requestSeed,
 		}},
 		userID: 1,
 	})
@@ -4203,6 +4214,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			TrackingChannel:  "stable",
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 11),
+			RequestSeed:      s.requestSeed,
 		}},
 		userID: 1,
 	})
@@ -4255,6 +4267,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			TrackingChannel:  "stable",
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 12),
+			RequestSeed:      s.requestSeed,
 		}},
 		userID: 1,
 	})
@@ -4389,6 +4402,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
+			RequestSeed:   s.requestSeed,
 		}},
 		userID: 1,
 	})
@@ -4429,6 +4443,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
+			RequestSeed:   s.requestSeed,
 		}},
 		userID: 1,
 	})
@@ -4469,6 +4484,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Block:         []snap.Revision{snap.R(11)},
+			RequestSeed:   s.requestSeed,
 		}},
 		userID: 1,
 	})
@@ -9729,7 +9745,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op: "storesvc-snap-action",
 			curSnaps: []store.CurrentSnap{
-				{InstanceName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{InstanceName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1), RequestSeed: s.requestSeed},
 			},
 		},
 		{
