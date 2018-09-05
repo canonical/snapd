@@ -168,6 +168,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	st.Set("seeded", true)
+	st.Set("seed-time", time.Now())
 	// registered
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
