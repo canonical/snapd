@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -137,6 +138,8 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	defer s.st.Unlock()
 
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
+
+	s.st.Set("seed-time", time.Now())
 
 	// mock installed snaps
 	info1 := snaptest.MockSnap(c, string(testSnapYaml), &snap.SideInfo{
