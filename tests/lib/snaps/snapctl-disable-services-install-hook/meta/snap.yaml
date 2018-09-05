@@ -1,0 +1,9 @@
+name: snapctl-disable-services-install-hook
+version: 1.0
+apps:
+    simple:
+        daemon: simple
+        command: "sleep 60"
+    forking:
+        daemon: forking
+        command: sh -c "sleep 60 &"
