@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -610,14 +609,6 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 		return err
 	}
 
-	return nil
-}
-
-func runCommand(cmdStr ...string) error {
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %v: %s", cmdStr, osutil.OutputErr(output, err))
-	}
 	return nil
 }
 
