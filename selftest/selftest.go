@@ -20,8 +20,8 @@
 package selftest
 
 var checks = []func() error{
-	trySquashfsMount,
-	apparmorUsable,
+	checkSquashfsMount,
+	checkApparmorUsable,
 	checkKernelVersion,
 }
 

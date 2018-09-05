@@ -64,7 +64,7 @@ INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
 bAEA+f+YuAAQAAA=
 `)
 
-func trySquashfsMount() error {
+func checkSquashfsMount() error {
 	tmpSquashfsFile, err := ioutil.TempFile("", "selftest-squashfs-")
 	if err != nil {
 		return err
