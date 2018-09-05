@@ -5,7 +5,10 @@ restore: |
     systemctl stop tinyproxy
 
 prepare: |
-    systemd-run --unit tinyproxy -- python3 $(pwd)/tinyproxy.py
+    systemd-run --unit tinyproxy -- python3 "$(pwd)/tinyproxy.py"
+    # shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    wait_for_service tinyproxy
 
 execute: |
     echo "Setup proxy config"
@@ -15,10 +18,6 @@ execute: |
     snap find test-snapd-tools | MATCH test-snapd-tools
 
     # check unit outout
-    for _ in $(seq 10); do
-        if journalctl -u tinyproxy | grep -E "CONNECT api.snapcraft.io"; then
-            break
-        fi
-        sleep 1
-    done
-    journalctl -u tinyproxy | MATCH "CONNECT api.snapcraft.io"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+    check_journalctl_log 'CONNECT api.snapcraft.io' -u tinyproxy

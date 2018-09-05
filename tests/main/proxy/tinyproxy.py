@@ -12,7 +12,16 @@ Any help will be greatly appreciated.		SUZUKI Hisao
 
 __version__ = "0.2.1"
 
-import http.server, select, socket, socketserver, urllib.parse
+import http.server
+import select
+import socket
+import socketserver
+import sys
+import urllib.parse
+
+def flush():
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 class ProxyHandler (http.server.BaseHTTPRequestHandler):
     __base = http.server.BaseHTTPRequestHandler
@@ -23,11 +32,7 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
 
     def handle(self):
         (ip, port) =  self.client_address
-        if hasattr(self, 'allowed_clients') and ip not in self.allowed_clients:
-            self.raw_requestline = self.rfile.readline()
-            if self.parse_request(): self.send_error(403)
-        else:
-            self.__base_handle()
+        self.__base_handle()
 
     def _connect_to(self, netloc, soc):
         i = netloc.find(':')
@@ -35,7 +40,6 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
             host_port = netloc[:i], int(netloc[i+1:])
         else:
             host_port = netloc, 80
-        print("\t" "connect to %s:%d" % host_port)
         try: soc.connect(host_port)
         except socket.error as arg:
             try: msg = arg[1]
@@ -49,6 +53,7 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
         try:
             if self._connect_to(self.path, soc):
                 self.log_request(200)
+                flush()
                 s = self.protocol_version + " 200 Connection established\r\n"
                 self.wfile.write(s.encode())
                 s = "Proxy-agent: %s\r\n" % self.version_string()
@@ -56,7 +61,6 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
                 self.wfile.write("\r\n".encode())
                 self._read_write(soc, 300)
         finally:
-            print("\t" "bye")
             soc.close()
             self.connection.close()
 
@@ -81,7 +85,6 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
                 soc.send("\r\n")
                 self._read_write(soc)
         finally:
-            print("\t" "bye")
             soc.close()
             self.connection.close()
 
@@ -116,4 +119,5 @@ class ThreadingHTTPServer (socketserver.ThreadingMixIn,
 
 if __name__ == '__main__':
     from sys import argv
+    print("starting tinyproxy")
     http.server.test(ProxyHandler, ThreadingHTTPServer, port=3128)
