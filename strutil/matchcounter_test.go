@@ -115,6 +115,34 @@ func (mcSuite) TestMatchCounterPartials(c *check.C) {
 	}
 }
 
+func (mcSuite) TestMatchCounterPartialsReusingBuffer(c *check.C) {
+	// now we know the whole thing matches expected, we check partials
+	buf := []byte(out)
+	expected := []string{
+		"Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping",
+		"Write on output file failed because No space left on device",
+		"writer: failed to write data block 0",
+	}
+
+	for step := 1; step < 100; step++ {
+		wbuf := make([]byte, step)
+		w := &strutil.MatchCounter{Regexp: thisRegexp, N: 3}
+		var i int
+		for i = 0; i+step < len(buf); i += step {
+			copy(wbuf, buf[i:])
+			_, err := w.Write(wbuf)
+			c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
+		}
+		wbuf = wbuf[:len(buf[i:])]
+		copy(wbuf, buf[i:])
+		_, err := w.Write(wbuf)
+		c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
+		matches, count := w.Matches()
+		c.Assert(count, check.Equals, 19, check.Commentf("step:%d", step))
+		c.Assert(matches, check.DeepEquals, expected, check.Commentf("step:%d", step))
+	}
+}
+
 func (mcSuite) TestMatchCounterZero(c *check.C) {
 	w := &strutil.MatchCounter{Regexp: thisRegexp, N: 0}
 	_, err := w.Write([]byte(out))
