@@ -1792,6 +1792,180 @@ func (s *changeSuite) TestPerformRemoveSymlink(c *C) {
 	})
 }
 
+// Change.Perform wants to create a symlink in /etc and the write is made private.
+func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/tmp/")() // Allow writing to /tmp
+
+	s.sys.InsertFault(`lstat "/etc/demo.conf"`, syscall.ENOENT)
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`,
+		// On 1st call ext4, on 2nd call tmpfs
+		syscall.Statfs_t{Type: update.Ext4Magic},
+		syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertSysLstatResult(`lstat "/etc" <ptr>`, syscall.Stat_t{Mode: 0755})
+	otherConf := testutil.FakeFileInfo("other.conf", 0755)
+	s.sys.InsertReadDirResult(`readdir "/etc"`, []os.FileInfo{otherConf})
+	s.sys.InsertFault(`lstat "/tmp/.snap/etc"`, syscall.ENOENT)
+	s.sys.InsertFault(`lstat "/tmp/.snap/etc/other.conf"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/etc"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/etc/other.conf"`, otherConf)
+	s.sys.InsertFault(`mkdirat 3 "tmp" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFREG})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
+
+	// This is the change we want to perform:
+	// put a layout symlink at /etc/demo.conf -> /oldname
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/etc/demo.conf", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
+	synth, err := chg.Perform(s.as)
+	c.Check(err, IsNil)
+	c.Check(synth, HasLen, 2)
+	// We have created some synthetic change (made /etc a new tmpfs and re-populate it)
+	c.Assert(synth[0], DeepEquals, &update.Change{
+		Entry:  osutil.MountEntry{Name: "tmpfs", Dir: "/etc", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/etc/demo.conf", "mode=0755", "uid=0", "gid=0"}},
+		Action: "mount"})
+	c.Assert(synth[1], DeepEquals, &update.Change{
+		Entry:  osutil.MountEntry{Name: "/etc/other.conf", Dir: "/etc/other.conf", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.synthetic", "x-snapd.needed-by=/etc/demo.conf"}},
+		Action: "mount"})
+
+	// And this is exactly how we made that happen:
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Attempt to construct a symlink /etc/demo.conf -> /oldname.
+		// This stops as soon as we notice that /etc is an ext4 filesystem.
+		// To avoid writing to it directly we need a writable mimic.
+		{C: `lstat "/etc/demo.conf"`, E: syscall.ENOENT},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+
+		// Create a writable mimic over /etc, scan the contents of /etc first.
+		// For convenience we pretend that /etc is empty. The mimic
+		// replicates /etc in /tmp/.snap/etc for subsequent re-construction.
+		{C: `lstat "/etc" <ptr>`, R: syscall.Stat_t{Mode: 0755}},
+		{C: `readdir "/etc"`, R: []os.FileInfo{otherConf}},
+		{C: `lstat "/tmp/.snap/etc"`, E: syscall.ENOENT},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "tmp" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 ".snap" 0755`},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 0 0`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `mkdirat 5 "etc" 0755`},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 5`},
+
+		// Prepare a secure bind mount operation /etc -> /tmp/.snap/etc
+		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
+
+		// Open an O_PATH descriptor to /etc. We need this as a source of a
+		// secure bind mount operation. We also ensure that the descriptor
+		// refers to a directory.
+		// NOTE: we keep fd 4 open for subsequent use.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFDIR}},
+		{C: `close 3`},
+
+		// Open an O_PATH descriptor to /tmp/.snap/etc. We need this as a
+		// target of a secure bind mount operation. We also ensure that the
+		// descriptor refers to a directory.
+		// NOTE: we keep fd 7 open for subsequent use.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 6},
+		{C: `openat 6 "etc" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 7},
+		{C: `fstat 7 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFDIR}},
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 3`},
+
+		// Perform the secure bind mount operation /etc -> /tmp/.snap/etc
+		// and release the two associated file descriptors.
+		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
+		{C: `close 7`},
+		{C: `close 4`},
+
+		// Mount a tmpfs over /etc, re-constructing the original mode and
+		// ownership. Bind mount each original file over and detach the copy
+		// of /etc we had in /tmp/.snap/etc.
+
+		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
+		{C: `mount "tmpfs" "/etc" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		// Here we restore the contents of /etc: here it's just one file - other.conf
+		{C: `lstat "/etc/other.conf"`, R: otherConf},
+		{C: `lstat "/tmp/.snap/etc/other.conf"`, E: syscall.ENOENT},
+
+		// Create /tmp/.snap/etc/other.conf as an empty file.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "tmp" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 ".snap" 0755`},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 0 0`},
+		{C: `mkdirat 5 "etc" 0755`},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6},
+		{C: `fchown 6 0 0`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		// NOTE: This is without O_DIRECTORY and with O_CREAT|O_EXCL,
+		// we are creating an empty file for the subsequent bind mount.
+		{C: `openat 6 "other.conf" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 6`},
+
+		// Open O_PATH to /tmp/.snap/etc/other.conf
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 6},
+		{C: `openat 6 "other.conf" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 7},
+		{C: `fstat 7 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFDIR}},
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+
+		// Open O_PATH to /etc/other.conf
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "other.conf" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFREG}},
+		{C: `close 4`},
+		{C: `close 3`},
+
+		// Restore the /etc/other.conf file with a secure bind mount.
+		{C: `mount "/proc/self/fd/7" "/proc/self/fd/5" "" MS_BIND ""`},
+		{C: `close 5`},
+		{C: `close 7`},
+
+		// We're done restoring now.
+		{C: `unmount "/tmp/.snap/etc" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// The mimic is now complete and subsequent writes to /etc are private
+		// to the mount namespace of the process.
+
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `symlinkat "/oldname" 4 "demo.conf"`},
+		{C: `close 4`},
+	})
+}
+
 // ###########
 // Topic: misc
 // ###########
