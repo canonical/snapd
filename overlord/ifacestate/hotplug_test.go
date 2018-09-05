@@ -393,3 +393,55 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 			"hotplug-removed": true,
 		}})
 }
+
+func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
+	fakeRepositoryLookup := func(n string) bool {
+		reserved := map[string]bool{
+			"slot1":    true,
+			"slot":     true,
+			"slot1234": true,
+			"slot-1":   true,
+			"slot-2":   true,
+			"slot3-5":  true,
+			"slot3-6":  true,
+			"11":       true,
+			"12foo":    true,
+		}
+		return !reserved[n]
+	}
+
+	names := []struct{ proposedName, resultingName string }{
+		{"foo", "foo"},
+		{"slot1", "slot2"},
+		{"slot1234", "slot1235"},
+		{"slot-1", "slot-3"},
+		{"slot3-5", "slot3-7"},
+		{"slot3-1", "slot3-1"},
+		{"11", "12"},
+		{"12foo", "12foo-1"},
+	}
+
+	for _, name := range names {
+		c.Assert(ifacestate.EnsureUniqueName(name.proposedName, fakeRepositoryLookup), Equals, name.resultingName)
+	}
+}
+
+func (s *hotplugSuite) TestCleanupSlotName(c *C) {
+	names := []struct{ proposedName, resultingName string }{
+		{"", ""},
+		{"-", ""},
+		{"slot1", "slot1"},
+		{"-slot1", "slot1"},
+		{"a--slot-1", "a-slot-1"},
+		{"Integrated_Webcam_HD", "integratedwebcamhd"},
+		{"Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers", "xeone3-1200v5e3-1500v5"},
+	}
+	for _, name := range names {
+		c.Assert(ifacestate.CleanupSlotName(name.proposedName), Equals, name.resultingName)
+	}
+}
+
+func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
+	// ID_MODEL=Integrated_Webcam_HD
+	// ID_MODEL_FROM_DATABASE=Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers
+}

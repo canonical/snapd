@@ -21,7 +21,10 @@ package ifacestate
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -90,6 +93,116 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 		}
 	}
 	return strings.Join(key, "/")
+}
+
+func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
+	// if the name is unique right away, do nothing
+	if isUnique(proposedName) {
+		return proposedName
+	}
+
+	// extract number suffix if present
+	pname := []rune(proposedName)
+	end := len(pname) - 1
+	suffixIndex := end
+	for suffixIndex >= 0 && unicode.IsDigit(pname[suffixIndex]) {
+		suffixIndex--
+	}
+
+	var suffixNumValue uint64
+	if suffixIndex == end {
+		// numeric suffix not found, append "-" before the number
+		pname = append(pname, '-')
+		suffixIndex++
+	} else {
+		var err error
+		suffixNumValue, err = strconv.ParseUint(string(pname[suffixIndex+1:]), 10, 32)
+		if err != nil {
+			suffixIndex = end
+		}
+	}
+
+	// increase suffix value until we have a unique name
+	for {
+		suffixNumValue++
+		proposedName = fmt.Sprintf("%s%d", string(pname[0:suffixIndex+1]), suffixNumValue)
+		if isUnique(proposedName) {
+			return proposedName
+		}
+	}
+}
+
+type byLen []string
+
+func (s byLen) Len() int {
+	return len(s)
+}
+func (s byLen) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s byLen) Less(i, j int) bool {
+	return len(s[i]) < len(s[j])
+}
+
+const maxLen = 20
+
+// ValidateSlotName - snap/validate.go
+// ("^[a-z](?:-?[a-z0-9])*$")
+func cleanupSlotName(proposedName string) string {
+	var out []rune
+	var charCount int
+	// the dash flag is used to prevent consecutive dashes, and the dash in the front
+	dash := true
+Loop:
+	for i, c := range proposedName {
+		switch {
+		case c == '-' && !dash:
+			dash = true
+			out = append(out, '-')
+		case unicode.IsLetter(c):
+			out = append(out, unicode.ToLower(c))
+			dash = false
+			charCount++
+			if charCount >= maxLen {
+				break Loop
+			}
+		case unicode.IsDigit(c) && i > 0:
+			out = append(out, c)
+			dash = false
+			charCount++
+			if charCount >= maxLen {
+				break Loop
+			}
+		default:
+			// any other character is ignored
+		}
+	}
+	// make sure the name doesn't end with a dash
+	if len(out) > 0 && out[len(out)-1] == '-' {
+		out = out[0 : len(out)-1]
+	}
+	return string(out)
+}
+
+var nameAttrs = []string{"NAME", "ID_MODEL_FROM_DATABASE", "ID_MODEL"}
+
+func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) string {
+	var candidates []string
+	for _, attr := range nameAttrs {
+		val, ok := devinfo.Attribute(attr)
+		if ok {
+			name := cleanupSlotName(val)
+			if name != "" {
+				candidates = append(candidates, name)
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return fallbackName
+	}
+	sort.Sort(byLen(candidates))
+	// return the shortest name
+	return candidates[0]
 }
 
 // HotplugDeviceAdded gets called when a device is added to the system.

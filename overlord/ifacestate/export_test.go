@@ -33,6 +33,9 @@ var (
 	GetConns                     = getConns
 	SetConns                     = setConns
 	DefaultDeviceKey             = defaultDeviceKey
+	EnsureUniqueName             = ensureUniqueName
+	SuggestedSlotName            = suggestedSlotName
+	CleanupSlotName              = cleanupSlotName
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
