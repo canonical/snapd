@@ -829,7 +829,7 @@ func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
 	s.markSeeded(d)
 
 	d.Start()
-	// pretend some ensure happend
+	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
 		d.overlord.StateEngine().Ensure()
 		time.Sleep(5 * time.Millisecond)
@@ -859,7 +859,7 @@ func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
 	st := d.overlord.State()
 
 	d.Start()
-	// pretend some ensure happend
+	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
 		d.overlord.StateEngine().Ensure()
 		time.Sleep(5 * time.Millisecond)
