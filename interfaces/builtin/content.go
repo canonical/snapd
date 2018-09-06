@@ -168,23 +168,15 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
-	// Content cannot be mounted at arbitrary locations, expect the path to
-	// start with $SNAP, $SNAP_DATA, $SNAP_COMMON. If the prefix is none of
-	// these, place it under $SNAP.
-	prefix := path
-	rest := ""
-	if idx := strings.IndexByte(path, '/'); idx != -1 {
-		prefix = path[:idx]
-		rest = path[idx:]
+	// Content cannot be mounted at arbitrary locations, validate the path
+	// for extra safety.
+	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
+		// Starts with $SNAP, $SNAP_DATA, $SNAP_COMMON, no other $VARs
+		return snapInfo.ExpandSnapVariables(path)
 	}
-	// The variables are expanded in the context of the snap's mount namespace
-	switch prefix {
-	case "$SNAP", "$SNAP_DATA", "$SNAP_COMMON":
-		// Do not filepath.Join() to preserve original /
-		return snapInfo.ExpandSnapVariables(prefix) + rest
-	}
-	// Assume $SNAP by default if nothing else is provided, for compatibility
-	return filepath.Join(snapInfo.ExpandSnapVariables("$SNAP"), path)
+	// Always prefix with $SNAP if nothing else is provided or the path
+	// contains invalid variables.
+	return snapInfo.ExpandSnapVariables(filepath.Join("$SNAP", path))
 }
 
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
