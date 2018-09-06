@@ -515,12 +515,14 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		time.Sleep(mountPollInterval)
 	}
 	if readInfoErr != nil {
-		if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb); err != nil {
-			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
-		}
+		err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb)
 
 		st.Lock()
 		defer st.Unlock()
+
+		if err != nil {
+			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
+		}
 
 		otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
 		if err != nil {
