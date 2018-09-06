@@ -32,6 +32,9 @@ var (
 	ConnectPriv                  = connect
 	GetConns                     = getConns
 	SetConns                     = setConns
+	CleanupSlotName              = cleanupSlotName
+	EnsureUniqueName             = ensureUniqueName
+	SuggestedSlotName            = suggestedSlotName
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
