@@ -23,6 +23,7 @@ package store
 import (
 	"bytes"
 	"crypto"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -2100,12 +2101,13 @@ func genInstanceKey(curSnap *CurrentSnap, seed string) string {
 
 	// due to privacy concerns, avoid sending the local names to the
 	// backend, instead hash the snap ID and instance key together
-	h := crypto.SHA512.New()
+	h := crypto.SHA256.New()
 	// TODO parallel-install: include seed
 	h.Write([]byte(curSnap.SnapID))
 	h.Write([]byte(snapInstanceKey))
 	h.Write([]byte(seed))
-	return fmt.Sprintf("%s-%x", curSnap.SnapID, h.Sum(nil)[39:])
+	enc := base64.RawURLEncoding.EncodeToString(h.Sum(nil)[15:])
+	return fmt.Sprintf("%s-%s", curSnap.SnapID, enc)
 }
 
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
