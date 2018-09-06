@@ -85,8 +85,6 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysSymlinkat := sysSymlinkat
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
-	oldFstatfs := sysFstatfs
-	oldSysFchdir := sysFchdir
 	oldSysLstat := sysLstat
 
 	// override
@@ -104,8 +102,6 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysSymlinkat = sc.Symlinkat
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
-	sysFstatfs = sc.Fstatfs
-	sysFchdir = sc.Fchdir
 	sysLstat = sc.SysLstat
 
 	return func() {
@@ -124,8 +120,6 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysSymlinkat = oldSysSymlinkat
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
-		sysFstatfs = oldFstatfs
-		sysFchdir = oldSysFchdir
 		sysLstat = oldSysLstat
 	}
 }

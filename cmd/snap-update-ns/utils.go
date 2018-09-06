@@ -36,8 +36,6 @@ import (
 // not available through syscall
 const (
 	umountNoFollow = 8
-	// TmpfsMagic is the equivalent of TMPFS_MAGIC
-	TmpfsMagic = 0x01021994
 )
 
 // For mocking everything during testing.
@@ -54,54 +52,12 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
-	sysFstatfs    = syscall.Fstatfs
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
-	sysFchdir     = syscall.Fchdir
 	sysLstat      = syscall.Lstat
 
 	ioutilReadDir = ioutil.ReadDir
 )
-
-// IsSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
-//
-// The function inspects the directory (represented as both an open file
-// descriptor and the absolute path) and a list of changes that were applied to
-// the mount namespace. A directory is trusted if it is a tmpfs that was
-// mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
-// trusted tmpfs are not considered trusted by this function.
-func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) {
-	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
-	// If something is not a tmpfs it cannot be the trusted tmpfs we are looking for.
-	if fsData.Type != TmpfsMagic {
-		return false, nil
-	}
-	// Any of the past changes that mounted a tmpfs exactly at the directory we
-	// are inspecting is considered as trusted. This is conservative because it
-	// doesn't trust sub-directories of a trusted tmpfs. This approach is
-	// sufficient for the intended use.
-	//
-	// The algorithm goes over all the changes in reverse and picks up the
-	// first tmpfs mount or unmount action that matches the directory name.
-	// The set of constraints in snap-update-ns and snapd prevent from mounting
-	// over an existing mount point so we don't need to consider e.g. a bind
-	// mount shadowing an active tmpfs.
-	for i := len(changes) - 1; i >= 0; i-- {
-		change := changes[i]
-		if change.Entry.Type == "tmpfs" && change.Entry.Dir == dirName {
-			return change.Action == Mount, nil
-		}
-	}
-	// TODO: As a special exception, assume that a tmpfs over /var/lib is
-	// trusted. This tmpfs is created by snap-confine as a "quirk" to support
-	// a particular behavior of LXD.  Once the quirk is migrated to a mount
-	// profile (or removed entirely if no longer necessary) the following code
-	// fragment can go away.
-	return dirName == "/var/lib", nil
-}
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
 type ReadOnlyFsError struct {
