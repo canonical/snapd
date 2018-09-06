@@ -219,7 +219,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
-	st.AddWarning("hello world")
+	st.Warnf("hello world")
 	st.Unlock()
 
 	rec = httptest.NewRecorder()

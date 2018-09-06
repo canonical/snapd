@@ -2481,7 +2481,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	switch a.Action {
 	case "add-warning":
-		st.AddWarning(a.Message)
+		st.Warnf("%v", a.Message)
 		return SyncResponse(true, nil)
 	case "unshow-warnings":
 		st.UnshowAllWarnings()
@@ -2862,9 +2862,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	stateOkayWarnings   = (*state.State).OkayWarnings
-	stateAllWarnings    = (*state.State).AllWarnings
-	stateWarningsToShow = (*state.State).WarningsToShow
+	stateOkayWarnings    = (*state.State).OkayWarnings
+	stateAllWarnings     = (*state.State).AllWarnings
+	statePendingWarnings = (*state.State).PendingWarnings
 )
 
 func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -2895,7 +2895,7 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	switch sel {
 	case "all":
 		all = true
-	case "to-show", "":
+	case "pending", "":
 		all = false
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
@@ -2908,7 +2908,7 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if all {
 		ws = stateAllWarnings(st)
 	} else {
-		ws, _ = stateWarningsToShow(st)
+		ws, _ = statePendingWarnings(st)
 	}
 	if len(ws) == 0 {
 		// no need to confuse the issue
