@@ -3,15 +3,14 @@ summary: Checks for parallel installation of sideloaded snaps
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    path="$(make_snap test-snapd-tools)"
 
     echo "Sideload the regular snap"
-    snap install --dangerous "$path"
+    install_local test-snapd-tools
 
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
-    ! snap install --dangerous --name test-snapd-tools_foo "$path" 2> run.err
+    ! install_local_as test-snapd-tools test-snapd-tools_foo 2> run.err
     MATCH 'experimental feature disabled' < run.err
 
     snap set system experimental.parallel-instances=true
@@ -19,7 +18,7 @@ execute: |
     for instance in foo longname; do
         echo "Sideload same snap as different instance named test-snapd-tools_$instance"
         expected="^test-snapd-tools_$instance 1.0 installed\$"
-        snap install --dangerous --name "test-snapd-tools_$instance" "$path" | MATCH "$expected"
+        install_local_as test-snapd-tools "test-snapd-tools_$instance" | MATCH "$expected"
 
         test -d "$SNAP_MOUNT_DIR/test-snapd-tools_$instance/x1"
 
