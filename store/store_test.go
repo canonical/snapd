@@ -1907,7 +1907,7 @@ const (
 
 	helloWorldSnapID = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
 	// instance key used in refresh action of snap hello-world_foo
-	helloWorldFooInstanceKey = helloWorldSnapID + "-40624f87d2a064043b83fae44b4d1d9ff2d2f93e9a78869d56"
+	helloWorldFooInstanceKey = helloWorldSnapID + "-xYG2Y7Ml4KXZZZ2vVrSKBqQ"
 	helloWorldDeveloperID    = "canonical"
 )
 
@@ -6425,7 +6425,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
-     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-40624f87d2a064043b83fae44b4d1d9ff2d2f93e9a78869d56",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-xYG2Y7Ml4KXZZZ2vVrSKBqQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6483,7 +6483,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
-	helloWorldFooInstanceKeyWithSeed := helloWorldSnapID + "-a2e406b6fec0531dbf7f134387dfb72b7871aa20925d2fd24e"
+	helloWorldFooInstanceKeyWithSeed := helloWorldSnapID + "-V-7FVG7hLGs4M5zsraZU5tk"
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -6525,7 +6525,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
-     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-a2e406b6fec0531dbf7f134387dfb72b7871aa20925d2fd24e",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-V-7FVG7hLGs4M5zsraZU5tk",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6553,6 +6553,9 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
+	opts := &RefreshOptions{
+		RequestSeed: "123",
+	}
 	currentSnaps := []*CurrentSnap{
 		{
 			InstanceName:    "hello-world",
@@ -6560,14 +6563,12 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
-			RequestSeed:     "123",
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
-			RequestSeed:     "123",
 		},
 	}
 	action := []*SnapAction{
@@ -6578,7 +6579,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			InstanceName: "hello-world_foo",
 		},
 	}
-	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, nil)
+	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -6586,7 +6587,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 
 	// another request with the same seed, gives same result
-	resultsAgain, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, nil)
+	resultsAgain, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(resultsAgain, DeepEquals, results)
 }
@@ -6652,7 +6653,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
      }
   }, {
      "result": "error",
-     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-40624f87d2a064043b83fae44b4d1d9ff2d2f93e9a78869d56",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-xYG2Y7Ml4KXZZZ2vVrSKBqQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "error": {
