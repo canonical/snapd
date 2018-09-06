@@ -83,7 +83,7 @@ func (m *Monitor) Connect() error {
 	}
 
 	if err := m.netlinkConn.Connect(netlink.UdevEvent); err != nil {
-		return fmt.Errorf("failed to start uevent monitor: %s", err)
+		return fmt.Errorf("cannot start udev monitor: %s", err)
 	}
 
 	// TODO: consider passing a device filter to reduce noise from irrelevant devices.
