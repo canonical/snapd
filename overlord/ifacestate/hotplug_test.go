@@ -69,6 +69,11 @@ func (s *hotplugSuite) TestCleanupSlotName(c *C) {
 		{"slot1", "slot1"},
 		{"-slot1", "slot1"},
 		{"a--slot-1", "a-slot-1"},
+		{"(-slot", "slot"},
+		{"(--slot", "slot"},
+		{"slot-", "slot"},
+		{"slot---", "slot"},
+		{"slot-(", "slot"},
 		{"Integrated_Webcam_HD", "integratedwebcamhd"},
 		{"Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers", "xeone3-1200v5e3-1500v5"},
 	}
