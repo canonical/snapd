@@ -50,12 +50,12 @@ type Monitor struct {
 	netlinkErrors chan error
 	netlinkEvents chan netlink.UEvent
 
-	// devices lookup keeps track of all observed devices to know
+	// seen keeps track of all observed devices to know
 	// when to ignore a spurious event (in case it happens, e.g. when device gets reported by both
 	// the enumeration and monitor on startup).
 	// the lookup is based on device paths which are guaranteed to be unique and stable till device gets removed.
 	// the lookup is not persisted and gets populated and updated in response to enumeration and hotplug events.
-	devices map[string]bool
+	seen map[string]bool
 }
 
 func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
@@ -63,7 +63,7 @@ func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
 		deviceAdded:   added,
 		deviceRemoved: removed,
 		netlinkConn:   &netlink.UEventConn{},
-		devices:       make(map[string]bool),
+		seen:          make(map[string]bool),
 	}
 
 	m.netlinkEvents = make(chan netlink.UEvent)
@@ -114,10 +114,11 @@ func (m *Monitor) Run() error {
 			logger.Noticef("udev enumeration error: %q\n", perr)
 		}
 		for _, dev := range devices {
-			if _, seen := m.devices[dev.DevicePath()]; seen {
+			devPath := dev.DevicePath()
+			if m.seen[devPath] {
 				continue
 			}
-			m.devices[dev.DevicePath()] = true
+			m.seen[devPath] = true
 			if m.deviceAdded != nil {
 				m.deviceAdded(dev)
 			}
@@ -161,10 +162,11 @@ func (m *Monitor) addDevice(kobj string, env map[string]string) {
 	if err != nil {
 		return
 	}
-	if _, seen := m.devices[dev.DevicePath()]; seen {
+	devPath := dev.DevicePath()
+	if m.seen[devPath] {
 		return
 	}
-	m.devices[dev.DevicePath()] = true
+	m.seen[devPath] = true
 	if m.deviceAdded != nil {
 		m.deviceAdded(dev)
 	}
@@ -175,11 +177,12 @@ func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 	if err != nil {
 		return
 	}
-	if _, seen := m.devices[dev.DevicePath()]; !seen {
+	devPath := dev.DevicePath()
+	if !m.seen[devPath] {
 		logger.Noticef("udev monitor observed remove event for unknown device %q", dev.DevicePath())
 		return
 	}
-	delete(m.devices, dev.DevicePath())
+	delete(m.seen, devPath)
 	if m.deviceRemoved != nil {
 		m.deviceRemoved(dev)
 	}
