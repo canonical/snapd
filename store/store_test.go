@@ -6553,6 +6553,9 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
+	opts := &RefreshOptions{
+		RequestSeed: "123",
+	}
 	currentSnaps := []*CurrentSnap{
 		{
 			InstanceName:    "hello-world",
@@ -6560,14 +6563,12 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
-			RequestSeed:     "123",
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
-			RequestSeed:     "123",
 		},
 	}
 	action := []*SnapAction{
@@ -6578,7 +6579,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			InstanceName: "hello-world_foo",
 		},
 	}
-	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, nil)
+	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -6586,7 +6587,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 
 	// another request with the same seed, gives same result
-	resultsAgain, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, nil)
+	resultsAgain, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(resultsAgain, DeepEquals, results)
 }

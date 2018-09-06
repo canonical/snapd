@@ -73,6 +73,8 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
+
+	RequestSeed string
 }
 
 // the LimitTime should be slightly more than 3 times of our http.Client
@@ -1955,7 +1957,6 @@ type CurrentSnap struct {
 	RefreshedDate    time.Time
 	IgnoreValidation bool
 	Block            []snap.Revision
-	RequestSeed      string
 }
 
 type currentSnapV2JSON struct {
@@ -2090,7 +2091,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 }
 
-func genInstanceKey(curSnap *CurrentSnap) string {
+func genInstanceKey(curSnap *CurrentSnap, seed string) string {
 	_, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName)
 
 	if snapInstanceKey == "" {
@@ -2103,7 +2104,7 @@ func genInstanceKey(curSnap *CurrentSnap) string {
 	// TODO parallel-install: include seed
 	h.Write([]byte(curSnap.SnapID))
 	h.Write([]byte(snapInstanceKey))
-	h.Write([]byte(curSnap.RequestSeed))
+	h.Write([]byte(seed))
 	return fmt.Sprintf("%s-%x", curSnap.SnapID, h.Sum(nil)[39:])
 }
 
@@ -2113,6 +2114,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	// yet support repeating in context or sending actions for the
 	// same snap-id, for now we keep instance-key handling internal
 
+	requestSeed := ""
+	if opts != nil {
+		requestSeed = opts.RequestSeed
+	}
 	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
 	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
 	instanceNameToKey := make(map[string]string, len(currentSnaps))
@@ -2120,7 +2125,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		instanceKey := genInstanceKey(curSnap)
+		instanceKey := genInstanceKey(curSnap, requestSeed)
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
