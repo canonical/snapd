@@ -251,7 +251,7 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 		// this is bad: we somehow lost the information to restore things
 		// but if we return the error we'll just get called again :-(
 		// TODO: use warnings :-)
-		logger.Noticef("%v %v", taskGetErrMsg(task, err, "snapshot restore"), status)
+		logger.Noticef("%v", taskGetErrMsg(task, err, "snapshot restore"))
 		return nil
 	}
 
