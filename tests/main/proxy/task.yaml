@@ -1,5 +1,8 @@
 summary: Ensure that the core.proxy.* settings are honored
 
+# ubuntu-14.04 does not have systemd-run
+systems: [-ubuntu-14.04-*]
+
 restore: |
     snap set core proxy.https=
     systemctl stop tinyproxy || true
