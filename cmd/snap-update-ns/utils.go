@@ -36,12 +36,6 @@ import (
 // not available through syscall
 const (
 	umountNoFollow = 8
-	// StReadOnly is the equivalent of ST_RDONLY
-	StReadOnly = 1
-	// SquashfsMagic is the equivalent of SQUASHFS_MAGIC
-	SquashfsMagic = 0x73717368
-	// Ext4Magic is the equivalent of EXT4_SUPER_MAGIC
-	Ext4Magic = 0xef53
 	// TmpfsMagic is the equivalent of TMPFS_MAGIC
 	TmpfsMagic = 0x01021994
 )
@@ -68,27 +62,6 @@ var (
 
 	ioutilReadDir = ioutil.ReadDir
 )
-
-// IsReadOnly returns true if a directory is ready only.
-//
-// Directories are read only when they reside on file systems mounted in read
-// only mode or when the underlying file system itself is inherently read only.
-func IsReadOnly(dirFd int, dirName string) (bool, error) {
-	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
-	// If something is mounted with f_flags & ST_RDONLY then is read-only.
-	if fsData.Flags&StReadOnly == StReadOnly {
-		return true, nil
-	}
-	// If something is a known read-only file-system then it is safe.
-	// Older copies of snapd were not mounting squashfs as read only.
-	if fsData.Type == SquashfsMagic {
-		return true, nil
-	}
-	return false, nil
-}
 
 // IsSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
 //

@@ -759,53 +759,6 @@ func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
 	})
 }
 
-func (s *utilsSuite) TestIsReadOnlyFstatfsError(c *C) {
-	path := "/some/path"
-	s.sys.InsertFault("fstatfs 3 <ptr>", errTesting)
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result, err := update.IsReadOnly(fd, path)
-	c.Assert(err, ErrorMatches, `cannot fstatfs "/some/path": testing`)
-	c.Assert(result, Equals, false)
-}
-
-func (s *utilsSuite) TestIsReadOnlySquashfsMountedRo(c *C) {
-	statfs := syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
-	path := "/some/path"
-	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result, err := update.IsReadOnly(fd, path)
-	c.Assert(err, IsNil)
-	c.Assert(result, Equals, true)
-}
-
-func (s *utilsSuite) TestIsReadOnlySquashfsMountedRw(c *C) {
-	statfs := syscall.Statfs_t{Type: update.SquashfsMagic}
-	path := "/some/path"
-	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result, err := update.IsReadOnly(fd, path)
-	c.Assert(err, IsNil)
-	c.Assert(result, Equals, true)
-}
-
-func (s *utilsSuite) TestIsReadOnlyExt4MountedRw(c *C) {
-	statfs := syscall.Statfs_t{Type: update.Ext4Magic}
-	path := "/some/path"
-	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result, err := update.IsReadOnly(fd, path)
-	c.Assert(err, IsNil)
-	c.Assert(result, Equals, false)
-}
-
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsFstatfsError(c *C) {
 	// fstatfs errors are handled and propagated.
 	path := "/some/path"
@@ -819,8 +772,8 @@ func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsFstatfsError(c *C) {
 }
 
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsNotATmpfs(c *C) {
-	// An ext4 (which is not a tmpfs) is not a private tmpfs.
-	statfs := syscall.Statfs_t{Type: update.Ext4Magic}
+	// An other type (which is not a tmpfs) is not a private tmpfs.
+	statfs := syscall.Statfs_t{Type: 0xCAFE}
 	path := "/some/path"
 	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
 	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
