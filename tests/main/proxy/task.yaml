@@ -24,7 +24,7 @@ execute: |
     echo "Check that the commands go through the proxy"
     snap find test-snapd-tools | MATCH test-snapd-tools
 
-    # check unit outout
+    # check unit output
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
     check_journalctl_log 'CONNECT api.snapcraft.io' -u tinyproxy
