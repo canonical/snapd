@@ -541,11 +541,6 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-17.10-64)
                 pkg_linux_image_extra
             ;;
-        ubuntu-18.04-32)
-            echo "
-                gccgo-8
-                "
-            ;;
         ubuntu-18.04-64)
             echo "
                 gccgo-8
