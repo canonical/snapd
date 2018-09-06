@@ -29,11 +29,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var watchdogConfigKeys = map[string]bool{
-	"RuntimeWatchdogSec":  true,
-	"ShutdownWatchdogSec": true,
-}
-
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.watchdog.runtime-timeout"] = true

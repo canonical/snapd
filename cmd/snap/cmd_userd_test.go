@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -83,5 +84,5 @@ func (s *userdSuite) TestUserd(c *C) {
 	rest, err := snap.Parser().ParseArgs([]string{"userd"})
 	c.Assert(err, IsNil)
 	c.Check(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, "Exiting on user defined signal 1.\n")
+	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")
 }
