@@ -51,8 +51,9 @@ type fakeOp struct {
 	sinfo   snap.SideInfo
 	stype   snap.Type
 
-	curSnaps []store.CurrentSnap
-	action   store.SnapAction
+	curSnaps    []store.CurrentSnap
+	action      store.SnapAction
+	refreshOpts *store.RefreshOptions
 
 	old string
 
@@ -370,7 +371,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	if len(curSnaps) == 0 {
 		curSnaps = nil
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap-action", curSnaps: curSnaps, userID: userID})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op:          "storesvc-snap-action",
+		refreshOpts: opts,
+		curSnaps:    curSnaps,
+		userID:      userID,
+	})
 
 	sorted := make(byAction, len(actions))
 	copy(sorted, actions)

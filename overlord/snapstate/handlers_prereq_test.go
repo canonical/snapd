@@ -36,7 +36,8 @@ import (
 type prereqSuite struct {
 	baseHandlerSuite
 
-	fakeStore *fakeStore
+	fakeStore   *fakeStore
+	requestSeed string
 }
 
 var _ = Suite(&prereqSuite{})
@@ -52,7 +53,8 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 
-	s.state.Set("seed-time", time.Now())
+	s.requestSeed = "request-seed"
+	s.state.Set("seed-time", s.requestSeed)
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
@@ -109,7 +111,8 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	defer s.state.Unlock()
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -121,7 +124,8 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -133,7 +137,8 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -273,7 +278,8 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	defer s.state.Unlock()
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -285,7 +291,8 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -297,7 +304,8 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
 		},
 		{
 			op: "storesvc-snap-action:action",
