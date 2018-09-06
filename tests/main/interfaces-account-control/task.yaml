@@ -4,7 +4,7 @@ details: |
     This test makes sure that a snap using the account-control interface
     can handle the user accounts properly.
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-16-64, ubuntu-core-18-64]
 
 environment:
     TSNAP/ac: account-control-consumer
