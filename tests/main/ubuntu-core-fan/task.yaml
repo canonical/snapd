@@ -1,10 +1,14 @@
 summary: Test ubuntu-fan
+
 systems: [ubuntu-core-16-*]
+
 prepare: |
     IP=$(ifconfig  | grep 'inet addr:'| grep -v '127.0.0.1' | cut -d: -f2 | cut -d' ' -f1|head -1)
     fanctl up 241.0.0.0/8 $IP/16
+
 restore: |
     fanctl down -e
+
 execute: |
     echo "Test that fanctl exists"
     command -v fanctl

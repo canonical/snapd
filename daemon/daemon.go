@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
@@ -98,6 +99,7 @@ const (
 	accessOK accessResult = iota
 	accessUnauthorized
 	accessForbidden
+	accessCancelled
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
@@ -175,7 +177,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 				return accessOK
 			}
 		} else if err == polkit.ErrDismissed {
-			return accessForbidden
+			return accessCancelled
 		} else {
 			logger.Noticef("polkit error: %s", err)
 		}
@@ -199,6 +201,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case accessForbidden:
 		Forbidden("forbidden").ServeHTTP(w, r)
+		return
+	case accessCancelled:
+		AuthCancelled("cancelled").ServeHTTP(w, r)
 		return
 	}
 
@@ -515,7 +520,7 @@ var (
 )
 
 // Stop shuts down the Daemon
-func (d *Daemon) Stop() error {
+func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(nil)
 
 	d.mu.Lock()
@@ -576,6 +581,14 @@ func (d *Daemon) Stop() error {
 		}
 		// wait for reboot to happen
 		logger.Noticef("Waiting for system reboot")
+		if sigCh != nil {
+			signal.Stop(sigCh)
+			if len(sigCh) > 0 {
+				// a signal arrived in between
+				return nil
+			}
+			close(sigCh)
+		}
 		time.Sleep(rebootWaitTimeout)
 		return fmt.Errorf("expected reboot did not happen")
 	}

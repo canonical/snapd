@@ -16,7 +16,8 @@ prepare: |
         exit
     fi
 
-    . $TESTSLIB/store.sh
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
 
     echo "Given two snaps are installed"
     for snap in test-snapd-tools test-snapd-python-webserver; do
@@ -24,7 +25,7 @@ prepare: |
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_fake_store $BLOB_DIR
+    setup_fake_store "$BLOB_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -32,9 +33,10 @@ restore: |
         exit
     fi
 
-    . $TESTSLIB/store.sh
-    teardown_fake_store $BLOB_DIR
-    rm -rf $BLOB_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$BLOB_DIR"
+    rm -rf "$BLOB_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -46,12 +48,14 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
-    . $TESTSLIB/files.sh
-    . $TESTSLIB/store.sh
-    init_fake_refreshes $BLOB_DIR test-snapd-tools 
-    wait_for_file $BLOB_DIR/test-snapd-tools*fake1*.snap 4 .5
-    init_fake_refreshes  $BLOB_DIR test-snapd-python-webserver
-    wait_for_file $BLOB_DIR/test-snapd-python-webserver*fake1*.snap 4 .5
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    init_fake_refreshes "$BLOB_DIR" test-snapd-tools
+    wait_for_file "$BLOB_DIR"/test-snapd-tools*fake1*.snap 4 .5
+    init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
+    wait_for_file "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap 4 .5
 
     echo "And a refresh is performed"
     snap refresh

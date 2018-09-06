@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -101,6 +102,11 @@ var (
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
 
+const (
+	aggressiveSettleTimeout = 50 * time.Millisecond
+	connectRetryTimeout     = 70 * time.Millisecond
+)
+
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
 	dirs.SetRootDir(ms.tempdir)
@@ -112,9 +118,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
+	restoreConnectRetryTimeout := ifacestate.MockConnectRetryTimeout(connectRetryTimeout)
+
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		restoreConnectRetryTimeout()
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -153,6 +162,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
 	ms.o = o
 	st := ms.o.State()
 	st.Lock()
@@ -290,7 +300,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -791,7 +801,7 @@ apps:
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -829,6 +839,66 @@ apps:
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
 }
 
+func (ms *mgrsSuite) TestParallelInstanceLocalInstallSnapNameMismatch(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   fooSnapID,
+		Revision: snap.R(55),
+	}
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
+
+	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_instance", "", snapstate.Flags{DevMode: true})
+	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance", the name does not match the metadata "foo"`)
+}
+
+func (ms *mgrsSuite) TestParallelInstanceLocalInstallInvalidInstanceName(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   fooSnapID,
+		Revision: snap.R(55),
+	}
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
+
+	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_invalid_instance_name", "", snapstate.Flags{DevMode: true})
+	c.Assert(err, ErrorMatches, `invalid instance key: "invalid_instance_name"`)
+}
+
 func (ms *mgrsSuite) TestCheckInterfaces(c *C) {
 	snapDecl := ms.prereqSnapAssertions(c)
 
@@ -861,7 +931,7 @@ slots:
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1048,7 +1118,7 @@ type: os
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1151,7 +1221,7 @@ type: kernel`
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "krnl"}, snapPath, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "krnl"}, snapPath, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1196,7 +1266,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	var snapst snapstate.SnapState
 	snapstate.Get(st, snapName, &snapst)
 
-	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName}, snapPath, "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName}, snapPath, "", "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1968,6 +2038,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 
 	st := o.State()
@@ -2123,12 +2194,12 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	st.Lock()
 	defer st.Unlock()
 
-	ts1, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName1, SnapID: fakeSnapID(snapName1), Revision: snap.R(3)}, snapPath1, "", snapstate.Flags{DevMode: true})
+	ts1, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName1, SnapID: fakeSnapID(snapName1), Revision: snap.R(3)}, snapPath1, "", "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts1)
 
-	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName2, SnapID: fakeSnapID(snapName2), Revision: snap.R(3)}, snapPath2, "", snapstate.Flags{DevMode: true})
+	ts2, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName2, SnapID: fakeSnapID(snapName2), Revision: snap.R(3)}, snapPath2, "", "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 
 	ts2.WaitAll(ts1)
@@ -2192,7 +2263,7 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	snapPath := makeTestSnap(c, snapYamlContent2+"version: 1.0")
 	chg2 := st.NewChange("install-snap", "...")
-	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath, "", snapstate.Flags{DevMode: true})
+	ts2, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath, "", "", snapstate.Flags{DevMode: true})
 	chg2.AddAll(ts2)
 	c.Assert(err, IsNil)
 
@@ -2205,6 +2276,14 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 	c.Assert(chg2.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
+const otherSnapYaml = `name: other-snap
+version: 1.0
+apps:
+   baz:
+        command: bin/bar
+        plugs: [media-hub]
+`
+
 func (ms *mgrsSuite) TestUpdateManyWithAutoconnect(c *C) {
 	const someSnapYaml = `name: some-snap
 version: 1.0
@@ -2214,13 +2293,7 @@ apps:
         plugs: [network,home]
         slots: [media-hub]
 `
-	const otherSnapYaml = `name: other-snap
-version: 1.0
-apps:
-   baz:
-        command: bin/bar
-        plugs: [media-hub]
-`
+
 	const coreSnapYaml = `name: core
 type: os
 version: @VERSION@`
@@ -2335,21 +2408,15 @@ version: @VERSION@`
 	c.Assert(connections, HasLen, 3)
 }
 
-func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
-	const someSnapYaml = `name: some-snap
+const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
    foo:
         command: bin/bar
         slots: [media-hub]
 `
-	const otherSnapYaml = `name: other-snap
-version: 1.0
-apps:
-   baz:
-        command: bin/bar
-        plugs: [media-hub]
-`
+
+func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
 	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
 	ms.serveSnap(snapPath, "40")
 
@@ -2412,20 +2479,30 @@ apps:
 	// force hold state on first removal task to hit Retry error
 	ts2.Tasks()[0].SetStatus(state.HoldStatus)
 
-	st.Unlock()
-	err = ms.o.Settle(3 * time.Second)
-	st.Lock()
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `Settle is not converging`)
-
+	// Settle is not converging here because of the task in Hold status, therefore
+	// it always hits given timeout before we carry on with the test. We're
+	// interested in hitting the retry condition on auto-connect task, so
+	// instead of passing a generous timeout to Settle(), repeat Settle() a number
+	// of times with an aggressive timeout and break as soon as we reach the desired
+	// state of auto-connect task.
 	var retryCheck bool
-	for _, t := range st.Tasks() {
-		if t.Kind() == "auto-connect" {
-			c.Assert(strings.Join(t.Log(), ""), Matches, `.*auto-connect of snap .* will be retried because of "other-snap" - "some-snap" conflict`)
-			retryCheck = true
+	var autoconnectLog string
+	for i := 0; i < 50 && !retryCheck; i++ {
+		st.Unlock()
+		ms.o.Settle(aggressiveSettleTimeout)
+		st.Lock()
+
+		for _, t := range st.Tasks() {
+			if t.Kind() == "auto-connect" && t.Status() == state.DoingStatus && strings.Contains(strings.Join(t.Log(), ""), "Waiting") {
+				autoconnectLog = strings.Join(t.Log(), "")
+				retryCheck = true
+				break
+			}
 		}
 	}
-	c.Assert(retryCheck, Equals, true)
+
+	c.Check(retryCheck, Equals, true)
+	c.Assert(autoconnectLog, Matches, `.*Waiting for conflicting change in progress...`)
 
 	// back to default state, that will unblock autoconnect
 	ts2.Tasks()[0].SetStatus(state.DefaultStatus)
@@ -2434,6 +2511,7 @@ apps:
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Check(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
@@ -2448,4 +2526,164 @@ func (ms *mgrsSuite) TestUpdateWithAutoconnectRetrySlotSide(c *C) {
 
 func (ms *mgrsSuite) TestUpdateWithAutoconnectRetryPlugSide(c *C) {
 	ms.testUpdateWithAutoconnectRetry(c, "other-snap", "some-snap")
+}
+
+func (ms *mgrsSuite) TestDisconnectIgnoredOnSymmetricRemove(c *C) {
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   foo:
+        command: bin/bar
+        slots: [media-hub]
+`
+	const otherSnapYaml = `name: other-snap
+version: 1.0
+apps:
+   baz:
+        command: bin/bar
+        plugs: [media-hub]
+`
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+	c.Assert(snapInfo.Slots, HasLen, 1)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+	c.Assert(otherInfo.Plugs, HasLen, 1)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+	}, nil, nil, nil)
+
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg := st.NewChange("uninstall", "...")
+	chg.AddAll(ts)
+
+	// remove other-snap
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg2 := st.NewChange("uninstall", "...")
+	chg2.AddAll(ts2)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, HasLen, 0)
+
+	var disconnectInterfacesCount, slotHookCount, plugHookCount int
+	for _, t := range st.Tasks() {
+		if t.Kind() == "auto-disconnect" {
+			disconnectInterfacesCount++
+		}
+		if t.Kind() == "run-hook" {
+			var hsup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &hsup), IsNil)
+			if hsup.Hook == "disconnect-plug-media-hub" {
+				plugHookCount++
+			}
+			if hsup.Hook == "disconnect-slot-media-hub" {
+				slotHookCount++
+			}
+		}
+	}
+	c.Assert(plugHookCount, Equals, 1)
+	c.Assert(slotHookCount, Equals, 1)
+	c.Assert(disconnectInterfacesCount, Equals, 2)
+
+	var snst snapstate.SnapState
+	err = snapstate.Get(st, "other-snap", &snst)
+	c.Assert(err, Equals, state.ErrNoState)
+	_, err = repo.Connected("other-snap", "media-hub")
+	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "media-hub"`)
+}
+
+func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+	}, nil, nil, nil)
+
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg := st.NewChange("uninstall", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections; auto-connection should be removed completely from conns on uninstall.
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, HasLen, 0)
 }

@@ -7,6 +7,9 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
+# FIXME: get this via something like pkgconf once it is defined there
+SYSTEMD_SYSTEM_ENV_GENERATOR_DIR=/usr/lib/systemd/system-environment-generators
+
 CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
 	-Wno-missing-field-initializers -Wno-unused-parameter
 
@@ -15,7 +18,7 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim snapd-generator
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim snapd-generator snapd-env-generator
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -39,7 +42,7 @@ check-syntax-c:
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/unit-tests
+	SNAP_DEVICE_HELPER=$(srcdir)/snap-confine/snap-device-helper $(HAVE_VALGRIND) ./snap-confine/unit-tests
 	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:
@@ -288,7 +291,8 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
 	snap-confine/quirks.h \
-	snap-confine/snap-confine-args-test.c
+	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
@@ -463,6 +467,26 @@ libexec_PROGRAMS += snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
+
+##
+## snapd-env-generator
+##
+
+systemdsystemenvgeneratordir=$(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
+systemdsystemenvgenerator_PROGRAMS = snapd-env-generator/snapd-env-generator
+
+snapd_env_generator_snapd_env_generator_SOURCES = snapd-env-generator/main.c
+snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.a
+EXTRA_DIST += snapd-env-generator/snapd-env-generator.rst
+
+if HAVE_RST2MAN
+snapd-env-generator/%.7: snapd-env-generator/%.rst
+	mkdir -p snapd-env-generator
+	$(HAVE_RST2MAN) $^ > $@
+
+dist_man_MANS += snapd-env-generator/snapd-env-generator.7
+CLEANFILES += snapd-env-generator/snapd-env-generator.7
+endif
 
 ##
 ## snapd-apparmor

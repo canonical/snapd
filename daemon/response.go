@@ -152,6 +152,7 @@ const (
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 	errorKindLoginRequired     = errorKind("login-required")
 	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
+	errorKindAuthCancelled     = errorKind("auth-cancelled")
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
@@ -473,6 +474,20 @@ func AppNotFound(format string, v ...interface{}) Response {
 		Type:   ResponseTypeError,
 		Result: res,
 		Status: 404,
+	}
+}
+
+// AuthCancelled is an error responder used when a user cancelled
+// the auth process.
+func AuthCancelled(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindAuthCancelled,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 403,
 	}
 }
 

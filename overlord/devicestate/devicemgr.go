@@ -247,8 +247,9 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	// if there's a gadget specified wait for it
 	var gadgetInfo *snap.Info
+	var hasPrepareDeviceHook bool
+	// if there's a gadget specified wait for it
 	if gadget != "" {
 		var err error
 		gadgetInfo, err = snapstate.GadgetInfo(m.state)
@@ -259,6 +260,16 @@ func (m *DeviceManager) ensureOperational() error {
 		if err != nil {
 			return err
 		}
+		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
+	}
+
+	// When the prepare-device hook is used we need a fully seeded system
+	// to ensure the prepare-device hook has access to the things it
+	// needs
+	if !seeded && hasPrepareDeviceHook {
+		// this will be run again, so eventually when the system is
+		// seeded the code below runs
+		return nil
 	}
 
 	// have some backoff between full retries
@@ -275,7 +286,7 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks := []*state.Task{}
 
 	var prepareDevice *state.Task
-	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
+	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
 			Snap: gadgetInfo.InstanceName(),

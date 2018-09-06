@@ -6,15 +6,15 @@ details: |
     farm of bind mounts.  This test contains a mimic snap that has various
     kinds of elements that must be correctly handled by the mimic code.
 
+environment:
+    PLUG: test-snapd-content-mimic-plug:content
+    SLOT: test-snapd-content-mimic-slot:content
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-content-mimic-plug
     install_local test-snapd-content-mimic-slot
-
-environment:
-    PLUG: test-snapd-content-mimic-plug:content
-    SLOT: test-snapd-content-mimic-slot:content
 
 execute: |
     # Before the content interface is connected we expect to see certain files
