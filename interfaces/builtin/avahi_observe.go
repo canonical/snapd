@@ -256,12 +256,12 @@ dbus (receive)
 
 # Don't allow introspection since it reveals too much (path is not service
 # specific for unconfined)
+# do not use peer=(label=unconfined) here since this is DBus activated
 #dbus (send)
 #    bus=system
 #    path=/
 #    interface=org.freedesktop.DBus.Introspectable
-#    member=Introspect
-#    peer=(label=unconfined),
+#    member=Introspect,
 
 # These allows tampering with other snap's browsers, so don't autoconnect for
 # now.

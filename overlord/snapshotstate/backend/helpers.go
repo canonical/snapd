@@ -172,3 +172,11 @@ func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
 
 	return exec.Command("runuser", sudoArgs...)
 }
+
+func MockUserLookup(newLookup func(string) (*user.User, error)) func() {
+	oldLookup := userLookup
+	userLookup = newLookup
+	return func() {
+		userLookup = oldLookup
+	}
+}

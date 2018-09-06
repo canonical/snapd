@@ -1,7 +1,8 @@
 summary: Check security profile generation for apps and hooks.
 
 prepare: |
-    snap pack $TESTSLIB/snaps/basic-hooks
+    snap pack "$TESTSLIB"/snaps/basic-hooks
+
 restore: |
     rm -f basic-hooks_1.0_all.snap
 
@@ -13,13 +14,14 @@ execute: |
     seccomp_profile_directory="/var/lib/snapd/seccomp/bpf"
 
     echo "Security profiles are generated and loaded for apps"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
     for profile in snap.test-snapd-tools.block snap.test-snapd-tools.cat snap.test-snapd-tools.echo snap.test-snapd-tools.fail snap.test-snapd-tools.success
     do
-        MATCH "^${profile} \(enforce\)$" <<<"$loaded_profiles"
+        MATCH "^${profile} \\(enforce\\)$" <<<"$loaded_profiles"
         [ -f "$seccomp_profile_directory/${profile}.bin" ]
     done
 
@@ -27,5 +29,5 @@ execute: |
     snap install --dangerous basic-hooks_1.0_all.snap
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
-    echo "$loaded_profiles" | MATCH "^snap.basic-hooks.hook.configure \(enforce\)$"
+    echo "$loaded_profiles" | MATCH '^snap.basic-hooks.hook.configure \(enforce\)$'
     [ -f "$seccomp_profile_directory/snap.basic-hooks.hook.configure.bin" ]

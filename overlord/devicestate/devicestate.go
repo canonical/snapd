@@ -210,7 +210,10 @@ func delayedCrossMgrInit() {
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func ProxyStore(st *state.State) (*asserts.Store, error) {
-	tr := config.NewTransaction(st)
+	return proxyStore(st, config.NewTransaction(st))
+}
+
+func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error) {
 	var proxyStore string
 	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
 	if err != nil {

@@ -1,9 +1,8 @@
 summary: Ensure snap userd allows settings via xdg-settings
 
-systems:
-    # Not supposed to work on Ubuntu Core systems as we don't have
-    # a user session environment there
-    - -ubuntu-core-*
+# Not supposed to work on Ubuntu Core systems as we don't have
+# a user session environment there
+systems: [-ubuntu-core-*]
 
 environment:
     DISPLAY: :0

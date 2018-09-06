@@ -26,16 +26,20 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -57,21 +61,88 @@ func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func deviceAPIBaseURL() string {
+func baseURL() *url.URL {
 	if useStaging() {
-		return "https://api.staging.snapcraft.io/api/v1/snaps/auth/"
+		return mustParse("https://api.staging.snapcraft.io/")
 	}
-	return "https://api.snapcraft.io/api/v1/snaps/auth/"
+	return mustParse("https://api.snapcraft.io/")
+}
+
+func mustParse(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }
 
 var (
-	keyLength        = 4096
-	retryInterval    = 60 * time.Second
-	maxTentatives    = 15
-	deviceAPIBase    = deviceAPIBaseURL()
-	requestIDURL     = deviceAPIBase + "request-id"
-	serialRequestURL = deviceAPIBase + "devices"
+	keyLength     = 4096
+	retryInterval = 60 * time.Second
+	maxTentatives = 15
+	baseStoreURL  = baseURL().ResolveReference(authRef)
+
+	authRef    = mustParse("api/v1/snaps/auth/") // authRef must end in / for the following refs to work
+	reqIdRef   = mustParse("request-id")
+	serialRef  = mustParse("serial")
+	devicesRef = mustParse("devices")
 )
+
+func newEnoughProxy(st *state.State, proxyURL *url.URL, client *http.Client) bool {
+	st.Unlock()
+	defer st.Lock()
+
+	const prefix = "Cannot check whether proxy store supports a custom serial vault"
+
+	req, err := http.NewRequest("HEAD", proxyURL.String(), nil)
+	if err != nil {
+		// can't really happen unless proxyURL is somehow broken
+		logger.Debugf(prefix+": %v", err)
+		return false
+	}
+	req.Header.Set("User-Agent", httputil.UserAgent())
+	resp, err := client.Do(req)
+	if err != nil {
+		// some sort of network or protocol error
+		logger.Debugf(prefix+": %v", err)
+		return false
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		logger.Debugf(prefix+": Head request returned %s.", resp.Status)
+		return false
+	}
+	verstr := resp.Header.Get("Snap-Store-Version")
+	ver, err := strconv.Atoi(verstr)
+	if err != nil {
+		logger.Debugf(prefix+": Bogus Snap-Store-Version header %q.", verstr)
+		return false
+	}
+	return ver >= 6
+}
+
+func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
+	base := baseStoreURL
+	if proxyURL != nil {
+		if svcURL != nil {
+			if cfg.headers == nil {
+				cfg.headers = make(map[string]string, 1)
+			}
+			cfg.headers["X-Snap-Device-Service-URL"] = svcURL.String()
+		}
+		base = proxyURL.ResolveReference(authRef)
+	} else if svcURL != nil {
+		base = svcURL
+	}
+
+	cfg.requestIDURL = base.ResolveReference(reqIdRef).String()
+	if svcURL != nil && proxyURL == nil {
+		// talking directly to the custom device service
+		cfg.serialRequestURL = base.ResolveReference(serialRef).String()
+	} else {
+		cfg.serialRequestURL = base.ResolveReference(devicesRef).String()
+	}
+}
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -269,7 +340,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, cfg *serialRequestConfig) (*asserts.Serial, error) {
+func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -285,10 +356,18 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		return a.(*asserts.Serial), nil
 	}
 
-	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+	st := t.State()
+	proxyConf := proxyconf.New(st)
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout:    30 * time.Second,
 		MayLogBody: true,
+		Proxy:      proxyConf.Conf,
 	})
+
+	cfg, err := getSerialRequestConfig(t, client)
+	if err != nil {
+		return nil, err
+	}
 
 	// NB: until we get at least an Accepted (202) we need to
 	// retry from scratch creating a new request-id because the
@@ -343,82 +422,74 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 	}
 }
 
-func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
-	var svcURL string
+func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestConfig, error) {
+	var svcURL, proxyURL *url.URL
+
+	st := t.State()
+	tr := config.NewTransaction(st)
+	if proxyStore, err := proxyStore(st, tr); err != nil && err != state.ErrNoState {
+		return nil, err
+	} else if proxyStore != nil {
+		proxyURL = proxyStore.URL()
+	}
 
 	// gadget is optional on classic
-	model, err := Model(t.State())
+	model, err := Model(st)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
-	var gadgetName string
-	var tr *config.Transaction
+	cfg := serialRequestConfig{}
+
 	if model != nil && model.Gadget() != "" {
 		// model specifies a gadget
-		gadgetInfo, err := snapstate.GadgetInfo(t.State())
+		gadgetInfo, err := snapstate.GadgetInfo(st)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
 		}
-		gadgetName = gadgetInfo.InstanceName()
+		gadgetName := gadgetInfo.InstanceName()
 
-		tr = config.NewTransaction(t.State())
-		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
+		var svcURI string
+		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
+		if err != nil {
+			return nil, err
+		}
+
+		if svcURI != "" {
+			svcURL, err = url.Parse(svcURI)
+			if err != nil {
+				return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURI, err)
+			}
+			if !strings.HasSuffix(svcURL.Path, "/") {
+				svcURL.Path += "/"
+			}
+		}
+
+		err = tr.GetMaybe(gadgetName, "device-service.headers", &cfg.headers)
+		if err != nil {
+			return nil, err
+		}
+
+		var bodyStr string
+		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.body = []byte(bodyStr)
+
+		err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &cfg.proposedSerial)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if svcURL == "" {
-		// no gadget or no device-service.url, use the fallback
-		// service in the store
-		return &serialRequestConfig{
-			requestIDURL:     requestIDURL,
-			serialRequestURL: serialRequestURL,
-		}, nil
+	if proxyURL != nil && svcURL != nil && !newEnoughProxy(st, proxyURL, client) {
+		logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
+		proxyURL = nil
 	}
 
-	baseURL, err := url.Parse(svcURL)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
-	}
-
-	var headers map[string]string
-	err = tr.GetMaybe(gadgetName, "device-service.headers", &headers)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := serialRequestConfig{
-		headers: headers,
-	}
-
-	reqIDURL, err := baseURL.Parse("request-id")
-	if err != nil {
-		return nil, fmt.Errorf("cannot build /request-id URL from %v: %v", baseURL, err)
-	}
-	cfg.requestIDURL = reqIDURL.String()
-
-	var bodyStr string
-	err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.body = []byte(bodyStr)
-
-	serialURL, err := baseURL.Parse("serial")
-	if err != nil {
-		return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
-	}
-	cfg.serialRequestURL = serialURL.String()
-
-	var proposedSerial string
-	err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &proposedSerial)
-	if err != nil {
-		return nil, err
-	}
-	cfg.proposedSerial = proposedSerial
+	cfg.setURLs(proxyURL, svcURL)
 
 	return &cfg, nil
 }
@@ -438,11 +509,6 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-
-	cfg, err := getSerialRequestConfig(t)
-	if err != nil {
-		return err
-	}
 
 	device, err := auth.Device(st)
 	if err != nil {
@@ -476,7 +542,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device, cfg)
+	serial, err := getSerial(t, privKey, device)
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}

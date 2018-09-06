@@ -77,19 +77,18 @@ execute: |
     fi
 
     echo "Given a snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
     echo "Then the device is not assigned to that snap"
-    ! udevadm info $UDEVADM_PATH | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
+    ! udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "And the device is not shown in the snap device list"
     # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
     if [ -e /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list ]; then
         MATCH -v "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
     fi
-
-    echo "================================================="
 
     echo "When a udev rule assigning the device to the snap is added"
     content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-tools_env\""
@@ -100,12 +99,10 @@ execute: |
     udevadm settle
 
     echo "Then the device is shown as assigned to the snap"
-    udevadm info $UDEVADM_PATH | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
+    udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "And other devices are not shown as assigned to the snap"
-    udevadm info $OTHER_UDEVADM_PATH | MATCH -v "E: TAGS=.*snap_test-snapd-tools_env"
-
-    echo "================================================="
+    udevadm info "$OTHER_UDEVADM_PATH" | MATCH -v "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "When a snap command is called"
     test-snapd-tools.env

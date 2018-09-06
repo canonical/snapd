@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -84,6 +83,17 @@ func (li *localInfos) Info(name string) *snap.Info {
 		return li.pathToInfo[p]
 	}
 	return nil
+}
+
+// hasName returns true if the given "snapName" is found within the
+// list of snap names or paths.
+func (li *localInfos) hasName(snaps []string, snapName string) bool {
+	for _, snapNameOrPath := range snaps {
+		if li.Name(snapNameOrPath) == snapName {
+			return true
+		}
+	}
+	return false
 }
 
 func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
@@ -227,6 +237,13 @@ func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Option
 		TargetDir: opts.GadgetUnpackDir,
 		Channel:   opts.Channel,
 	}
+	if model.GadgetTrack() != "" {
+		gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+		if err != nil {
+			return err
+		}
+		dlOpts.Channel = gch
+	}
 	snapFn, _, err := acquireSnap(tsto, model.Gadget(), dlOpts, local)
 	if err != nil {
 		return err
@@ -295,9 +312,9 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
-	errPrefix := fmt.Sprintf("cannot use kernel-track %q from model assertion", kernelTrack)
-	kch, err := snap.ParseChannel(kernelTrack, "")
+func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
+	errPrefix := fmt.Sprintf("cannot use track %q for %s from model assertion", track, what)
+	mch, err := snap.ParseChannel(track, "")
 	if err != nil {
 		return "", fmt.Errorf("%s: %v", errPrefix, err)
 	}
@@ -306,9 +323,9 @@ func makeKernelChannel(kernelTrack, defaultChannel string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
 		}
-		kch.Risk = dch.Risk
+		mch.Risk = dch.Risk
 	}
-	return kch.Clean().String(), nil
+	return mch.Clean().String(), nil
 }
 
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
@@ -321,6 +338,9 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	// sanity check target
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot bootstrap over existing system")
+	}
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap")); len(snaps) > 0 {
+		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
 	}
 
 	// TODO: developer database in home or use snapd (but need
@@ -365,6 +385,16 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
 		snaps = append(snaps, "snapd")
+		// TODO: once we order snaps by what they need this
+		//       can go aways
+		// Here we ensure that "core" is seeded very early
+		// when bases are in use. This fixes the issue
+		// that when people use model assertions with
+		// required snaps like bluez which at this point
+		// still requires core will hang forever in seeding.
+		if strutil.ListContains(opts.Snaps, "core") {
+			snaps = append(snaps, "core")
+		}
 	}
 	// core/base,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(baseName))
@@ -395,11 +425,18 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 		snapChannel := opts.Channel
 		if name == model.Kernel() && model.KernelTrack() != "" {
-			kch, err := makeKernelChannel(model.KernelTrack(), opts.Channel)
+			kch, err := makeChannelFromTrack("kernel", model.KernelTrack(), opts.Channel)
 			if err != nil {
 				return err
 			}
 			snapChannel = kch
+		}
+		if name == model.Gadget() && model.GadgetTrack() != "" {
+			gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
+			if err != nil {
+				return err
+			}
+			snapChannel = gch
 		}
 		dlOpts := &DownloadOptions{
 			TargetDir: snapSeedDir,
@@ -409,6 +446,15 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
 		if err != nil {
 			return err
+		}
+		// Sanity check, note that we could support this case
+		// if we have a use-case but it requires changes in the
+		// devicestate/firstboot.go ordering code.
+		if info.Type == snap.TypeGadget && info.Base != model.Base() {
+			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
+		}
+		if info.Base != "" && !local.hasName(snaps, info.Base) {
+			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
 		}
 
 		seen[name] = true
@@ -546,6 +592,15 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 		bootvar := ""
 
 		info := downloadedSnapsInfoForBootConfig[fn]
+		if info == nil {
+			// this should never happen, if it does print some
+			// debug info
+			keys := make([]string, 0, len(downloadedSnapsInfoForBootConfig))
+			for k := range downloadedSnapsInfoForBootConfig {
+				keys = append(keys, k)
+			}
+			return fmt.Errorf("cannot get download info for snap %s, available infos: %v", fn, keys)
+		}
 		switch info.Type {
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
@@ -565,14 +620,6 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 		return err
 	}
 
-	return nil
-}
-
-func runCommand(cmdStr ...string) error {
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %v: %s", cmdStr, osutil.OutputErr(output, err))
-	}
 	return nil
 }
 

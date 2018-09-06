@@ -39,7 +39,8 @@ execute: |
         exit 0
     fi
 
-    . $TESTSLIB/boot.sh
+    #shellcheck source=tests/lib/boot.sh
+    . "$TESTSLIB"/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # ensure we have a good starting place
     
@@ -47,7 +48,7 @@ execute: |
         test-snapd-tools.echo hello | MATCH hello
 
         # go to known good starting place
-        snap refresh pc-kernel --${KERNEL_CHANNEL}
+        snap refresh pc-kernel "--${KERNEL_CHANNEL}"
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         # from our good starting place we refresh
@@ -58,7 +59,7 @@ execute: |
         cat /proc/version_signature > prevKernelSignature
 
         # refresh
-        snap refresh pc-kernel --${NEW_KERNEL_CHANNEL}
+        snap refresh pc-kernel "--${NEW_KERNEL_CHANNEL}"
 
         # check boot env vars
         snap list | awk "/^pc-kernel / {print(\$3)}" > nextBoot

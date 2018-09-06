@@ -490,6 +490,7 @@ pkg_dependencies_ubuntu_generic(){
         pkg-config
         python3-docutils
         udev
+        udisks2
         upower
         uuid-runtime
         "
@@ -513,16 +514,15 @@ pkg_dependencies_ubuntu_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            echo "
-                linux-image-extra-$(uname -r)
-                "
+                pkg_linux_image_extra
             ;;
         ubuntu-16.04-32)
             echo "
+                gccgo-6
                 evolution-data-server
                 gnome-online-accounts
-                linux-image-extra-$(uname -r)
                 "
+                pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
@@ -531,20 +531,19 @@ pkg_dependencies_ubuntu_classic(){
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
-                linux-image-extra-$(uname -r)
                 nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
                 "
+                pkg_linux_image_extra
             ;;
         ubuntu-17.10-64)
-            echo "
-                linux-image-extra-4.13.0-16-generic
-                "
+                pkg_linux_image_extra
             ;;
         ubuntu-18.04-64)
             echo "
+                gccgo-8
                 evolution-data-server
                 "
             ;;
@@ -562,11 +561,24 @@ pkg_dependencies_ubuntu_classic(){
     esac
 }
 
+pkg_linux_image_extra (){
+    if apt-cache show "linux-image-extra-$(uname -r)" > /dev/null 2>&1; then
+        echo "linux-image-extra-$(uname -r)";
+    else
+        if apt-cache show "linux-modules-extra-$(uname -r)" > /dev/null 2>&1; then
+            echo "linux-modules-extra-$(uname -r)";
+        else
+            echo "cannot find a matching kernel modules package";
+            exit 1;
+        fi;
+    fi
+}
+
 pkg_dependencies_ubuntu_core(){
     echo "
-        linux-image-extra-$(uname -r)
         pollinate
         "
+        pkg_linux_image_extra
 }
 
 pkg_dependencies_fedora(){
@@ -586,6 +598,7 @@ pkg_dependencies_fedora(){
         python3-yaml
         redhat-lsb-core
         rpm-build
+        udisks2
         xdg-user-dirs
         "
 }
@@ -607,6 +620,7 @@ pkg_dependencies_amazon(){
         xdg-user-dirs
         grub2-tools
         nc
+        udisks2
         "
 }
 
@@ -625,6 +639,7 @@ pkg_dependencies_opensuse(){
         python3-yaml
         netcat-openbsd
         osc
+        udisks2
         uuidd
         xdg-utils
         xdg-user-dirs
@@ -654,6 +669,7 @@ pkg_dependencies_arch(){
     squashfs-tools
     shellcheck
     strace
+    udisks2
     xdg-user-dirs
     xfsprogs
     "
