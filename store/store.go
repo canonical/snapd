@@ -2106,7 +2106,7 @@ func genInstanceKey(curSnap *CurrentSnap, seed string) string {
 	h.Write([]byte(curSnap.SnapID))
 	h.Write([]byte(snapInstanceKey))
 	h.Write([]byte(seed))
-	enc := base64.RawURLEncoding.EncodeToString(h.Sum(nil)[15:])
+	enc := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 	return fmt.Sprintf("%s-%s", curSnap.SnapID, enc)
 }
 

@@ -1907,7 +1907,7 @@ const (
 
 	helloWorldSnapID = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
 	// instance key used in refresh action of snap hello-world_foo
-	helloWorldFooInstanceKey = helloWorldSnapID + "-xYG2Y7Ml4KXZZZ2vVrSKBqQ"
+	helloWorldFooInstanceKey = helloWorldSnapID + "-nKhnQxcmdcLTBKIGh8VyxYG2Y7Ml4KXZZZ2vVrSKBqQ"
 	helloWorldDeveloperID    = "canonical"
 )
 
@@ -6425,7 +6425,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
-     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-xYG2Y7Ml4KXZZZ2vVrSKBqQ",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-nKhnQxcmdcLTBKIGh8VyxYG2Y7Ml4KXZZZ2vVrSKBqQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6483,7 +6483,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
-	helloWorldFooInstanceKeyWithSeed := helloWorldSnapID + "-V-7FVG7hLGs4M5zsraZU5tk"
+	helloWorldFooInstanceKeyWithSeed := helloWorldSnapID + "-IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk"
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -6525,7 +6525,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
-     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-V-7FVG7hLGs4M5zsraZU5tk",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6653,7 +6653,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
      }
   }, {
      "result": "error",
-     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-xYG2Y7Ml4KXZZZ2vVrSKBqQ",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ-nKhnQxcmdcLTBKIGh8VyxYG2Y7Ml4KXZZZ2vVrSKBqQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "error": {
