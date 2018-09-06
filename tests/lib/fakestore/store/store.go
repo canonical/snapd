@@ -233,10 +233,6 @@ type searchPayloadJSON struct {
 	Packages []detailsReplyJSON `json:"clickindex:package"`
 }
 
-type searchReplyJSON struct {
-	Payload searchPayloadJSON `json:"_embedded"`
-}
-
 type detailsReplyJSON struct {
 	Architectures   []string `json:"architecture"`
 	SnapID          string   `json:"snap_id"`
