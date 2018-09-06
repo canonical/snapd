@@ -10,7 +10,6 @@ prepare: |
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    path="$(make_snap test-snapd-tools)"
 
     devmode=
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
@@ -18,8 +17,8 @@ execute: |
         devmode=--devmode
     fi
 
-    snap install --dangerous --name test-snapd-tools "$path"
-    snap install --dangerous $devmode --name test-snapd-tools_foo "$path"
+    install_local test-snapd-tools
+    install_local_as test-snapd-tools test-snapd-tools_foo $devmode
 
     su -l -c '! test -d ~/snap/test-snapd-tools' test
     su -l -c '! test -d ~/snap/test-snapd-tools_foo' test
