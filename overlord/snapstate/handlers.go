@@ -454,9 +454,8 @@ var (
 
 func otherSnapsLike(st *state.State, instanceName string) (bool, error) {
 	snapName, _ := snap.SplitInstanceName(instanceName)
-
-	all, err := All(st)
-	if err != nil {
+	var all map[string]*json.RawMessage
+	if err := st.Get("snaps", &all); err != nil && err != state.ErrNoState {
 		return false, err
 	}
 	for otherName := range all {
