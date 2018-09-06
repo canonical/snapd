@@ -442,6 +442,52 @@ func (s *hotplugSuite) TestCleanupSlotName(c *C) {
 }
 
 func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
-	// ID_MODEL=Integrated_Webcam_HD
-	// ID_MODEL_FROM_DATABASE=Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers
+
+	events := []struct {
+		eventData map[string]string
+		outName   string
+	}{{
+		map[string]string{
+			"DEVPATH":                "a/path",
+			"ACTION":                 "add",
+			"SUBSYSTEM":              "foo",
+			"NAME":                   "Name",
+			"ID_MODEL":               "Longer Name",
+			"ID_MODEL_FROM_DATABASE": "Longest Name",
+		},
+		"name",
+	}, {
+		map[string]string{
+			"DEVPATH":                "a/path",
+			"ACTION":                 "add",
+			"SUBSYSTEM":              "foo",
+			"ID_MODEL":               "Longer Name",
+			"ID_MODEL_FROM_DATABASE": "Longest Name",
+		},
+		"longername",
+	}, {
+		map[string]string{
+			"DEVPATH":                "a/path",
+			"ACTION":                 "add",
+			"SUBSYSTEM":              "foo",
+			"ID_MODEL_FROM_DATABASE": "Longest Name",
+		},
+		"longestname",
+	}, {
+		map[string]string{
+			"DEVPATH":   "a/path",
+			"ACTION":    "add",
+			"SUBSYSTEM": "foo",
+		},
+		"fallbackname",
+	},
+	}
+
+	for _, data := range events {
+		di, err := hotplug.NewHotplugDeviceInfo(data.eventData)
+		c.Assert(err, IsNil)
+
+		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
+		c.Assert(slotName, Equals, data.outName)
+	}
 }

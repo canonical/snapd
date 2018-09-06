@@ -21,7 +21,6 @@ package ifacestate
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -95,6 +94,8 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 	return strings.Join(key, "/")
 }
 
+// ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.
+// Uniquiness is achieved by appending a numeric suffix, or increasing existing suffix.
 func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	// if the name is unique right away, do nothing
 	if isUnique(proposedName) {
@@ -110,8 +111,8 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	}
 
 	var suffixNumValue uint64
+	// if numeric suffix hasn't been not found, append "-" before the number
 	if suffixIndex == end {
-		// numeric suffix not found, append "-" before the number
 		pname = append(pname, '-')
 		suffixIndex++
 	} else {
@@ -132,29 +133,21 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	}
 }
 
-type byLen []string
-
-func (s byLen) Len() int {
-	return len(s)
-}
-func (s byLen) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-func (s byLen) Less(i, j int) bool {
-	return len(s[i]) < len(s[j])
-}
-
 const maxLen = 20
 
-// ValidateSlotName - snap/validate.go
-// ("^[a-z](?:-?[a-z0-9])*$")
+// cleanupSlotName sanitizes proposedName to make it a valid slot name that
+// passes validation rules implemented by ValidateSlotName (see snap/validate.go):
+// - only lowercase letter, digits and dashes are allowed
+// - must start with a letter
+// - no double dashes, cannot end with a dash.
+// In addition names are truncated not to exceed maxLen characters.
 func cleanupSlotName(proposedName string) string {
 	var out []rune
 	var charCount int
 	// the dash flag is used to prevent consecutive dashes, and the dash in the front
 	dash := true
 Loop:
-	for i, c := range proposedName {
+	for _, c := range proposedName {
 		switch {
 		case c == '-' && !dash:
 			dash = true
@@ -166,7 +159,7 @@ Loop:
 			if charCount >= maxLen {
 				break Loop
 			}
-		case unicode.IsDigit(c) && i > 0:
+		case unicode.IsDigit(c) && charCount > 0:
 			out = append(out, c)
 			dash = false
 			charCount++
@@ -186,6 +179,10 @@ Loop:
 
 var nameAttrs = []string{"NAME", "ID_MODEL_FROM_DATABASE", "ID_MODEL"}
 
+// suggestedSlotName returns the shortest name derived from attributes defined by nameAttrs, or
+// the fallbackName if there is no known attribute to derive name from. The name created from
+// attributes is cleaned up by cleanupSlotName function.
+// The fallbackName is typically the name of the interface.
 func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) string {
 	var candidates []string
 	for _, attr := range nameAttrs {
@@ -200,9 +197,13 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 	if len(candidates) == 0 {
 		return fallbackName
 	}
-	sort.Sort(byLen(candidates))
-	// return the shortest name
-	return candidates[0]
+	shortestName := candidates[0]
+	for _, cand := range candidates[1:] {
+		if len(cand) < len(shortestName) {
+			shortestName = cand
+		}
+	}
+	return shortestName
 }
 
 // HotplugDeviceAdded gets called when a device is added to the system.
