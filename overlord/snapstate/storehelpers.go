@@ -81,7 +81,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	}
 
 	if err := st.Get("seed-time", &opts.RequestSeed); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot obtain store request seed: %v", err)
 	}
 	return &opts, nil
 }
