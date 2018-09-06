@@ -2,15 +2,19 @@ summary: Ensure that the core.proxy.* settings are honored
 
 restore: |
     snap set core proxy.https=
-    systemctl stop tinyproxy
+    systemctl stop tinyproxy || true
 
-prepare: |
+execute: |
+    if ! command -v python3; then
+       echo "SKIP: need python3"
+       exit 0
+    fi
+
     systemd-run --unit tinyproxy -- python3 "$(pwd)/tinyproxy.py"
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     wait_for_service tinyproxy
 
-execute: |
     echo "Setup proxy config"
     snap set core proxy.https=http://localhost:3128
 
