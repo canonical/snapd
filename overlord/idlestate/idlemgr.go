@@ -70,6 +70,9 @@ func (m *IdleManager) CanGoSocketActivated() bool {
 	}
 	// check if enough time has passed
 	if m.startTime.Add(goSocketActivateWait).After(time.Now()) {
+		// trigger another ensure run to avoid waiting the full 5min
+		// for a regular run
+		st.EnsureBefore(goSocketActivateWait)
 		return false
 	}
 	// check if there are any changes in flight
