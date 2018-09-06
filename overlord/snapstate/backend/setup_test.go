@@ -338,16 +338,16 @@ func (s *setupSuite) TestRemoveSnapFilesDir(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.InstanceName())), Equals, true)
-	c.Assert(osutil.FileExists(snap.BaseDir(snap.InstanceSnap(minInfo.InstanceName()))), Equals, true)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, true)
 
 	// /snap/hello is kept as other instances exist
 	err = s.be.RemoveSnapDir(minInfo, true)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.InstanceName())), Equals, false)
-	c.Assert(osutil.FileExists(snap.BaseDir(snap.InstanceSnap(minInfo.InstanceName()))), Equals, true)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, true)
 
 	// /snap/hello is removed when there are no more instances
 	err = s.be.RemoveSnapDir(minInfo, false)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(snap.BaseDir(snap.InstanceSnap(minInfo.InstanceName()))), Equals, false)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, false)
 }
