@@ -1262,11 +1262,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
-	if err != nil {
-		return err
-	}
-
 	pb := NewTaskProgressAdapterLocked(t)
 	typ, err := snapst.Type()
 	if err != nil {
@@ -1291,6 +1286,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
+
+		otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
+		if err != nil {
+			return err
+		}
+
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
