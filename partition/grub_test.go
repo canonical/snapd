@@ -22,6 +22,7 @@ package partition
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/mvo5/goconfigparser"
@@ -50,7 +51,7 @@ func grubEditenvSet(c *C, key, value string) {
 		c.Skip("grub{,2}-editenv is not available")
 	}
 
-	_, err := runCommand(grubEditenvCmd(), grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value))
+	err := exec.Command(grubEditenvCmd(), grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value)).Run()
 	c.Assert(err, IsNil)
 }
 
@@ -59,11 +60,11 @@ func grubEditenvGet(c *C, key string) string {
 		c.Skip("grub{,2}-editenv is not available")
 	}
 
-	output, err := runCommand(grubEditenvCmd(), grubEnvPath(), "list")
+	output, err := exec.Command(grubEditenvCmd(), grubEnvPath(), "list").CombinedOutput()
 	c.Assert(err, IsNil)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	err = cfg.ReadString(output)
+	err = cfg.ReadString(string(output))
 	c.Assert(err, IsNil)
 	v, err := cfg.Get("", key)
 	c.Assert(err, IsNil)
