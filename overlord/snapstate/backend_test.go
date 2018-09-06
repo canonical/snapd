@@ -814,7 +814,7 @@ func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool)
 	f.ops = append(f.ops, fakeOp{
 		op:             "remove-snap-dir",
 		name:           s.InstanceName(),
-		path:           snap.BaseDir(snap.InstanceSnap(s.InstanceName())),
+		path:           snap.BaseDir(s.SnapName()),
 		otherInstances: otherInstances,
 	})
 	return nil
