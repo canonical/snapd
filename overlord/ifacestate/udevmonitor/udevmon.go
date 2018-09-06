@@ -53,7 +53,7 @@ type Monitor struct {
 	// seen keeps track of all observed devices to know
 	// when to ignore a spurious event (in case it happens, e.g. when device gets reported by both
 	// the enumeration and monitor on startup).
-	// the lookup is based on device paths which are guaranteed to be unique and stable till device gets removed.
+	// the keys are based on device paths which are guaranteed to be unique and stable till device gets removed.
 	// the lookup is not persisted and gets populated and updated in response to enumeration and hotplug events.
 	seen map[string]bool
 }
