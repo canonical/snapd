@@ -38,8 +38,12 @@ import (
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
-	// InstanceName returns the name of the snap.
+	// InstanceName returns the name of the snap decorated with instance
+	// key, if any.
 	InstanceName() string
+
+	// SnapName returns the name of the snap.
+	SnapName() string
 
 	// MountDir returns the base directory of the snap.
 	MountDir() string
