@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type snapshotSuite struct{}
@@ -578,7 +579,28 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 	defer st.Unlock()
 
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	// sanity check: no files in snapshot dir
+	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(out), check.Equals, "")
+
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
+
+	// Mock "tar" so that the tars finish in the expected order.
+	// Locally .01s and .02s do the trick with count=1000;
+	// padded a lot bigger for slower systems.
+	mocktar := testutil.MockCommand(c, "tar", `
+case "$*" in
+*/too-snap/*)
+    sleep .5
+    ;;
+*/tri-snap/*)
+    sleep 1
+    ;;
+esac
+exec /bin/tar "$@"
+`)
+	defer mocktar.Restore()
 
 	defer backend.MockUserLookup(func(username string) (*user.User, error) {
 		if username != "a-user" {
@@ -631,18 +653,26 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 	c.Check(change.Err(), check.NotNil)
 	tasks := change.Tasks()
 	c.Assert(tasks, check.HasLen, 3)
-	for _, i := range []int{0, 2} {
-		if tasks[i].Status() == state.ErrorStatus {
-			// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
-			c.Check(strings.Join(tasks[i].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
-		} else {
-			// and sometimes it won't error at all
-			c.Check(tasks[i].Status(), check.Equals, state.UndoneStatus)
-		}
-	}
-	// but #1 always error'ed
+
+	// task 0 (for "one-snap") will have been undone
+	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // sanity check: task 0 is one-snap's
+	c.Check(tasks[0].Status(), check.Equals, state.UndoneStatus)
+
+	// task 1 (for "too-snap") will have errored
+	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `\S+ ERROR cannot create archive: .* Permission denied .and \d+ more.`)
+
+	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
+	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
+	c.Check(tasks[2].Status(), check.Equals, state.ErrorStatus, check.Commentf("if this ever fails, duplicate the fake tar sleeps please"))
+	// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
+	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
+
+	// no zips left behind, not for errors, not for undos \o/
+	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(out), check.Equals, "")
 }
 
 func (snapshotSuite) TestRestoreChecksIterError(c *check.C) {
