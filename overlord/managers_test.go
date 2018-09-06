@@ -162,6 +162,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
 	ms.o = o
 	st := ms.o.State()
 	st.Lock()
@@ -2037,6 +2038,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 
 	st := o.State()
@@ -2509,6 +2511,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Check(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
