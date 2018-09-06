@@ -605,6 +605,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
+	if name == "borken-undo-setup" && si.Revision == snap.R(2) {
+		return nil, errors.New(`cannot read info for "borken-undo-setup" snap`)
+	}
 	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
@@ -748,6 +751,9 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p pro
 		path:  s.MountDir(),
 		stype: typ,
 	})
+	if s.InstanceName() == "borken-undo-setup" {
+		return errors.New(`cannot undo setup of "borken-undo-setup" snap`)
+	}
 	return nil
 }
 

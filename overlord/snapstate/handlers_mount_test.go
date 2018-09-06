@@ -195,6 +195,70 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 	})
 }
 
+func (s *mountSnapSuite) TestDoMountSnapUndoError(c *C) {
+	v1 := "name: borken-undo-setup\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "borken-undo-setup",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "borken-undo-setup",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "borken-undo-setup", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot undo partial setup snap "borken-undo-setup": cannot undo setup of "borken-undo-setup" snap.*cannot read info for "borken-undo-setup" snap.*`)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "borken-undo-setup/1"),
+		},
+		{
+			op:    "setup-snap",
+			name:  "borken-undo-setup",
+			path:  testSnap,
+			revno: snap.R(2),
+		},
+		{
+			op:    "undo-setup-snap",
+			name:  "borken-undo-setup",
+			path:  filepath.Join(dirs.SnapMountDir, "borken-undo-setup/2"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "borken-undo-setup",
+			path: filepath.Join(dirs.SnapMountDir, "borken-undo-setup"),
+		},
+	})
+}
+
 func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 	r := snapstate.MockMountPollInterval(10 * time.Millisecond)
 	defer r()
