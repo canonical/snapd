@@ -40,7 +40,6 @@ const gpioBaseDeclarationSlots = `
 `
 
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
-var gpioSysfsExport = "/sys/class/gpio/export"
 
 // gpioInterface type
 type gpioInterface struct{}

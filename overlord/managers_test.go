@@ -2512,6 +2512,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Check(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
