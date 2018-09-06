@@ -52,7 +52,7 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	}
 
 	var suffixNumValue uint64
-	// if numeric suffix hasn't been not found, append "-" before the number
+	// if numeric suffix hasn't been found, append "-" before the number
 	if suffixIndex == end {
 		pname = append(pname, '-')
 		suffixIndex++
