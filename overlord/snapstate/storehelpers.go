@@ -69,6 +69,23 @@ func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 	return user, err
 }
 
+func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.RefreshOptions, error) {
+	var opts store.RefreshOptions
+
+	if origOpts != nil {
+		if origOpts.RequestSeed != "" {
+			// nothing to add
+			return origOpts, nil
+		}
+		opts = *origOpts
+	}
+
+	if err := st.Get("seed-time", &opts.RequestSeed); err != nil {
+		return nil, err
+	}
+	return &opts, nil
+}
+
 func installInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
 	// TODO: support ignore-validation?
 
@@ -87,6 +104,11 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 		channel = ""
 	}
 
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	action := &store.SnapAction{
 		Action:       "install",
 		InstanceName: name,
@@ -98,7 +120,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
@@ -110,6 +132,11 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 	}
 
 	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshOpts, err := refreshOptions(st, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +168,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, refreshOpts)
 	st.Lock()
 
 	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
@@ -219,6 +246,11 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		return nil, err
 	}
 
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	action := &store.SnapAction{
 		Action:       "refresh",
 		SnapID:       curInfo.SnapID,
@@ -229,7 +261,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
 	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
@@ -246,16 +278,11 @@ func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
 		return nil, nil
 	}
 
-	var systemSeedTime string
-	if err := st.Get("seed-time", &systemSeedTime); err != nil {
-		return nil, err
-	}
-
-	curSnaps := collectCurrentSnaps(snapStates, nil, systemSeedTime)
+	curSnaps := collectCurrentSnaps(snapStates, nil)
 	return curSnaps, nil
 }
 
-func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState), requestSeed string) (curSnaps []*store.CurrentSnap) {
+func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState)) (curSnaps []*store.CurrentSnap) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
 	for _, snapst := range snapStates {
@@ -285,7 +312,6 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
-			RequestSeed:      requestSeed,
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -303,8 +329,8 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		return nil, nil, nil, err
 	}
 
-	var systemSeedTime string
-	if err := st.Get("seed-time", &systemSeedTime); err != nil {
+	opts, err = refreshOptions(st, opts)
+	if err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -367,7 +393,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		nCands++
 	}
 	// determine current snaps and collect candidates for refresh
-	curSnaps := collectCurrentSnaps(snapStates, addCand, systemSeedTime)
+	curSnaps := collectCurrentSnaps(snapStates, addCand)
 
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]
