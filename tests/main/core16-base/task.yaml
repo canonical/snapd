@@ -1,0 +1,11 @@
+summary: Ensure that core16 works
+
+execute: |
+    echo "Ensure core16 can be installed"
+    snap install --edge core16
+
+    echo "Ensure core16 is usable"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-tools-core16
+    test-snapd-tools-core16.echo hello | MATCH hello
