@@ -7274,14 +7274,14 @@ func (s *apiSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls str
 
 	oldOK := stateOkayWarnings
 	oldAll := stateAllWarnings
-	oldShow := stateWarningsToShow
+	oldPending := statePendingWarnings
 	stateOkayWarnings = func(*state.State, time.Time) int { calls += "ok"; return 0 }
 	stateAllWarnings = func(*state.State) []*state.Warning { calls += "all"; return nil }
-	stateWarningsToShow = func(*state.State) ([]*state.Warning, time.Time) { calls += "show"; return nil, time.Time{} }
+	statePendingWarnings = func(*state.State) ([]*state.Warning, time.Time) { calls += "show"; return nil, time.Time{} }
 	defer func() {
 		stateOkayWarnings = oldOK
 		stateAllWarnings = oldAll
-		stateWarningsToShow = oldShow
+		statePendingWarnings = oldPending
 	}()
 
 	method := "GET"

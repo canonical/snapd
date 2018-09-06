@@ -37,7 +37,7 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.AddWarning("hello")
+	st.Warnf("hello")
 	now := time.Now()
 
 	expectedNumKeys := 5
@@ -134,25 +134,31 @@ func (stateSuite) TestEmptyStateWarnings(c *check.C) {
 }
 
 func (stateSuite) TestDeleteExpired(c *check.C) {
-	oldTime := time.Now().UTC().Add(-2 * state.DefaultExpireAfter)
+	const dt = 20 * time.Millisecond
+	oldTime := time.Now()
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	st.AddWarning("hello again") // adding this twice to trigger the swap in sort
-	st.AddWarningFull("hello", oldTime, never, state.DefaultExpireAfter, state.DefaultRepeatAfter)
-	st.AddWarning("hello again")
-	now := time.Now()
+	st.Warnf("hello again") // adding this twice to trigger the swap in sort
+	st.AddWarningFull("hello", oldTime, never, dt, state.DefaultRepeatAfter)
+	st.Warnf("hello again")
 
 	allWs := st.AllWarnings()
 	c.Assert(allWs, check.HasLen, 2)
-	c.Check(fmt.Sprintf("%q", allWs), check.Equals, `["hello" "hello again"]`)
-	c.Check(allWs[0].Expired(now), check.Equals, true)
-	c.Check(allWs[0].IsShowable(now), check.Equals, true)
-	c.Check(allWs[1].Expired(now), check.Equals, false)
-	c.Check(allWs[1].IsShowable(now), check.Equals, true)
 
-	c.Check(st.DeleteExpired(), check.Equals, 1)
-	c.Check(fmt.Sprintf("%q", st.AllWarnings()), check.Equals, `["hello again"]`)
+	time.Sleep(2 * dt)
+	now := time.Now()
+
+	c.Assert(allWs, check.HasLen, 2)
+	c.Check(fmt.Sprintf("%q", allWs), check.Equals, `["hello" "hello again"]`)
+	c.Check(allWs[0].ExpiredBefore(now), check.Equals, true)
+	c.Check(allWs[0].ShowAfter(now), check.Equals, true)
+	c.Check(allWs[1].ExpiredBefore(now), check.Equals, false)
+	c.Check(allWs[1].ShowAfter(now), check.Equals, true)
+
+	allWs = st.AllWarnings()
+	c.Check(allWs, check.HasLen, 1)
+	c.Check(fmt.Sprintf("%q", allWs), check.Equals, `["hello again"]`)
 }
 
 func (stateSuite) TestOldRepeatedWarning(c *check.C) {
@@ -162,20 +168,20 @@ func (stateSuite) TestOldRepeatedWarning(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	st.AddWarningFull("hello", oldTime, never, state.DefaultExpireAfter, state.DefaultRepeatAfter)
-	st.AddWarning("hello")
+	st.Warnf("hello")
 
 	allWs := st.AllWarnings()
 	c.Assert(allWs, check.HasLen, 1)
 	w := allWs[0]
-	c.Check(w.Expired(now), check.Equals, false)
-	c.Check(w.IsShowable(now), check.Equals, true)
+	c.Check(w.ExpiredBefore(now), check.Equals, false)
+	c.Check(w.ShowAfter(now), check.Equals, true)
 }
 
 func (stateSuite) TestCheckpoint(c *check.C) {
 	b := &fakeStateBackend{}
 	st := state.New(b)
 	st.Lock()
-	st.AddWarning("hello")
+	st.Warnf("hello")
 	st.Unlock()
 	c.Assert(b.checkpoints, check.HasLen, 1)
 
@@ -192,15 +198,15 @@ func (stateSuite) TestShowAndOkay(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	st.AddWarning("number one")
+	st.Warnf("number one")
 	n, _ := st.WarningsSummary()
 	c.Check(n, check.Equals, 1)
-	ws1, t1 := st.WarningsToShow()
+	ws1, t1 := st.PendingWarnings()
 	c.Assert(ws1, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", ws1), check.Equals, `["number one"]`)
 
-	st.AddWarning("number two")
-	ws2, t2 := st.WarningsToShow()
+	st.Warnf("number two")
+	ws2, t2 := st.PendingWarnings()
 	c.Assert(ws2, check.HasLen, 2)
 	c.Check(fmt.Sprintf("%q", ws2), check.Equals, `["number one" "number two"]`)
 	c.Assert(t2.After(t1), check.Equals, true)
@@ -208,18 +214,18 @@ func (stateSuite) TestShowAndOkay(c *check.C) {
 	n = st.OkayWarnings(t1)
 	c.Check(n, check.Equals, 1)
 
-	ws, _ := st.WarningsToShow()
+	ws, _ := st.PendingWarnings()
 	c.Assert(ws, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["number two"]`)
 
 	n = st.OkayWarnings(t2)
 	c.Check(n, check.Equals, 1)
 
-	ws, _ = st.WarningsToShow()
+	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 0)
 
 	st.UnshowAllWarnings()
-	ws, _ = st.WarningsToShow()
+	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 2)
 }
 
@@ -230,21 +236,21 @@ func (stateSuite) TestShowAndOkayWithRepeats(c *check.C) {
 	const myRepeatAfter = 2 * time.Second
 	t0 := time.Now()
 	st.AddWarningFull("hello", t0, never, state.DefaultExpireAfter, myRepeatAfter)
-	ws, t1 := st.WarningsToShow()
+	ws, t1 := st.PendingWarnings()
 	c.Assert(ws, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["hello"]`)
 
 	n := st.OkayWarnings(t1)
 	c.Check(n, check.Equals, 1)
 
-	st.AddWarning("hello")
+	st.Warnf("hello")
 
-	ws, _ = st.WarningsToShow()
+	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 0) // not enough time has passed
 
 	time.Sleep(myRepeatAfter)
 
-	ws, _ = st.WarningsToShow()
+	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["hello"]`)
 }

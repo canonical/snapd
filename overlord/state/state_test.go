@@ -693,10 +693,9 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
 		func() { st.NewLane() },
-		func() { st.AddWarning("hello") },
+		func() { st.Warnf("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
-		func() { st.DeleteExpired() },
 	}
 
 	reads := []func(){
@@ -711,7 +710,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Prune(time.Hour, time.Hour, 100) },
 		func() { st.TaskCount() },
 		func() { st.AllWarnings() },
-		func() { st.WarningsToShow() },
+		func() { st.PendingWarnings() },
 		func() { st.WarningsSummary() },
 	}
 
@@ -770,6 +769,10 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.Task(t5.ID()), IsNil)
 	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
 
+	// two warnings, one expired
+	st.AddWarningFull("hello", now, never, time.Nanosecond, state.DefaultRepeatAfter)
+	st.Warnf("hello again")
+
 	st.Prune(pruneWait, abortWait, 100)
 
 	c.Assert(st.Change(chg1.ID()), Equals, chg1)
@@ -791,6 +794,8 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t4.Status(), Equals, state.DoStatus)
 
 	c.Check(st.TaskCount(), Equals, 3)
+
+	c.Check(st.AllWarnings(), HasLen, 1)
 }
 
 func (ss *stateSuite) TestPruneEmptyChange(c *C) {

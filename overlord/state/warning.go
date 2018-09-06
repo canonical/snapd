@@ -22,9 +22,12 @@ package state
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 var (
@@ -128,40 +131,54 @@ func (w *Warning) validate() (e error) {
 	return nil
 }
 
-func (w *Warning) Expired(now time.Time) bool {
+func (w *Warning) ExpiredBefore(now time.Time) bool {
 	return w.lastAdded.Add(w.expireAfter).Before(now)
 }
 
-func (w *Warning) IsShowable(t time.Time) bool {
+func (w *Warning) ShowAfter(t time.Time) bool {
 	return (w.lastShown.IsZero() || w.lastShown.Add(w.repeatAfter).Before(t)) && !w.firstAdded.After(t)
 }
 
 // flattenWarning loops over the warnings map, and returns all
-// warnings therein as a flat list, for serialising.
+// non-expired warnings therein as a flat list, for serialising.
 // Call with the lock held.
 func (s *State) flattenWarnings() []*Warning {
+	now := time.Now()
 	flat := make([]*Warning, 0, len(s.warnings))
 	for _, w := range s.warnings {
+		if w.ExpiredBefore(now) {
+			continue
+		}
 		flat = append(flat, w)
 	}
 	return flat
 }
 
 // unflattenWarnings takes a flat list of warnings and replaces the
-// warning map with them.
+// warning map with them, ignoring expired warnings in the process.
 // Call with the lock held.
 func (s *State) unflattenWarnings(flat []*Warning) {
+	now := time.Now()
 	s.warnings = make(map[string]*Warning, len(flat))
 	for _, w := range flat {
+		if w.ExpiredBefore(now) {
+			continue
+		}
 		s.warnings[w.message] = w
 	}
 }
 
-// AddWarning records a warning: if it's the first Warning with this
+// Warnf records a warning: if it's the first Warning with this
 // message it'll be added (with its firstAdded and lastAdded set to the
 // current time), otherwise the existing one will have its lastAdded
 // updated.
-func (s *State) AddWarning(message string) {
+func (s *State) Warnf(template string, args ...interface{}) {
+	var message string
+	if len(args) > 0 {
+		message = fmt.Sprintf(template, args...)
+	} else {
+		message = template
+	}
 	s.addWarningFull(Warning{
 		message:     message,
 		expireAfter: DefaultExpireAfter,
@@ -176,27 +193,12 @@ func (s *State) addWarningFull(w Warning, t time.Time) {
 		w.firstAdded = t
 		if err := w.validate(); err != nil {
 			// programming error!
-			panic(err)
+			logger.Panicf("internal error, please report: attempted to add invalid warning: %v", err)
+			return
 		}
 		s.warnings[w.message] = &w
 	}
 	s.warnings[w.message].lastAdded = t
-}
-
-// DeleteExpired deletes warnings that have expired.
-func (s *State) DeleteExpired() int {
-	s.writing()
-
-	now := time.Now().UTC()
-
-	n := 0
-	for k, w := range s.warnings {
-		if w.Expired(now) {
-			delete(s.warnings, k)
-			n++
-		}
-	}
-	return n
 }
 
 type byLastAdded []*Warning
@@ -223,7 +225,7 @@ func (s *State) OkayWarnings(t time.Time) int {
 
 	n := 0
 	for _, w := range s.warnings {
-		if w.IsShowable(t) {
+		if w.ShowAfter(t) {
 			w.lastShown = t
 			n++
 		}
@@ -232,18 +234,18 @@ func (s *State) OkayWarnings(t time.Time) int {
 	return n
 }
 
-// WarningsToShow returns the list of warnings to show the user, sorted by
+// PendingWarnings returns the list of warnings to show the user, sorted by
 // lastAdded, and a timestamp than can be used to refer to these warnings.
 //
 // Warnings to show to the user are those that have not been shown before,
 // or that have been shown earlier than repeatAfter ago.
-func (s *State) WarningsToShow() ([]*Warning, time.Time) {
+func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 	s.reading()
 	now := time.Now().UTC()
 
 	var toShow []*Warning
 	for _, w := range s.warnings {
-		if !w.IsShowable(now) {
+		if !w.ShowAfter(now) {
 			continue
 		}
 		toShow = append(toShow, w)
@@ -262,7 +264,7 @@ func (s *State) WarningsSummary() (int, time.Time) {
 
 	var n int
 	for _, w := range s.warnings {
-		if w.IsShowable(now) {
+		if w.ShowAfter(now) {
 			n++
 		}
 	}
