@@ -449,7 +449,7 @@ func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
 			return
 		}
 	}
-	c.Fatalf("cannot find download-snap task in %q", tasks)
+	c.Fatalf("cannot find download-snap task in %v", tasks)
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
