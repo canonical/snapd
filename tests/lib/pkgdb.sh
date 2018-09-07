@@ -501,6 +501,7 @@ pkg_dependencies_ubuntu_generic(){
 pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
+        cifs-utils
         cups
         dbus-x11
         gnome-keyring

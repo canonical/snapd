@@ -6,10 +6,9 @@ description: A basic snap which allows mounting and unmounting CIFS filesystems
 apps:
   sh:
     command: sh
-    plugs: [cifs-mount]
+    plugs: [cifs-mount, network-control]
 
 parts:
   utils:
     plugin: dump
     source: .
-    stage-packages: [cifs-utils]

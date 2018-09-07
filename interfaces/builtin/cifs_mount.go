@@ -51,6 +51,11 @@ mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/common/{,**},
 umount /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
 umount /var/snap/@{SNAP_NAME}/common/{,**},
 
+# udisksd execs mount/umount to do the actual operations
+/bin/mount ixr,
+/bin/umount ixr,
+/sbin/mount.cifs ixr,
+
 # Due to an unsolved issue with namespace awareness of libmount the unmount tries to access
 # /run/mount/utab but fails. The resulting apparmor warning can be ignored. The log warning
 # was not removed via an explicit deny to not interfere with other interfaces which might
