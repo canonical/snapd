@@ -47,15 +47,6 @@ func (ap *AttributePair) UnmarshalFlag(value string) error {
 	return nil
 }
 
-// AttributePairSliceToMap converts a slice of AttributePair into a map
-func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
-	result := make(map[string]string)
-	for _, attr := range attrs {
-		result[attr.Key] = attr.Value
-	}
-	return result
-}
-
 // SnapAndName holds a snap name and a plug or slot name.
 type SnapAndName struct {
 	Snap string
