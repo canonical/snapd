@@ -452,7 +452,6 @@ func (m *DeviceManager) ensureSeedTimeSet() error {
 		return err
 	}
 	if !seedTime.IsZero() {
-		m.ensureSeedTimeSetRan = true
 		return nil
 	}
 
