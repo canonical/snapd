@@ -1,0 +1,16 @@
+name: account-control-consumer-core18
+version: 1.0
+summary: Basic account-control consumer snap
+description: A basic snap declaring a plug on a account-control slot
+base: core18
+
+apps:
+  useradd:
+    command: bin/useradd
+    plugs: [account-control]
+  deluser:
+    command: bin/deluser
+    plugs: [account-control]
+  chpasswd:
+    command: bin/chpasswd
+    plugs: [account-control]
