@@ -6499,7 +6499,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
 		},
-	}, nil, &RefreshOptions{RequestSalt: "123"})
+	}, nil, &store.RefreshOptions{RequestSalt: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -6573,14 +6573,14 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	opts := &RefreshOptions{RequestSalt: "foo"}
-	currentSnaps := []*CurrentSnap{
+	opts := &store.RefreshOptions{RequestSalt: "foo"}
+	currentSnaps := []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6595,7 +6595,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			RefreshedDate:   helloRefreshedDate,
 		},
 	}
-	action := []*SnapAction{
+	action := []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -6737,7 +6737,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			InstanceName: "other_foo",
 			Channel:      "stable",
 		},
-	}, nil, &RefreshOptions{RequestSalt: "123"})
+	}, nil, &store.RefreshOptions{RequestSalt: "123"})
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
