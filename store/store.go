@@ -75,7 +75,7 @@ type RefreshOptions struct {
 	// managed via snapd-control.
 	RefreshManaged bool
 
-	RequestSeed string
+	RequestSalt string
 }
 
 // the LimitTime should be slightly more than 3 times of our http.Client
@@ -2092,22 +2092,25 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 }
 
-func genInstanceKey(curSnap *CurrentSnap, seed string) string {
+func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 	_, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName)
 
 	if snapInstanceKey == "" {
-		return curSnap.SnapID
+		return curSnap.SnapID, nil
+	}
+
+	if salt == "" {
+		return "", fmt.Errorf("internal error: request salt not provided")
 	}
 
 	// due to privacy concerns, avoid sending the local names to the
 	// backend, instead hash the snap ID and instance key together
 	h := crypto.SHA256.New()
-	// TODO parallel-install: include seed
 	h.Write([]byte(curSnap.SnapID))
 	h.Write([]byte(snapInstanceKey))
-	h.Write([]byte(seed))
+	h.Write([]byte(salt))
 	enc := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-	return fmt.Sprintf("%s-%s", curSnap.SnapID, enc)
+	return fmt.Sprintf("%s:%s", curSnap.SnapID, enc), nil
 }
 
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
@@ -2116,9 +2119,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	// yet support repeating in context or sending actions for the
 	// same snap-id, for now we keep instance-key handling internal
 
-	requestSeed := ""
+	requestSalt := ""
 	if opts != nil {
-		requestSeed = opts.RequestSeed
+		requestSalt = opts.RequestSalt
 	}
 	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
 	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
@@ -2127,7 +2130,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		instanceKey := genInstanceKey(curSnap, requestSeed)
+		instanceKey, err := genInstanceKey(curSnap, requestSalt)
+		if err != nil {
+			return nil, err
+		}
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
