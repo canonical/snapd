@@ -164,8 +164,7 @@ type storeTestSuite struct {
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *store.Store, io.ReadWriteSeeker, int64, progress.Meter) error
-	mockXDelta       *testutil.MockCmd
+	mockXDelta *testutil.MockCmd
 
 	restoreLogger func()
 }
@@ -418,7 +417,7 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 func (s *storeTestSuite) TestDownloadOK(c *C) {
 	expectedContent := []byte("I was downloaded")
 
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write(expectedContent)
 		return nil
@@ -432,7 +431,7 @@ func (s *storeTestSuite) TestDownloadOK(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -444,7 +443,7 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 	missingContentStr := "was downloaded"
 	expectedContentStr := partialContentStr + missingContentStr
 
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(resume, Equals, int64(len(partialContentStr)))
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte(missingContentStr))
@@ -463,7 +462,7 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
@@ -471,9 +470,6 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 
 func (s *storeTestSuite) TestResumeOfCompleted(c *C) {
 	expectedContentStr := "nothing downloaded"
-
-	// FIXME: hu?
-	//download = nil
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -486,7 +482,7 @@ func (s *storeTestSuite) TestResumeOfCompleted(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
@@ -527,7 +523,7 @@ func (s *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(targetFn, testutil.FileEquals, buf)
 	c.Assert(s.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
@@ -571,7 +567,7 @@ func (s *storeTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
@@ -608,7 +604,7 @@ func (s *storeTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	c.Assert(ioutil.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
@@ -636,7 +632,7 @@ func (s *storeTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c *C) 
 	snap.Size = int64(len("something invalid"))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 
 	_, ok := err.(store.HashError)
 	c.Assert(ok, Equals, true)
@@ -649,7 +645,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		n++
 		if n == 1 {
 			// force sha3 error on first download
@@ -672,7 +668,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 
@@ -683,7 +679,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		n++
 		return store.NewHashError("foo", "1234", "5678")
 	})
@@ -700,7 +696,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `sha3-384 mismatch for "foo": got 1234 but expected 5678`)
 	c.Assert(n, Equals, 2)
@@ -708,7 +704,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 
 func (s *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	expectedContent := []byte("I was downloaded")
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, s.user)
 		c.Check(url, Equals, "AUTH-URL")
@@ -725,7 +721,7 @@ func (s *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.user)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.user, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -734,7 +730,7 @@ func (s *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	expectedContent := []byte("I was downloaded")
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		// check auth url is used
 		c.Check(url, Equals, "AUTH-URL")
 
@@ -753,7 +749,7 @@ func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	sto := store.New(&store.Config{}, authContext)
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := sto.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := sto.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -762,7 +758,7 @@ func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 
 func (s *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	expectedContentStr := "I was downloaded"
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte(expectedContentStr))
@@ -777,7 +773,7 @@ func (s *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.localUser)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.localUser, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -786,7 +782,7 @@ func (s *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (s *storeTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
 	})
@@ -799,7 +795,7 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -807,7 +803,7 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 
 func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
@@ -824,7 +820,7 @@ func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -934,7 +930,7 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 
 	for _, testCase := range downloadDeltaTests {
 		sto.SetDeltaFormat(testCase.format)
-		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 			expectedUser := s.user
 			if testCase.useLocalUser {
 				expectedUser = s.localUser
@@ -4056,7 +4052,7 @@ func (s *storeTestSuite) TestDownloadCacheHit(c *C) {
 	restore := s.store.MockCacher(obs)
 	defer restore()
 
-	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Fatalf("download should not be called when results come from the cache")
 		return nil
 	})
@@ -4066,7 +4062,7 @@ func (s *storeTestSuite) TestDownloadCacheHit(c *C) {
 	snap.Sha3_384 = "the-snaps-sha3_384"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
@@ -4079,7 +4075,7 @@ func (s *storeTestSuite) TestDownloadCacheMiss(c *C) {
 	defer restore()
 
 	downloadWasCalled := false
-	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		downloadWasCalled = true
 		return nil
 	})
@@ -4089,7 +4085,7 @@ func (s *storeTestSuite) TestDownloadCacheMiss(c *C) {
 	snap.Sha3_384 = "the-snaps-sha3_384"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(downloadWasCalled, Equals, true)
 

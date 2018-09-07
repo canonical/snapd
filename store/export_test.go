@@ -21,9 +21,11 @@ package store
 
 import (
 	"io"
+
 	"net/http"
 	"net/url"
 
+	"github.com/juju/ratelimit"
 	"golang.org/x/net/context"
 	"gopkg.in/retry.v1"
 
@@ -41,7 +43,10 @@ var (
 	UseDeltas  = useDeltas
 	ApplyDelta = applyDelta
 
-	GetCurrentSnap    = currentSnap
+	// FIXME: there is a name clash, store has both "currentSnap"
+	// and "CurrentSnap" which do different things.
+	GetCurrentSnap = currentSnap
+
 	AuthLocation      = authLocation
 	AuthURL           = authURL
 	StoreURL          = storeURL
@@ -88,7 +93,7 @@ func MockOsRemove(f func(name string) error) func() {
 	}
 }
 
-func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error) (restore func()) {
+func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error) (restore func()) {
 	origDownload := download
 	download = f
 	return func() {
@@ -148,5 +153,13 @@ func NewRequestOptions(mth string, url *url.URL) *requestOptions {
 	return &requestOptions{
 		Method: mth,
 		URL:    url,
+	}
+}
+
+func MockRatelimitReader(f func(r io.Reader, bucket *ratelimit.Bucket) io.Reader) (restore func()) {
+	oldRatelimitReader := ratelimitReader
+	ratelimitReader = f
+	return func() {
+		ratelimitReader = oldRatelimitReader
 	}
 }
