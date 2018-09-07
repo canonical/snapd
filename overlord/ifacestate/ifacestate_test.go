@@ -3772,3 +3772,40 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 
 	c.Assert(u.StopCalls, Equals, 1)
 }
+
+func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
+	defer restoreTimeout()
+
+	var udevMonitorCreated bool
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		udevMonitorCreated = true
+		return &udevMonitorMock{}
+	})
+	defer restoreCreate()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	for i:=0; i<5; i++ {
+		c.Assert(mgr.Ensure(), IsNil)
+		c.Assert(udevMonitorCreated, Equals, false)
+	}
+
+	// core snap appears in the system
+	st := s.state
+	st.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	st.Unlock()
+
+	// and udev monitor is now created
+	c.Assert(mgr.Ensure(), IsNil)
+	c.Assert(udevMonitorCreated, Equals, true)
+}
