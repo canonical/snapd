@@ -20,19 +20,19 @@ execute: |
     #shellcheck disable=SC2166
     if [ "$SPREAD_BACKEND" = "linode" -o "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
         echo "With customized images the core snap is sideloaded"
-        expected="^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +x[0-9]+ +- +- +core *$"
+        expected='^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +x[0-9]+ +- +- +core *$'
     elif [ "$SRU_VALIDATION" = "1" ]; then
         echo "When sru validation is done the core snap is installed from the store"
-        expected="^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+[0-9]+\.[0-9a-f]+)? +[0-9]+ +stable +canonical✓ +core *$"
+        expected='^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+[0-9]+\.[0-9a-f]+)? +[0-9]+ +stable +canonical✓ +core *$'
     elif [ "$SPREAD_BACKEND" = "external" ] || [ "$SPREAD_BACKEND" = "autopkgtest" ]; then
-        expected="^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +(edge|beta|candidate|stable) +canonical✓ +core *$"
+        expected='^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +(edge|beta|candidate|stable) +canonical✓ +core *$'
     else
-        expected="^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +$CORE_CHANNEL +canonical✓ +core *$"
+        expected="^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-f]+)? +[0-9]+ +$CORE_CHANNEL +canonical✓ +core *$"
     fi
     snap list | MATCH "$expected"
 
     echo "List prints installed snap version"
-    snap list | MATCH "^test-snapd-tools +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$"
+    snap list | MATCH '^test-snapd-tools +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$'
 
     echo "Install test-snapd-tools again"
     #shellcheck source=tests/lib/snaps.sh
