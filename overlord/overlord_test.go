@@ -81,6 +81,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.HookManager(), NotNil)
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
+	c.Check(o.SnapshotManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
 
 	o.InterfaceManager().DisableUDevMonitor()

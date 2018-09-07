@@ -444,6 +444,19 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	verifyStopReason(c, ts, "remove")
 }
 
+func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
+	for _, t := range tasks {
+		if t.Kind() == "download-snap" {
+			var snapsup snapstate.SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			c.Assert(err, IsNil)
+			c.Check(snapsup.IsAutoRefresh, Equals, expected)
+			return
+		}
+	}
+	c.Fatalf("cannot find download-snap task in %q", tasks)
+}
+
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
 	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
 		{Revision: snap.R(7)},
@@ -743,7 +756,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		SnapType: "app",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
@@ -756,6 +769,8 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
@@ -789,7 +804,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 		InstanceKey: "instance",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	// ensure stable ordering of updates list
@@ -832,7 +847,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	})
 
 	// updated snap is devmode, updatemany doesn't update it
-	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
 }
@@ -854,7 +869,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 	})
 
 	// if a snap installed without --classic gets a classic update it isn't installed
-	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
 }
@@ -877,7 +892,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	})
 
 	// snap installed with classic: refresh gets classic
-	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 }
@@ -896,7 +911,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
 }
@@ -915,7 +930,7 @@ func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 0)
 }
@@ -952,7 +967,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 		Channel:  "channel-for-base",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	c.Check(updates, HasLen, 3)
@@ -1030,7 +1045,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 		Channel:  "channel-for-base",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	c.Check(updates, HasLen, 4)
@@ -1094,7 +1109,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
@@ -1127,13 +1142,13 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	snapstate.ValidateRefreshes = validateRefreshes
 
 	// refresh all => no error
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
 
 	// refresh some-snap => report error
-	updates, tts, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0)
+	updates, tts, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0, nil)
 	c.Assert(err, Equals, validateErr)
 	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
@@ -3135,7 +3150,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -3225,7 +3240,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// do UpdateMany using user 2 as fallback
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 2)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 2, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -3334,7 +3349,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -4204,7 +4219,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(12),
 	}
-	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 1)
 
@@ -4434,7 +4449,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 
@@ -4474,7 +4489,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		Current:  si7.Revision,
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Check(err, IsNil)
 	c.Check(updates, HasLen, 0)
 
@@ -4579,7 +4594,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			snapstate.Set(s.state, snapName, &snapst)
 		}
 
-		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID)
+		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID, nil)
 		c.Check(err, IsNil)
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
@@ -7743,6 +7758,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	c.Check(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.IsReady(), Equals, false)
 	s.verifyRefreshLast(c)
+
+	checkIsAutoRefresh(c, chg.Tasks(), true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
@@ -11408,7 +11425,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 		SnapType: "app",
 	})
 
-	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
@@ -11416,7 +11433,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -11434,7 +11451,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 		SnapType: "app",
 	})
 
-	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, HasLen, 0)
 
@@ -11443,7 +11460,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
