@@ -1459,6 +1459,7 @@ apps:
    stop-timeout: 25s
    start-timeout: 42m
    daemon: forking
+   daemon-mode: system
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
@@ -1476,6 +1477,7 @@ apps:
 		Name:            "svc",
 		Command:         "svc1",
 		Daemon:          "forking",
+		DaemonMode:      "system",
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
 		StartTimeout:    timeout.Timeout(42 * time.Minute),

@@ -602,6 +602,17 @@ func ValidateApp(app *AppInfo) error {
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
 	}
 
+	switch app.DaemonMode {
+	case "":
+		// valid
+	case "system", "user":
+		if app.Daemon == "" {
+			return fmt.Errorf(`"daemon-mode" should only be set for daemons`)
+		}
+	default:
+		return fmt.Errorf(`"daemon-mode" field contains invalid value %q`, app.DaemonMode)
+	}
+
 	// Validate app name
 	if !ValidAppName(app.Name) {
 		return fmt.Errorf("cannot have %q as app name - use letters, digits, and dash as separator", app.Name)

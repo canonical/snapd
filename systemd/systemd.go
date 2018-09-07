@@ -196,6 +196,9 @@ const (
 
 	// the default target for systemd timer units that we generate
 	TimersTarget = "timers.target"
+
+	// the target for systemd user session units that we generate
+	UserServicesTarget = "default.target"
 )
 
 type reporter interface {

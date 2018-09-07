@@ -810,6 +810,7 @@ type AppInfo struct {
 	CommonID      string
 
 	Daemon          string
+	DaemonMode      string
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -900,12 +901,12 @@ type SystemUsernameInfo struct {
 
 // File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+	return filepath.Join(socket.App.serviceDir(), socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // File returns the path to the *.timer file
 func (timer *TimerInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+	return filepath.Join(timer.App.serviceDir(), timer.App.SecurityTag()+".timer")
 }
 
 func (app *AppInfo) String() string {
@@ -973,9 +974,17 @@ func (app *AppInfo) ServiceName() string {
 	return app.SecurityTag() + ".service"
 }
 
+func (app *AppInfo) serviceDir() string {
+	if app.IsUserService() {
+		return dirs.SnapUserServicesDir
+	} else {
+		return dirs.SnapServicesDir
+	}
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
+	return filepath.Join(app.serviceDir(), app.ServiceName())
 }
 
 // Env returns the app specific environment overrides
@@ -991,6 +1000,11 @@ func (app *AppInfo) Env() []string {
 // IsService returns whether app represents a daemon/service.
 func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
+}
+
+// IsUserService returns whether a service is part of the user session.
+func (app *AppInfo) IsUserService() bool {
+	return app.IsService() && app.DaemonMode == "user"
 }
 
 // SecurityTag returns the hook-specific security tag.

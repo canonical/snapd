@@ -378,6 +378,33 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestAppDaemonModeValue(c *C) {
+	for _, t := range []struct {
+		daemon     string
+		daemonMode string
+		ok         bool
+	}{
+		// good
+		{"", "", true},
+		{"simple", "", true},
+		{"simple", "system", true},
+		{"simple", "user", true},
+		// bad
+		{"", "system", false},
+		{"", "user", false},
+		{"simple", "invalid-mode", false},
+	} {
+		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: t.daemonMode}
+		if t.ok {
+			c.Check(ValidateApp(app), IsNil)
+		} else if t.daemon == "" {
+			c.Check(ValidateApp(app), ErrorMatches, `"daemon-mode" should only be set for daemons`)
+		} else {
+			c.Check(ValidateApp(app), ErrorMatches, fmt.Sprintf(`"daemon-mode" field contains invalid value %q`, t.daemonMode))
+		}
+	}
+}
+
 func (s *ValidateSuite) TestAppStopMode(c *C) {
 	// check services
 	for _, t := range []struct {
