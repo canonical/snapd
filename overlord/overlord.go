@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/idlestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
@@ -82,6 +83,7 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
+	shotMgr   *snapshotstate.SnapshotManager
 	idleMgr   *idlestate.IdleManager
 }
 
@@ -144,6 +146,7 @@ func New() (*Overlord, error) {
 	o.addManager(deviceMgr)
 
 	o.addManager(cmdstate.Manager(s, o.runner))
+	o.addManager(snapshotstate.Manager(s, o.runner))
 
 	configstateInit(hookMgr)
 
@@ -186,6 +189,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *snapshotstate.SnapshotManager:
+		o.shotMgr = x
 	case *idlestate.IdleManager:
 		o.idleMgr = x
 	}
@@ -443,6 +448,11 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 // jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// SnapshotManager returns the manager responsible for snapshots.
+func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
+	return o.shotMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
