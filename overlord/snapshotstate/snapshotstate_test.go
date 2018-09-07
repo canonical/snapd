@@ -488,6 +488,9 @@ func (snapshotSuite) TestSaveOneSnap(c *check.C) {
 }
 
 func (snapshotSuite) TestSaveIntegration(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root")
+	}
 	o := overlord.Mock()
 	st := o.State()
 	st.Lock()
@@ -573,6 +576,9 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 }
 
 func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root")
+	}
 	o := overlord.Mock()
 	st := o.State()
 	st.Lock()
@@ -815,6 +821,9 @@ func (snapshotSuite) TestRestore(c *check.C) {
 }
 
 func (snapshotSuite) TestRestoreIntegration(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root")
+	}
 	o := overlord.Mock()
 	st := o.State()
 	st.Lock()
@@ -881,6 +890,9 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 }
 
 func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root")
+	}
 	o := overlord.Mock()
 	st := o.State()
 	st.Lock()
@@ -946,11 +958,15 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	tasks := change.Tasks()
 	c.Check(tasks, check.HasLen, 3)
 	for _, task := range tasks {
-		c.Check(task.Status(), check.Equals, state.ErrorStatus)
 		if strings.Contains(task.Summary(), `"too-snap"`) {
+			c.Check(task.Status(), check.Equals, state.ErrorStatus)
 			c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR mkdir \S+: permission denied`)
 		} else {
-			c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR context canceled`)
+			if task.Status() == state.ErrorStatus {
+				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR context canceled`)
+			} else {
+				c.Check(task.Status(), check.Equals, state.UndoneStatus)
+			}
 		}
 	}
 
