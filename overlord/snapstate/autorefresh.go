@@ -157,8 +157,14 @@ func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 	if err != nil && err != state.ErrNoState {
 		return false, err
 	}
-
-	return onMetered != "hold", nil
+	switch onMetered {
+	case "hold":
+		return false, nil
+	case "force":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (can bool, err error) {

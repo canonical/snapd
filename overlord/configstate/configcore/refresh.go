@@ -62,7 +62,7 @@ func validateRefreshSchedule(tr Conf) error {
 		return err
 	}
 	switch refreshOnMeteredStr {
-	case "", "hold":
+	case "", "hold", "force":
 		// noop
 	default:
 		return fmt.Errorf("refresh.metered value %q is invalid", refreshOnMeteredStr)

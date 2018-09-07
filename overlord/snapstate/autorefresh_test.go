@@ -490,29 +490,37 @@ func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	can, err := snapstate.CanRefreshOnMeteredConnection(s.state)
-	c.Assert(can, Equals, true)
-	c.Assert(err, Equals, nil)
-
-	// enable holding refreshes when on metered connection
+	// double check refresh.metered is unset
 	tr := config.NewTransaction(s.state)
-	err = tr.Set("core", "refresh.metered", "hold")
-	c.Assert(err, IsNil)
-	tr.Commit()
-
-	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
+	var unused string
+	err := tr.Get("core", "refresh.metered", &unused)
+	c.Assert(config.IsNoOption(err), Equals, true)
+	// with no setting the default is that we *cannot* refresh on metered
+	can, err := snapstate.CanRefreshOnMeteredConnection(s.state)
 	c.Assert(can, Equals, false)
 	c.Assert(err, Equals, nil)
 
-	// explicitly disable holding refreshes when on metered connection
-	tr = config.NewTransaction(s.state)
-	err = tr.Set("core", "refresh.metered", "")
-	c.Assert(err, IsNil)
-	tr.Commit()
+	// config settings for refresh.metered
+	tests := []struct {
+		setting  string
+		expected bool
+	}{
+		{"hold", false},
+		{"force", true},
+		// default setting
+		{"", false},
+	}
 
-	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
-	c.Assert(can, Equals, true)
-	c.Assert(err, Equals, nil)
+	for _, t := range tests {
+		tr := config.NewTransaction(s.state)
+		err = tr.Set("core", "refresh.metered", t.setting)
+		c.Assert(err, IsNil)
+		tr.Commit()
+
+		can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
+		c.Assert(can, Equals, t.expected)
+		c.Assert(err, Equals, nil)
+	}
 }
 
 func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
