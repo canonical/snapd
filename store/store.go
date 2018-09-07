@@ -1458,8 +1458,10 @@ func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 
 var ratelimitReader = ratelimit.Reader
 
+var download = downloadImpl
+
 // download writes an http.Request showing a progress.Meter
-var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
+func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
 	if dlOpts == nil {
 		dlOpts = &DownloadOptions{}
 	}
