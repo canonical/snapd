@@ -473,9 +473,6 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 func (s *storeTestSuite) TestResumeOfCompleted(c *C) {
 	expectedContentStr := "nothing downloaded"
 
-	// FIXME: hu?
-	//download = nil
-
 	snap := &snap.Info{}
 	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"

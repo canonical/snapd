@@ -43,7 +43,10 @@ var (
 	UseDeltas  = useDeltas
 	ApplyDelta = applyDelta
 
-	GetCurrentSnap    = currentSnap
+	// FIXME: there is a name clash, store has both "currentSnap"
+	// and "CurrentSnap" which do different things.
+	GetCurrentSnap = currentSnap
+
 	AuthLocation      = authLocation
 	AuthURL           = authURL
 	StoreURL          = storeURL
