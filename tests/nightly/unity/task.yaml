@@ -32,6 +32,6 @@ execute: |
 
     echo "Then the app window is created"
     expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
-    while ! xwininfo -tree -root | grep -Pq "$expected";
-        do sleep 1;
+    while ! xwininfo -tree -root | grep -Pq "$expected"; do
+        sleep 1;
     done
