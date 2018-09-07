@@ -156,8 +156,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user3, err = auth.NewUser(s.state, "username3", "email2@test.com", "", nil)
 	c.Assert(err, IsNil)
 
+	s.state.Set("seed-time", time.Now())
+
 	s.requestSalt = "request-salt"
-	s.state.Set("request-salt", s.requestSalt)
+	s.state.Set("refresh-request-salt", s.requestSalt)
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -11711,7 +11713,7 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	})
 
 	// clear request-salt to have it generated
-	s.state.Set("request-salt", nil)
+	s.state.Set("refresh-request-salt", nil)
 
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -11724,7 +11726,7 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	s.state.Lock()
 
 	var requestSalt string
-	err = s.state.Get("request-salt", &requestSalt)
+	err = s.state.Get("refresh-request-salt", &requestSalt)
 	c.Assert(err, IsNil)
 	// expecting a string like: 2018-07-30T16:16:19.159412278+02:00
 	c.Assert(len(requestSalt) > 30, Equals, true)

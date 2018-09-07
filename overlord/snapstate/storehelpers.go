@@ -81,13 +81,13 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		opts = *origOpts
 	}
 
-	if err := st.Get("request-salt", &opts.RequestSalt); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-request-salt", &opts.RequestSalt); err != nil && err != state.ErrNoState {
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
 	if opts.RequestSalt == "" {
 		// no request seed yet, make one now
 		opts.RequestSalt = time.Now().Format(time.RFC3339Nano)
-		st.Set("request-salt", opts.RequestSalt)
+		st.Set("refresh-request-salt", opts.RequestSalt)
 	}
 	return &opts, nil
 }

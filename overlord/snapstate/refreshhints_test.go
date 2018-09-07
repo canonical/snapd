@@ -87,8 +87,6 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
-
-	s.state.Set("seed-time", time.Now())
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {

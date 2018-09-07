@@ -49,7 +49,7 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.requestSalt = "request-salt"
-	s.state.Set("request-salt", s.requestSalt)
+	s.state.Set("refresh-request-salt", s.requestSalt)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
