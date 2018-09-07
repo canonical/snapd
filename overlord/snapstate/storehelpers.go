@@ -22,6 +22,7 @@ package snapstate
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -80,8 +81,13 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		opts = *origOpts
 	}
 
-	if err := st.Get("seed-time", &opts.RequestSeed); err != nil {
-		return nil, fmt.Errorf("cannot obtain store request seed: %v", err)
+	if err := st.Get("request-salt", &opts.RequestSeed); err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
+	}
+	if opts.RequestSeed == "" {
+		// no request seed yet, make one now
+		opts.RequestSeed = time.Now().Format(time.RFC3339Nano)
+		st.Set("request-salt", opts.RequestSeed)
 	}
 	return &opts, nil
 }

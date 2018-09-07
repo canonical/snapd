@@ -33,7 +33,7 @@ type downloadSnapSuite struct {
 
 	fakeStore *fakeStore
 
-	requestSeed string
+	requestSalt string
 }
 
 var _ = Suite(&downloadSnapSuite{})
@@ -48,8 +48,8 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
-	s.requestSeed = "request-seed"
-	s.state.Set("seed-time", s.requestSeed)
+	s.requestSalt = "request-salt"
+	s.state.Set("request-salt", s.requestSalt)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
@@ -78,7 +78,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSeed},
+			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
