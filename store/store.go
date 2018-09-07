@@ -38,6 +38,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/ratelimit"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
@@ -1326,11 +1327,15 @@ func (e HashError) Error() string {
 	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
+type DownloadOptions struct {
+	RateLimit int64
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
@@ -1387,7 +1392,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts)
 		if err != nil {
 			logger.Debugf("download of %q failed: %#v", url, err)
 		}
@@ -1417,7 +1422,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if err != nil {
 			return err
 		}
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
 		if err != nil {
 			logger.Debugf("download of %q failed: %#v", url, err)
 		}
@@ -1438,7 +1443,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
-func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
 		URL:          storeURL,
@@ -1451,8 +1456,16 @@ func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	return &reqOptions
 }
 
+var ratelimitReader = ratelimit.Reader
+
+var download = downloadImpl
+
 // download writes an http.Request showing a progress.Meter
-var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
+	if dlOpts == nil {
+		dlOpts = &DownloadOptions{}
+	}
+
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1467,7 +1480,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := downloadOptions(storeURL, cdnHeader)
+		reqOptions := reqOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -1526,7 +1539,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		dlSize = float64(resp.ContentLength)
 		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
-		_, finalErr = io.Copy(mw, resp.Body)
+		var limiter io.Reader
+		limiter = resp.Body
+		if limit := dlOpts.RateLimit; limit > 0 {
+			bucket := ratelimit.NewBucketWithRate(float64(limit), 2*limit)
+			limiter = ratelimitReader(resp.Body, bucket)
+		}
+		_, finalErr = io.Copy(mw, limiter)
 		pbar.Finished()
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {
@@ -1591,7 +1610,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
+	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
@@ -2377,7 +2396,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return hosts, err
 	}
 
-	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions := reqOptions(dlURL, cdnHeader)
 	reqOptions.Method = "HEAD" // not actually a download
 
 	// TODO: We need the HEAD here so that we get redirected to the
