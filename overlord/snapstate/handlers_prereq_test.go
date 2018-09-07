@@ -54,7 +54,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 
 	s.requestSalt = "request-salt"
-	s.state.Set("request-salt", s.requestSalt)
+	s.state.Set("refresh-request-salt", s.requestSalt)
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
