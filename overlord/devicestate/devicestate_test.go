@@ -2578,3 +2578,20 @@ func (s *deviceMgrSuite) TestNewEnoughProxy(c *C) {
 	c.Check(log.String(), Equals, "")
 	c.Check(n, Equals, len(expecteds)+1)
 }
+
+func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
+	st := state.New(nil)
+
+	runner := state.NewTaskRunner(st)
+	hookMgr, err := hookstate.Manager(st, runner)
+	c.Assert(err, IsNil)
+	mgr, err := devicestate.Manager(st, hookMgr, runner)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(mgr.CanStandby(), Equals, false)
+
+	st.Set("seeded", true)
+	c.Check(mgr.CanStandby(), Equals, true)
+}

@@ -43,8 +43,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/idlestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
@@ -817,8 +817,8 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	c.Assert(chOpen, check.Equals, false)
 }
 
-func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
-	restore := idlestate.MockCanGoSocketActivateWait(5 * time.Millisecond)
+func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
+	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
 	d := newTestDaemon(c)
@@ -846,8 +846,8 @@ func (s *daemonSuite) TestRestartInfoSocketModeNoNewChanges(c *check.C) {
 	c.Check(d.restartSocket, check.Equals, true)
 }
 
-func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
-	restore := idlestate.MockCanGoSocketActivateWait(5 * time.Millisecond)
+func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
+	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
 	d := newTestDaemon(c)
@@ -887,4 +887,16 @@ func (s *daemonSuite) TestRestartInfoSocketModePendingChanges(c *check.C) {
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
 	c.Check(d.restartSocket, check.Equals, false)
+}
+
+func (s *daemonSuite) TestShutdownServerCanShutdown(c *check.C) {
+	shush := newShutdownServer(nil, nil)
+	c.Check(shush.CanStandby(), check.Equals, true)
+
+	con := &net.IPConn{}
+	shush.conns[con] = http.StateActive
+	c.Check(shush.CanStandby(), check.Equals, false)
+
+	shush.conns[con] = http.StateIdle
+	c.Check(shush.CanStandby(), check.Equals, true)
 }

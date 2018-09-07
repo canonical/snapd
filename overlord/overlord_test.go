@@ -750,3 +750,29 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 
 	c.Check(restartRequested, Equals, true)
 }
+
+func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Millisecond)
+	defer restoreIntv()
+	o := overlord.Mock()
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 3,
+		ensureCalled:   make(chan struct{}),
+	}
+	o.AddManager(witness)
+
+	// can only standby after loop ran once
+	c.Assert(o.CanStandby(), Equals, false)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+
+	c.Assert(o.CanStandby(), Equals, true)
+}

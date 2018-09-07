@@ -82,6 +82,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+func (m *DeviceManager) CanStandby() bool {
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil {
+		return false
+	}
+	return seeded
+}
+
 func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()

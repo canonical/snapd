@@ -382,6 +382,13 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	return m, nil
 }
 
+func (m *SnapManager) CanStandby() bool {
+	if n, err := NumSnaps(m.state); err == nil && n == 0 {
+		return true
+	}
+	return false
+}
+
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
 	// Serialize "prerequisites", the state lock is not enough as
 	// Install() inside doPrerequisites() will unlock to talk to
