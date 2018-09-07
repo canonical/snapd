@@ -760,80 +760,62 @@ func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
 }
 
 func (s *utilsSuite) TestIsReadOnlySquashfsMountedRo(c *C) {
-	statfs := &syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
 	path := "/some/path"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsReadOnly(fd, path, statfs)
+	statfs := &syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
+	result := update.IsReadOnly(path, statfs)
 	c.Assert(result, Equals, true)
 }
 
 func (s *utilsSuite) TestIsReadOnlySquashfsMountedRw(c *C) {
-	statfs := &syscall.Statfs_t{Type: update.SquashfsMagic}
 	path := "/some/path"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsReadOnly(fd, path, statfs)
+	statfs := &syscall.Statfs_t{Type: update.SquashfsMagic}
+	result := update.IsReadOnly(path, statfs)
 	c.Assert(result, Equals, true)
 }
 
 func (s *utilsSuite) TestIsReadOnlyExt4MountedRw(c *C) {
-	statfs := &syscall.Statfs_t{Type: update.Ext4Magic}
 	path := "/some/path"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsReadOnly(fd, path, statfs)
+	statfs := &syscall.Statfs_t{Type: update.Ext4Magic}
+	result := update.IsReadOnly(path, statfs)
 	c.Assert(result, Equals, false)
 }
 
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsNotATmpfs(c *C) {
+	path := "/some/path"
 	// An ext4 (which is not a tmpfs) is not a private tmpfs.
 	statfs := &syscall.Statfs_t{Type: update.Ext4Magic}
-	path := "/some/path"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsSnapdCreatedPrivateTmpfs(fd, path, statfs, nil)
+	result := update.IsSnapdCreatedPrivateTmpfs(path, statfs, nil)
 	c.Assert(result, Equals, false)
 }
 
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsNotTrusted(c *C) {
+	path := "/some/path"
 	// A tmpfs is not private if it doesn't come from a change we made.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	path := "/some/path"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsSnapdCreatedPrivateTmpfs(fd, path, statfs, nil)
+	result := update.IsSnapdCreatedPrivateTmpfs(path, statfs, nil)
 	c.Assert(result, Equals, false)
 }
 
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsViaChanges(c *C) {
+	path := "/some/path"
 	// A tmpfs is private because it was mounted by snap-update-ns.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	path := "/some/path"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
 
 	// A tmpfs was mounted in the past so it is private.
-	result := update.IsSnapdCreatedPrivateTmpfs(fd, path, statfs, []*update.Change{
+	result := update.IsSnapdCreatedPrivateTmpfs(path, statfs, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 	})
 	c.Assert(result, Equals, true)
 
 	// A tmpfs was mounted but then it was unmounted so it is not private anymore.
-	result = update.IsSnapdCreatedPrivateTmpfs(fd, path, statfs, []*update.Change{
+	result = update.IsSnapdCreatedPrivateTmpfs(path, statfs, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 	})
 	c.Assert(result, Equals, false)
 
 	// Finally, after the mounting and unmounting the tmpfs was mounted again.
-	result = update.IsSnapdCreatedPrivateTmpfs(fd, path, statfs, []*update.Change{
+	result = update.IsSnapdCreatedPrivateTmpfs(path, statfs, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
@@ -842,27 +824,22 @@ func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsViaChanges(c *C) {
 }
 
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsDeeper(c *C) {
+	path := "/some/path/below"
 	// A tmpfs is not private beyond the exact mount point from a change.
 	// That is, sub-directories of a private tmpfs are not recognized as private.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	fd, err := s.sys.Open("/some/path/below", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsSnapdCreatedPrivateTmpfs(fd, "/some/path/below", statfs, []*update.Change{
+	result := update.IsSnapdCreatedPrivateTmpfs(path, statfs, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/some/path", Type: "tmpfs"}},
 	})
 	c.Assert(result, Equals, false)
 }
 
 func (s *utilsSuite) TestIsSnapdCreatedPrivateTmpfsViaVarLib(c *C) {
+	path := "/var/lib"
 	// A tmpfs in /var/lib is private because it is a special
 	// quirk applied by snap-confine, without having a change record.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	path := "/var/lib"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer s.sys.Close(fd)
-	result := update.IsSnapdCreatedPrivateTmpfs(fd, path, statfs, nil)
+	result := update.IsSnapdCreatedPrivateTmpfs(path, statfs, nil)
 	c.Assert(result, Equals, true)
 }
 

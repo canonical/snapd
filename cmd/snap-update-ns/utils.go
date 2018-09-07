@@ -73,7 +73,7 @@ var (
 //
 // Directories are read only when they reside on file systems mounted in read
 // only mode or when the underlying file system itself is inherently read only.
-func IsReadOnly(dirFd int, dirName string, fsData *syscall.Statfs_t) bool {
+func IsReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 	// If something is mounted with f_flags & ST_RDONLY then is read-only.
 	if fsData.Flags&StReadOnly == StReadOnly {
 		return true
@@ -88,12 +88,11 @@ func IsReadOnly(dirFd int, dirName string, fsData *syscall.Statfs_t) bool {
 
 // IsSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
 //
-// The function inspects the directory (represented as both an open file
-// descriptor and the absolute path) and a list of changes that were applied to
-// the mount namespace. A directory is trusted if it is a tmpfs that was
+// The function inspects the directory and a list of changes that were applied
+// to the mount namespace. A directory is trusted if it is a tmpfs that was
 // mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
 // trusted tmpfs are not considered trusted by this function.
-func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
+func IsSnapdCreatedPrivateTmpfs(dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
 	// If something is not a tmpfs it cannot be the trusted tmpfs we are looking for.
 	if fsData.Type != TmpfsMagic {
 		return false
