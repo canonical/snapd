@@ -436,6 +436,9 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root")
+	}
 	logger.SimpleSetup()
 
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42)}, Version: "v1.33"}
