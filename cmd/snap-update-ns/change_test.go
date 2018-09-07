@@ -34,7 +34,7 @@ import (
 type changeSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
-	sec *update.Secure
+	as  *update.Assumptions
 }
 
 var (
@@ -48,7 +48,7 @@ func (s *changeSuite) SetUpTest(c *C) {
 	// Mock and record system interactions.
 	s.sys = &testutil.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
-	s.sec = &update.Secure{}
+	s.as = &update.Assumptions{}
 }
 
 func (s *changeSuite) TearDownTest(c *C) {
@@ -316,7 +316,7 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 func (s *changeSuite) TestPerformFilesystemMountLstatError(c *C) {
 	s.sys.InsertFault(`lstat "/target"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot inspect "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -328,7 +328,7 @@ func (s *changeSuite) TestPerformFilesystemMountLstatError(c *C) {
 func (s *changeSuite) TestPerformFilesystemMount(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -342,7 +342,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`mount "device" "/target" "type" 0 ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -353,9 +353,10 @@ func (s *changeSuite) TestPerformFilesystemMountWithError(c *C) {
 
 // Change.Perform wants to mount a filesystem but the mount point isn't there.
 func (s *changeSuite) TestPerformFilesystemMountWithoutMountPoint(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -372,10 +373,11 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPoint(c *C) {
 
 // Change.Perform wants to create a filesystem but the mount point isn't there and cannot be created.
 func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointWithErrors(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create directory "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -388,6 +390,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointWithErrors(c *C
 
 // Change.Perform wants to mount a filesystem but the mount point isn't there and the parent is read-only.
 func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/rofs/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT, nil) // works on 2nd try
@@ -400,7 +403,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
@@ -478,6 +481,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 // Change.Perform wants to mount a filesystem but the mount point isn't there and the parent is read-only and mimic fails during planning.
 func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBaseErrorWhilePlanning(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/rofs/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT)
@@ -489,7 +493,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertFault(`readdir "/rofs"`, errTesting) // make the writable mimic fail
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create writable mimic over "/rofs": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -513,6 +517,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 // Change.Perform wants to mount a filesystem but the mount point isn't there and the parent is read-only and mimic fails during execution.
 func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBaseErrorWhileExecuting(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/rofs/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT)
@@ -524,7 +529,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertFault(`mkdirat 4 ".snap" 0755`, errTesting) // make the writable mimic fail
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create writable mimic over "/rofs": cannot create directory "/tmp/.snap": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -558,7 +563,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 func (s *changeSuite) TestPerformFilesystemMountWithSymlinkInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -570,7 +575,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithSymlinkInMountPoint(c *C) {
 func (s *changeSuite) TestPerformFilesystemMountWithFileInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -581,7 +586,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithFileInMountPoint(c *C) {
 // Change.Perform wants to unmount a filesystem.
 func (s *changeSuite) TestPerformFilesystemUnmount(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
@@ -592,7 +597,7 @@ func (s *changeSuite) TestPerformFilesystemUnmount(c *C) {
 // Change.Perform wants to detach a bind mount.
 func (s *changeSuite) TestPerformFilesystemDetch(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/something", Dir: "/target", Options: []string{"x-snapd.detach"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW|MNT_DETACH`},
@@ -604,7 +609,7 @@ func (s *changeSuite) TestPerformFilesystemDetch(c *C) {
 func (s *changeSuite) TestPerformFilesystemUnmountError(c *C) {
 	s.sys.InsertFault(`unmount "/target" UMOUNT_NOFOLLOW`, errTesting)
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: errTesting},
@@ -616,7 +621,7 @@ func (s *changeSuite) TestPerformFilesystemUnmountError(c *C) {
 func (s *changeSuite) TestPerformFilesystemMountWithOptions(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type", Options: []string{"ro", "funky"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -629,7 +634,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithOptions(c *C) {
 func (s *changeSuite) TestPerformFilesystemMountWithSnapdSpecificOptions(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type", Options: []string{"ro", "x-snapd.funky"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -646,7 +651,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithSnapdSpecificOptions(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindMountTargetLstatError(c *C) {
 	s.sys.InsertFault(`lstat "/target"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot inspect "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -659,7 +664,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountSourceLstatError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`lstat "/source"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot inspect "/source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -675,7 +680,7 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -703,7 +708,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -725,12 +730,13 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 
 // Change.Perform wants to bind mount a directory but the mount point isn't there.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPoint(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -758,12 +764,13 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPoint(c *C) {
 
 // Change.Perform wants to bind mount a directory but the mount source isn't there.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSource(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -791,10 +798,11 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSource(c *C) {
 
 // Change.Perform wants to create a directory bind mount but the mount point isn't there and cannot be created.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointWithErrors(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create directory "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -807,11 +815,12 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointWithErrors(c
 
 // Change.Perform wants to create a directory bind mount but the mount source isn't there and cannot be created.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceWithErrors(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "source" 0755`, errTesting)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create directory "/source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -825,6 +834,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceWithErrors(
 
 // Change.Perform wants to bind mount a directory but the mount point isn't there and the parent is read-only.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyBase(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/rofs/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT, nil) // works on 2nd try
@@ -839,7 +849,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
@@ -932,6 +942,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 
 // Change.Perform wants to bind mount a directory but the mount source isn't there and the parent is read-only.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnlyBase(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`lstat "/rofs/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
@@ -939,7 +950,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 	s.sys.InsertFault(`mkdirat 4 "source" 0755`, syscall.EROFS)
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/rofs/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -956,6 +967,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 
 // Change.Perform wants to bind mount a directory but the mount source isn't there and the parent is read-only but this is for a layout.
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnlyBaseForLayout(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`lstat "/rofs/source"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
@@ -970,7 +982,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/rofs/source", Dir: "/target", Options: []string{"bind", "x-snapd.origin=layout"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Check(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
@@ -1061,7 +1073,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 func (s *changeSuite) TestPerformDirectoryBindMountWithSymlinkInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1073,7 +1085,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithSymlinkInMountPoint(c *C)
 func (s *changeSuite) TestPerformDirectoryBindMountWithFileInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1086,7 +1098,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithSymlinkInMountSource(c *C
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1100,7 +1112,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithFileInMountSource(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1112,7 +1124,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithFileInMountSource(c *C) {
 // Change.Perform wants to unmount a directory bind mount.
 func (s *changeSuite) TestPerformDirectoryBindUnmount(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
@@ -1124,7 +1136,7 @@ func (s *changeSuite) TestPerformDirectoryBindUnmount(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindUnmountError(c *C) {
 	s.sys.InsertFault(`unmount "/target" UMOUNT_NOFOLLOW`, errTesting)
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: errTesting},
@@ -1140,7 +1152,7 @@ func (s *changeSuite) TestPerformDirectoryBindUnmountError(c *C) {
 func (s *changeSuite) TestPerformFileBindMountTargetLstatError(c *C) {
 	s.sys.InsertFault(`lstat "/target"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot inspect "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1153,7 +1165,7 @@ func (s *changeSuite) TestPerformFileBindMountSourceLstatError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/source"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot inspect "/source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1169,7 +1181,7 @@ func (s *changeSuite) TestPerformFileBindMount(c *C) {
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1197,7 +1209,7 @@ func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1219,12 +1231,13 @@ func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 
 // Change.Perform wants to bind mount a file but the mount point isn't there.
 func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1251,10 +1264,11 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
 
 // Change.Perform wants to create a directory bind mount but the mount point isn't there and cannot be created.
 func (s *changeSuite) TestPerformFileBindMountWithoutMountPointWithErrors(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot open file "/target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1267,12 +1281,13 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointWithErrors(c *C) 
 
 // Change.Perform wants to bind mount a file but the mount source isn't there.
 func (s *changeSuite) TestPerformFileBindMountWithoutMountSource(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1299,11 +1314,12 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountSource(c *C) {
 
 // Change.Perform wants to create a file bind mount but the mount source isn't there and cannot be created.
 func (s *changeSuite) TestPerformFileBindMountWithoutMountSourceWithErrors(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertFault(`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot open file "/source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1317,6 +1333,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountSourceWithErrors(c *C)
 
 // Change.Perform wants to bind mount a file but the mount point isn't there and the parent is read-only.
 func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/rofs/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 4 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EROFS, nil) // works on 2nd try
@@ -1330,7 +1347,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
@@ -1424,7 +1441,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 func (s *changeSuite) TestPerformFileBindMountWithSymlinkInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a regular file`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1436,7 +1453,7 @@ func (s *changeSuite) TestPerformFileBindMountWithSymlinkInMountPoint(c *C) {
 func (s *changeSuite) TestPerformBindMountFileWithDirectoryInMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount point: not a regular file`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1449,7 +1466,7 @@ func (s *changeSuite) TestPerformFileBindMountWithSymlinkInMountSource(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source: not a regular file`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1463,7 +1480,7 @@ func (s *changeSuite) TestPerformFileBindMountWithDirectoryInMountSource(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source: not a regular file`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1475,7 +1492,7 @@ func (s *changeSuite) TestPerformFileBindMountWithDirectoryInMountSource(c *C) {
 // Change.Perform wants to unmount a file bind mount.
 func (s *changeSuite) TestPerformFileBindUnmount(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
@@ -1487,7 +1504,7 @@ func (s *changeSuite) TestPerformFileBindUnmount(c *C) {
 func (s *changeSuite) TestPerformFileBindUnmountError(c *C) {
 	s.sys.InsertFault(`unmount "/target" UMOUNT_NOFOLLOW`, errTesting)
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: errTesting},
@@ -1503,7 +1520,7 @@ func (s *changeSuite) TestPerformMountWithIgnoredMissingMountSource(c *C) {
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.ignore-missing"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, update.ErrIgnoredMissingMount)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1515,7 +1532,7 @@ func (s *changeSuite) TestPerformMountWithIgnoredMissingMountSource(c *C) {
 func (s *changeSuite) TestPerformMountWithIgnoredMissingMountPoint(c *C) {
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.ignore-missing"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, update.ErrIgnoredMissingMount)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1531,7 +1548,7 @@ func (s *changeSuite) TestPerformMountWithIgnoredMissingMountPoint(c *C) {
 func (s *changeSuite) TestPerformCreateSymlinkNameLstatError(c *C) {
 	s.sys.InsertFault(`lstat "/name"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot inspect "/name": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1541,9 +1558,10 @@ func (s *changeSuite) TestPerformCreateSymlinkNameLstatError(c *C) {
 
 // Change.Perform wants to create a symlink.
 func (s *changeSuite) TestPerformCreateSymlink(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/name"`, syscall.ENOENT)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1556,10 +1574,11 @@ func (s *changeSuite) TestPerformCreateSymlink(c *C) {
 
 // Change.Perform wants to create a symlink but it fails.
 func (s *changeSuite) TestPerformCreateSymlinkWithError(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/name"`, syscall.ENOENT)
 	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create symlink "/name": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1574,7 +1593,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithError(c *C) {
 func (s *changeSuite) TestPerformCreateSymlinkWithNoTargetError(c *C) {
 	s.sys.InsertFault(`lstat "/name"`, syscall.ENOENT)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink="}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create symlink with empty target: "/name"`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1584,9 +1603,10 @@ func (s *changeSuite) TestPerformCreateSymlinkWithNoTargetError(c *C) {
 
 // Change.Perform wants to create a symlink but the base directory isn't there.
 func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDir(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/base/name"`, syscall.ENOENT)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/base/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1603,10 +1623,11 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDir(c *C) {
 
 // Change.Perform wants to create a symlink but the base directory isn't there and cannot be created.
 func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirWithErrors(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/base/name"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "base" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/base/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create directory "/base": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1619,6 +1640,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirWithErrors(c *C) {
 
 // Change.Perform wants to create a symlink but the base directory isn't there and the parent is read-only.
 func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertFault(`lstat "/rofs/name"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`symlinkat "/oldname" 4 "name"`, syscall.EROFS, nil) // works on 2nd try
@@ -1630,7 +1652,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/rofs/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
@@ -1706,7 +1728,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 func (s *changeSuite) TestPerformCreateSymlinkWithFileInTheWay(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/name"`, testutil.FileInfoFile)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create symlink in "/name": existing file in the way`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1716,12 +1738,13 @@ func (s *changeSuite) TestPerformCreateSymlinkWithFileInTheWay(c *C) {
 
 // Change.Perform wants to create a symlink but a correct symlink is already present.
 func (s *changeSuite) TestPerformCreateSymlinkWithGoodSymlinkPresent(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertOsLstatResult(`lstat "/name"`, testutil.FileInfoSymlink)
 	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, syscall.EEXIST)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFLNK})
 	s.sys.InsertReadlinkatResult(`readlinkat 4 "" <ptr>`, "/oldname")
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1738,12 +1761,13 @@ func (s *changeSuite) TestPerformCreateSymlinkWithGoodSymlinkPresent(c *C) {
 
 // Change.Perform wants to create a symlink but a incorrect symlink is already present.
 func (s *changeSuite) TestPerformCreateSymlinkWithBadSymlinkPresent(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/")() // Treat test path as unrestricted.
 	s.sys.InsertOsLstatResult(`lstat "/name"`, testutil.FileInfoSymlink)
 	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, syscall.EEXIST)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFLNK})
 	s.sys.InsertReadlinkatResult(`readlinkat 4 "" <ptr>`, "/evil")
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot create symbolic link "/name": existing symbolic link in the way`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -1760,11 +1784,185 @@ func (s *changeSuite) TestPerformCreateSymlinkWithBadSymlinkPresent(c *C) {
 
 func (s *changeSuite) TestPerformRemoveSymlink(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `remove "/name"`},
+	})
+}
+
+// Change.Perform wants to create a symlink in /etc and the write is made private.
+func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
+	defer s.as.MockUnrestrictedPrefixes("/tmp/")() // Allow writing to /tmp
+
+	s.sys.InsertFault(`lstat "/etc/demo.conf"`, syscall.ENOENT)
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`,
+		// On 1st call ext4, on 2nd call tmpfs
+		syscall.Statfs_t{Type: update.Ext4Magic},
+		syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertSysLstatResult(`lstat "/etc" <ptr>`, syscall.Stat_t{Mode: 0755})
+	otherConf := testutil.FakeFileInfo("other.conf", 0755)
+	s.sys.InsertReadDirResult(`readdir "/etc"`, []os.FileInfo{otherConf})
+	s.sys.InsertFault(`lstat "/tmp/.snap/etc"`, syscall.ENOENT)
+	s.sys.InsertFault(`lstat "/tmp/.snap/etc/other.conf"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/etc"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/etc/other.conf"`, otherConf)
+	s.sys.InsertFault(`mkdirat 3 "tmp" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFREG})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
+
+	// This is the change we want to perform:
+	// put a layout symlink at /etc/demo.conf -> /oldname
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/etc/demo.conf", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
+	synth, err := chg.Perform(s.as)
+	c.Check(err, IsNil)
+	c.Check(synth, HasLen, 2)
+	// We have created some synthetic change (made /etc a new tmpfs and re-populate it)
+	c.Assert(synth[0], DeepEquals, &update.Change{
+		Entry:  osutil.MountEntry{Name: "tmpfs", Dir: "/etc", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/etc/demo.conf", "mode=0755", "uid=0", "gid=0"}},
+		Action: "mount"})
+	c.Assert(synth[1], DeepEquals, &update.Change{
+		Entry:  osutil.MountEntry{Name: "/etc/other.conf", Dir: "/etc/other.conf", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.synthetic", "x-snapd.needed-by=/etc/demo.conf"}},
+		Action: "mount"})
+
+	// And this is exactly how we made that happen:
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Attempt to construct a symlink /etc/demo.conf -> /oldname.
+		// This stops as soon as we notice that /etc is an ext4 filesystem.
+		// To avoid writing to it directly we need a writable mimic.
+		{C: `lstat "/etc/demo.conf"`, E: syscall.ENOENT},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+
+		// Create a writable mimic over /etc, scan the contents of /etc first.
+		// For convenience we pretend that /etc is empty. The mimic
+		// replicates /etc in /tmp/.snap/etc for subsequent re-construction.
+		{C: `lstat "/etc" <ptr>`, R: syscall.Stat_t{Mode: 0755}},
+		{C: `readdir "/etc"`, R: []os.FileInfo{otherConf}},
+		{C: `lstat "/tmp/.snap/etc"`, E: syscall.ENOENT},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "tmp" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 ".snap" 0755`},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 0 0`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `mkdirat 5 "etc" 0755`},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 5`},
+
+		// Prepare a secure bind mount operation /etc -> /tmp/.snap/etc
+		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
+
+		// Open an O_PATH descriptor to /etc. We need this as a source of a
+		// secure bind mount operation. We also ensure that the descriptor
+		// refers to a directory.
+		// NOTE: we keep fd 4 open for subsequent use.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFDIR}},
+		{C: `close 3`},
+
+		// Open an O_PATH descriptor to /tmp/.snap/etc. We need this as a
+		// target of a secure bind mount operation. We also ensure that the
+		// descriptor refers to a directory.
+		// NOTE: we keep fd 7 open for subsequent use.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 6},
+		{C: `openat 6 "etc" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 7},
+		{C: `fstat 7 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFDIR}},
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 3`},
+
+		// Perform the secure bind mount operation /etc -> /tmp/.snap/etc
+		// and release the two associated file descriptors.
+		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
+		{C: `close 7`},
+		{C: `close 4`},
+
+		// Mount a tmpfs over /etc, re-constructing the original mode and
+		// ownership. Bind mount each original file over and detach the copy
+		// of /etc we had in /tmp/.snap/etc.
+
+		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
+		{C: `mount "tmpfs" "/etc" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		// Here we restore the contents of /etc: here it's just one file - other.conf
+		{C: `lstat "/etc/other.conf"`, R: otherConf},
+		{C: `lstat "/tmp/.snap/etc/other.conf"`, E: syscall.ENOENT},
+
+		// Create /tmp/.snap/etc/other.conf as an empty file.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "tmp" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 ".snap" 0755`},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 0 0`},
+		{C: `mkdirat 5 "etc" 0755`},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6},
+		{C: `fchown 6 0 0`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		// NOTE: This is without O_DIRECTORY and with O_CREAT|O_EXCL,
+		// we are creating an empty file for the subsequent bind mount.
+		{C: `openat 6 "other.conf" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 6`},
+
+		// Open O_PATH to /tmp/.snap/etc/other.conf
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 6},
+		{C: `openat 6 "other.conf" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 7},
+		{C: `fstat 7 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFDIR}},
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+
+		// Open O_PATH to /etc/other.conf
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 "other.conf" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{Mode: syscall.S_IFREG}},
+		{C: `close 4`},
+		{C: `close 3`},
+
+		// Restore the /etc/other.conf file with a secure bind mount.
+		{C: `mount "/proc/self/fd/7" "/proc/self/fd/5" "" MS_BIND ""`},
+		{C: `close 5`},
+		{C: `close 7`},
+
+		// We're done restoring now.
+		{C: `unmount "/tmp/.snap/etc" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// The mimic is now complete and subsequent writes to /etc are private
+		// to the mount namespace of the process.
+
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `symlinkat "/oldname" 4 "demo.conf"`},
+		{C: `close 4`},
 	})
 }
 
@@ -1775,7 +1973,7 @@ func (s *changeSuite) TestPerformRemoveSymlink(c *C) {
 // Change.Perform handles unknown actions.
 func (s *changeSuite) TestPerformUnknownAction(c *C) {
 	chg := &update.Change{Action: update.Action(42)}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot process mount change: unknown action: .*`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
@@ -1784,7 +1982,7 @@ func (s *changeSuite) TestPerformUnknownAction(c *C) {
 // Change.Perform wants to keep a mount entry unchanged.
 func (s *changeSuite) TestPerformKeep(c *C) {
 	chg := &update.Change{Action: update.Keep}
-	synth, err := chg.Perform(s.sec)
+	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
