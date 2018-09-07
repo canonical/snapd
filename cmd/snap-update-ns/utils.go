@@ -73,38 +73,29 @@ var (
 //
 // Directories are read only when they reside on file systems mounted in read
 // only mode or when the underlying file system itself is inherently read only.
-func IsReadOnly(dirFd int, dirName string) (bool, error) {
-	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
+func IsReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 	// If something is mounted with f_flags & ST_RDONLY then is read-only.
 	if fsData.Flags&StReadOnly == StReadOnly {
-		return true, nil
+		return true
 	}
 	// If something is a known read-only file-system then it is safe.
 	// Older copies of snapd were not mounting squashfs as read only.
 	if fsData.Type == SquashfsMagic {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 // IsSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
 //
-// The function inspects the directory (represented as both an open file
-// descriptor and the absolute path) and a list of changes that were applied to
-// the mount namespace. A directory is trusted if it is a tmpfs that was
+// The function inspects the directory and a list of changes that were applied
+// to the mount namespace. A directory is trusted if it is a tmpfs that was
 // mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
 // trusted tmpfs are not considered trusted by this function.
-func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) {
-	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
+func IsSnapdCreatedPrivateTmpfs(dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
 	// If something is not a tmpfs it cannot be the trusted tmpfs we are looking for.
 	if fsData.Type != TmpfsMagic {
-		return false, nil
+		return false
 	}
 	// Any of the past changes that mounted a tmpfs exactly at the directory we
 	// are inspecting is considered as trusted. This is conservative because it
@@ -119,7 +110,7 @@ func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (b
 	for i := len(changes) - 1; i >= 0; i-- {
 		change := changes[i]
 		if change.Entry.Type == "tmpfs" && change.Entry.Dir == dirName {
-			return change.Action == Mount, nil
+			return change.Action == Mount
 		}
 	}
 	// TODO: As a special exception, assume that a tmpfs over /var/lib is
@@ -127,7 +118,7 @@ func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (b
 	// a particular behavior of LXD.  Once the quirk is migrated to a mount
 	// profile (or removed entirely if no longer necessary) the following code
 	// fragment can go away.
-	return dirName == "/var/lib", nil
+	return dirName == "/var/lib"
 }
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
