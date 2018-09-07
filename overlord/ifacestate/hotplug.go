@@ -67,7 +67,7 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	// increase suffix value until we have a unique name
 	for {
 		suffixNumValue++
-		proposedName = fmt.Sprintf("%s%d", string(pname[0:suffixIndex+1]), suffixNumValue)
+		proposedName = fmt.Sprintf("%s%d", string(pname[:suffixIndex+1]), suffixNumValue)
 		if isUnique(proposedName) {
 			return proposedName
 		}
@@ -113,7 +113,7 @@ Loop:
 	}
 	// make sure the name doesn't end with a dash
 	if len(out) > 0 && out[len(out)-1] == '-' {
-		out = out[0 : len(out)-1]
+		out = out[:len(out)-1]
 	}
 	return string(out)
 }
@@ -127,9 +127,9 @@ var nameAttrs = []string{"NAME", "ID_MODEL_FROM_DATABASE", "ID_MODEL"}
 func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) string {
 	var candidates []string
 	for _, attr := range nameAttrs {
-		val, ok := devinfo.Attribute(attr)
+		name, ok := devinfo.Attribute(attr)
 		if ok {
-			name := cleanupSlotName(val)
+			name = cleanupSlotName(name)
 			if name != "" {
 				candidates = append(candidates, name)
 			}
