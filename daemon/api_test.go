@@ -312,7 +312,6 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
-	st.Set("seed-time", time.Now())
 	// registered
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
