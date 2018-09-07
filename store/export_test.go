@@ -20,9 +20,12 @@
 package store
 
 import (
-	"github.com/snapcore/snapd/testutil"
+	"io"
 
+	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -55,5 +58,13 @@ func MockOsRemove(f func(name string) error) func() {
 	osRemove = f
 	return func() {
 		osRemove = oldOsRemove
+	}
+}
+
+func MockRatelimitReader(f func(r io.Reader, bucket *ratelimit.Bucket) io.Reader) (restore func()) {
+	oldRatelimitReader := ratelimitReader
+	ratelimitReader = f
+	return func() {
+		ratelimitReader = oldRatelimitReader
 	}
 }
