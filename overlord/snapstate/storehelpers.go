@@ -74,20 +74,20 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	var opts store.RefreshOptions
 
 	if origOpts != nil {
-		if origOpts.RequestSeed != "" {
+		if origOpts.RequestSalt != "" {
 			// nothing to add
 			return origOpts, nil
 		}
 		opts = *origOpts
 	}
 
-	if err := st.Get("request-salt", &opts.RequestSeed); err != nil && err != state.ErrNoState {
+	if err := st.Get("request-salt", &opts.RequestSalt); err != nil && err != state.ErrNoState {
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
-	if opts.RequestSeed == "" {
+	if opts.RequestSalt == "" {
 		// no request seed yet, make one now
-		opts.RequestSeed = time.Now().Format(time.RFC3339Nano)
-		st.Set("request-salt", opts.RequestSeed)
+		opts.RequestSalt = time.Now().Format(time.RFC3339Nano)
+		st.Set("request-salt", opts.RequestSalt)
 	}
 	return &opts, nil
 }

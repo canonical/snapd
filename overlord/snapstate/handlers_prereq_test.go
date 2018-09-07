@@ -112,7 +112,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -125,7 +125,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		},
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -138,7 +138,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		},
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -279,7 +279,7 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -292,7 +292,7 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		},
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -305,7 +305,7 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		},
 		{
 			op:          "storesvc-snap-action",
-			refreshOpts: &store.RefreshOptions{RequestSeed: s.requestSalt},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
