@@ -1003,6 +1003,7 @@ func (s *SnapSuite) TestRefreshHold(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
 last: 2017-04-25T17:35:00+02:00
 hold: 2017-04-28T00:00:00+02:00
+next: 2017-04-26T00:58:00+02:00 (but held)
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit

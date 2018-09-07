@@ -592,12 +592,14 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
 	}
 	// only show "next" if its after "hold" to not confuse users
-	if hold.IsZero() || next.After(hold) {
-		if !next.IsZero() {
-			fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(next))
+	if !next.IsZero() {
+		if next.Before(hold) {
+			fmt.Fprintf(Stdout, "next: %s (but held)\n", x.fmtTime(next))
 		} else {
-			fmt.Fprintf(Stdout, "next: n/a\n")
+			fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(next))
 		}
+	} else {
+		fmt.Fprintf(Stdout, "next: n/a\n")
 	}
 	return nil
 }
