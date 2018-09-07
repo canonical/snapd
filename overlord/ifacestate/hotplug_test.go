@@ -48,6 +48,7 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 
 	names := []struct{ proposedName, resultingName string }{
 		{"foo", "foo"},
+		{"slot", "slot-3"},
 		{"slot1", "slot2"},
 		{"slot1234", "slot1235"},
 		{"slot-1", "slot-3"},
