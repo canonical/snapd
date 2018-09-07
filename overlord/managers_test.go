@@ -2417,6 +2417,8 @@ apps:
 `
 
 func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
+	c.Skip("2018-09-07: test unreliable during PPA builds and under investiation by Pawel")
+
 	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
 	ms.serveSnap(snapPath, "40")
 
