@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/systemd"
@@ -64,6 +65,8 @@ type Daemon struct {
 	snapServe     *shutdownServer
 	tomb          tomb.Tomb
 	router        *mux.Router
+	standbyHelper *standby.StandbyHelper
+
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
@@ -402,6 +405,18 @@ func (srv *shutdownServer) Serve() error {
 	return srv.httpSrv.Serve(srv.l)
 }
 
+func (srv *shutdownServer) CanStandby() bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	for _, state := range srv.conns {
+		if state != http.StateIdle {
+			return false
+		}
+	}
+	return true
+}
+
 func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
@@ -417,19 +432,6 @@ func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 		return
 	}
 	srv.conns[conn] = state
-}
-
-func (srv *shutdownServer) NumActiveConns() int {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-
-	n := 0
-	for _, state := range srv.conns {
-		if state != http.StateIdle {
-			n++
-		}
-	}
-	return n
 }
 
 func (srv *shutdownServer) finishShutdown() error {
@@ -460,6 +462,17 @@ func (srv *shutdownServer) finishShutdown() error {
 		srv.mu.Lock()
 	}
 	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
+}
+
+func (d *Daemon) initStandbyHandling() {
+	d.standbyHelper = standby.New(d.overlord.State())
+	d.standbyHelper.AddOpinion(d.snapdServe)
+	d.standbyHelper.AddOpinion(d.snapServe)
+	d.standbyHelper.AddOpinion(d.overlord)
+	d.standbyHelper.AddOpinion(d.overlord.SnapManager())
+	d.standbyHelper.AddOpinion(d.overlord.DeviceManager())
+	// loop runs in its own go-routine
+	d.standbyHelper.Loop()
 }
 
 // Start the Daemon
@@ -495,9 +508,8 @@ func (d *Daemon) Start() {
 	}
 	d.snapdServe = newShutdownServer(d.snapdListener, logit(d.router))
 
-	// make sure idle handling works
-	d.overlord.IdleManager().AddConnTracker(d.snapdServe)
-	d.overlord.IdleManager().AddConnTracker(d.snapServe)
+	// enable standby handling
+	d.initStandbyHandling()
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
@@ -594,7 +606,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		//
 		// If this is the case we do a "normal" snapd restart
 		// to process the new changes.
-		if !d.overlord.IdleManager().CanGoSocketActivated() {
+		if !d.standbyHelper.CanStandby() {
 			d.restartSocket = false
 		}
 	}

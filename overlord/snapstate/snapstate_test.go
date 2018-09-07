@@ -11714,3 +11714,23 @@ connections:
 	c.Check(conns, DeepEquals, []snap.GadgetConnection{
 		{Plug: snap.GadgetConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: snap.GadgetConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
 }
+
+func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no snaps -> can standby
+	s.state.Set("snaps", nil)
+	c.Assert(s.snapmgr.CanStandby(), Equals, true)
+
+	// snaps installed -> can *not* standby
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	c.Assert(s.snapmgr.CanStandby(), Equals, false)
+}

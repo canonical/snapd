@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/idlestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
@@ -72,6 +71,7 @@ type Overlord struct {
 	ensureTimer *time.Timer
 	ensureNext  time.Time
 	pruneTicker *time.Ticker
+	numEnsure   uint64
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
@@ -84,7 +84,6 @@ type Overlord struct {
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 	shotMgr   *snapshotstate.SnapshotManager
-	idleMgr   *idlestate.IdleManager
 }
 
 var storeNew = store.New
@@ -150,9 +149,6 @@ func New() (*Overlord, error) {
 
 	configstateInit(hookMgr)
 
-	// idle manager must be added after snapstate.Manager
-	o.addManager(idlestate.Manager(s))
-
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
 
@@ -191,8 +187,6 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.cmdMgr = x
 	case *snapshotstate.SnapshotManager:
 		o.shotMgr = x
-	case *idlestate.IdleManager:
-		o.idleMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -283,6 +277,7 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
+			o.numEnsure++
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -295,6 +290,10 @@ func (o *Overlord) Loop() {
 			}
 		}
 	})
+}
+
+func (o *Overlord) CanStandby() bool {
+	return o.numEnsure > 0
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.
@@ -412,12 +411,6 @@ func (o *Overlord) TaskRunner() *state.TaskRunner {
 // the overlord.
 func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
-}
-
-// IdleManager returns the snap manager responsible for snaps under
-// the overlord.
-func (o *Overlord) IdleManager() *idlestate.IdleManager {
-	return o.idleMgr
 }
 
 // AssertManager returns the assertion manager enforcing assertions
