@@ -8,4 +8,4 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh-core16
-    test-snapd-sh-core16.sh echo hello | MATCH hello
+    test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
