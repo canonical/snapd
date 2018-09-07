@@ -73,7 +73,7 @@ func (s *DBusTest) TearDownSuite(c *C) {
 		err := s.dbusDaemon.Process.Kill()
 		c.Assert(err, IsNil)
 		err = s.dbusDaemon.Wait() // do cleanup
-		c.Assert(err, ErrorMatches, `signal: killed`)
+		c.Assert(err, ErrorMatches, `(?i)signal: killed`)
 	}
 
 }

@@ -848,15 +848,6 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(results, &Meta{Sources: []string{"local"}})
 }
 
-func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
-	for _, t := range allowedTypes {
-		if r["type"] == t {
-			return true
-		}
-	}
-	return false
-}
-
 // licenseData holds details about the snap license, and may be
 // marshaled back as an error when the license agreement is pending,
 // and is expected as input to accept (or not) that license
@@ -924,7 +915,6 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
-	snapstateSwitch            = snapstate.Switch
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -934,8 +924,6 @@ func ensureStateSoonImpl(st *state.State) {
 }
 
 var ensureStateSoon = ensureStateSoonImpl
-
-var errNothingToInstall = errors.New("nothing to install")
 
 var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
 var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
@@ -968,7 +956,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID)
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
 	if err != nil {
 		return nil, err
 	}
