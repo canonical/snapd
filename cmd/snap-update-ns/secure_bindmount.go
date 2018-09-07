@@ -43,12 +43,12 @@ func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint) error {
 
 	// Step 1: acquire file descriptors representing the source and destination
 	// directories, ensuring no symlinks are followed.
-	sourceFd, err := sec.OpenPath(sourceDir)
+	sourceFd, err := OpenPath(sourceDir)
 	if err != nil {
 		return err
 	}
 	defer sysClose(sourceFd)
-	targetFd, err := sec.OpenPath(targetDir)
+	targetFd, err := OpenPath(targetDir)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint) error {
 	if flags&syscall.MS_RDONLY != 0 {
 		// We need to look up the target directory a second time, because
 		// targetFd refers to the path shadowed by the mount point.
-		mountFd, err := sec.OpenPath(targetDir)
+		mountFd, err := OpenPath(targetDir)
 		if err != nil {
 			// FIXME: the mount occurred, but the user moved the target
 			// somewhere
