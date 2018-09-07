@@ -1,8 +1,0 @@
-name: gnome-software
-version: 1.0
-summary: Fake gnome-software
-description: A fake gnome-software snap to test the snap URI handler
-
-apps:
-    gnome-software:
-        command: bin/gnome-software

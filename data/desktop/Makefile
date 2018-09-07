@@ -30,11 +30,11 @@ all: $(DESKTOP_FILES) $(AUTOSTART_FILES)
 # NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 install:: $(DESKTOP_FILES)
 	install -d -m 0755 $(DESTDIR)/$(APPLICATIONSDIR)
-	install -m 0644 -t $(DESTDIR)/$(APPLICATIONSDIR) $(DESKTOP_FILES)
+	install -m 0644 -t $(DESTDIR)/$(APPLICATIONSDIR) $^
 
 install:: $(AUTOSTART_FILES)
 	install -d -m 0755 $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR)
-	install -m 0644 -t $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR) $(AUTOSTART_FILES)
+	install -m 0644 -t $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR) $^
 
 .PHONY: clean
 clean:

@@ -28,17 +28,17 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
-    echo "URI Handler fails if gnome-software is not installed and user refuses to install it"
+    echo "URI Handler fails if snap-store is not installed and user refuses to install it"
     mount --bind /bin/false /usr/bin/zenity
     if snap handle-link snap://package 2>errors.log; then
         cat errors.log >&2
         echo "Expected URI handler to fail"
         exit 1
     fi
-    MATCH "GNOME Software required" < errors.log
+    MATCH "Snap Store required" < errors.log
 
-    echo "Now with gnome-software installed"
-    install_local gnome-software
+    echo "Now with snap-store installed"
+    install_local snap-store
     snap handle-link snap://package | MATCH "Fake snap got snap://package"
 
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
