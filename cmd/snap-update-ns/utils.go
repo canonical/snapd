@@ -198,7 +198,7 @@ func OpenPath(path string) (int, error) {
 // returns the file descriptor to the leaf directory. This function is a base
 // for secure variants of mkdir, touch and symlink. None of the traversed
 // directories can be symbolic links.
-func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	iter, err := strutil.NewPathIterator(base)
 	if err != nil {
 		// TODO: Reword the error and adjust the tests.
@@ -219,7 +219,7 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = sec.MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid)
+		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid)
 		if err != nil {
 			return -1, err
 		}
@@ -234,7 +234,7 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 // convenience). This function is meant to be used to construct subsequent
 // elements of some path. The return value contains the newly created file
 // descriptor for the new directory or -1 on error.
-func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	made := true
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
@@ -271,10 +271,10 @@ func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMod
 // MkFile creates a file with a given name.
 //
 // The directory is represented with a file descriptor and its name (for
-// convenience). This function is meant to be used to create the leaf file as a
-// preparation for a mount point. Existing files are reused without errors.
+// convenience). This function is meant to be used to create the leaf file as
+// a preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	made := true
 
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
@@ -321,7 +321,7 @@ func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMo
 // The directory is represented with a file descriptor and its name (for
 // convenience). This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
-func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname string) error {
+func MkSymlink(dirFd int, dirName string, name string, oldname string) error {
 	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
@@ -378,7 +378,7 @@ func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname str
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -392,7 +392,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -400,7 +400,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 
 	if name != "" {
 		// Create the leaf as a directory.
-		leafFd, err := sec.MkDir(dirFd, base, name, perm, uid, gid)
+		leafFd, err := MkDir(dirFd, base, name, perm, uid, gid)
 		if err != nil {
 			return err
 		}
@@ -415,7 +415,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 // This function is like MkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -433,7 +433,7 @@ func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid 
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -441,13 +441,13 @@ func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid 
 
 	if name != "" {
 		// Create the leaf as a file.
-		err = sec.MkFile(dirFd, base, name, perm, uid, gid)
+		err = MkFile(dirFd, base, name, perm, uid, gid)
 	}
 	return err
 }
 
 // MksymlinkAll is a secure implementation of "ln -s".
-func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -469,7 +469,7 @@ func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, g
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -477,7 +477,7 @@ func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, g
 
 	if name != "" {
 		// Create the leaf as a symlink.
-		err = sec.MkSymlink(dirFd, base, name, oldname)
+		err = MkSymlink(dirFd, base, name, oldname)
 	}
 	return err
 }
