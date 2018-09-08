@@ -61,7 +61,7 @@ func (ovs *overlordSuite) TearDownTest(c *C) {
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
-	restore := patch.Mock(42, nil)
+	restore := patch.Mock(42, 2, nil)
 	defer restore()
 
 	var configstateInitCalled bool
@@ -92,9 +92,11 @@ func (ovs *overlordSuite) TestNew(c *C) {
 
 	s.Lock()
 	defer s.Unlock()
-	var patchLevel int
+	var patchLevel, patchSublevel int
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
+	s.Get("patch-sublevel", &patchSublevel)
+	c.Check(patchSublevel, Equals, 2)
 
 	// store is setup
 	sto := snapstate.Store(s)
@@ -141,9 +143,13 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 		s.Set("patched", true)
 		return nil
 	}
-	patch.Mock(1, map[int]func(*state.State) error{1: p})
+	sp := func(s *state.State) error {
+		s.Set("patched2", true)
+		return nil
+	}
+	patch.Mock(1, 1, map[int][]patch.PatchFunc{1: {p, sp}})
 
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0}}`))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0, "patch-sublevel":0}}`))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -160,9 +166,16 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(level, Equals, 1)
 
+	var sublevel int
+	c.Assert(state.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(sublevel, Equals, 1)
+
 	var b bool
 	err = state.Get("patched", &b)
 	c.Assert(err, IsNil)
+	c.Check(b, Equals, true)
+
+	c.Assert(state.Get("patched2", &b), IsNil)
 	c.Check(b, Equals, true)
 }
 
