@@ -3787,7 +3787,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
-	for i:=0; i<5; i++ {
+	for i := 0; i < 5; i++ {
 		c.Assert(mgr.Ensure(), IsNil)
 		c.Assert(udevMonitorCreated, Equals, false)
 	}
