@@ -1,0 +1,71 @@
+summary: Checks handling of common snap directories of parallel installed snaps
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    echo "Install a snap with instance key set"
+    install_local_as test-snapd-tools test-snapd-tools_foo
+
+    # foo instance directories are present
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools_foo"
+    test -d "/var/snap/test-snapd-tools_foo"
+
+    # and so are the common directories
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    test -d "/var/snap/test-snapd-tools"
+
+    # get another revision of test-snapd-tools_foo
+    install_local_as test-snapd-tools test-snapd-tools_foo
+
+    # install instance-key-less snap
+    install_local test-snapd-tools
+
+    # and a bar instance
+    install_local_as test-snapd-tools test-snapd-tools_bar
+    # bar instance directories are present
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools_bar"
+    test -d "/var/snap/test-snapd-tools_bar"
+
+    # remove foo instance, rev x1
+    snap remove --revision=x1 test-snapd-tools_foo
+    # foo instance directories are present
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools_foo"
+    test -d "/var/snap/test-snapd-tools_foo"
+    # and so are the common directories, required by other revision of foo
+    # instance and other snaps
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    test -d "/var/snap/test-snapd-tools"
+
+    # remove foo instance snap
+    snap remove test-snapd-tools_foo
+    # foo instance directories should be gone now
+    ! test -d "$SNAP_MOUNT_DIR/test-snapd-tools_foo"
+    ! test -d "/var/snap/test-snapd-tools_foo"
+    # common directories are still around, required by test-snapd-tools and
+    # test-snapd-tools_bar
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    test -d "/var/snap/test-snapd-tools"
+
+    # remove instance-key-less one
+    snap remove test-snapd-tools
+    # common directories are still around, required by test-snapd-tools_bar
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    test -d "/var/snap/test-snapd-tools"
+
+    # remove bar instance
+    snap remove test-snapd-tools_bar
+    ! test -d "$SNAP_MOUNT_DIR/test-snapd-tools_bar"
+    ! test -d "/var/snap/test-snapd-tools_bar"
+
+    # common directors should be gone now too
+    ! test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    ! test -d "/var/snap/test-snapd-tools"
+
+restore:
+    snap set system experimental.parallel-instances=null
