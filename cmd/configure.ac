@@ -232,5 +232,9 @@ SYSTEMD_SYSTEM_GENERATOR_DIR="$($PKG_CONFIG --variable=systemdsystemgeneratordir
 AS_IF([test "x$SYSTEMD_SYSTEM_GENERATOR_DIR" = "x"], [SYSTEMD_SYSTEM_GENERATOR_DIR=/lib/systemd/system-generators])
 AC_SUBST(SYSTEMD_SYSTEM_GENERATOR_DIR)
 
+# FIXME: get this via something like pkgconf once it is defined there
+SYSTEMD_SYSTEM_ENV_GENERATOR_DIR="${prefix}/lib/systemd/system-environment-generators"
+AC_SUBST(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
