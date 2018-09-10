@@ -437,7 +437,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	if os.Geteuid() == 0 {
-		c.Skip("this test cannot run as root")
+		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	logger.SimpleSetup()
 

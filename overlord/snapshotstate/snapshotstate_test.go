@@ -489,7 +489,7 @@ func (snapshotSuite) TestSaveOneSnap(c *check.C) {
 
 func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	if os.Geteuid() == 0 {
-		c.Skip("this test cannot run as root")
+		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	o := overlord.Mock()
 	st := o.State()
@@ -577,7 +577,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 
 func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 	if os.Geteuid() == 0 {
-		c.Skip("this test cannot run as root")
+		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	o := overlord.Mock()
 	st := o.State()
@@ -822,7 +822,7 @@ func (snapshotSuite) TestRestore(c *check.C) {
 
 func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	if os.Geteuid() == 0 {
-		c.Skip("this test cannot run as root")
+		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	o := overlord.Mock()
 	st := o.State()
@@ -891,7 +891,7 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 
 func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	if os.Geteuid() == 0 {
-		c.Skip("this test cannot run as root")
+		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	o := overlord.Mock()
 	st := o.State()
@@ -959,9 +959,15 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	c.Check(tasks, check.HasLen, 3)
 	for _, task := range tasks {
 		if strings.Contains(task.Summary(), `"too-snap"`) {
+			// too-snap was set up to fail, should always fail with
+			// 'permission denied' (see the mkdirall w/mode 0 above)
 			c.Check(task.Status(), check.Equals, state.ErrorStatus)
 			c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR mkdir \S+: permission denied`)
 		} else {
+			// the other two might fail (ErrorStatus) if they're
+			// still running when too-snap fails, or they might have
+			// finished and needed to be undone (UndoneStatus); it's
+			// a race, but either is fine.
 			if task.Status() == state.ErrorStatus {
 				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR context canceled`)
 			} else {
