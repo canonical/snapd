@@ -3,10 +3,9 @@ summary: Checks for parallel installation of sideloaded snaps containing desktop
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    path="$(make_snap basic-desktop)"
 
     echo "Sideload the regular snap"
-    snap install --dangerous "$path"
+    install_local basic-desktop
 
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -16,7 +15,7 @@ execute: |
     for instance in foo longname; do
         echo "Sideload same snap as different instance named basic-desktop_$instance"
         expected="^basic-desktop_$instance 1.0 installed\$"
-        snap install --dangerous --name "basic-desktop_$instance" "$path" | MATCH "$expected"
+        install_local_as basic-desktop "basic-desktop_$instance" | MATCH "$expected"
 
         diff -u <(head -n4 "/var/lib/snapd/desktop/applications/basic-desktop_${instance}_echo.desktop") - <<-EOF
     [Desktop Entry]

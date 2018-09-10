@@ -73,38 +73,29 @@ var (
 //
 // Directories are read only when they reside on file systems mounted in read
 // only mode or when the underlying file system itself is inherently read only.
-func IsReadOnly(dirFd int, dirName string) (bool, error) {
-	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
+func IsReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 	// If something is mounted with f_flags & ST_RDONLY then is read-only.
 	if fsData.Flags&StReadOnly == StReadOnly {
-		return true, nil
+		return true
 	}
 	// If something is a known read-only file-system then it is safe.
 	// Older copies of snapd were not mounting squashfs as read only.
 	if fsData.Type == SquashfsMagic {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 // IsSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
 //
-// The function inspects the directory (represented as both an open file
-// descriptor and the absolute path) and a list of changes that were applied to
-// the mount namespace. A directory is trusted if it is a tmpfs that was
+// The function inspects the directory and a list of changes that were applied
+// to the mount namespace. A directory is trusted if it is a tmpfs that was
 // mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
 // trusted tmpfs are not considered trusted by this function.
-func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (bool, error) {
-	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
+func IsSnapdCreatedPrivateTmpfs(dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
 	// If something is not a tmpfs it cannot be the trusted tmpfs we are looking for.
 	if fsData.Type != TmpfsMagic {
-		return false, nil
+		return false
 	}
 	// Any of the past changes that mounted a tmpfs exactly at the directory we
 	// are inspecting is considered as trusted. This is conservative because it
@@ -119,7 +110,7 @@ func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (b
 	for i := len(changes) - 1; i >= 0; i-- {
 		change := changes[i]
 		if change.Entry.Type == "tmpfs" && change.Entry.Dir == dirName {
-			return change.Action == Mount, nil
+			return change.Action == Mount
 		}
 	}
 	// TODO: As a special exception, assume that a tmpfs over /var/lib is
@@ -127,7 +118,7 @@ func IsSnapdCreatedPrivateTmpfs(dirFd int, dirName string, changes []*Change) (b
 	// a particular behavior of LXD.  Once the quirk is migrated to a mount
 	// profile (or removed entirely if no longer necessary) the following code
 	// fragment can go away.
-	return dirName == "/var/lib", nil
+	return dirName == "/var/lib"
 }
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
@@ -159,7 +150,7 @@ func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) erro
 //
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
 // and O_CLOEXEC flags.
-func (sec *Secure) OpenPath(path string) (int, error) {
+func OpenPath(path string) (int, error) {
 	iter, err := strutil.NewPathIterator(path)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open path: %s", err)
@@ -207,7 +198,7 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 // returns the file descriptor to the leaf directory. This function is a base
 // for secure variants of mkdir, touch and symlink. None of the traversed
 // directories can be symbolic links.
-func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	iter, err := strutil.NewPathIterator(base)
 	if err != nil {
 		// TODO: Reword the error and adjust the tests.
@@ -228,7 +219,7 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = sec.MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid)
+		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid)
 		if err != nil {
 			return -1, err
 		}
@@ -243,7 +234,7 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 // convenience). This function is meant to be used to construct subsequent
 // elements of some path. The return value contains the newly created file
 // descriptor for the new directory or -1 on error.
-func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	made := true
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
@@ -280,10 +271,10 @@ func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMod
 // MkFile creates a file with a given name.
 //
 // The directory is represented with a file descriptor and its name (for
-// convenience). This function is meant to be used to create the leaf file as a
-// preparation for a mount point. Existing files are reused without errors.
+// convenience). This function is meant to be used to create the leaf file as
+// a preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	made := true
 
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
@@ -330,7 +321,7 @@ func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMo
 // The directory is represented with a file descriptor and its name (for
 // convenience). This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
-func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname string) error {
+func MkSymlink(dirFd int, dirName string, name string, oldname string) error {
 	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
@@ -387,7 +378,7 @@ func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname str
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -401,7 +392,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -409,7 +400,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 
 	if name != "" {
 		// Create the leaf as a directory.
-		leafFd, err := sec.MkDir(dirFd, base, name, perm, uid, gid)
+		leafFd, err := MkDir(dirFd, base, name, perm, uid, gid)
 		if err != nil {
 			return err
 		}
@@ -424,7 +415,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 // This function is like MkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -442,7 +433,7 @@ func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid 
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -450,13 +441,13 @@ func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid 
 
 	if name != "" {
 		// Create the leaf as a file.
-		err = sec.MkFile(dirFd, base, name, perm, uid, gid)
+		err = MkFile(dirFd, base, name, perm, uid, gid)
 	}
 	return err
 }
 
 // MksymlinkAll is a secure implementation of "ln -s".
-func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -478,7 +469,7 @@ func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, g
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -486,7 +477,7 @@ func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, g
 
 	if name != "" {
 		// Create the leaf as a symlink.
-		err = sec.MkSymlink(dirFd, base, name, oldname)
+		err = MkSymlink(dirFd, base, name, oldname)
 	}
 	return err
 }

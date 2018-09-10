@@ -51,7 +51,6 @@ backends:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         halt-timeout: 2h
-        storage: preserve-size
         systems:
             - ubuntu-14.04-64:
                 workers: 6
@@ -91,6 +90,7 @@ backends:
 
             - amazon-linux-2-64:
                 workers: 4
+                storage: preserve-size
 
     google-sru:
         type: google
@@ -582,28 +582,13 @@ suites:
         # drop this blacklist.
         systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
         prepare: |
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            #shellcheck source=tests/lib/systems.sh
-            . "$TESTSLIB"/systems.sh
-            if is_core_system; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            #shellcheck source=tests/lib/reset.sh
-            "$TESTSLIB"/reset.sh --reuse-core
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            #shellcheck source=tests/lib/reset.sh
-            "$TESTSLIB"/reset.sh
-            #shellcheck source=tests/lib/systems.sh
-            . "$TESTSLIB"/systems.sh
-            if is_classic_system; then
-                #shellcheck source=tests/lib/pkgdb.sh
-                . "$TESTSLIB"/pkgdb.sh
-                distro_purge_package snapd
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/nested/:
         summary: Tests for nested images
