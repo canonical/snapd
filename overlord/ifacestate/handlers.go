@@ -711,6 +711,21 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 	return nil
 }
 
+// inWaitChains returns true if there is a wait chain so that t1
+// is run before needle
+func inWaitChain(t1, needle *state.Task) bool {
+	for _, cand := range t1.HaltTasks() {
+		if inWaitChain(cand, needle) {
+			return true
+		}
+		if cand == needle {
+			return true
+		}
+	}
+
+	return false
+}
+
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -759,7 +774,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
-				if defaultProviders[snapsup.InstanceName()] {
+				// Only retry if the task that installs the
+				// content provider is not waiting for us
+				// (or this will just hang forever).
+				if defaultProviders[snapsup.InstanceName()] && !inWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
 			}

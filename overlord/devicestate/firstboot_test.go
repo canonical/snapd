@@ -1567,3 +1567,102 @@ snaps:
 	_, err = devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	// a snap that uses content providers
+	snapYaml := `name: gnome-calculator
+version: 1.0
+plugs:
+ gtk-3-themes:
+  interface: content
+  default-provider: gtk-common-themes
+  target: $SNAP/data-dir/themes
+`
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+
+	writeAssertionsToFile("foo.asserts", []asserts.Assertion{devAcct, fooRev, fooDecl})
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: gtk-common-themes
+version: 1.0
+slots:
+ gtk-3-themes:
+  interface: content
+  source:
+   read:
+    - $SNAP/share/themes/Adawaita
+`
+	barFname, barDecl, barRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(65), "developerid")
+
+	writeAssertionsToFile("bar.asserts", []asserts.Assertion{devAcct, barDecl, barRev})
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
+	writeAssertionsToFile("model.asserts", assertsChain)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: core
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: gnome-calculator
+   file: %s
+ - name: gtk-common-themes
+   file: %s
+`, coreFname, kernelFname, gadgetFname, fooFname, barFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
+
+	// verify the result
+	var conns map[string]interface{}
+	err = st.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 1)
+	conn, hasConn := conns["gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes"]
+	c.Check(hasConn, Equals, true)
+	c.Check(conn.(map[string]interface{})["auto"], Equals, true)
+	c.Check(conn.(map[string]interface{})["interface"], Equals, "content")
+}
