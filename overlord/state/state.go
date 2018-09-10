@@ -98,10 +98,11 @@ type State struct {
 	lastChangeId int
 	lastLaneId   int
 
-	backend Backend
-	data    customData
-	changes map[string]*Change
-	tasks   map[string]*Task
+	backend  Backend
+	data     customData
+	changes  map[string]*Change
+	tasks    map[string]*Task
+	warnings map[string]*Warning
 
 	modified bool
 
@@ -118,6 +119,7 @@ func New(backend Backend) *State {
 		data:     make(customData),
 		changes:  make(map[string]*Change),
 		tasks:    make(map[string]*Task),
+		warnings: make(map[string]*Warning),
 		modified: true,
 		cache:    make(map[interface{}]interface{}),
 	}
@@ -153,9 +155,10 @@ func (s *State) unlock() {
 }
 
 type marshalledState struct {
-	Data    map[string]*json.RawMessage `json:"data"`
-	Changes map[string]*Change          `json:"changes"`
-	Tasks   map[string]*Task            `json:"tasks"`
+	Data     map[string]*json.RawMessage `json:"data"`
+	Changes  map[string]*Change          `json:"changes"`
+	Tasks    map[string]*Task            `json:"tasks"`
+	Warnings []*Warning                  `json:"warnings,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
@@ -166,9 +169,10 @@ type marshalledState struct {
 func (s *State) MarshalJSON() ([]byte, error) {
 	s.reading()
 	return json.Marshal(marshalledState{
-		Data:    s.data,
-		Changes: s.changes,
-		Tasks:   s.tasks,
+		Data:     s.data,
+		Changes:  s.changes,
+		Tasks:    s.tasks,
+		Warnings: s.flattenWarnings(),
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
@@ -187,6 +191,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
+	s.unflattenWarnings(unmarshalled.Warnings)
 	s.lastChangeId = unmarshalled.LastChangeId
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
@@ -390,12 +395,16 @@ func (s *State) tasksIn(tids []string) []*Task {
 	return res
 }
 
-// Prune removes changes that became ready for more than pruneWait
-// and aborts tasks spawned for more than abortWait.
-// It also removes tasks unlinked to changes after pruneWait. When
-// there are more changes than the limit set via "maxReadyChanges"
-// those changes in ready state will also removed even if they are below
-// the pruneWait duration.
+// Prune does several cleanup tasks to the in-memory state:
+//
+//  * it removes changes that became ready for more than pruneWait and aborts
+//    tasks spawned for more than abortWait.
+//
+//  * it removes tasks unlinked to changes after pruneWait. When there are more
+//    changes than the limit set via "maxReadyChanges" those changes in ready
+//    state will also removed even if they are below the pruneWait duration.
+//
+//  * it removes expired warnings.
 func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
@@ -415,6 +424,12 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 			break
 		}
 		readyChangesCount++
+	}
+
+	for k, w := range s.warnings {
+		if w.ExpiredBefore(now) {
+			delete(s.warnings, k)
+		}
 	}
 
 	for _, chg := range changes {
