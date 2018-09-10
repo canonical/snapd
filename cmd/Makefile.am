@@ -342,6 +342,7 @@ endif
 ##
 
 libexec_SCRIPTS = snap-mgmt/snap-mgmt
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt
 
 snap-mgmt/$(am__dirstamp):
 	mkdir -p $$(dirname $@)
