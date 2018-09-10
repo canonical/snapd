@@ -75,6 +75,12 @@ prepare: |
     systemctl daemon-reload
     systemctl restart snapd.socket
 
+    if [ ! -d '/snap' ]; then
+        #shellcheck source=tests/lib/dirs.sh
+        . "$TESTSLIB/dirs.sh"
+        ln -s "$SNAP_MOUNT_DIR" /snap
+    fi
+
 restore: |
     mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
     systemctl daemon-reload
