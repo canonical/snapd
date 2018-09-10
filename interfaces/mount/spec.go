@@ -35,20 +35,20 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layoutMountEntries []osutil.MountEntry
-	mountEntries       []osutil.MountEntry
-	userMountEntries   []osutil.MountEntry
+	layout  []osutil.MountEntry
+	general []osutil.MountEntry
+	user    []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
 func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
-	spec.mountEntries = append(spec.mountEntries, e)
+	spec.general = append(spec.general, e)
 	return nil
 }
 
 //AddUserMountEntry adds a new user mount entry.
 func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
-	spec.userMountEntries = append(spec.userMountEntries, e)
+	spec.user = append(spec.user, e)
 	return nil
 }
 
@@ -110,8 +110,8 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	return entry
 }
 
-// AddSnapLayout adds mount entries based on the layout of the snap.
-func (spec *Specification) AddSnapLayout(si *snap.Info) {
+// AddLayout adds mount entries based on the layout of the snap.
+func (spec *Specification) AddLayout(si *snap.Info) {
 	// TODO: handle layouts in base snaps as well as in this snap.
 
 	// walk the layout elements in deterministic order, by mount point name
@@ -123,23 +123,23 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 
 	for _, path := range paths {
 		entry := mountEntryFromLayout(si.Layout[path])
-		spec.layoutMountEntries = append(spec.layoutMountEntries, entry)
+		spec.layout = append(spec.layout, entry)
 	}
 }
 
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
-	result = append(result, spec.layoutMountEntries...)
-	result = append(result, spec.mountEntries...)
+	result := make([]osutil.MountEntry, 0, len(spec.layout)+len(spec.general))
+	result = append(result, spec.layout...)
+	result = append(result, spec.general...)
 	unclashMountEntries(result)
 	return result
 }
 
 // UserMountEntries returns a copy of the added user mount entries.
 func (spec *Specification) UserMountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, len(spec.userMountEntries))
-	copy(result, spec.userMountEntries)
+	result := make([]osutil.MountEntry, len(spec.user))
+	copy(result, spec.user)
 	unclashMountEntries(result)
 	return result
 }

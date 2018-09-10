@@ -33,7 +33,7 @@ import (
 )
 
 // Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
+func TestT(t *testing.T) { TestingT(t) }
 
 type xgettextTestSuite struct {
 }
