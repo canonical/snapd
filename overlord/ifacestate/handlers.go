@@ -552,14 +552,25 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 	return defaultProviders
 }
 
-// inWaitChains returns true if there is a wait chain so that t1
-// is run before needle
-func inWaitChain(t1, needle *state.Task) bool {
-	for _, cand := range t1.HaltTasks() {
-		if inWaitChain(cand, needle) {
+// inSameChangeWaitChains returns true if there is a wait chain so
+// that `startT` is run before `searchT` in the same state.Change.
+func inSameChangeWaitChain(startT, searchT *state.Task) bool {
+	// Trivial case, tasks in different changes (they could in theory
+	// still have cross-change waits but we don't do these today).
+	// In this case, return quickly.
+	if startT.Change() != searchT.Change() {
+		return false
+	}
+	// Do a recursive check if its in the same change
+	return inWaitChainWalker(startT, searchT)
+}
+
+func inWaitChainWalker(startT, searchT *state.Task) bool {
+	for _, cand := range startT.HaltTasks() {
+		if cand == searchT {
 			return true
 		}
-		if cand == needle {
+		if inWaitChainWalker(cand, searchT) {
 			return true
 		}
 	}
@@ -618,7 +629,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// Only retry if the task that installs the
 				// content provider is not waiting for us
 				// (or this will just hang forever).
-				if defaultProviders[snapsup.InstanceName()] && !inWaitChain(task, t) {
+				if defaultProviders[snapsup.InstanceName()] && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
 			}
