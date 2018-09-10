@@ -34,11 +34,11 @@ var (
 	DefaultRepeatAfter = time.Hour * 24
 	DefaultExpireAfter = time.Hour * 24 * 28
 
-	errNoMessage     = errors.New("warning has no message")
-	errBadMessage    = errors.New("malformed warning message")
-	errNoFirstAdded  = errors.New("warning has no first-added timestamp")
-	errNoExpireAfter = errors.New("warning has no expire-after duration")
-	errNoRepeatAfter = errors.New("warning has no repeat-after duration")
+	errNoWarningMessage     = errors.New("warning has no message")
+	errBadWarningMessage    = errors.New("malformed warning message")
+	errNoWarningFirstAdded  = errors.New("warning has no first-added timestamp")
+	errNoWarningExpireAfter = errors.New("warning has no expire-after duration")
+	errNoWarningRepeatAfter = errors.New("warning has no repeat-after duration")
 )
 
 type jsonWarning struct {
@@ -114,19 +114,19 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 
 func (w *Warning) validate() (e error) {
 	if w.message == "" {
-		return errNoMessage
+		return errNoWarningMessage
 	}
 	if strings.TrimSpace(w.message) != w.message {
-		return errBadMessage
+		return errBadWarningMessage
 	}
 	if w.firstAdded.IsZero() {
-		return errNoFirstAdded
+		return errNoWarningFirstAdded
 	}
 	if w.expireAfter == 0 {
-		return errNoExpireAfter
+		return errNoWarningExpireAfter
 	}
 	if w.repeatAfter == 0 {
-		return errNoRepeatAfter
+		return errNoWarningRepeatAfter
 	}
 	return nil
 }
@@ -184,14 +184,14 @@ func (s *State) Warnf(template string, args ...interface{}) {
 	} else {
 		message = template
 	}
-	s.addWarningFull(Warning{
+	s.addWarning(Warning{
 		message:     message,
 		expireAfter: DefaultExpireAfter,
 		repeatAfter: DefaultRepeatAfter,
 	}, time.Now().UTC())
 }
 
-func (s *State) addWarningFull(w Warning, t time.Time) {
+func (s *State) addWarning(w Warning, t time.Time) {
 	s.writing()
 
 	if s.warnings[w.message] == nil {
