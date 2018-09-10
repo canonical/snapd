@@ -131,7 +131,7 @@ const (
 	ServicesTarget = "multi-user.target"
 
 	// the target prerequisite for systemd units we generate
-	PrerequisiteTarget = "network-online.target"
+	PrerequisiteTarget = "network.target"
 
 	// the default target for systemd socket units that we generate
 	SocketsTarget = "sockets.target"
