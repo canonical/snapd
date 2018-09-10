@@ -71,15 +71,15 @@ apps:
 	// thumbnailer-service snap with thumbnailer-service slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, thumbnailerServiceMockCoreSlotSnapInfoYaml, nil)
 	s.coreSlotInfo = snapInfo.Slots["thumbnailer-service"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 	// thumbnailer-service slot on a core snap in a classic install.
 	snapInfo = snaptest.MockInfo(c, thumbnailerServiceMockClassicSlotSnapInfoYaml, nil)
 	s.classicSlotInfo = snapInfo.Slots["thumbnailer-service"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil)
+	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
 
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["thumbnailer-service"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {

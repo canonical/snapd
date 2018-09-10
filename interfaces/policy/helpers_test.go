@@ -43,7 +43,7 @@ plugs:
         interface: interface
 `, nil)
 	plugInfo := consumer.Plugs["plug"]
-	plug := interfaces.NewConnectedPlug(plugInfo, map[string]interface{}{
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, map[string]interface{}{
 		"a": "123",
 	})
 
@@ -57,7 +57,7 @@ slots:
         interface: interface
 `, nil)
 	slotInfo := producer.Slots["slot"]
-	slot := interfaces.NewConnectedSlot(slotInfo, map[string]interface{}{
+	slot := interfaces.NewConnectedSlot(slotInfo, nil, map[string]interface{}{
 		"a": "123",
 	})
 
@@ -71,7 +71,7 @@ slots:
 	c.Check(err, IsNil)
 	c.Check(v, Equals, "123")
 
-	slot = interfaces.NewConnectedSlot(slotInfo, map[string]interface{}{
+	slot = interfaces.NewConnectedSlot(slotInfo, nil, map[string]interface{}{
 		"a": map[string]interface{}{
 			"b": []interface{}{"1", "2", "3"},
 		},

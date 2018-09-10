@@ -68,11 +68,11 @@ var _ = Suite(&NetworkManagerInterfaceSuite{
 func (s *NetworkManagerInterfaceSuite) SetUpTest(c *C) {
 	plugSnap := snaptest.MockInfo(c, netmgrMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["network-manager"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
 	slotSnap := snaptest.MockInfo(c, netmgrMockSlotSnapInfoYaml, nil)
 	s.slotInfo = slotSnap.Slots["network-manager"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *NetworkManagerInterfaceSuite) TestName(c *C) {
@@ -91,7 +91,10 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 		Name:      "network-manager",
 		Interface: "network-manager",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	// connected plugs have a non-nil security snippet for apparmor
@@ -115,7 +118,10 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 		Name:      "network-manager",
 		Interface: "network-manager",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -136,7 +142,10 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 		Name:      "network-manager",
 		Interface: "network-manager",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -146,7 +155,7 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 }
 
 func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLabelOnClassic(c *C) {
-	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{}, nil)
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{}, nil, nil)
 	release.OnClassic = true
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)

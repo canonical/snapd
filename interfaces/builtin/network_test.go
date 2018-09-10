@@ -57,10 +57,10 @@ func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
 		Name:      "network",
 		Interface: "network",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, netMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["network"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {

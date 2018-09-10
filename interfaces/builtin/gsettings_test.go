@@ -57,10 +57,10 @@ func (s *GsettingsInterfaceSuite) SetUpTest(c *C) {
 		Name:      "gsettings",
 		Interface: "gsettings",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, gsettingsMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["gsettings"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *GsettingsInterfaceSuite) TestName(c *C) {

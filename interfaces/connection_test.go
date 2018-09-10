@@ -78,7 +78,7 @@ var _ Attrer = (*snap.PlugInfo)(nil)
 var _ Attrer = (*snap.SlotInfo)(nil)
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
-	slot := NewConnectedSlot(s.slot, nil)
+	slot := NewConnectedSlot(s.slot, nil, nil)
 	c.Assert(slot, NotNil)
 
 	var val string
@@ -99,19 +99,19 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 }
 
 func (s *connSuite) TestSlotRef(c *C) {
-	slot := NewConnectedSlot(s.slot, nil)
+	slot := NewConnectedSlot(s.slot, nil, nil)
 	c.Assert(slot, NotNil)
 	c.Assert(*slot.Ref(), DeepEquals, SlotRef{Snap: "producer", Name: "slot"})
 }
 
 func (s *connSuite) TestPlugRef(c *C) {
-	plug := NewConnectedPlug(s.plug, nil)
+	plug := NewConnectedPlug(s.plug, nil, nil)
 	c.Assert(plug, NotNil)
 	c.Assert(*plug.Ref(), DeepEquals, PlugRef{Snap: "consumer", Name: "plug"})
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
-	plug := NewConnectedPlug(s.plug, nil)
+	plug := NewConnectedPlug(s.plug, nil, nil)
 	c.Assert(plug, NotNil)
 
 	var val string
@@ -136,7 +136,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	slot := NewConnectedSlot(s.slot, attrs)
+	slot := NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	var strVal string
@@ -171,7 +171,7 @@ func (s *connSuite) TestDottedPathSlot(c *C) {
 	}
 	var strVal string
 
-	slot := NewConnectedSlot(s.slot, attrs)
+	slot := NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	// static attribute complex.a
@@ -203,7 +203,7 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 	}
 	var strVal string
 
-	plug := NewConnectedPlug(s.plug, attrs)
+	plug := NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	v, ok := plug.Lookup("a")
@@ -239,9 +239,9 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 func (s *connSuite) TestLookupFailure(c *C) {
 	attrs := map[string]interface{}{}
 
-	slot := NewConnectedSlot(s.slot, attrs)
+	slot := NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
-	plug := NewConnectedPlug(s.plug, attrs)
+	plug := NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	v, ok := slot.Lookup("a")
@@ -258,7 +258,7 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	plug := NewConnectedPlug(s.plug, attrs)
+	plug := NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	var strVal string
@@ -288,9 +288,9 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	attrs := map[string]interface{}{}
 
-	plug := NewConnectedPlug(s.plug, attrs)
+	plug := NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
-	slot := NewConnectedSlot(s.slot, attrs)
+	slot := NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	err := plug.SetAttr("attr", "overwrite")

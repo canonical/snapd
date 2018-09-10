@@ -56,10 +56,10 @@ func (s *CpuControlInterfaceSuite) SetUpTest(c *C) {
 		Name:      "cpu-control",
 		Interface: "cpu-control",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, cpuControlMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["cpu-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *CpuControlInterfaceSuite) TestName(c *C) {

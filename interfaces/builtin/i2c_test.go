@@ -145,34 +145,34 @@ slots:
     sysfs-name: ""
 `, nil)
 	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
-	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil)
+	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
 	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
-	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil)
+	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
 	s.testUDev3Info = gadgetSnapInfo.Slots["test-udev-3"]
-	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil)
+	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil, nil)
 	s.testSysfsName1Info = gadgetSnapInfo.Slots["test-sysfs-name-1"]
-	s.testSysfsName1 = interfaces.NewConnectedSlot(s.testSysfsName1Info, nil)
+	s.testSysfsName1 = interfaces.NewConnectedSlot(s.testSysfsName1Info, nil, nil)
 	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
-	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil)
+	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
 	s.testUDevBadValue2Info = gadgetSnapInfo.Slots["test-udev-bad-value-2"]
-	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil)
+	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil, nil)
 	s.testUDevBadValue3Info = gadgetSnapInfo.Slots["test-udev-bad-value-3"]
-	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil)
+	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil, nil)
 	s.testUDevBadValue4Info = gadgetSnapInfo.Slots["test-udev-bad-value-4"]
-	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, nil)
+	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, nil, nil)
 	s.testUDevBadValue5Info = gadgetSnapInfo.Slots["test-udev-bad-value-5"]
-	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, nil)
+	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, nil, nil)
 	s.testUDevBadValue6Info = gadgetSnapInfo.Slots["test-udev-bad-value-6"]
-	s.testUDevBadValue6 = interfaces.NewConnectedSlot(s.testUDevBadValue6Info, nil)
+	s.testUDevBadValue6 = interfaces.NewConnectedSlot(s.testUDevBadValue6Info, nil, nil)
 	s.testUDevBadValue7Info = gadgetSnapInfo.Slots["test-udev-bad-value-7"]
-	s.testUDevBadValue7 = interfaces.NewConnectedSlot(s.testUDevBadValue7Info, nil)
+	s.testUDevBadValue7 = interfaces.NewConnectedSlot(s.testUDevBadValue7Info, nil, nil)
 	s.testUDevBadInterface1Info = gadgetSnapInfo.Slots["test-udev-bad-interface-1"]
 	s.testSysfsNameBadValue1Info = gadgetSnapInfo.Slots["test-sysfs-name-bad-value-1"]
-	s.testSysfsNameBadValue1 = interfaces.NewConnectedSlot(s.testSysfsNameBadValue1Info, nil)
+	s.testSysfsNameBadValue1 = interfaces.NewConnectedSlot(s.testSysfsNameBadValue1Info, nil, nil)
 	s.testSysfsNameAndPathInfo = gadgetSnapInfo.Slots["test-sysfs-name-and-path"]
-	s.testSysfsNameAndPath = interfaces.NewConnectedSlot(s.testSysfsNameAndPathInfo, nil)
+	s.testSysfsNameAndPath = interfaces.NewConnectedSlot(s.testSysfsNameAndPathInfo, nil, nil)
 	s.testSysfsNameEmptyInfo = gadgetSnapInfo.Slots["test-sysfs-name-empty"]
-	s.testSysfsNameEmpty = interfaces.NewConnectedSlot(s.testSysfsNameEmptyInfo, nil)
+	s.testSysfsNameEmpty = interfaces.NewConnectedSlot(s.testSysfsNameEmptyInfo, nil, nil)
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -187,7 +187,7 @@ apps:
     plugs: [i2c]
 `, nil)
 	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-port-1"]
-	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil)
+	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil, nil)
 }
 
 func (s *I2cInterfaceSuite) TestName(c *C) {

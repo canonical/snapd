@@ -83,8 +83,8 @@ var _ = Suite(&specSuite{
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &seccomp.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface

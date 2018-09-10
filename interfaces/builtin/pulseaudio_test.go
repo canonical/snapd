@@ -75,15 +75,15 @@ func (s *PulseAudioInterfaceSuite) SetUpTest(c *C) {
 	// pulseaudio snap with pulseaudio slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, pulseaudioMockCoreSlotSnapInfoYaml, nil)
 	s.coreSlotInfo = snapInfo.Slots["pulseaudio"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 	// pulseaudio slot on a core snap in a classic install.
 	snapInfo = snaptest.MockInfo(c, pulseaudioMockClassicSlotSnapInfoYaml, nil)
 	s.classicSlotInfo = snapInfo.Slots["pulseaudio"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil)
+	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
 	// snap with the pulseaudio plug
 	snapInfo = snaptest.MockInfo(c, pulseaudioMockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["pulseaudio"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *PulseAudioInterfaceSuite) TestName(c *C) {

@@ -79,9 +79,9 @@ slots:
         interface: test
 `, nil)
 	s.plugInfo = info1.Plugs["name"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = info2.Slots["name"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *specSuite) SetUpTest(c *C) {

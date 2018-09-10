@@ -403,8 +403,8 @@ func (s *interfaceManagerSuite) testDisconnectConflicts(c *C, snapName string, o
 	chg.AddTask(t)
 
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil, nil),
 	}
 
 	_, err := ifacestate.Disconnect(s.state, conn)
@@ -453,8 +453,8 @@ func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil, nil),
 	}
 	_, err = ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
@@ -835,12 +835,15 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{
 			Snap:  &snap.Info{SuggestedName: "consumer"},
 			Name:  "plug",
-			Attrs: map[string]interface{}{"attr1": "value1"}},
+			Attrs: map[string]interface{}{"attr1": "value1"}}, nil,
+
 			map[string]interface{}{"attr3": "value3"}),
+
 		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{
 			Snap:  &snap.Info{SuggestedName: "producer"},
 			Name:  "slot",
-			Attrs: map[string]interface{}{"attr2": "value2"}},
+			Attrs: map[string]interface{}{"attr2": "value2"}}, nil,
+
 			map[string]interface{}{"attr4": "value4"}),
 	}
 	ts, err := ifacestate.Disconnect(s.state, conn)
@@ -2280,8 +2283,8 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 
 	s.state.Lock()
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil, nil),
 	}
 
 	ts, err := ifacestate.Disconnect(s.state, conn)

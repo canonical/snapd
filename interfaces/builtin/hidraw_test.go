@@ -101,19 +101,19 @@ slots:
     bad-interface: other-interface
 `, nil)
 	s.testSlot1Info = osSnapInfo.Slots["test-port-1"]
-	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, nil)
+	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, nil, nil)
 	s.testSlot2Info = osSnapInfo.Slots["test-port-2"]
-	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, nil)
+	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, nil, nil)
 	s.missingPathSlotInfo = osSnapInfo.Slots["missing-path"]
-	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil)
+	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil, nil)
 	s.badPathSlot1Info = osSnapInfo.Slots["bad-path-1"]
-	s.badPathSlot1 = interfaces.NewConnectedSlot(s.badPathSlot1Info, nil)
+	s.badPathSlot1 = interfaces.NewConnectedSlot(s.badPathSlot1Info, nil, nil)
 	s.badPathSlot2Info = osSnapInfo.Slots["bad-path-2"]
-	s.badPathSlot2 = interfaces.NewConnectedSlot(s.badPathSlot2Info, nil)
+	s.badPathSlot2 = interfaces.NewConnectedSlot(s.badPathSlot2Info, nil, nil)
 	s.badPathSlot3Info = osSnapInfo.Slots["bad-path-3"]
-	s.badPathSlot3 = interfaces.NewConnectedSlot(s.badPathSlot3Info, nil)
+	s.badPathSlot3 = interfaces.NewConnectedSlot(s.badPathSlot3Info, nil, nil)
 	s.badInterfaceSlotInfo = osSnapInfo.Slots["bad-interface"]
-	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil)
+	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil, nil)
 
 	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
@@ -147,15 +147,15 @@ slots:
       path: /dev/my-device
 `, nil)
 	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
-	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil)
+	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
 	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
-	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil)
+	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
 	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
-	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil)
+	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
 	s.testUDevBadValue2Info = gadgetSnapInfo.Slots["test-udev-bad-value-2"]
-	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil)
+	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil, nil)
 	s.testUDevBadValue3Info = gadgetSnapInfo.Slots["test-udev-bad-value-3"]
-	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil)
+	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
@@ -180,11 +180,11 @@ apps:
         plugs: [plug-for-device-3]
 `, nil)
 	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-device-1"]
-	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil)
+	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil, nil)
 	s.testPlugPort2Info = consumingSnapInfo.Plugs["plug-for-device-2"]
-	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, nil)
+	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, nil, nil)
 	s.testPlugPort3Info = consumingSnapInfo.Plugs["plug-for-device-3"]
-	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, nil)
+	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, nil, nil)
 }
 
 func (s *HidrawInterfaceSuite) TestName(c *C) {

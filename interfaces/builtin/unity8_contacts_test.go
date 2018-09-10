@@ -67,15 +67,15 @@ apps:
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["unity8-contacts"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
 	slotSnap := snaptest.MockInfo(c, mockCoreSlotInfoYaml, nil)
 	s.coreSlotInfo = slotSnap.Slots["unity8-contacts"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestName(c *C) {
@@ -106,7 +106,10 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -129,7 +132,10 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -150,7 +156,10 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
