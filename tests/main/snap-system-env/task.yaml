@@ -33,3 +33,6 @@ execute: |
 
     echo "/snap/bin already part of the PATH should not generate output"
     [ -z "$(PATH=/bin:/snap/bin:/sbin $SENV)" ] || exit 1
+
+    # regression test for LP: #1791691
+    PATH="" $SENV | MATCH '^PATH=/snap/bin$'
