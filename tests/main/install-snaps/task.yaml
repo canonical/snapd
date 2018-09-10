@@ -86,6 +86,10 @@ restore: |
     systemctl daemon-reload
     systemctl restart snapd.socket
 
+    if [ -L /snap ]; then
+        unlink /snap
+    fi
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
