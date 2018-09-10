@@ -85,7 +85,7 @@ var (
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
-	OtherSnapsLike = otherSnapsLike
+	HasOtherInstances = hasOtherInstances
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
