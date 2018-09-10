@@ -130,21 +130,6 @@ func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
 
-// Secure is a helper for making filesystem operations free from certain kinds of attacks.
-type Secure struct{}
-
-// CheckTrespassing inspects if a filesystem operation on the given path
-// segment would trespass on the host.
-//
-// The idea of trespassing is so that we do not attempt to create a
-// directory, a file or a symlink in a directory that is usually beyond
-// control of snap applications. We are perfectly comfortable with creating
-// things in $SNAP_DATA or in /tmp but we don't want to do so in /etc or in
-// other sensitive places.
-func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) error {
-	return nil
-}
-
 // OpenPath creates a path file descriptor for the given
 // path, making sure no components are symbolic links.
 //
@@ -612,10 +597,10 @@ type FatalError struct {
 // In the event of a failure the undo plan is executed and an error is
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
-func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
+func execWritableMimic(plan []*Change) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := changePerform(change, sec); err != nil {
+		if _, err := changePerform(change); err != nil {
 			// Drat, we failed! Let's undo everything according to our own undo
 			// plan, by following it in reverse order.
 
@@ -638,7 +623,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 				if recoveryUndoChange.Entry.OptBool("rbind") {
 					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
-				if _, err2 := changePerform(recoveryUndoChange, sec); err2 != nil {
+				if _, err2 := changePerform(recoveryUndoChange); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
 					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
@@ -686,12 +671,12 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func createWritableMimic(dir, neededBy string, sec *Secure) ([]*Change, error) {
+func createWritableMimic(dir, neededBy string) ([]*Change, error) {
 	plan, err := planWritableMimic(dir, neededBy)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := execWritableMimic(plan, sec)
+	changes, err := execWritableMimic(plan)
 	if err != nil {
 		return nil, err
 	}
