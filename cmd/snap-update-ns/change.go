@@ -106,11 +106,11 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	// will affect tests heavily (churn, not safe before release).
 	switch kind {
 	case "":
-		err = sec.MkdirAll(path, mode, uid, gid)
+		err = MkdirAll(path, mode, uid, gid)
 	case "file":
-		err = sec.MkfileAll(path, mode, uid, gid)
+		err = MkfileAll(path, mode, uid, gid)
 	case "symlink":
-		err = sec.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
+		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink())
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
@@ -287,7 +287,7 @@ func (c *Change) lowLevelPerform(sec *Secure) error {
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
-				err = sec.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
 			} else {
 				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			}
