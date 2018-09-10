@@ -245,7 +245,7 @@ snap_confine_snap_confine_SOURCES += \
 	snap-confine/seccomp-support.h
 snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
 if STATIC_LIBSECCOMP
-snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libseccomp)
 else
 snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
 endif  # STATIC_LIBSECCOMP
@@ -254,7 +254,7 @@ endif  # SECCOMP
 if APPARMOR
 snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
-snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
 else
 snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
@@ -398,7 +398,7 @@ snap_discard_ns_snap_discard_ns_STATIC =
 if APPARMOR
 snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
-snap_discard_ns_snap_discard_ns_STATIC += $(shell pkg-config --static --libs libapparmor)
+snap_discard_ns_snap_discard_ns_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
 else
 snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
