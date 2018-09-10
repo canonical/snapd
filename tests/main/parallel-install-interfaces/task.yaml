@@ -1,0 +1,68 @@
+summary: Check that snap connect with parallel installs works
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    snap set system experimental.parallel-instances=true
+
+    echo "Install test snaps"
+    install_local home-consumer
+    install_local_as home-consumer home-consumer_foo
+
+    # the home interface is not autoconnected on all-snap systems
+    if [[ ! "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
+        snap disconnect home-consumer:home
+        snap disconnect home-consumer_foo:home
+    fi
+
+restore: |
+    snap set system experimental.parallel-instances=null
+
+execute: |
+    echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
+    snap connect home-consumer:home
+    snap interfaces | MATCH ':home .*home-consumer$'
+    snap tasks --last=connect| MATCH "Connect home-consumer:home to (core|snapd):home"
+
+    echo "Instance snap plug can be connected as well"
+    snap connect home-consumer_foo:home
+    snap interfaces | MATCH ':home .*home-consumer_foo$'
+    snap tasks --last=connect| MATCH "Connect home-consumer_foo:home to (core|snapd):home"
+
+    echo "When non-instance snap plug is disconnected"
+    snap disconnect home-consumer:home
+    snap tasks --last=disconnect| MATCH "Disconnect home-consumer:home from (core|snapd):home"
+
+    echo "The instance snap plug remains connected"
+    snap interfaces | MATCH ':home .*home-consumer_foo$'
+
+    snap disconnect home-consumer_foo:home
+    snap tasks --last=disconnect| MATCH "Disconnect home-consumer_foo:home from (core|snapd):home"
+
+    # NOTE: Those only work when installed from the store as otherwise we don't
+    # have snap declaration assertion and cannot check if a given connection
+    # should be allowed.
+    CONTENT_CONNECTED_PATTERN='test-snapd-content-slot:shared-content-slot +test-snapd-content-plug_foo:shared-content-plug'
+
+    echo "The plug side auto-connects when content is installed"
+    snap install --edge test-snapd-content-slot
+    snap install --edge test-snapd-content-plug_foo
+
+    snap tasks --last=install| MATCH "Mount snap \"test-snapd-content-plug_foo\""
+
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
+
+    # Remove the content snaps so that we can reinstall them the other way around
+    snap remove test-snapd-content-plug_foo
+    snap remove test-snapd-content-slot
+
+    echo "The slot side auto-connects when content snap is installed"
+    snap install --edge test-snapd-content-plug_foo
+    # test-snapd-content-slot is installed as a dependency
+    # snap install --edge test-snapd-content-slot
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
+    echo "The interface is disconnected when content snap provider is removed"
+    snap remove test-snapd-content-slot
+
+    snap interfaces | MATCH -- '^-\s+test-snapd-content-plug_foo:shared-content-plug$'

@@ -78,7 +78,6 @@ backends:
                 workers: 4
                 manual: true
             - fedora-27-64:
-                image: fedora-27-64-selinux-permissive
                 workers: 4
                 manual: true
             - fedora-28-64:
@@ -88,6 +87,10 @@ backends:
                 workers: 4
             - arch-linux-64:
                 workers: 4
+
+            - amazon-linux-2-64:
+                workers: 4
+                storage: preserve-size
 
     google-sru:
         type: google
@@ -283,6 +286,18 @@ backends:
             - ubuntu-core-16-arm-32:
                 username: test
                 password: ubuntu
+            - ubuntu-core-18-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-18-32:
+                username: test
+                password: ubuntu
+            - ubuntu-core-18-arm-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-18-arm-32:
+                username: test
+                password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -391,6 +406,9 @@ prepare: |
                 ;;
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            amazon-*)
+                yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
                 zypper -q --gpg-auto-import-keys refresh
@@ -517,7 +535,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -559,40 +577,25 @@ suites:
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
-        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
         prepare: |
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            #shellcheck source=tests/lib/systems.sh
-            . "$TESTSLIB"/systems.sh
-            if is_core_system; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            #shellcheck source=tests/lib/reset.sh
-            "$TESTSLIB"/reset.sh --reuse-core
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            #shellcheck source=tests/lib/reset.sh
-            "$TESTSLIB"/reset.sh
-            #shellcheck source=tests/lib/systems.sh
-            . "$TESTSLIB"/systems.sh
-            if is_classic_system; then
-                #shellcheck source=tests/lib/pkgdb.sh
-                . "$TESTSLIB"/pkgdb.sh
-                distro_purge_package snapd
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/nested/:
         summary: Tests for nested images
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-fedora-*, -opensuse-*, -amazon-*]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"

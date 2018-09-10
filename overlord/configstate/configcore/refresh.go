@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -34,21 +35,10 @@ func init() {
 	supportedConfigurations["core.refresh.timer"] = true
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
+	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
 func validateRefreshSchedule(tr Conf) error {
-	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
-	if err != nil {
-		return err
-	}
-	if refreshTimerStr != "" {
-		// try legacy refresh.schedule setting if new-style
-		// refresh.timer is not set
-		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
-			return err
-		}
-	}
-
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
@@ -80,6 +70,30 @@ func validateRefreshSchedule(tr Conf) error {
 		return fmt.Errorf("refresh.metered value %q is invalid", refreshOnMeteredStr)
 	}
 
+	// check (new) refresh.timer
+	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
+	if err != nil {
+		return err
+	}
+	if refreshTimerStr == "managed" {
+		st := tr.State()
+		st.Lock()
+		defer st.Unlock()
+
+		if !devicestate.CanManageRefreshes(st) {
+			return fmt.Errorf("cannot set schedule to managed")
+		}
+		return nil
+	}
+	if refreshTimerStr != "" {
+		// try legacy refresh.schedule setting if new-style
+		// refresh.timer is not set
+		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
+			return err
+		}
+	}
+
+	// check (legacy) refresh.schedule
 	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
 	if err != nil {
 		return err
@@ -101,4 +115,19 @@ func validateRefreshSchedule(tr Conf) error {
 
 	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
 	return err
+}
+
+func validateRefreshRateLimit(tr Conf) error {
+	refreshRateLimit, err := coreCfg(tr, "refresh.rate-limit")
+	if err != nil {
+		return err
+	}
+	// reset is fine
+	if len(refreshRateLimit) == 0 {
+		return nil
+	}
+	if _, err := strutil.ParseByteSize(refreshRateLimit); err != nil {
+		return err
+	}
+	return nil
 }

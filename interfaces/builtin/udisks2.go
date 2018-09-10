@@ -155,6 +155,12 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
     peer=(label=###SLOT_SECURITY_TAGS###),
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/UDisks2/**
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
 
 dbus (receive, send)
     bus=system
@@ -170,12 +176,12 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to introspect the service
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/UDisks2
     interface=org.freedesktop.DBus.Introspectable
-    member=Introspect
-    peer=(label=###SLOT_SECURITY_TAGS###),
+    member=Introspect,
 `
 
 const udisks2PermanentSlotSecComp = `

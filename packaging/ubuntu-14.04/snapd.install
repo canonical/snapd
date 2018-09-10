@@ -3,10 +3,10 @@ usr/bin/snapctl
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
+usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
-usr/lib/snapd/snapd-generator /lib/systemd/system-generators/
 
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions
@@ -25,11 +25,15 @@ usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-discard-ns
 usr/lib/snapd/snap-mgmt
-usr/share/man/man1/snap-confine.1
-usr/share/man/man5/snap-discard-ns.5
+usr/share/man/
 # for compatibility with ancient snap installs that wrote the shell based
 # wrapper scripts instead of the modern symlinks
 usr/bin/ubuntu-core-launcher
 
 # gdb helper
 usr/lib/snapd/snap-gdb-shim
+
+# use "usr/lib" here because apparently systemd looks only there
+usr/lib/systemd/system-environment-generators
+# but system generators end up in lib
+lib/systemd/system-generators

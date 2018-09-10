@@ -1,12 +1,5 @@
 summary: Ensure that the upower-observe interface works.
 
-systems:
-    # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-    - -ubuntu-*-ppc64el
-    - -fedora-*
-    - -opensuse-*
-    - -arch-*
-
 details: |
     The upower-observe interface allows a snap to query UPower for power devices, history
     and statistics.
@@ -16,6 +9,9 @@ details: |
 
     The test uses a snap wrapping the upower command line utility, and checks that it can query
     it without error while the plug is connected.
+
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
+systems: [-ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
@@ -44,7 +40,7 @@ execute: |
 
     echo "When the plug is connected the snap is able to dump info about the upower devices"
     expected="/org/freedesktop/UPower/devices/DisplayDevice.*"
-    for i in $(seq 20); do
+    for _ in $(seq 20); do
         if ! test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"; then
             sleep 1
         fi
@@ -56,9 +52,9 @@ execute: |
         snap disconnect test-snapd-upower-observe-consumer:upower-observe
 
         echo "Then the snap is not able to dump info about the upower devices"
-        if test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error; then
+        if test-snapd-upower-observe-consumer.upower --dump 2>"${PWD}"/upower.error; then
             echo "Expected permission error accessing upower info with disconnected plug"
             exit 1
         fi
-        cat upower.error | MATCH "Permission denied"
+        MATCH "Permission denied" < upower.error
     fi

@@ -23,6 +23,7 @@ package store
 import (
 	"bytes"
 	"crypto"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/ratelimit"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
@@ -73,6 +75,8 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
+
+	RequestSalt string
 }
 
 // the LimitTime should be slightly more than 3 times of our http.Client
@@ -110,6 +114,9 @@ type Config struct {
 
 	// CacheDownloads is the number of downloads that should be cached
 	CacheDownloads int
+
+	// Proxy returns the HTTP proxy to use when talking to the store
+	Proxy func(*http.Request) (*url.URL, error)
 }
 
 // setBaseURL updates the store API's base URL in the Config. Must not be used
@@ -154,6 +161,7 @@ type Store struct {
 	suggestedCurrency string
 
 	cacher downloadCache
+	proxy  func(*http.Request) (*url.URL, error)
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -346,10 +354,12 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		infoFields:      infoFields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+		proxy:           cfg.Proxy,
 
-		client: httputil.NewHTTPClient(&httputil.ClientOpts{
+		client: httputil.NewHTTPClient(&httputil.ClientOptions{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
+			Proxy:      cfg.Proxy,
 		}),
 	}
 	store.SetCacheDownloads(cfg.CacheDownloads)
@@ -1222,9 +1232,10 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	}
 
 	// do not log body for catalog updates (its huge)
-	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		MayLogBody: false,
 		Timeout:    10 * time.Second,
+		Proxy:      s.proxy,
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, client, reqOptions, nil)
@@ -1319,11 +1330,15 @@ func (e HashError) Error() string {
 	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
+type DownloadOptions struct {
+	RateLimit int64
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
@@ -1380,7 +1395,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts)
 		if err != nil {
 			logger.Debugf("download of %q failed: %#v", url, err)
 		}
@@ -1410,7 +1425,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if err != nil {
 			return err
 		}
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
 		if err != nil {
 			logger.Debugf("download of %q failed: %#v", url, err)
 		}
@@ -1431,7 +1446,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
-func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
 		URL:          storeURL,
@@ -1444,8 +1459,16 @@ func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	return &reqOptions
 }
 
+var ratelimitReader = ratelimit.Reader
+
+var download = downloadImpl
+
 // download writes an http.Request showing a progress.Meter
-var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
+	if dlOpts == nil {
+		dlOpts = &DownloadOptions{}
+	}
+
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1460,7 +1483,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := downloadOptions(storeURL, cdnHeader)
+		reqOptions := reqOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -1485,7 +1508,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(nil), reqOptions, user)
+		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
@@ -1519,7 +1542,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		dlSize = float64(resp.ContentLength)
 		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
-		_, finalErr = io.Copy(mw, resp.Body)
+		var limiter io.Reader
+		limiter = resp.Body
+		if limit := dlOpts.RateLimit; limit > 0 {
+			bucket := ratelimit.NewBucketWithRate(float64(limit), 2*limit)
+			limiter = ratelimitReader(resp.Body, bucket)
+		}
+		_, finalErr = io.Copy(mw, limiter)
 		pbar.Finished()
 		if finalErr != nil {
 			if httputil.ShouldRetryError(attempt, finalErr) {
@@ -1584,7 +1613,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
+	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
@@ -2082,12 +2111,37 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 }
 
+func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
+	_, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName)
+
+	if snapInstanceKey == "" {
+		return curSnap.SnapID, nil
+	}
+
+	if salt == "" {
+		return "", fmt.Errorf("internal error: request salt not provided")
+	}
+
+	// due to privacy concerns, avoid sending the local names to the
+	// backend, instead hash the snap ID and instance key together
+	h := crypto.SHA256.New()
+	h.Write([]byte(curSnap.SnapID))
+	h.Write([]byte(snapInstanceKey))
+	h.Write([]byte(salt))
+	enc := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	return fmt.Sprintf("%s:%s", curSnap.SnapID, enc), nil
+}
+
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
 
 	// TODO: the store already requires instance-key but doesn't
 	// yet support repeating in context or sending actions for the
 	// same snap-id, for now we keep instance-key handling internal
 
+	requestSalt := ""
+	if opts != nil {
+		requestSalt = opts.RequestSalt
+	}
 	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
 	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
 	instanceNameToKey := make(map[string]string, len(currentSnaps))
@@ -2095,10 +2149,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		// due to privacy concerns, avoid sending the local names to the
-		// backend and instead just number current snaps, this requires
-		// extra hoops to translate instance key -> instance name
-		instanceKey := fmt.Sprintf("%d-%s", i, curSnap.SnapID)
+		instanceKey, err := genInstanceKey(curSnap, requestSalt)
+		if err != nil {
+			return nil, err
+		}
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
@@ -2364,7 +2418,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return hosts, err
 	}
 
-	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions := reqOptions(dlURL, cdnHeader)
 	reqOptions.Method = "HEAD" // not actually a download
 
 	// TODO: We need the HEAD here so that we get redirected to the

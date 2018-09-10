@@ -4,7 +4,8 @@ details: |
     The removable-media interface allows to access to removable storage filesystems.
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-removable-media
 
     if ! [ -d /media ]; then
@@ -21,12 +22,17 @@ prepare: |
     mkdir -p /run/media/testdir
     touch /run/media/testdir/testfile
 
+    echo "Mount a filesystem in /tmp/testing and put some data there"
+    mkdir -p /mnt/testing/
+    mount -t tmpfs none /mnt/testing
+    echo canary > /mnt/testing/data
 
 restore: |
     rm -f call.error
 
     rm -rf /media/testdir
     if [ -f /media/fake ]; then
+        #shellcheck disable=SC2114
         rm -rf /media
     fi
 
@@ -35,9 +41,12 @@ restore: |
         rm -rf /run/media/
     fi
 
+    umount /mnt/testing
+    rmdir /mnt/testing || true # in case the user had /mnt/testing
+
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i removable-media | MATCH "\- +test-snapd-removable-media:removable-media"
+    snap interfaces -i removable-media | MATCH -- '- +test-snapd-removable-media:removable-media'
 
     echo "When the interface is connected"
     snap connect test-snapd-removable-media:removable-media
@@ -54,6 +63,11 @@ execute: |
     test-snapd-removable-media.sh -c "ls /run/media/testdir"
     test-snapd-removable-media.sh -c "echo test >> /run/media/testdir/testfile"
 
+    echo "And the snap has read-write access to /mnt/testing/data"
+    test-snapd-removable-media.sh -c 'cat /mnt/testing/data' | MATCH canary
+    test-snapd-removable-media.sh -c 'echo modified > /mnt/testing/data'
+    MATCH modified < /mnt/testing/data
+
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
@@ -62,8 +76,13 @@ execute: |
     snap disconnect test-snapd-removable-media:removable-media
 
     echo "Then the snap is not able to access read the test media file"
-    if test-snapd-removable-media.sh -c "ls /run" 2>${PWD}/call.error; then
+    if test-snapd-removable-media.sh -c "ls /run" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to removable storage filesystems"
         exit 1
     fi
     MATCH "Permission denied" < call.error
+
+    echo "Then /mnt/testing/data is no longer readable"
+    if test-snapd-removable-media.sh -c 'cat /mnt/testing/data'; then
+        echo "/mnt/testing/data should no longer be readable" && exit 1
+    fi

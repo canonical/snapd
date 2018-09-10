@@ -59,6 +59,7 @@ type cmdRun struct {
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
 	// "default" and "optional-value" to distinguish this.
@@ -300,9 +301,18 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	userData := info.UserDataDir(usr.HomeDir)
-	commonUserData := info.UserCommonDataDir(usr.HomeDir)
-	for _, d := range []string{userData, commonUserData} {
+	instanceUserData := info.UserDataDir(usr.HomeDir)
+	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
+	createDirs := []string{instanceUserData, instanceCommonUserData}
+	if info.InstanceKey != "" {
+		// parallel instance snaps get additional mapping in their mount
+		// namespace, namely /home/joe/snap/foo_bar ->
+		// /home/joe/snap/foo, make sure that the mount point exists and
+		// is owned by the user
+		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
+		createDirs = append(createDirs, snapUserDir)
+	}
+	for _, d := range createDirs {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)

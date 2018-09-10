@@ -20,8 +20,10 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,8 +32,10 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
@@ -39,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // hook setup by devicestate
@@ -397,6 +403,23 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
 }
 
+// autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
+// there is no limit.
+func autoRefreshRateLimited(st *state.State) (rate int64) {
+	tr := config.NewTransaction(st)
+
+	var rateLimit string
+	err := tr.Get("core", "refresh.rate-limit", &rateLimit)
+	if err != nil {
+		return 0
+	}
+	val, err := strutil.ParseByteSize(rateLimit)
+	if err != nil {
+		return 0
+	}
+	return val
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -408,6 +431,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	theStore := Store(st)
+	rate := autoRefreshRateLimited(st)
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
@@ -416,6 +440,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
+
+	dlOpts := &store.DownloadOptions{}
+	if snapsup.IsAutoRefresh && rate > 0 {
+		dlOpts.RateLimit = rate
+	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
@@ -425,10 +454,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 	}
 	if err != nil {
 		return err
@@ -462,14 +491,14 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
+	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
 		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb)
+	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	if err != nil {
 		return err
 	}
@@ -676,6 +705,27 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// writeSeqFile writes the sequence file for failover handling
+func writeSeqFile(name string, snapst *SnapState) error {
+	p := filepath.Join(dirs.SnapSeqDir, name+".json")
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return err
+	}
+
+	b, err := json.Marshal(&struct {
+		Sequence []*snap.SideInfo `json:"sequence"`
+		Current  string           `json:"current"`
+	}{
+		Sequence: snapst.Sequence,
+		Current:  snapst.Current.String(),
+	})
+	if err != nil {
+		return err
+	}
+
+	return osutil.AtomicWriteFile(p, b, 0644, 0)
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -736,6 +786,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapst.UserID = snapsup.UserID
 		}
 	}
+	// keep instance key
+	snapst.InstanceKey = snapsup.InstanceKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
 	if err != nil {
@@ -782,6 +834,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)
+	// write sequence file for failover helpers
+	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
+		return err
+	}
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
@@ -952,6 +1008,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	Set(st, snapsup.InstanceName(), snapst)
+	// write sequence file for failover helpers
+	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
+		return err
+	}
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
