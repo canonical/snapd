@@ -179,7 +179,7 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 
 	if now.Sub(lastRefresh) >= maxPostponement {
 		// TODO use warnings when the infra becomes available
-		logger.Noticef("Auto refresh disabled while on metered connections, but pending for too long (%s days). Trying to refresh now.", int(maxPostponement.Hours()/24))
+		logger.Noticef("Auto refresh disabled while on metered connections, but pending for too long (%d days). Trying to refresh now.", int(maxPostponement.Hours()/24))
 		return true, nil
 	}
 

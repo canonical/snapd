@@ -154,6 +154,9 @@ capability setuid,
 @{PROC}/@{pid}/loginuid r,
 @{PROC}/@{pid}/mounts r,
 
+# static host tables
+/etc/hosts w,
+
 # resolvconf
 /sbin/resolvconf ixr,
 /run/resolvconf/{,**} r,

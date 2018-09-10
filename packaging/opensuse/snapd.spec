@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.34.2
+Version:        2.35.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -194,13 +194,11 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 %gobuild cmd/snap
 %gobuild cmd/snapctl
 # build snap-exec and snap-update-ns completely static for base snaps
-CGO_ENABLED=0 %gobuild cmd/snap-exec
-# gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
-# FIXME: ^ this doesn't work yet, it's going to be fixed with another PR.
-%gobuild cmd/snap-update-ns
-
-# This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
-sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
+# NOTE: openSUSE's golang rpm helpers pass -buildmode=pie, but glibc is not
+# built with -fPIC so it'll blow up during linking, need to pass
+# -buildmode=default to override this
+%gobuild -buildmode=default -ldflags=-extldflags=-static cmd/snap-exec
+%gobuild -buildmode=default -ldflags=-extldflags=-static cmd/snap-update-ns
 # build snap-seccomp
 %gobuild cmd/snap-seccomp
 
@@ -283,9 +281,6 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
-# move snapd-generator
-install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/
 
 # Don't ship apparmor helper service when AppArmor is not enabled
 %if ! %{with apparmor}
@@ -360,9 +355,11 @@ fi
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.*
 %{_mandir}/man5/snap-discard-ns.5.*
+%{_mandir}/man7/snapd-env-generator.7*
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
+%{_unitdir}/snapd.failure.service
 %if %{with apparmor}
 %{_unitdir}/snapd.apparmor.service
 %endif
@@ -399,6 +396,7 @@ fi
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %{_environmentdir}/990-snapd.conf
+%{_prefix}/lib/systemd/system-environment-generators/snapd-env-generator
 
 %changelog
 

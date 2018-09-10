@@ -1,0 +1,42 @@
+summary: Checks for parallel installation of sideloaded snaps
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Sideload the regular snap"
+    install_local test-snapd-tools
+
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    ! install_local_as test-snapd-tools test-snapd-tools_foo 2> run.err
+    MATCH 'experimental feature disabled' < run.err
+
+    snap set system experimental.parallel-instances=true
+
+    for instance in foo longname; do
+        echo "Sideload same snap as different instance named test-snapd-tools_$instance"
+        expected="^test-snapd-tools_$instance 1.0 installed\$"
+        install_local_as test-snapd-tools "test-snapd-tools_$instance" | MATCH "$expected"
+
+        test -d "$SNAP_MOUNT_DIR/test-snapd-tools_$instance/x1"
+
+        # TODO parallel-install: this is expected to fail until the remaining
+        # bits land
+        ! su -l -c "test-snapd-tools_$instance.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
+        # MATCH "hello user data from test-snapd-tools_$instance" < "/home/test/snap/test-snapd-tools_$instance/x1/data"
+    done
+
+    echo "All snaps are listed"
+    snap list | MATCH '^test-snapd-tools '
+    snap list | MATCH '^test-snapd-tools_foo '
+    snap list | MATCH '^test-snapd-tools_longname '
+
+    echo "Removing one instance does not remove other instances' directories"
+    snap remove test-snapd-tools_foo
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools_longname/x1"
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools/x1"
+
+restore:
+    snap set system experimental.parallel-instances=null

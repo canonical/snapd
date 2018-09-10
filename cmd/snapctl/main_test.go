@@ -34,7 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+func TestT(t *testing.T) { TestingT(t) }
 
 type snapctlSuite struct {
 	server            *httptest.Server

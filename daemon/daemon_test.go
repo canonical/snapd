@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -193,6 +194,43 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	})
 }
 
+func (s *daemonSuite) TestFillsWarnings(c *check.C) {
+	d := newTestDaemon(c)
+
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var rst struct {
+		WarningTimestamp *time.Time `json:"warning-timestamp,omitempty"`
+		WarningCount     int        `json:"warning-count,omitempty"`
+	}
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.WarningCount, check.Equals, 0)
+	c.Check(rst.WarningTimestamp, check.IsNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.Warnf("hello world")
+	st.Unlock()
+
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.WarningCount, check.Equals, 1)
+	c.Check(rst.WarningTimestamp, check.NotNil)
+}
+
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	get := &http.Request{Method: "GET"}
 	put := &http.Request{Method: "PUT"}
@@ -309,7 +347,7 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 
 	// if the user dismisses the auth request, forbid access
 	s.err = polkit.ErrDismissed
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessCancelled)
 }
 
 func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
@@ -460,7 +498,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
-	err = d.Stop()
+	err = d.Stop(nil)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1", "STOPPING=1"})
@@ -481,7 +519,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	d.Start()
-	defer d.Stop()
+	defer d.Stop(nil)
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -591,7 +629,7 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	}()
 
 	<-responding
-	err = d.Stop()
+	err = d.Stop(nil)
 	doRespond <- false
 	c.Check(err, check.IsNil)
 
@@ -617,7 +655,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	d.Start()
-	defer d.Stop()
+	defer d.Stop(nil)
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -681,7 +719,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	c.Check(delays, check.HasLen, 1)
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
 
-	err = d.Stop()
+	err = d.Stop(nil)
 
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
 	c.Check(delays, check.HasLen, 2)
@@ -715,4 +753,79 @@ func (s *daemonSuite) TestRebootHelper(c *check.C) {
 
 		cmd.ForgetCalls()
 	}
+}
+
+func makeDaemonListeners(c *check.C, d *Daemon) {
+	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	snapdClosed := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
+}
+
+// This test tests that when the snapd calls a restart of the system
+// a sigterm (from e.g. systemd) is handled when it arrives before
+// stop is fully done.
+func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
+	oldRebootNoticeWait := rebootNoticeWait
+	defer func() {
+		rebootNoticeWait = oldRebootNoticeWait
+	}()
+	rebootNoticeWait = 150 * time.Millisecond
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
+	s.markSeeded(d)
+
+	d.Start()
+	d.overlord.State().RequestRestart(state.RestartSystem)
+
+	ch := make(chan os.Signal, 2)
+	ch <- syscall.SIGTERM
+	// stop will check if we got a sigterm in between (which we did)
+	err := d.Stop(ch)
+	c.Assert(err, check.IsNil)
+}
+
+// This test tests that when there is a shutdown we close the sigterm
+// handler so that systemd can kill snapd.
+func (s *daemonSuite) TestRestartShutdown(c *check.C) {
+	oldRebootNoticeWait := rebootNoticeWait
+	oldRebootWaitTimeout := rebootWaitTimeout
+	defer func() {
+		reboot = rebootImpl
+		rebootNoticeWait = oldRebootNoticeWait
+		rebootWaitTimeout = oldRebootWaitTimeout
+	}()
+	rebootWaitTimeout = 100 * time.Millisecond
+	rebootNoticeWait = 150 * time.Millisecond
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
+	s.markSeeded(d)
+
+	d.Start()
+	d.overlord.State().RequestRestart(state.RestartSystem)
+
+	sigCh := make(chan os.Signal, 2)
+	// stop (this will timeout but thats not relevant for this test)
+	d.Stop(sigCh)
+
+	// ensure that the sigCh got closed as part of the stop
+	_, chOpen := <-sigCh
+	c.Assert(chOpen, check.Equals, false)
+
 }

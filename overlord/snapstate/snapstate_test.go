@@ -202,6 +202,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
@@ -220,6 +221,42 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 		return nil
 	}, nil)
 
+}
+
+func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current:     snap.R(1),
+		SnapType:    "os",
+		Channel:     "foo",
+		InstanceKey: "bar",
+	}
+
+	s.state.Lock()
+
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "no-instance-key", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	err := snapstate.Get(s.state, "bar", nil)
+	c.Assert(err, ErrorMatches, "internal error: snapst is nil")
+
+	err = snapstate.Get(s.state, "no-instance-key", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst, DeepEquals, snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
 }
 
 func (s *snapmgrTestSuite) TestStore(c *C) {
@@ -391,15 +428,28 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
+		"auto-disconnect",
 		"run-hook[remove]",
 		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
-		"discard-conns",
 	})
 	verifyStopReason(c, ts, "remove")
+}
+
+func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
+	for _, t := range tasks {
+		if t.Kind() == "download-snap" {
+			var snapsup snapstate.SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			c.Assert(err, IsNil)
+			c.Check(snapsup.IsAutoRefresh, Equals, expected)
+			return
+		}
+	}
+	c.Fatalf("cannot find download-snap task in %q", tasks)
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -491,7 +541,7 @@ func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
 
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0`)
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
@@ -701,7 +751,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		SnapType: "app",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
@@ -714,6 +764,69 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	checkIsAutoRefresh(c, ts.Tasks(), false)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+		},
+		Current:     snap.R(3),
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	// ensure stable ordering of updates list
+	if updates[0] != "some-snap" {
+		updates[1], updates[0] = updates[0], updates[1]
+	}
+
+	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
+
+	var snapsup, snapsupInstance *snapstate.SnapSetup
+
+	// ensure stable ordering of task sets list
+	snapsup, err = snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	if snapsup.InstanceName() != "some-snap" {
+		tts[0], tts[1] = tts[1], tts[0]
+		snapsup, err = snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+		c.Assert(err, IsNil)
+	}
+	snapsupInstance, err = snapstate.TaskSnapSetup(tts[1].Tasks()[0])
+	c.Assert(err, IsNil)
+
+	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsupInstance.InstanceName(), Equals, "some-snap_instance")
+
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tts[0], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tts[1], s.state)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
@@ -729,7 +842,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	})
 
 	// updated snap is devmode, updatemany doesn't update it
-	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
 }
@@ -751,7 +864,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 	})
 
 	// if a snap installed without --classic gets a classic update it isn't installed
-	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
 }
@@ -774,7 +887,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	})
 
 	// snap installed with classic: refresh gets classic
-	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 }
@@ -793,7 +906,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
 }
@@ -812,28 +925,12 @@ func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
-	core := &snap.Info{Type: snap.TypeOS}
-	base := &snap.Info{Type: snap.TypeBase}
-	app := &snap.Info{Type: snap.TypeApp}
-	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
-
-	c.Check(snapstate.ByKindOrder(base, core), DeepEquals, []*snap.Info{core, base})
-	c.Check(snapstate.ByKindOrder(app, core), DeepEquals, []*snap.Info{core, app})
-	c.Check(snapstate.ByKindOrder(app, base), DeepEquals, []*snap.Info{base, app})
-	c.Check(snapstate.ByKindOrder(app, base, core), DeepEquals, []*snap.Info{core, base, app})
-	c.Check(snapstate.ByKindOrder(app, core, base), DeepEquals, []*snap.Info{core, base, app})
-
-	c.Check(snapstate.ByKindOrder(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
-	c.Check(snapstate.ByKindOrder(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
-}
-
-func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
+func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -865,7 +962,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 		Channel:  "channel-for-base",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	c.Check(updates, HasLen, 3)
@@ -900,6 +997,88 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
+	snapstate.MockModelWithBase("core18")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+		Channel:  "channel-for-base",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 4)
+	c.Check(updates, HasLen, 4)
+
+	// to make TaskSnapSetup work
+	chg := s.state.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	// Note that some-app only waits for snapd+some-base. The core18
+	// base is not special to this snap and not waited for
+	prereqTotal := len(tts[0].Tasks()) + len(tts[1].Tasks())
+	prereqs := map[string]bool{}
+	for i, task := range tts[3].Tasks() {
+		waitTasks := task.WaitTasks()
+		if i == 0 {
+			c.Check(len(waitTasks), Equals, prereqTotal)
+		} else if task.Kind() == "link-snap" {
+			c.Check(len(waitTasks), Equals, prereqTotal+1)
+			for _, pre := range waitTasks {
+				if pre.Kind() == "link-snap" {
+					snapsup, err := snapstate.TaskSnapSetup(pre)
+					c.Assert(err, IsNil)
+					prereqs[snapsup.InstanceName()] = true
+				}
+			}
+		}
+	}
+
+	// Note that "core18" is not part of the prereqs for some-app
+	// as it does not use this base.
+	c.Check(prereqs, DeepEquals, map[string]bool{
+		"some-base": true,
+		"snapd":     true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -925,7 +1104,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
@@ -958,13 +1137,13 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	snapstate.ValidateRefreshes = validateRefreshes
 
 	// refresh all => no error
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
 
 	// refresh some-snap => report error
-	updates, tts, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0)
+	updates, tts, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0, nil)
 	c.Assert(err, Equals, validateErr)
 	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
@@ -1096,7 +1275,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "new-channel")
-	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
@@ -1114,6 +1293,42 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 	})
 
 	_, err := snapstate.Switch(s.state, "kernel", "18/beta")
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	_, err := snapstate.Switch(s.state, "brand-gadget", "new-channel")
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel/stable"`)
+}
+
+func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	_, err := snapstate.Switch(s.state, "brand-gadget", "18/beta")
 	c.Assert(err, IsNil)
 }
 
@@ -1347,7 +1562,7 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", snapstate.Flags{})
+	_, _, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
@@ -1356,7 +1571,7 @@ func (s *snapmgrTestSuite) TestInstallPathMissingName(c *C) {
 	defer s.state.Unlock()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{}, mockSnap, "", snapstate.Flags{})
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap name to install %q not provided`, mockSnap))
 }
 
@@ -1365,7 +1580,7 @@ func (s *snapmgrTestSuite) TestInstallPathSnapIDRevisionUnset(c *C) {
 	defer s.state.Unlock()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "snapididid"}, mockSnap, "", snapstate.Flags{})
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "snapididid"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap id set to install %q but revision is unset`, mockSnap))
 }
 
@@ -1733,6 +1948,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -1774,6 +1990,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
@@ -1860,6 +2077,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	snapst := snaps["some-snap"]
+	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Channel, Equals, "some-channel")
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -1869,6 +2087,174 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		Revision: snap.R(11),
 	})
 	c.Assert(snapst.Required, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap_instance", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(snapstate.Installing(s.state), Equals, false)
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.StoreMacaroon,
+		// TODO parallel-install: fix once store changes are in place
+		name:   "some-snap",
+		target: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+	}})
+	expected := fakeOps{
+		{
+			op:     "storesvc-snap-action",
+			userID: 1,
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "some-snap_instance",
+				Channel:      "some-channel",
+			},
+			revno:  snap.R(11),
+			userID: 1,
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			path: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "some-snap_instance",
+			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+			revno: snap.R(11),
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/11"),
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/11"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "some-snap_instance",
+			revno: snap.R(11),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// check progress
+	ta := ts.Tasks()
+	task := ta[1]
+	_, cur, total := task.Progress()
+	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
+	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
+
+	// check link/start snap summary
+	linkTask := ta[len(ta)-7]
+	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
+	startTask := ta[len(ta)-2]
+	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
+
+	// verify snap-setup in the task state
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		Channel:  "some-channel",
+		UserID:   s.user.ID,
+		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
+		SideInfo:    snapsup.SideInfo,
+		Type:        snap.TypeApp,
+		PlugsOnly:   true,
+		InstanceKey: "instance",
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "some-channel",
+		Revision: snap.R(11),
+		SnapID:   "some-snap-id",
+	})
+
+	// verify snaps in the system state
+	var snaps map[string]*snapstate.SnapState
+	err = s.state.Get("snaps", &snaps)
+	c.Assert(err, IsNil)
+
+	snapst := snaps["some-snap_instance"]
+	c.Assert(snapst, NotNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Channel, Equals, "some-channel")
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Channel:  "some-channel",
+		Revision: snap.R(11),
+	})
+	c.Assert(snapst.Required, Equals, false)
+	c.Assert(snapst.InstanceKey, Equals, "instance")
 }
 
 func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
@@ -1892,6 +2278,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -1932,6 +2319,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 			revno: snap.R(42),
 		},
@@ -2016,6 +2404,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	snapst := snaps["some-snap"]
+	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Channel, Equals, "some-channel")
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -2125,6 +2514,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "services-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 			revno: snap.R(11),
 		},
@@ -2186,6 +2576,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "services-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 	}})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2249,6 +2640,223 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
+	// use services-snap here to make sure services would be stopped/started appropriately
+	si := snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(7),
+		SnapID:   "services-snap-id",
+	}
+	snaptest.MockSnapInstance(c, "services-snap_instance", `name: services-snap`, &si)
+	fi, err := os.Stat(snap.MountFile("services-snap_instance", si.Revision))
+	c.Assert(err, IsNil)
+	refreshedDate := fi.ModTime()
+	// look at disk
+	r := snapstate.MockRevisionDate(nil)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	snapstate.Set(s.state, "services-snap_instance", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		SnapType:    "app",
+		Channel:     "stable",
+		InstanceKey: "instance",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "services-snap_instance", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
+				InstanceName:    "services-snap_instance",
+				SnapID:          "services-snap-id",
+				Revision:        snap.R(7),
+				TrackingChannel: "stable",
+				RefreshedDate:   refreshedDate,
+			}},
+			userID: 1,
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "refresh",
+				SnapID:       "services-snap-id",
+				InstanceName: "services-snap_instance",
+				Channel:      "some-channel",
+				Flags:        store.SnapActionEnforceValidation,
+			},
+			revno:  snap.R(11),
+			userID: 1,
+		},
+		{
+			op:   "storesvc-download",
+			name: "services-snap",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+		},
+		{
+			op:   "open-snap-file",
+			path: filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
+			sinfo: snap.SideInfo{
+				RealName: "services-snap",
+				SnapID:   "services-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "services-snap_instance",
+			path:  filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
+			revno: snap.R(11),
+		},
+		{
+			op:   "stop-snap-services:refresh",
+			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "services-snap_instance",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+			old:  filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "services-snap",
+				SnapID:   "services-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:   "start-snap-services",
+			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+	}
+
+	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.StoreMacaroon,
+		name:     "services-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
+	}})
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// check progress
+	task := ts.Tasks()[1]
+	_, cur, total := task.Progress()
+	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
+
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		Channel: "some-channel",
+		UserID:  s.user.ID,
+
+		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
+		SideInfo:    snapsup.SideInfo,
+		Type:        snap.TypeApp,
+		PlugsOnly:   true,
+		InstanceKey: "instance",
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+		SnapID:   "services-snap-id",
+	})
+
+	// verify services stop reason
+	verifyStopReason(c, ts, "refresh")
+
+	// check post-refresh hook
+	task = ts.Tasks()[14]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "services-snap_instance", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.InstanceKey, Equals, "instance")
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "services-snap",
+		SnapID:   "services-snap-id",
+		Channel:  "",
+		Revision: snap.R(7),
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		RealName: "services-snap",
+		Channel:  "some-channel",
+		SnapID:   "services-snap-id",
+		Revision: snap.R(11),
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
 	si := &snap.SideInfo{
 		RealName: "some-snap",
@@ -2279,8 +2887,8 @@ func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "some-base"},
-		{macaroon: s.user.StoreMacaroon, name: "some-snap"},
+		{macaroon: s.user.StoreMacaroon, name: "some-base", target: filepath.Join(dirs.SnapBlobDir, "some-base_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "some-snap", target: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap")},
 	})
 }
 
@@ -2325,7 +2933,7 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "some-snap"},
+		{macaroon: s.user.StoreMacaroon, name: "some-snap", target: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap")},
 	})
 }
 
@@ -2362,8 +2970,8 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug"},
-		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot"},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot", target: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap")},
 	})
 }
 
@@ -2411,7 +3019,7 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 	s.state.Lock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug"},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
 	})
 }
 
@@ -2451,6 +3059,7 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
 				macaroon: "macaroon",
 				name:     "some-snap",
+				target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			}, Commentf(snapName))
 		}
 	}
@@ -2492,6 +3101,7 @@ func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
 			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
 				macaroon: "macaroon",
 				name:     "some-snap",
+				target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			}, Commentf(snapName))
 		}
 	}
@@ -2530,7 +3140,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -2568,7 +3178,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			seen[snapID] = op.userID
 		case "storesvc-download":
 			snapName := op.name
-			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+			fakeDl := s.fakeStore.downloads[di]
+			// check target path separately and clear it
+			c.Check(fakeDl.target, Matches, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_[0-9]+.snap", snapName)))
+			fakeDl.target = ""
+			c.Check(fakeDl, DeepEquals, fakeDownload{
 				macaroon: macaroonMap[snapName],
 				name:     snapName,
 			}, Commentf(snapName))
@@ -2616,7 +3230,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// do UpdateMany using user 2 as fallback
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 2)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 2, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -2658,7 +3272,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
 		case "storesvc-download":
 			snapName := op.name
-			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+			fakeDl := s.fakeStore.downloads[di]
+			// check target path separately and clear it
+			c.Check(fakeDl.target, Matches, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_[0-9]+.snap", snapName)))
+			fakeDl.target = ""
+			c.Check(fakeDl, DeepEquals, fakeDownload{
 				macaroon: macaroonMap[snapName],
 				name:     snapName,
 			}, Commentf(snapName))
@@ -2721,7 +3339,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -2759,7 +3377,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 			seen[snapID] = op.userID
 		case "storesvc-download":
 			snapName := op.name
-			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+			fakeDl := s.fakeStore.downloads[di]
+			// check target path separately and clear it
+			c.Check(fakeDl.target, Matches, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_[0-9]+.snap", snapName)))
+			fakeDl.target = ""
+			c.Check(fakeDl, DeepEquals, fakeDownload{
 				macaroon: macaroonMap[snapName],
 				name:     snapName,
 			}, Commentf(snapName))
@@ -2851,6 +3473,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
@@ -2908,6 +3531,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
@@ -2917,6 +3541,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -3024,6 +3649,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
@@ -3094,6 +3720,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
@@ -3103,6 +3730,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
 	// friendlier failure first
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -3577,7 +4205,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(12),
 	}
-	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 1)
 
@@ -3804,7 +4432,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 
@@ -3843,7 +4471,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		Current:  si7.Revision,
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Check(err, IsNil)
 	c.Check(updates, HasLen, 0)
 
@@ -3947,7 +4575,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			snapstate.Set(s.state, snapName, &snapst)
 		}
 
-		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID)
+		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID, nil)
 		c.Check(err, IsNil)
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
@@ -4225,7 +4853,7 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 
 	// switching tracks is not ok
 	_, err := snapstate.Update(s.state, "kernel", "new-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "new-channel/stable"`)
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel/stable"`)
 
 	// no change to the channel is ok
 	_, err = snapstate.Update(s.state, "kernel", "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -4233,6 +4861,38 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 
 	// switching risk level is ok
 	_, err = snapstate.Update(s.state, "kernel", "18/beta", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+}
+
+func (s *snapmgrTestSuite) TestUpdateGadgetTrackChecksSwitchingTracks(c *C) {
+	si := snap.SideInfo{
+		RealName: "brand-gadget",
+		SnapID:   "brand-gadget-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Channel:  "18/stable",
+	})
+
+	// switching tracks is not ok
+	_, err := snapstate.Update(s.state, "brand-gadget", "new-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel/stable"`)
+
+	// no change to the channel is ok
+	_, err = snapstate.Update(s.state, "brand-gadget", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// switching risk level is ok
+	_, err = snapstate.Update(s.state, "brand-gadget", "18/beta", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 }
@@ -4251,9 +4911,13 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", snapstate.Flags{})
+	ts, info, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
+
+	// ensure the returned info is correct
+	c.Check(info.SideInfo.RealName, Equals, "mock")
+	c.Check(info.Version, Equals, "1.0")
 
 	s.state.Unlock()
 	defer s.se.Stop()
@@ -4269,6 +4933,7 @@ version: 1.0`)
 		{
 			// and setup-snap
 			op:    "setup-snap",
+			name:  "mock",
 			path:  mockSnap,
 			revno: snap.R("x1"),
 		},
@@ -4360,7 +5025,7 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4376,6 +5041,7 @@ version: 1.0`)
 	c.Check(ops[0].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
 	// and setup-snap
 	c.Check(ops[1].op, Equals, "setup-snap")
+	c.Check(ops[1].name, Matches, "mock")
 	c.Check(ops[1].path, Matches, `.*/mock_1.0_all.snap`)
 	c.Check(ops[1].revno, Equals, snap.R("x3"))
 	// and cleanup
@@ -4454,7 +5120,7 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4472,6 +5138,7 @@ version: 1.0`)
 		{
 			// and setup-snap
 			op:    "setup-snap",
+			name:  "mock",
 			path:  mockSnap,
 			revno: snap.R("x1"),
 		},
@@ -4552,7 +5219,7 @@ version: 1.0`)
 		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
 	}
-	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{Required: true})
+	ts, _, err := snapstate.InstallPath(s.state, si, someSnap, "", "", snapstate.Flags{Required: true})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4567,6 +5234,7 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
 	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
+	c.Check(s.fakeBackend.ops[1].name, Equals, "some-snap")
 	c.Check(s.fakeBackend.ops[1].path, Matches, `.*/orig-name_1.0_all.snap`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R(42))
 
@@ -4631,6 +5299,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
 		},
@@ -4658,10 +5331,6 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -4715,6 +5384,133 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// pretend we have both a regular snap and a parallel instance
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0))
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			stype: "app",
+		},
+		{
+			op:   "discard-namespace",
+			name: "some-snap_instance",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify snapSetup info
+	tasks := ts.Tasks()
+	for _, t := range tasks {
+		if t.Kind() == "run-hook" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+
+		var expSnapSetup *snapstate.SnapSetup
+		switch t.Kind() {
+		case "discard-conns":
+			expSnapSetup = &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
+				InstanceKey: "instance",
+			}
+		case "clear-snap", "discard-snap":
+			expSnapSetup = &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: snap.R(7),
+				},
+				InstanceKey: "instance",
+			}
+		default:
+			expSnapSetup = &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: snap.R(7),
+				},
+				Type:        snap.TypeApp,
+				PlugsOnly:   true,
+				InstanceKey: "instance",
+			}
+
+		}
+
+		c.Check(snapsup, DeepEquals, expSnapSetup, Commentf(t.Kind()))
+	}
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// the non-instance snap is still there
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	si3 := snap.SideInfo{
 		RealName: "some-snap",
@@ -4752,6 +5548,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
@@ -4798,10 +5599,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -4964,6 +5761,11 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := fakeOps{
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -4978,10 +5780,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "some-snap",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -5005,6 +5803,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		}
 		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
+		}
+		if t.Kind() == "auto-disconnect" {
+			expSnapSetup.PlugsOnly = true
+			expSnapSetup.Type = "app"
 		}
 
 		c.Check(snapsup, DeepEquals, expSnapSetup, Commentf(t.Kind()))
@@ -5576,6 +6378,112 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	siOld := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Active:      true,
+		SnapType:    "app",
+		Sequence:    []*snap.SideInfo{&siOld, &si},
+		Current:     si.Revision,
+		InstanceKey: "instance",
+	})
+
+	// another snap withouth instance key
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&siOld, &si},
+		Current:  si.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap_instance", snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(2),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				Revision: snap.R(2),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/2"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(2),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify that the R(2) version is active now and R(7) is still there
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.InstanceKey, Equals, "instance")
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(2),
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
+	})
+	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
+
+	// non instance snap is not affected
+	var nonInstanceSnapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &nonInstanceSnapst)
+	c.Assert(err, IsNil)
+	c.Assert(nonInstanceSnapst.Current, Equals, snap.R(7))
+
+}
+
 func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -6071,6 +6979,167 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		Channel:  "edge",
+		SnapID:   "foo",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	flags := snapstate.Flags{
+		DevMode:  true,
+		JailMode: true,
+		Classic:  true,
+		TryMode:  true,
+		Required: true,
+	}
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Sequence:            []*snap.SideInfo{&si},
+		Current:             si.Revision,
+		Active:              false,
+		Channel:             "edge",
+		Flags:               flags,
+		AliasesPending:      true,
+		AutoAliasesDisabled: true,
+		InstanceKey:         "instance",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence:            []*snap.SideInfo{&si},
+		Current:             si.Revision,
+		Active:              false,
+		Channel:             "edge",
+		Flags:               flags,
+		AliasesPending:      true,
+		AutoAliasesDisabled: true,
+	})
+
+	chg := s.state.NewChange("enable", "enable a snap")
+	ts, err := snapstate.Enable(s.state, "some-snap_instance")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op:    "candidate",
+			sinfo: si,
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Flags, DeepEquals, flags)
+
+	c.Assert(snapst.InstanceKey, Equals, "instance")
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.AliasesPending, Equals, false)
+	c.Assert(snapst.AutoAliasesDisabled, Equals, true)
+
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Channel, Equals, "edge")
+	c.Assert(info.SnapID, Equals, "foo")
+
+	// the non-parallel instance is still disabled
+	snapst = snapstate.SnapState{}
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.InstanceKey, Equals, "")
+	c.Assert(snapst.Active, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		Active:      true,
+		InstanceKey: "instance",
+	})
+
+	chg := s.state.NewChange("disable", "disable a snap")
+	ts, err := snapstate.Disable(s.state, "some-snap_instance")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.InstanceKey, Equals, "instance")
+	c.Assert(snapst.Active, Equals, false)
+	c.Assert(snapst.AliasesPending, Equals, true)
+
+	// the non-parallel instance is still active
+	snapst = snapstate.SnapState{}
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.InstanceKey, Equals, "")
+	c.Assert(snapst.Active, Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -6111,6 +7180,61 @@ func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 	c.Assert(info.Channel, Equals, "edge")
+}
+
+func (s *snapmgrTestSuite) TestParallelInstallSwitchRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		Channel:  "edge",
+		SnapID:   "foo",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Channel:  "edge",
+	})
+
+	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		Channel:     "edge",
+		InstanceKey: "instance",
+	})
+
+	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
+	ts, err := snapstate.Switch(s.state, "some-snap_instance", "some-channel")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// switch is not really really doing anything backend related
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+
+	// ensure the desired channel has changed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Channel, Equals, "some-channel")
+
+	// ensure the current info has not changed
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Channel, Equals, "edge")
+
+	// Ensure that the non-intance snap is unchanged
+	var nonInstanceSnapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &nonInstanceSnapst)
+	c.Assert(err, IsNil)
+	c.Assert(nonInstanceSnapst.Channel, Equals, "edge")
 }
 
 func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
@@ -6189,6 +7313,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
@@ -6199,6 +7324,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
@@ -6612,6 +7738,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	c.Check(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.IsReady(), Equals, false)
 	s.verifyRefreshLast(c)
+
+	checkIsAutoRefresh(c, chg.Tasks(), true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
@@ -7511,8 +8639,13 @@ type canRemoveSuite struct {
 var _ = Suite(&canRemoveSuite{})
 
 func (s *canRemoveSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	snapstate.MockModel()
+}
+
+func (s *canRemoveSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -7550,6 +8683,9 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	snapstate.MockModelWithBase("core18")
 	os := &snap.Info{
 		Type: snap.TypeOS,
@@ -7557,6 +8693,30 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
 	os.RealName = "os"
 
 	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapstate.MockModelWithBase("core18")
+
+	// pretend we have a snap installed that has no base (which means
+	// it needs core)
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0", si)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+	})
+
+	// now pretend we want to remove the core snap
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.RealName = "core"
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
 }
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
@@ -7577,6 +8737,74 @@ func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
+}
+
+func (s *canRemoveSuite) TestBaseUnused(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestBaseInUse(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+	})
+
+	// pretend now we want to remove "some-base"
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
+	// older revision uses base
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	// new one does not
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\n", si2)
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si, si2},
+		Current:  snap.R(2),
+	})
+
+	// pretend now we want to remove "some-base"
+	info := &snap.Info{
+		Type: snap.TypeBase,
+	}
+	info.RealName = "some-base"
+	// revision 1 requires some-base
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+
+	// now pretend we want to remove the core snap
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.RealName = "core"
+	// but revision 2 requires core
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
 }
 
 func revs(seq []*snap.SideInfo) []int {
@@ -8104,13 +9332,13 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
+			"auto-disconnect",
 			"run-hook[remove]",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
-			"discard-conns",
 		})
 		verifyStopReason(c, ts, "remove")
 		// check that tasksets are in separate lanes
@@ -8327,7 +9555,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 
 	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var m map[string]interface{}
@@ -8357,7 +9585,7 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 
 	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", snapstate.Flags{SkipConfigure: true})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{SkipConfigure: true})
 	c.Assert(err, IsNil)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
@@ -8387,7 +9615,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 
 	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 
-	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}, snapPath, "edge", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}, snapPath, "", "edge", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var m map[string]interface{}
@@ -8512,6 +9740,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		name: "core",
 		// the transition has no user associcated with it
 		macaroon: "",
+		target:   filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 	}})
 	expected := fakeOps{
 		{
@@ -8554,6 +9783,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "core",
 			path:  filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 			revno: snap.R(11),
 		},
@@ -8593,6 +9823,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
 		},
@@ -8620,10 +9855,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "ubuntu-core",
 		},
 		{
@@ -8678,6 +9909,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:    "auto-disconnect:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
 		},
@@ -8705,10 +9941,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
-			name: "ubuntu-core",
-		},
-		{
-			op:   "discard-conns:Doing",
 			name: "ubuntu-core",
 		},
 	}
@@ -9141,10 +10373,12 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			macaroon: s.user.StoreMacaroon,
 			name:     "core",
+			target:   filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 		},
 		{
 			macaroon: s.user.StoreMacaroon,
 			name:     "some-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 		}})
 	expected := fakeOps{
 		// we check the snap
@@ -9203,6 +10437,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "core",
 			path:  filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 			revno: snap.R(11),
 		},
@@ -9262,6 +10497,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op:    "setup-snap",
+			name:  "some-snap",
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 			revno: snap.R(42),
 		},
@@ -9320,6 +10556,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	c.Assert(err, IsNil)
 
 	snapst := snaps["core"]
+	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Channel, Equals, "stable")
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -9567,6 +10804,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	snapst := snaps["core"]
+	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "core",
@@ -9574,6 +10812,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	})
 
 	snapst = snaps["some-snap"]
+	c.Assert(snapst, NotNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -9746,6 +10985,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		},
 	}, {
 		op:    "setup-snap",
+		name:  "snap-content-slot",
 		path:  filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
 		revno: snap.R(11),
 	}, {
@@ -9793,6 +11033,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		},
 	}, {
 		op:    "setup-snap",
+		name:  "snap-content-plug",
 		path:  filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
 		revno: snap.R(42),
 	}, {
@@ -10013,7 +11254,7 @@ layout:
  /usr:
   bind: $SNAP/usr
 `)
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
@@ -10021,11 +11262,11 @@ layout:
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	_, _, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitch(c *C) {
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchKernel(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -10051,8 +11292,38 @@ version: 1.0`)
 		Revision: snap.R(42),
 		Channel:  "some-channel",
 	}
-	_, err := snapstate.InstallPath(s.state, si, someSnap, "some-channel", snapstate.Flags{Required: true})
-	c.Assert(err, ErrorMatches, `cannot switch from kernel-track "18" to "some-channel/stable"`)
+	_, _, err := snapstate.InstallPath(s.state, si, someSnap, "", "some-channel", snapstate.Flags{Required: true})
+	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "some-channel/stable"`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchGadget(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// snapd cannot be installed unless the model uses a base snap
+	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", Revision: snap.R(11)},
+		},
+		Channel: "18/stable",
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	someSnap := makeTestSnap(c, `name: brand-gadget
+version: 1.0`)
+	si := &snap.SideInfo{
+		RealName: "brand-gadget",
+		SnapID:   "brand-gadget-id",
+		Revision: snap.R(42),
+		Channel:  "some-channel",
+	}
+	_, _, err := snapstate.InstallPath(s.state, si, someSnap, "", "some-channel", snapstate.Flags{Required: true})
+	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "some-channel/stable"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
@@ -10062,8 +11333,27 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
+	// check various forms of disabling
 	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", "")
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", nil)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+
+	// enable layouts
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -10110,7 +11400,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 		SnapType: "app",
 	})
 
-	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
@@ -10118,7 +11408,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -10136,7 +11426,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 		SnapType: "app",
 	})
 
-	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, HasLen, 0)
 
@@ -10145,7 +11435,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
@@ -10161,12 +11451,61 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	err := snapstate.ValidateFeatureFlags(s.state, info)
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 
+	// various forms of disabling
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", false)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", "")
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", nil)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", "veryfalse")
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, ErrorMatches, `internal error: feature flag experimental.parallel-instances has unexpected value "veryfalse" \(string\)`)
+
+	// enable parallel instances
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	err = snapstate.ValidateFeatureFlags(s.state, info)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstallInstallPathExperimentalSwitch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
+	_, _, err := snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+
 	// enable parallel instances
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", true)
 	tr.Commit()
 
-	err = snapstate.ValidateFeatureFlags(s.state, info)
+	_, _, err = snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 }
 
@@ -10283,6 +11622,18 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
 	// but snapd do not for install
 	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+}
+
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {

@@ -68,7 +68,7 @@
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
     /usr/lib/snapd/snap-device-helper ixr, # drop
-    /lib/udev/snappy-app-dev ixr, # drop
+    /{,usr/}lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,
@@ -178,6 +178,9 @@
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
 
+    mount options=(rw rbind) /var/lib/extrausers/ -> /tmp/snap.rootfs_*/var/lib/extrausers/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/lib/extrausers/,
+
     mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/modules/ -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
 
@@ -186,6 +189,9 @@
 
     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
+
+    mount options=(rw rbind) /mnt/ -> /tmp/snap.rootfs_*/mnt/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/mnt/,
 
     # allow making host snap-exec available inside base snaps
     mount options=(rw bind) @LIBEXECDIR@/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
@@ -365,6 +371,8 @@
     # support for the mount namespace sharing
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
+    ptrace read peer=unconfined,
+    # https://forum.snapcraft.io/t/custom-kernel-error-on-readlinkat-in-mount-namespace/6097/21
     ptrace trace peer=unconfined,
 
     mount options=(rw rbind) /run/snapd/ns/ -> /run/snapd/ns/,

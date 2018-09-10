@@ -9,7 +9,8 @@ details: |
 systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x,-arch-*]
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     # Install a snap declaring a plug on time-control
     install_local test-snapd-timedate-control-consumer
@@ -29,7 +30,7 @@ execute: |
     snap connect test-snapd-timedate-control-consumer:netlink-audit
 
     echo "The interface is disconnected by default"
-    snap interfaces -i time-control | MATCH "\- +test-snapd-timedate-control-consumer:time-control"
+    snap interfaces -i time-control | MATCH -- '^- +test-snapd-timedate-control-consumer:time-control'
 
     # When the interface is connected
     snap connect test-snapd-timedate-control-consumer:time-control
@@ -58,7 +59,7 @@ execute: |
 
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:time-control
-    if test-snapd-timedate-control-consumer.timedatectl-time status 2>${PWD}/call.error; then
+    if test-snapd-timedate-control-consumer.timedatectl-time status 2>"${PWD}"/call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi

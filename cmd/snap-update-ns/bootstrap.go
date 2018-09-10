@@ -73,6 +73,13 @@ func BootstrapError() error {
 	return fmt.Errorf("%s", C.GoString(C.bootstrap_msg))
 }
 
+// This function is here to make clearing the boostrap errors accessible
+// from the tests.
+func clearBootstrapError() {
+	C.bootstrap_msg = nil
+	C.bootstrap_errno = 0
+}
+
 // END IMPORTANT
 
 func makeArgv(args []string) []*C.char {
@@ -90,17 +97,23 @@ func freeArgv(argv []*C.char) {
 	}
 }
 
-// validateSnapName checks if snap name is valid.
+// validateInstanceName checks if snap instance name is valid.
 // This also sets bootstrap_msg on failure.
-func validateSnapName(snapName string) int {
-	cStr := C.CString(snapName)
+//
+// This function is here only to make the C.validate_instance_name
+// code testable from go.
+func validateInstanceName(instanceName string) int {
+	cStr := C.CString(instanceName)
 	defer C.free(unsafe.Pointer(cStr))
-	return int(C.validate_snap_name(cStr))
+	return int(C.validate_instance_name(cStr))
 }
 
 // processArguments parses commnad line arguments.
 // The argument cmdline is a string with embedded
 // NUL bytes, separating particular arguments.
+//
+// This function is here only to make the C.validate_instance_name
+// code testable from go.
 func processArguments(args []string) (snapName string, shouldSetNs bool, processUserFstab bool) {
 	argv := makeArgv(args)
 	defer freeArgv(argv)

@@ -1,0 +1,35 @@
+summary: Ensure systemd environment generator works
+
+# systemd environment generators are only supported on 17.10+
+systems: [ubuntu-18.04-*]
+
+execute: |
+    # integration test to ensure it works on the real system
+
+    # FIXME: we can avoid the reboot once issue:
+    #   https://github.com/systemd/systemd/issues/9972
+    # is fixed
+    echo "Ensure to reboot at least once"
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT
+    fi
+
+    echo "Ensure PATH is correct in systemd system units"
+    systemd-run --unit testenv env
+    for _ in $(seq 30); do
+        if journalctl -u testenv | grep -E 'PATH=.*:/snap/bin.*'; then
+            break
+        fi
+        sleep 1
+    done
+    journalctl -u testenv | MATCH 'PATH=.*:/snap/bin.*'
+
+
+    # some unit tests
+    SENV=/usr/lib/systemd/system-environment-generators/snapd-env-generator
+
+    PATH=/bin:/sbin $SENV         | MATCH /bin:/sbin:/snap/bin
+    PATH=/bin:/snap/bin/bar $SENV | MATCH /bin:/snap/bin/bar:/snap/bin
+
+    echo "/snap/bin already part of the PATH should not generate output"
+    [ -z "$(PATH=/bin:/snap/bin:/sbin $SENV)" ] || exit 1

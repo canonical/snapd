@@ -22,6 +22,7 @@ package selftest_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/selftest"
 )
@@ -36,7 +37,7 @@ func (s *selftestSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
-	restore = release.MockKernelVersion("3.13.0-35-generic")
+	restore = osutil.MockKernelVersion("3.13.0-35-generic")
 	defer restore()
 
 	// Check for the given advice.
