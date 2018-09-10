@@ -136,7 +136,12 @@ func (w *Warning) ExpiredBefore(now time.Time) bool {
 }
 
 func (w *Warning) ShowAfter(t time.Time) bool {
-	return (w.lastShown.IsZero() || w.lastShown.Add(w.repeatAfter).Before(t)) && !w.firstAdded.After(t)
+	if w.lastShown.IsZero() {
+		// warning was never shown before; was it added after the cutoff?
+		return !w.firstAdded.After(t)
+	}
+
+	return w.lastShown.Add(w.repeatAfter).Before(t)
 }
 
 // flattenWarning loops over the warnings map, and returns all
