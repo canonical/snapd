@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -84,6 +83,17 @@ func (li *localInfos) Info(name string) *snap.Info {
 		return li.pathToInfo[p]
 	}
 	return nil
+}
+
+// hasName returns true if the given "snapName" is found within the
+// list of snap names or paths.
+func (li *localInfos) hasName(snaps []string, snapName string) bool {
+	for _, snapNameOrPath := range snaps {
+		if li.Name(snapNameOrPath) == snapName {
+			return true
+		}
+	}
+	return false
 }
 
 func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
@@ -329,6 +339,9 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot bootstrap over existing system")
 	}
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap")); len(snaps) > 0 {
+		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
+	}
 
 	// TODO: developer database in home or use snapd (but need
 	// a bit more API there, potential issues when crossing stores/series)
@@ -433,6 +446,15 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
 		if err != nil {
 			return err
+		}
+		// Sanity check, note that we could support this case
+		// if we have a use-case but it requires changes in the
+		// devicestate/firstboot.go ordering code.
+		if info.Type == snap.TypeGadget && info.Base != model.Base() {
+			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
+		}
+		if info.Base != "" && !local.hasName(snaps, info.Base) {
+			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
 		}
 
 		seen[name] = true
@@ -570,6 +592,15 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 		bootvar := ""
 
 		info := downloadedSnapsInfoForBootConfig[fn]
+		if info == nil {
+			// this should never happen, if it does print some
+			// debug info
+			keys := make([]string, 0, len(downloadedSnapsInfoForBootConfig))
+			for k := range downloadedSnapsInfoForBootConfig {
+				keys = append(keys, k)
+			}
+			return fmt.Errorf("cannot get download info for snap %s, available infos: %v", fn, keys)
+		}
 		switch info.Type {
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
@@ -589,14 +620,6 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 		return err
 	}
 
-	return nil
-}
-
-func runCommand(cmdStr ...string) error {
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %v: %s", cmdStr, osutil.OutputErr(output, err))
-	}
 	return nil
 }
 

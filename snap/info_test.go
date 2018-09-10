@@ -186,6 +186,9 @@ apps:
  sample:
    command: foobar
    command-chain: [chain]
+hooks:
+ configure:
+  command-chain: [hookchain]
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
@@ -202,6 +205,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -221,6 +225,7 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -1306,9 +1311,7 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "kernel1", Type: "kernel"},
 		{SuggestedName: "app2", Type: "app"},
 		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
-			RealName: "snapd",
-		}},
+		{SuggestedName: "snapd", Type: "snapd"},
 		{SuggestedName: "base2", Type: "base"},
 		{SuggestedName: "gadget2", Type: "gadget"},
 		{SuggestedName: "kernel2", Type: "kernel"},
@@ -1316,9 +1319,7 @@ func (s *infoSuite) TestSortByType(c *C) {
 	sort.Stable(snap.ByType(infos))
 
 	c.Check(infos, DeepEquals, []*snap.Info{
-		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
-			RealName: "snapd",
-		}},
+		{SuggestedName: "snapd", Type: "snapd"},
 		{SuggestedName: "os1", Type: "os"},
 		{SuggestedName: "os2", Type: "os"},
 		{SuggestedName: "kernel1", Type: "kernel"},
@@ -1330,4 +1331,26 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "app1", Type: "app"},
 		{SuggestedName: "app2", Type: "app"},
 	})
+}
+
+func (s *infoSuite) TestSortByTypeAgain(c *C) {
+	core := &snap.Info{Type: snap.TypeOS}
+	base := &snap.Info{Type: snap.TypeBase}
+	app := &snap.Info{Type: snap.TypeApp}
+	snapd := &snap.Info{}
+	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
+
+	byType := func(snaps ...*snap.Info) []*snap.Info {
+		sort.Stable(snap.ByType(snaps))
+		return snaps
+	}
+
+	c.Check(byType(base, core), DeepEquals, []*snap.Info{core, base})
+	c.Check(byType(app, core), DeepEquals, []*snap.Info{core, app})
+	c.Check(byType(app, base), DeepEquals, []*snap.Info{base, app})
+	c.Check(byType(app, base, core), DeepEquals, []*snap.Info{core, base, app})
+	c.Check(byType(app, core, base), DeepEquals, []*snap.Info{core, base, app})
+
+	c.Check(byType(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
+	c.Check(byType(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }

@@ -5,7 +5,8 @@ summary: Check that `snap run` runs
 systems: [-*-s390x]
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local basic-run
     install_local test-snapd-tools
 
@@ -28,7 +29,7 @@ execute: |
         snap install strace-static
     fi
     # install the snap if no system strace is found
-    if ! which strace; then
+    if ! command -v strace; then
         snap install strace-static
     fi
 
@@ -54,10 +55,10 @@ execute: |
     fi
     MATCH "Can't stat 'invalid': No such file or directory" < stderr
 
-    if which gdb; then
+    if command -v gdb; then
        echo "Test snap run --gdb works"
        echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
-       cat stdout | MATCH 'Continuing.'
-       cat stdout | MATCH hello
+       MATCH 'Continuing.' < stdout
+       MATCH hello < stdout
     fi
 

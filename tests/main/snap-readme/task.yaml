@@ -8,5 +8,6 @@ details: |
 
 execute: |
     snap version # To ensure that snapd is awake
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     MATCH "https://forum.snapcraft.io/t/the-snap-directory/2817" "$SNAP_MOUNT_DIR/README"
