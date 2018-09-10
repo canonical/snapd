@@ -97,6 +97,9 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(patchLevel, Equals, 42)
 	s.Get("patch-sublevel", &patchSublevel)
 	c.Check(patchSublevel, Equals, 2)
+	var refreshRequestSalt string
+	s.Get("refresh-request-salt", &refreshRequestSalt)
+	c.Check(refreshRequestSalt, HasLen, 16)
 
 	// store is setup
 	sto := snapstate.Store(s)
@@ -105,7 +108,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data","refresh-request-salt":"0123456789012345"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -127,6 +130,24 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(got, DeepEquals, expected)
+}
+
+func (ovs *overlordSuite) TestNewWithStateSnapmgrUpdate(c *C) {
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	state := o.State()
+	c.Assert(err, IsNil)
+	state.Lock()
+	defer state.Unlock()
+
+	var refreshRequestSalt string
+	state.Get("refresh-request-salt", &refreshRequestSalt)
+	c.Check(refreshRequestSalt, HasLen, 16)
 }
 
 func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {

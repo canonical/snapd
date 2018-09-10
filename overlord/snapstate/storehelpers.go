@@ -84,9 +84,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
 	if opts.RequestSalt == "" {
-		// no request seed yet, make one now
-		opts.RequestSalt = strutil.MakeRandomString(16)
-		st.Set("refresh-request-salt", opts.RequestSalt)
+		return nil, fmt.Errorf("internal error: request salt is unset")
 	}
 	return &opts, nil
 }
