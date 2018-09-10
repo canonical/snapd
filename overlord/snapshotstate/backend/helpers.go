@@ -165,10 +165,11 @@ func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
 		// runuser only works for euid 0, and doesn't make sense for root
 		return exec.Command(args[0], args[1:]...)
 	}
-	sudoArgs := make([]string, len(args)+2)
-	copy(sudoArgs[2:], args)
+	sudoArgs := make([]string, len(args)+3)
+	copy(sudoArgs[3:], args)
 	sudoArgs[0] = "-u"
 	sudoArgs[1] = username
+	sudoArgs[2] = "--"
 
 	return exec.Command("runuser", sudoArgs...)
 }
