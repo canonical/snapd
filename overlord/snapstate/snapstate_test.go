@@ -11745,11 +11745,7 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	var requestSalt string
 	err = s.state.Get("refresh-request-salt", &requestSalt)
 	c.Assert(err, IsNil)
-	// expecting a string like: 2018-07-30T16:16:19.159412278+02:00
-	// but on UTC it can be:    2018-09-07T13:33:25.820980665Z
-	// account for all variations and expect at least the length of
-	// '2018-09-07T13:33:25'
-	c.Assert(len(requestSalt) > 19, Equals, true, Commentf("request salt unexpectedly short: %q", requestSalt))
+	c.Assert(requestSalt, HasLen, 16, Commentf("unexpectedly length of request salt: %q", requestSalt))
 
 	c.Assert(len(s.fakeBackend.ops) >= 1, Equals, true)
 	storeAction := s.fakeBackend.ops[0]

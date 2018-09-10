@@ -22,7 +22,6 @@ package snapstate
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	"golang.org/x/net/context"
 
@@ -86,7 +85,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	}
 	if opts.RequestSalt == "" {
 		// no request seed yet, make one now
-		opts.RequestSalt = time.Now().Format(time.RFC3339Nano)
+		opts.RequestSalt = strutil.MakeRandomString(16)
 		st.Set("refresh-request-salt", opts.RequestSalt)
 	}
 	return &opts, nil
