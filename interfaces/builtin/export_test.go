@@ -80,7 +80,7 @@ func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *snap.SlotI
 func MockConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
 	if plugInfo, ok := info.Plugs[plugName]; ok {
-		return interfaces.NewConnectedPlug(plugInfo, nil), plugInfo
+		return interfaces.NewConnectedPlug(plugInfo, nil, nil), plugInfo
 	}
 	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.InstanceName()))
 }
@@ -88,7 +88,7 @@ func MockConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*
 func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
 	if slotInfo, ok := info.Slots[slotName]; ok {
-		return interfaces.NewConnectedSlot(slotInfo, nil), slotInfo
+		return interfaces.NewConnectedSlot(slotInfo, nil, nil), slotInfo
 	}
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
 }

@@ -64,10 +64,10 @@ apps:
 `
 	snapInfo := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	s.slotInfo = snapInfo.Slots["media-hub"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["media-hub"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *MediaHubInterfaceSuite) TestName(c *C) {
@@ -87,7 +87,10 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 		Name:      "media-hub",
 		Interface: "media-hub",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -113,7 +116,10 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 		Name:      "media-hub",
 		Interface: "media-hub",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -135,7 +141,10 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 		Name:      "media-hub",
 		Interface: "media-hub",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}

@@ -64,10 +64,10 @@ func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
 				},
 				Name: "app1"}},
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, btcontrolMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["bluetooth-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *BluetoothControlInterfaceSuite) TestName(c *C) {

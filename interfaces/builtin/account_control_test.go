@@ -66,11 +66,11 @@ func (s *AccountControlSuite) SetUpTest(c *C) {
 				},
 				Name: "app1"}},
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
 	plugSnap := snaptest.MockInfo(c, accountCtlMockPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["account-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *AccountControlSuite) TestName(c *C) {

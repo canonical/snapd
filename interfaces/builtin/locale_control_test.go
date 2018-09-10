@@ -52,13 +52,13 @@ apps:
 `
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["locale-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 		Name:      "locale-control",
 		Interface: "locale-control",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *LocaleControlInterfaceSuite) TestName(c *C) {

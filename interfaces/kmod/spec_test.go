@@ -82,8 +82,8 @@ var _ = Suite(&specSuite{
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &kmod.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 // AddModule is not broken

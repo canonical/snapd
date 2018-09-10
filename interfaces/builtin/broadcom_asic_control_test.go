@@ -53,7 +53,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, producerYaml, nil)
 	s.slotInfo = info.Slots["broadcom-asic-control"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
 	const consumerYaml = `name: consumer
 version: 0
@@ -63,7 +63,7 @@ apps:
 `
 	info = snaptest.MockInfo(c, consumerYaml, nil)
 	s.plugInfo = info.Plugs["broadcom-asic-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *BroadcomAsicControlSuite) TestName(c *C) {

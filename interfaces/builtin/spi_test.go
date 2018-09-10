@@ -81,9 +81,9 @@ slots:
     path: /dev/spidev0.1
 `, nil)
 	s.slotOs1Info = info.Slots["spi-1"]
-	s.slotOs1 = interfaces.NewConnectedSlot(s.slotOs1Info, nil)
+	s.slotOs1 = interfaces.NewConnectedSlot(s.slotOs1Info, nil, nil)
 	s.slotOs2Info = info.Slots["spi-2"]
-	s.slotOs2 = interfaces.NewConnectedSlot(s.slotOs2Info, nil)
+	s.slotOs2 = interfaces.NewConnectedSlot(s.slotOs2Info, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: gadget
@@ -115,21 +115,21 @@ slots:
     interface: spi
 `, nil)
 	s.slotGadget1Info = info.Slots["spi-1"]
-	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadget1Info, nil)
+	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadget1Info, nil, nil)
 	s.slotGadget2Info = info.Slots["spi-2"]
-	s.slotGadget2 = interfaces.NewConnectedSlot(s.slotGadget2Info, nil)
+	s.slotGadget2 = interfaces.NewConnectedSlot(s.slotGadget2Info, nil, nil)
 	s.slotGadgetBad1Info = info.Slots["bad-spi-1"]
-	s.slotGadgetBad1 = interfaces.NewConnectedSlot(s.slotGadgetBad1Info, nil)
+	s.slotGadgetBad1 = interfaces.NewConnectedSlot(s.slotGadgetBad1Info, nil, nil)
 	s.slotGadgetBad2Info = info.Slots["bad-spi-2"]
-	s.slotGadgetBad2 = interfaces.NewConnectedSlot(s.slotGadgetBad2Info, nil)
+	s.slotGadgetBad2 = interfaces.NewConnectedSlot(s.slotGadgetBad2Info, nil, nil)
 	s.slotGadgetBad3Info = info.Slots["bad-spi-3"]
-	s.slotGadgetBad3 = interfaces.NewConnectedSlot(s.slotGadgetBad3Info, nil)
+	s.slotGadgetBad3 = interfaces.NewConnectedSlot(s.slotGadgetBad3Info, nil, nil)
 	s.slotGadgetBad4Info = info.Slots["bad-spi-4"]
-	s.slotGadgetBad4 = interfaces.NewConnectedSlot(s.slotGadgetBad4Info, nil)
+	s.slotGadgetBad4 = interfaces.NewConnectedSlot(s.slotGadgetBad4Info, nil, nil)
 	s.slotGadgetBad5Info = info.Slots["bad-spi-5"]
-	s.slotGadgetBad5 = interfaces.NewConnectedSlot(s.slotGadgetBad5Info, nil)
+	s.slotGadgetBad5 = interfaces.NewConnectedSlot(s.slotGadgetBad5Info, nil, nil)
 	s.slotGadgetBad6Info = info.Slots["bad-spi-6"]
-	s.slotGadgetBad6 = interfaces.NewConnectedSlot(s.slotGadgetBad6Info, nil)
+	s.slotGadgetBad6 = interfaces.NewConnectedSlot(s.slotGadgetBad6Info, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: consumer
@@ -147,9 +147,9 @@ apps:
     plugs: [spi-1]
 `, nil)
 	s.plug1Info = info.Plugs["spi-1"]
-	s.plug1 = interfaces.NewConnectedPlug(s.plug1Info, nil)
+	s.plug1 = interfaces.NewConnectedPlug(s.plug1Info, nil, nil)
 	s.plug2Info = info.Plugs["spi-2"]
-	s.plug2 = interfaces.NewConnectedPlug(s.plug2Info, nil)
+	s.plug2 = interfaces.NewConnectedPlug(s.plug2Info, nil, nil)
 }
 
 func (s *spiInterfaceSuite) TestName(c *C) {

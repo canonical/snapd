@@ -56,9 +56,9 @@ apps:
 		Name:      "snapd-control",
 		Interface: "snapd-control",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	s.plugInfo = consumingSnapInfo.Plugs["snapd-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *SnapdControlInterfaceSuite) TestName(c *C) {

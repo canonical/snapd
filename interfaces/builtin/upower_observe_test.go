@@ -74,15 +74,15 @@ apps:
 	// upower snap with upower-server slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, upowerMockSlotSnapInfoYaml, nil)
 	s.coreSlotInfo = snapInfo.Slots["upower-observe"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 	// upower-observe slot on a core snap in a classic install.
 	snapInfo = snaptest.MockInfo(c, upowerMockClassicSlotSnapInfoYaml, nil)
 	s.classicSlotInfo = snapInfo.Slots["upower-observe"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil)
+	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
 	// snap with the upower-observe plug
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["upower-observe"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *UPowerObserveInterfaceSuite) TestName(c *C) {
@@ -116,7 +116,9 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c
 		Name:      "upower",
 		Interface: "upower-observe",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
 
 	release.OnClassic = false
 
@@ -140,7 +142,10 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(
 		Name:      "upower",
 		Interface: "upower",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -161,7 +166,10 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 		Name:      "upower",
 		Interface: "upower",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil,
+
+		nil)
+
 	release.OnClassic = false
 
 	apparmorSpec := &apparmor.Specification{}
@@ -231,7 +239,9 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 		Name:      "upower",
 		Interface: "upower-observe",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil,
+
+		nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.coreSlot)

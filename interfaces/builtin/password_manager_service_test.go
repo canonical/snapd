@@ -55,10 +55,10 @@ apps:
 		Name:      "password-manager-service",
 		Interface: "password-manager-service",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["password-manager-service"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestName(c *C) {

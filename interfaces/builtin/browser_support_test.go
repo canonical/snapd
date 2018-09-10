@@ -57,10 +57,10 @@ func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
 		Name:      "browser-support",
 		Interface: "browser-support",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, browserMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["browser-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestName(c *C) {
@@ -132,7 +132,7 @@ apps:
 `
 
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil)
+	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -164,7 +164,7 @@ apps:
   plugs: [browser-support]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil)
+	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
