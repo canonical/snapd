@@ -73,11 +73,10 @@ func (r *resp) transmitMaintenance(kind errorKind, message string) {
 	}
 }
 
-func (r *resp) addWarningsToMeta(ws func() (int, time.Time)) {
+func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 	if r.Meta != nil && r.Meta.WarningCount != 0 {
 		return
 	}
-	count, stamp := ws()
 	if count == 0 {
 		return
 	}

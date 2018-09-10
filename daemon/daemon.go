@@ -235,8 +235,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if rsp.Type != ResponseTypeError {
 			st.Lock()
-			rsp.addWarningsToMeta(st.WarningsSummary)
+			count, stamp := st.WarningsSummary()
 			st.Unlock()
+			rsp.addWarningsToMeta(count, stamp)
 		}
 	}
 
