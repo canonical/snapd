@@ -452,7 +452,9 @@ var (
 	mountPollInterval = 1 * time.Second
 )
 
-func otherSnapsLike(st *state.State, instanceName string) (bool, error) {
+// hasOtherInstances checks whether there are other instances of the snap, be it
+// instance keyed or not
+func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 	snapName, _ := snap.SplitInstanceName(instanceName)
 	var all map[string]*json.RawMessage
 	if err := st.Get("snaps", &all); err != nil && err != state.ErrNoState {
@@ -524,7 +526,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
 		}
 
-		otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
 		if err != nil {
 			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
 			return readInfoErr
@@ -579,7 +581,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
 	if err != nil {
 		return err
 	}
@@ -1217,7 +1219,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		st.Lock()
 		defer st.Unlock()
 
-		otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
 		if err != nil {
 			return err
 		}
@@ -1287,7 +1289,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 
-		otherInstances, err := otherSnapsLike(st, snapsup.InstanceName())
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
 		if err != nil {
 			return err
 		}

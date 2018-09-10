@@ -11876,27 +11876,27 @@ func (s snapmgrTestSuite) TestOtherSnapsLike(c *C) {
 		SnapType: "app",
 	})
 
-	other, err := snapstate.OtherSnapsLike(s.state, "some-snap")
+	other, err := snapstate.HasOtherInstances(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, true)
-	other, err = snapstate.OtherSnapsLike(s.state, "some-snap_instance")
+	other, err = snapstate.HasOtherInstances(s.state, "some-snap_instance")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, true)
-	other, err = snapstate.OtherSnapsLike(s.state, "some-other-snap")
+	other, err = snapstate.HasOtherInstances(s.state, "some-other-snap")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, false)
 	// other snaps like only looks at the name of the refence snap
-	other, err = snapstate.OtherSnapsLike(s.state, "some-other-snap_instance")
+	other, err = snapstate.HasOtherInstances(s.state, "some-other-snap_instance")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, true)
 
 	// remove the snap without instance key
 	snapstate.Set(s.state, "some-snap", nil)
 	// some-snap_instance is like some-snap
-	other, err = snapstate.OtherSnapsLike(s.state, "some-snap")
+	other, err = snapstate.HasOtherInstances(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, true)
-	other, err = snapstate.OtherSnapsLike(s.state, "some-snap_instance")
+	other, err = snapstate.HasOtherInstances(s.state, "some-snap_instance")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, false)
 
@@ -11910,10 +11910,10 @@ func (s snapmgrTestSuite) TestOtherSnapsLike(c *C) {
 		SnapType:    "app",
 		InstanceKey: "other",
 	})
-	other, err = snapstate.OtherSnapsLike(s.state, "some-snap")
+	other, err = snapstate.HasOtherInstances(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, true)
-	other, err = snapstate.OtherSnapsLike(s.state, "some-snap_instance")
+	other, err = snapstate.HasOtherInstances(s.state, "some-snap_instance")
 	c.Assert(err, IsNil)
 	c.Assert(other, Equals, true)
 }
