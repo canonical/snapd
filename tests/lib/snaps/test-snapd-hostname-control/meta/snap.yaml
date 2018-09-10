@@ -1,9 +1,0 @@
-name: test-snapd-hostname-control
-version: 1.0
-summary: Basic hostname control consumer snap
-description: A basic snap declaring a hostname-control plug
-
-apps:
-    sh:
-        command: bin/sh
-        plugs: [hostname-control]

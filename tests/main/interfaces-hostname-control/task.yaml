@@ -10,7 +10,7 @@ prepare: |
     echo "Install test hostname-control snap"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-hostname-control
+    install_local test-snapd-sh
 
 restore: |
     rm -f ./*.error
@@ -22,46 +22,46 @@ execute: |
     hostname="$(hostname)"
 
     echo "The plug is disconnected by default"
-    snap interfaces -i hostname-control | MATCH -- '- +test-snapd-hostname-control:hostname-control'
+    snap interfaces -i hostname-control | MATCH -- '- +test-snapd-sh:hostname-control'
     
     echo "When the plug is connected"
-    snap connect test-snapd-hostname-control:hostname-control
+    snap connect test-snapd-sh:hostname-control
 
     echo "The hostname command can be used"
-    snap_hostname="$(test-snapd-hostname-control.sh -c "/bin/hostname")"
+    snap_hostname="$(test-snapd-sh.with-hostname-control-plug -c "/bin/hostname")"
     [ "$hostname" = "$snap_hostname" ]
 
     # On core systems /etc/hostname is not writable
     if is_classic_system; then
         echo "And the /etc/hostname file can be written"
-        test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname"
+        test-snapd-sh.with-hostname-control-plug -c "echo $hostname > /etc/hostname"
     fi
 
     echo "And hostname can be get/set through dbus"
-    test-snapd-hostname-control.sh -c "hostnamectl" | MATCH "$hostname"
-    test-snapd-hostname-control.sh -c "hostnamectl set-hostname $hostname"
+    test-snapd-sh.with-hostname-control-plug -c "hostnamectl" | MATCH "$hostname"
+    test-snapd-sh.with-hostname-control-plug -c "hostnamectl set-hostname $hostname"
     
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-hostname-control:hostname-control
+    snap disconnect test-snapd-sh:hostname-control
     
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
     echo "Then the hostname method cannot be accessed through dbus"
-    if test-snapd-hostname-control.sh -c "hostnamectl set-hostname $hostname" 2>access.error; then
+    if test-snapd-sh.with-hostname-control-plug -c "hostnamectl set-hostname $hostname" 2>access.error; then
         echo "Expected permission error trying to set hostname with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < access.error
 
     echo "And the /etc/hostname file cannot be written"
-    if test-snapd-hostname-control.sh -c "echo $hostname > /etc/hostname" 2>hostname.error; then
+    if test-snapd-sh.with-hostname-control-plug -c "echo $hostname > /etc/hostname" 2>hostname.error; then
         echo "Expected permission error trying to acess to /etc/hostname with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < hostname.error
 
     echo "And the /etc/hostname file and the hostname command are still available even without the connection."
-    test-snapd-hostname-control.sh -c "test -f /etc/hostname"
-    test-snapd-hostname-control.sh -c "test -x /bin/hostname"
+    test-snapd-sh.with-hostname-control-plug -c "test -f /etc/hostname"
+    test-snapd-sh.with-hostname-control-plug -c "test -x /bin/hostname"
