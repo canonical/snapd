@@ -114,18 +114,18 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 	return nil
 }
 
-func (b Backend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
+func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	mountDir := s.MountDir()
 
-	// try to remove the mount point base dir, failure is ok here
 	snapName, instanceKey := snap.SplitInstanceName(s.InstanceName())
 	if instanceKey != "" {
-		// always ok to remove instance specific one
+		// always ok to remove instance specific one, failure to remove
+		// is ok, there may be other revisions
 		os.Remove(filepath.Dir(mountDir))
 	}
-
-	if !otherInstances {
-		// remove only if not used by other instances of the same snap
+	if !hasOtherInstances {
+		// remove only if not used by other instances of the same snap,
+		// failure to remove is ok, there may be other revisions
 		os.Remove(snap.BaseDir(snapName))
 	}
 	return nil
