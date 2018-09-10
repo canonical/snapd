@@ -29,21 +29,34 @@ import (
 // Attributes are grouped by similarity, the first non-empty attribute within the group goes into the key.
 // The final key is composed of 4 attributes (some of which may be empty), separated by "/".
 var attrGroups = [][]string{
+	// Name
 	{"ID_V4L_PRODUCT", "NAME", "ID_NET_NAME", "PCI_SLOT_NAME"},
+	// Vendor
 	{"ID_VENDOR_ID", "ID_VENDOR", "ID_WWN", "ID_WWN_WITH_EXTENSION", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR_ENC", "ID_OUI_FROM_DATABASE"},
+	// Model
 	{"ID_MODEL_ID", "ID_MODEL_ENC"},
+	// Identifier
 	{"ID_SERIAL", "ID_SERIAL_SHORT", "ID_NET_NAME_MAC", "ID_REVISION"},
 }
 
+// defaultDeviceKey computes device key from the attributes of
+// HotplugDeviceInfo. Empty string is returned if too few attributes are present
+// to compute a good key. Attributes used to compute device key are defined in
+// attrGroups list above.
 func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo) string {
 	key := make([]string, len(attrGroups))
+	found := 0
 	for i, group := range attrGroups {
 		for _, attr := range group {
 			if val, ok := devinfo.Attribute(attr); ok && val != "" {
 				key[i] = val
+				found++
 				break
 			}
 		}
+	}
+	if found < 2 {
+		return ""
 	}
 	return strings.Join(key, "/")
 }
