@@ -344,7 +344,11 @@ endif
 ## snap-mgmt
 ##
 
-libexec_PROGRAMS += snap-mgmt/snap-mgmt
+libexec_SCRIPTS = snap-mgmt/snap-mgmt
+
+snap-mgmt/$(am__dirstamp):
+	mkdir -p $$(dirname $@)
+	touch $@
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
