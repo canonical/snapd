@@ -128,13 +128,10 @@ func applyFstab(snapName string, fromSnapConfine bool) error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
-	// TODO: configure the secure helper and inform it about directories that
-	// can be created without trespassing.
-	sec := &Secure{}
-	return computeAndSaveChanges(snapName, sec)
+	return computeAndSaveChanges(snapName)
 }
 
-func computeAndSaveChanges(snapName string, sec *Secure) error {
+func computeAndSaveChanges(snapName string) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -152,7 +149,7 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
-	currentAfter, err := applyProfile(snapName, currentBefore, desired, sec)
+	currentAfter, err := applyProfile(snapName, currentBefore, desired)
 	if err != nil {
 		return err
 	}
@@ -164,7 +161,7 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 	return nil
 }
 
-func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, sec *Secure) (*osutil.MountProfile, error) {
+func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -175,7 +172,7 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change, sec)
+		synthesised, err := changePerform(change)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -251,9 +248,6 @@ func applyUserFstab(snapName string) error {
 
 	debugShowProfile(desired, "desired mount profile")
 
-	// TODO: configure the secure helper and inform it about directories that
-	// can be created without trespassing.
-	sec := &Secure{}
-	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, sec)
+	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired)
 	return err
 }
