@@ -422,11 +422,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// if reconnecting, store old connection info for undo
-	if oldconn, ok := conns[connRef.ID()]; ok {
-		task.Set("old-conn", oldconn)
-	}
-
 	conns[connRef.ID()] = connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
@@ -586,15 +581,6 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var oldconn connState
-	err := task.Get("old-conn", &oldconn)
-	if err == state.ErrNoState {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
@@ -604,7 +590,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	conns[connRef.ID()] = oldconn
+	delete(conns, connRef.ID())
 	setConns(st, conns)
 	return nil
 }
@@ -666,7 +652,7 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 		}
 
 		// other snap that affects us because of plug or slot
-		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
+		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" || k == "discard-snap" {
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 			// if snap is getting installed/refreshed - temporary conflict, retry later
 			return &state.Retry{After: connectRetryTimeout}
