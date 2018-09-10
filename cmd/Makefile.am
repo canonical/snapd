@@ -463,7 +463,8 @@ snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
 ## snapd-generator
 ##
 
-libexec_PROGRAMS += snapd-generator/snapd-generator
+systemdsystemgeneratordir = $(SYSTEMD_SYSTEM_GENERATOR_DIR)
+systemdsystemgenerator_PROGRAMS = snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
