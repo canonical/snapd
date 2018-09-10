@@ -40,6 +40,7 @@ type utilsSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
 	log *bytes.Buffer
+	as  *update.Assumptions
 }
 
 var _ = Suite(&utilsSuite{})
@@ -51,6 +52,7 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	buf, restore := logger.MockLogger()
 	s.BaseTest.AddCleanup(restore)
 	s.log = buf
+	s.as = &update.Assumptions{}
 }
 
 func (s *utilsSuite) TearDownTest(c *C) {
@@ -62,21 +64,21 @@ func (s *utilsSuite) TearDownTest(c *C) {
 
 // Ensure that we reject unclean paths.
 func (s *utilsSuite) TestSecureMkdirAllUnclean(c *C) {
-	err := update.MkdirAll("/unclean//path", 0755, 123, 456)
+	err := update.MkdirAll("/unclean//path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
-	err := update.MkdirAll("rel/path", 0755, 123, 456)
+	err := update.MkdirAll("rel/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot create directory with relative path: "rel/path"`)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we can "create the root directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel0(c *C) {
-	c.Assert(update.MkdirAll("/", 0755, 123, 456), IsNil)
+	c.Assert(update.MkdirAll("/", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `close 3`},
@@ -85,9 +87,7 @@ func (s *utilsSuite) TestSecureMkdirAllLevel0(c *C) {
 
 // Ensure that we can create a directory in the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
-	os.Setenv("SNAPD_DEBUG", "1")
-	defer os.Unsetenv("SNAPD_DEBUG")
-	c.Assert(update.MkdirAll("/path", 0755, 123, 456), IsNil)
+	c.Assert(update.MkdirAll("/path", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "path" 0755`},
@@ -100,7 +100,7 @@ func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
 
 // Ensure that we can create a directory two levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel2(c *C) {
-	c.Assert(update.MkdirAll("/path/to", 0755, 123, 456), IsNil)
+	c.Assert(update.MkdirAll("/path/to", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "path" 0755`},
@@ -117,7 +117,7 @@ func (s *utilsSuite) TestSecureMkdirAllLevel2(c *C) {
 
 // Ensure that we can create a directory three levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
-	c.Assert(update.MkdirAll("/path/to/something", 0755, 123, 456), IsNil)
+	c.Assert(update.MkdirAll("/path/to/something", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "path" 0755`},
@@ -136,11 +136,55 @@ func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
 	})
 }
 
+// Ensure that writes to /etc/demo are interrupted if /etc is restricted.
+func (s *utilsSuite) TestSecureMkdirAllWithRestrictedEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/etc/demo")
+	err := update.MkdirAll("/etc/demo", 0755, 123, 456, rs)
+	c.Assert(err, ErrorMatches, `cannot write to "/etc/demo" because it would affect the host in "/etc"`)
+	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc")
+	c.Assert(err.(*update.TrespassingError).DesiredPath, Equals, "/etc/demo")
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		// we are inspecting the type of the filesystem we are about to perform operation on.
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		// ext4 is writable, refuse further operations.
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+	})
+}
+
+// Ensure that writes to /etc/demo allowed if /etc is unrestricted.
+func (s *utilsSuite) TestSecureMkdirAllWithUnrestrictedEtc(c *C) {
+	defer s.as.MockUnrestrictedPaths("/etc")() // Mark /etc as unrestricted.
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/etc/demo")
+	c.Assert(update.MkdirAll("/etc/demo", 0755, 123, 456, rs), IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		// We are not interested in the type of filesystem at /
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		// We are not interested in the type of filesystem at /etc
+		{C: `close 3`},
+		{C: `mkdirat 4 "demo" 0755`},
+		{C: `openat 4 "demo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 123 456`},
+		{C: `close 3`},
+		{C: `close 4`},
+	})
+}
+
 // Ensure that we can detect read only filesystems.
 func (s *utilsSuite) TestSecureMkdirAllROFS(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST) // just realistic
 	s.sys.InsertFault(`mkdirat 4 "path" 0755`, syscall.EROFS)
-	err := update.MkdirAll("/rofs/path", 0755, 123, 456)
+	err := update.MkdirAll("/rofs/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -157,7 +201,7 @@ func (s *utilsSuite) TestSecureMkdirAllROFS(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 4 "path" 0755`, syscall.EEXIST)
-	err := update.MkdirAll("/abs/path", 0755, 123, 456)
+	err := update.MkdirAll("/abs/path", 0755, 123, 456, nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -174,7 +218,7 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 // Ensure that we we close everything when mkdirat fails.
 func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
-	err := update.MkdirAll("/abs", 0755, 123, 456)
+	err := update.MkdirAll("/abs", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot create directory "/abs": testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -186,7 +230,7 @@ func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 // Ensure that we we close everything when fchown fails.
 func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
-	err := update.MkdirAll("/path", 0755, 123, 456)
+	err := update.MkdirAll("/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot chown directory "/path" to 123.456: testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -201,7 +245,7 @@ func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
 // Check error path when we cannot open root directory.
 func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
 	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
-	err := update.MkdirAll("/abs/path", 0755, 123, 456)
+	err := update.MkdirAll("/abs/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, "cannot open root directory: testing")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
@@ -211,7 +255,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
 // Check error path when we cannot open non-root directory.
 func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
-	err := update.MkdirAll("/abs/path", 0755, 123, 456)
+	err := update.MkdirAll("/abs/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot open directory "/abs": testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -301,14 +345,14 @@ func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 	}
 
 	// Mock the act of performing changes, each of the change we perform is coming from the plan.
-	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		c.Assert(plan, testutil.DeepContains, chg)
 		return nil, nil
 	})
 	defer restore()
 
 	// The executed plan leaves us with a simplified view of the plan that is suitable for undo.
-	undoPlan, err := update.ExecWritableMimic(plan)
+	undoPlan, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, IsNil)
 	c.Assert(undoPlan, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -336,7 +380,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	// the recovery path are recorded.
 	var recoveryPlan []*update.Change
 	recovery := false
-	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		if !recovery {
 			c.Assert(plan, testutil.DeepContains, chg)
 			if chg.Entry.Name == "/tmp/.snap/foo/dir" {
@@ -351,7 +395,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	defer restore()
 
 	// The executed plan fails, leaving us with the error and an empty undo plan.
-	undoPlan, err := update.ExecWritableMimic(plan)
+	undoPlan, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(undoPlan, HasLen, 0)
 	// The changes we managed to perform were undone correctly.
@@ -375,13 +419,13 @@ func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 	}
 
 	// Mock the act of performing changes and just fail on any request.
-	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		return nil, errTesting
 	})
 	defer restore()
 
 	// The executed plan fails, the recovery didn't fail (it's empty) so we just return that error.
-	undoPlan, err := update.ExecWritableMimic(plan)
+	undoPlan, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(undoPlan, HasLen, 0)
 }
@@ -402,7 +446,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// execute function ends up in a situation where it cannot perform the
 	// recovery path and will have to return a fatal error.
 	i := -1
-	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		i++
 		if i > 0 {
 			return nil, fmt.Errorf("failure-%d", i)
@@ -412,18 +456,21 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	defer restore()
 
 	// The plan partially succeeded and we cannot undo those changes.
-	_, err := update.ExecWritableMimic(plan)
+	_, err := update.ExecWritableMimic(plan, s.as)
 	c.Assert(err, ErrorMatches, `cannot undo change ".*" while recovering from earlier error failure-1: failure-2`)
 	c.Assert(err, FitsTypeOf, &update.FatalError{})
 }
 
 // realSystemSuite is not isolated / mocked from the system.
 type realSystemSuite struct {
+	as *update.Assumptions
 }
 
 var _ = Suite(&realSystemSuite{})
 
 func (s *realSystemSuite) SetUpTest(c *C) {
+	s.as = &update.Assumptions{}
+	s.as.AddUnrestrictedPaths("/tmp")
 }
 
 // Check that we can actually create directories.
@@ -434,7 +481,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	// Create d (which already exists) with mode 0777 (but c.MkDir() used 0700
 	// internally and since we are not creating the directory we should not be
 	// changing that.
-	c.Assert(update.MkdirAll(d, 0777, sys.FlagID, sys.FlagID), IsNil)
+	c.Assert(update.MkdirAll(d, 0777, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err := os.Stat(d)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -444,7 +491,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	// check that it was applied. Note that default umask 022 is subtracted so
 	// effective directory has different permissions.
 	d1 := filepath.Join(d, "subdir")
-	c.Assert(update.MkdirAll(d1, 0707, sys.FlagID, sys.FlagID), IsNil)
+	c.Assert(update.MkdirAll(d1, 0707, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err = os.Stat(d1)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -453,7 +500,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	// Create d2, which is a deeper subdirectory, with another distinct mode
 	// and check that it was applied.
 	d2 := filepath.Join(d, "subdir/subdir/subdir")
-	c.Assert(update.MkdirAll(d2, 0750, sys.FlagID, sys.FlagID), IsNil)
+	c.Assert(update.MkdirAll(d2, 0750, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err = os.Stat(d2)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -464,28 +511,28 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 
 // Ensure that we reject unclean paths.
 func (s *utilsSuite) TestSecureMkfileAllUnclean(c *C) {
-	err := update.MkfileAll("/unclean//path", 0755, 123, 456)
+	err := update.MkfileAll("/unclean//path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we refuse to create a file with an relative path.
 func (s *utilsSuite) TestSecureMkfileAllRelative(c *C) {
-	err := update.MkfileAll("rel/path", 0755, 123, 456)
+	err := update.MkfileAll("rel/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot create file with relative path: "rel/path"`)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we refuse creating the root directory as a file.
 func (s *utilsSuite) TestSecureMkfileAllLevel0(c *C) {
-	err := update.MkfileAll("/", 0755, 123, 456)
+	err := update.MkfileAll("/", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
 
 // Ensure that we can create a file in the top-level directory.
 func (s *utilsSuite) TestSecureMkfileAllLevel1(c *C) {
-	c.Assert(update.MkfileAll("/path", 0755, 123, 456), IsNil)
+	c.Assert(update.MkfileAll("/path", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 4},
@@ -497,7 +544,7 @@ func (s *utilsSuite) TestSecureMkfileAllLevel1(c *C) {
 
 // Ensure that we can create a file two levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkfileAllLevel2(c *C) {
-	c.Assert(update.MkfileAll("/path/to", 0755, 123, 456), IsNil)
+	c.Assert(update.MkfileAll("/path/to", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "path" 0755`},
@@ -513,7 +560,7 @@ func (s *utilsSuite) TestSecureMkfileAllLevel2(c *C) {
 
 // Ensure that we can create a file three levels from the top-level directory.
 func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
-	c.Assert(update.MkfileAll("/path/to/something", 0755, 123, 456), IsNil)
+	c.Assert(update.MkfileAll("/path/to/something", 0755, 123, 456, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "path" 0755`},
@@ -535,7 +582,7 @@ func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST) // just realistic
 	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EROFS)
-	err := update.MkfileAll("/rofs/path", 0755, 123, 456)
+	err := update.MkfileAll("/rofs/path", 0755, 123, 456, nil)
 	c.Check(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -552,7 +599,7 @@ func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
-	err := update.MkfileAll("/abs/path", 0755, 123, 456)
+	err := update.MkfileAll("/abs/path", 0755, 123, 456, nil)
 	c.Check(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -570,7 +617,7 @@ func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllOpenat2ndError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`, errTesting)
-	err := update.MkfileAll("/abs", 0755, 123, 456)
+	err := update.MkfileAll("/abs", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot open file "/abs": testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -583,7 +630,7 @@ func (s *utilsSuite) TestSecureMkfileAllOpenat2ndError(c *C) {
 // Ensure that we we close everything when openat (non-exclusive) fails.
 func (s *utilsSuite) TestSecureMkfileAllOpenatError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
-	err := update.MkfileAll("/abs", 0755, 123, 456)
+	err := update.MkfileAll("/abs", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot open file "/abs": testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -595,7 +642,7 @@ func (s *utilsSuite) TestSecureMkfileAllOpenatError(c *C) {
 // Ensure that we we close everything when fchown fails.
 func (s *utilsSuite) TestSecureMkfileAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
-	err := update.MkfileAll("/path", 0755, 123, 456)
+	err := update.MkfileAll("/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot chown file "/path" to 123.456: testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -609,7 +656,7 @@ func (s *utilsSuite) TestSecureMkfileAllFchownError(c *C) {
 // Check error path when we cannot open root directory.
 func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
 	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
-	err := update.MkfileAll("/abs/path", 0755, 123, 456)
+	err := update.MkfileAll("/abs/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, "cannot open root directory: testing")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
@@ -619,13 +666,224 @@ func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
 // Check error path when we cannot open non-root directory.
 func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
-	err := update.MkfileAll("/abs/path", 0755, 123, 456)
+	err := update.MkfileAll("/abs/path", 0755, 123, 456, nil)
 	c.Assert(err, ErrorMatches, `cannot open directory "/abs": testing`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "abs" 0755`},
 		{C: `openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
 		{C: `close 3`},
+	})
+}
+
+// We want to create a symlink in $SNAP_DATA and that's fine.
+func (s *utilsSuite) TestSecureMksymlinkAllInSnapData(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "var" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "foo" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 6 "42" 0755`, syscall.EEXIST)
+
+	err := update.MksymlinkAll("/var/snap/foo/42/symlink", 0755, 0, 0, "/oldname", nil)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "var" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "var" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 "snap" 0755`, E: syscall.EEXIST},
+		{C: `openat 4 "snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `mkdirat 5 "foo" 0755`, E: syscall.EEXIST},
+		{C: `openat 5 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6},
+		{C: `mkdirat 6 "42" 0755`, E: syscall.EEXIST},
+		{C: `openat 6 "42" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 7},
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `symlinkat "/oldname" 7 "symlink"`},
+		{C: `close 7`},
+	})
+}
+
+// We want to create a symlink in /etc but the host filesystem would be affected.
+func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/etc/symlink")
+	err := update.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname", rs)
+	c.Assert(err, ErrorMatches, `cannot write to "/etc/symlink" because it would affect the host in "/etc"`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+	})
+}
+
+// We want to create a symlink deep in /etc but the host filesystem would be affected.
+// This just shows that we pick the right place to construct the mimic
+func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/etc/some/other/stuff/symlink")
+	err := update.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname", rs)
+	c.Assert(err, ErrorMatches, `cannot write to "/etc/some/other/stuff/symlink" because it would affect the host in "/etc/"`)
+	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc/")
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+		{C: `close 3`},
+	})
+}
+
+// We want to create a file in /etc but the host filesystem would be affected.
+func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/etc/file")
+	err := update.MkfileAll("/etc/file", 0755, 0, 0, rs)
+	c.Assert(err, ErrorMatches, `cannot write to "/etc/file" because it would affect the host in "/etc"`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+	})
+}
+
+// We want to create a directory in /etc but the host filesystem would be affected.
+func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/etc/dir")
+	err := update.MkdirAll("/etc/dir", 0755, 0, 0, rs)
+	c.Assert(err, ErrorMatches, `cannot write to "/etc/dir" because it would affect the host in "/etc"`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `close 4`},
+	})
+}
+
+// We want to create a directory in /snap/foo/42/dir and want to know what happens.
+func (s *utilsSuite) TestSecureMkdirAllInSNAP(c *C) {
+	// Allow creating directories under /snap/ related to this snap ("foo").
+	// This matches what is done inside main().
+	restore := s.as.MockUnrestrictedPaths("/snap/foo")
+	defer restore()
+
+	s.sys.InsertFault(`mkdirat 3 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "foo" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "42" 0755`, syscall.EEXIST)
+
+	rs := s.as.RestrictionsFor("/snap/foo/42/dir")
+	err := update.MkdirAll("/snap/foo/42/dir", 0755, 0, 0, rs)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "snap" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 "foo" 0755`, E: syscall.EEXIST},
+		{C: `openat 4 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `mkdirat 5 "42" 0755`, E: syscall.EEXIST},
+		{C: `openat 5 "42" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `mkdirat 6 "dir" 0755`},
+		{C: `openat 6 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 6`},
+	})
+}
+
+// We want to create a symlink in /etc which is a tmpfs that we mounted so that is ok.
+func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
+	// Because /etc is not on a list of unrestricted paths the write to
+	// /etc/symlink must be validated with step-by-step operation.
+	rootStatfs := syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
+	etcStatfs := syscall.Statfs_t{Type: update.TmpfsMagic}
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, rootStatfs)
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, etcStatfs)
+	rs := s.as.RestrictionsFor("/etc/symlink")
+	err := update.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname", rs)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: rootStatfs},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: etcStatfs},
+		{C: `symlinkat "/oldname" 4 "symlink"`},
+		{C: `close 4`},
+	})
+}
+
+// We want to create a file in /etc which is a tmpfs created by snapd so that's okay.
+func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
+	rs := s.as.RestrictionsFor("/etc/file")
+	err := update.MkfileAll("/etc/file", 0755, 0, 0, rs)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `openat 4 "file" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 4`},
+	})
+}
+
+// We want to create a directory in /etc which is a tmpfs created by snapd so that is ok.
+func (s *utilsSuite) TestSecureMkdirAllInEtcAfterMimic(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
+	rs := s.as.RestrictionsFor("/etc/dir")
+	err := update.MkdirAll("/etc/dir", 0755, 0, 0, rs)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `mkdirat 4 "dir" 0755`},
+		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 4`},
 	})
 }
 
@@ -638,7 +896,7 @@ func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
 	// check that it was applied. Note that default umask 022 is subtracted so
 	// effective directory has different permissions.
 	f1 := filepath.Join(d, "file")
-	c.Assert(update.MkfileAll(f1, 0707, sys.FlagID, sys.FlagID), IsNil)
+	c.Assert(update.MkfileAll(f1, 0707, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err := os.Stat(f1)
 	c.Assert(err, IsNil)
 	c.Check(fi.Mode().IsRegular(), Equals, true)
@@ -647,7 +905,7 @@ func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
 	// Create f2, which is a deeper subdirectory, with another distinct mode
 	// and check that it was applied.
 	f2 := filepath.Join(d, "subdir/subdir/file")
-	c.Assert(update.MkfileAll(f2, 0750, sys.FlagID, sys.FlagID), IsNil)
+	c.Assert(update.MkfileAll(f2, 0750, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err = os.Stat(f2)
 	c.Assert(err, IsNil)
 	c.Check(fi.Mode().IsRegular(), Equals, true)
@@ -662,7 +920,7 @@ func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
 	// Create symlink f1 that points to "oldname" and check that it
 	// is correct. Note that symlink permissions are always set to 0777
 	f1 := filepath.Join(d, "symlink")
-	err := update.MksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "oldname")
+	err := update.MksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "oldname", nil)
 	c.Assert(err, IsNil)
 	fi, err := os.Lstat(f1)
 	c.Assert(err, IsNil)
@@ -674,28 +932,28 @@ func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
 	c.Check(target, Equals, "oldname")
 
 	// Create an identical symlink to see that it doesn't fail.
-	err = update.MksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "oldname")
+	err = update.MksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "oldname", nil)
 	c.Assert(err, IsNil)
 
 	// Create a different symlink and see that it fails now
-	err = update.MksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "other")
+	err = update.MksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "other", nil)
 	c.Assert(err, ErrorMatches, `cannot create symbolic link ".*/symlink": existing symbolic link in the way`)
 
 	// Create an file and check that it clashes with a symlink we attempt to create.
 	f2 := filepath.Join(d, "file")
-	err = update.MkfileAll(f2, 0755, sys.FlagID, sys.FlagID)
+	err = update.MkfileAll(f2, 0755, sys.FlagID, sys.FlagID, nil)
 	c.Assert(err, IsNil)
-	err = update.MksymlinkAll(f2, 0755, sys.FlagID, sys.FlagID, "oldname")
+	err = update.MksymlinkAll(f2, 0755, sys.FlagID, sys.FlagID, "oldname", nil)
 	c.Assert(err, ErrorMatches, `cannot create symbolic link ".*/file": existing file in the way`)
 
 	// Create an file and check that it clashes with a symlink we attempt to create.
 	f3 := filepath.Join(d, "dir")
-	err = update.MkdirAll(f3, 0755, sys.FlagID, sys.FlagID)
+	err = update.MkdirAll(f3, 0755, sys.FlagID, sys.FlagID, nil)
 	c.Assert(err, IsNil)
-	err = update.MksymlinkAll(f3, 0755, sys.FlagID, sys.FlagID, "oldname")
+	err = update.MksymlinkAll(f3, 0755, sys.FlagID, sys.FlagID, "oldname", nil)
 	c.Assert(err, ErrorMatches, `cannot create symbolic link ".*/dir": existing file in the way`)
 
-	err = update.MksymlinkAll("/", 0755, sys.FlagID, sys.FlagID, "oldname")
+	err = update.MksymlinkAll("/", 0755, sys.FlagID, sys.FlagID, "oldname", nil)
 	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
 }
 
