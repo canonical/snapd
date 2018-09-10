@@ -4,33 +4,31 @@ details: |
     The network setup control interface allows to access the different netplan
     configuration files.
 
-    The test uses the test-snapd-check-fs-access snap to checks files and dirs
-    are accessible through the interface.
-
 systems: [-ubuntu-core-*]
 
 prepare: |
-    echo "Given the test-snapd-check-fs-access snap is installed"
-    cp "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
-    sed 's/\[\]/\[network-setup-control\]/g' -i "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml
-    snap try "$TESTSLIB"/snaps/test-snapd-check-fs-access
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-sh
 
 restore: |
-    cp "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig "$TESTSLIB"/snaps/test-snapd-check-fs-access/meta/snap.yaml
+    rm -f call.error
+    rm -f /etc/netplan/test001
+    rm -f /etc/network/test001
 
 execute: |
     dirs="/etc/netplan /etc/network"
 
     echo "The interface is disconnected by default"
-    snap interfaces -i network-setup-control | MATCH -- '^- +test-snapd-check-fs-access:network-setup-control'
+    snap interfaces -i network-setup-control | MATCH -- '^- +test-snapd-sh:network-setup-control'
 
     echo "When the interface is connected"
-    snap connect test-snapd-check-fs-access:network-setup-control
+    snap connect test-snapd-sh:network-setup-control
 
     echo "Then the snap is able to write in the network and netplan directories"
     for dir in $dirs; do
         if [ -d "$dir" ]; then
-            test-snapd-check-fs-access.write-dir "$dir"
+            test-snapd-sh.with-network-setup-control-plug -c "touch $dir/test001"
         fi
     done
 
@@ -39,12 +37,12 @@ execute: |
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-check-fs-access:network-setup-control
+    snap disconnect test-snapd-sh:network-setup-control
 
     echo "Then the snap is not able to access the networking configuration dirs"
     for dir in $dirs; do
         if [ -d "$dir" ]; then
-            if test-snapd-check-fs-access.write-dir "$dir" 2>"${PWD}"/call.error; then
+            if test-snapd-sh.with-network-setup-control-plug -c "touch $dir/test001" 2>call.error; then
                 echo "Expected permission error calling desktop with disconnected plug"
                 exit 1
             fi
@@ -53,4 +51,4 @@ execute: |
     done
 
     echo "Then the interface can be connected again"
-    snap connect test-snapd-check-fs-access:network-setup-control
+    snap connect test-snapd-sh:network-setup-control

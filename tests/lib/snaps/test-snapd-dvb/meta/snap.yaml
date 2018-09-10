@@ -1,9 +1,0 @@
-name: test-snapd-dvb
-version: 1.0
-summary: Basic dvb snap
-description: A basic snap which allows reading and writing to dvb devices
-
-apps:
-  sh:
-    command: bin/sh
-    plugs: [dvb]
