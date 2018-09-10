@@ -770,7 +770,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
 
 	// two warnings, one expired
-	st.AddWarningFull("hello", now, never, time.Nanosecond, state.DefaultRepeatAfter)
+	st.AddWarning("hello", now, never, time.Nanosecond, state.DefaultRepeatAfter)
 	st.Warnf("hello again")
 
 	st.Prune(pruneWait, abortWait, 100)
