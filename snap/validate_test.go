@@ -1141,6 +1141,15 @@ apps:
    daemon: dbus
    after: [foo, bar, baz]
 `)
+	mixedSystemUserDaemons := []byte(`
+apps:
+ foo:
+   daemon: simple
+ bar:
+   daemon: simple
+   daemon-mode: user
+   after: [foo]
+`)
 
 	tcs := []struct {
 		name string
@@ -1183,8 +1192,12 @@ apps:
 	}, {
 		name: "self cycle",
 		desc: fooSelfCycle,
-		err:  `applications are part of a before/after cycle: foo`},
-	}
+		err:  `applications are part of a before/after cycle: foo`,
+	}, {
+		name: "user daemon wants system daemon",
+		desc: mixedSystemUserDaemons,
+		err: `application "bar" refers to different daemon-mode application "foo" in before/after`,
+	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
 		info, err := InfoFromSnapYaml(append(meta, tc.desc...))

@@ -513,6 +513,11 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 		if !other.IsService() {
 			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
+
+		if app.IsUserService() != other.IsUserService() {
+			return fmt.Errorf("application %q refers to different daemon-mode application %q in before/after",
+				app.Name, dep)
+		}
 	}
 	return nil
 }
