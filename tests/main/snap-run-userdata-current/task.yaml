@@ -3,11 +3,13 @@ summary: Check that 'current' symlink is created with 'snap run'
 systems: [-ubuntu-core-*]
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     echo "Test that 'current' symlink is created in user data dir"
     CURRENT=$(readlink $SNAP_MOUNT_DIR/test-snapd-tools/current)
     if [ -z "$CURRENT" ]; then
@@ -16,24 +18,24 @@ execute: |
     fi
 
     $SNAP_MOUNT_DIR/bin/test-snapd-tools.echo -n
-    UDATA_CURRENT=$(readlink $HOME/snap/test-snapd-tools/current)
+    UDATA_CURRENT=$(readlink "$HOME/snap/test-snapd-tools/current")
     if [ "$CURRENT" != "$UDATA_CURRENT" ]; then
       echo "Invalid 'current' symlink in user-data directory, expected $CURRENT, got $UDATA_CURRENT"
       exit 1
     fi
 
     echo "Test that 'current' symlink is recreated"
-    rm -rf $HOME/snap/test-snapd-tools/current
+    rm -rf "$HOME/snap/test-snapd-tools/current"
     $SNAP_MOUNT_DIR/bin/test-snapd-tools.echo -n
-    if [ ! -L $HOME/snap/test-snapd-tools/current ]; then
+    if [ ! -L "$HOME/snap/test-snapd-tools/current" ]; then
       echo "The 'current' symlink not present in user-data directory"
       exit 1
     fi
 
     echo "Test that 'current' symlink is updated if incorrect"
-    ln -fs $HOME/snap/test-snapd-tools/wrong $HOME/snap/test-snapd-tools/current
+    ln -fs "$HOME/snap/test-snapd-tools/wrong" "$HOME/snap/test-snapd-tools/current"
     $SNAP_MOUNT_DIR/bin/test-snapd-tools.echo -n
-    UDATA_CURRENT=$(readlink $HOME/snap/test-snapd-tools/current)
+    UDATA_CURRENT=$(readlink "$HOME/snap/test-snapd-tools/current")
     if [ "$CURRENT" != "$UDATA_CURRENT" ]; then
       echo "Invalid 'current' symlink in user-data directory, expected $CURRENT, got $UDATA_CURRENT"
       exit 1
