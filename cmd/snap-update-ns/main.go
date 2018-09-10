@@ -128,10 +128,33 @@ func applyFstab(snapName string, fromSnapConfine bool) error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
-	return computeAndSaveChanges(snapName)
+	// Allow creating directories related to this snap name.
+	//
+	// Note that we allow /var/snap instead of /var/snap/$SNAP_NAME because
+	// content interface connections can readily create missing mount points on
+	// both sides of the interface connection.
+	//
+	// We scope /snap/$SNAP_NAME because only one side of the connection can be
+	// created, as snaps are read-only, the mimic construction will kick-in and
+	// create the missing directory but this directory is only visible from the
+	// snap that we are operating on (either plug or slot side, the point is,
+	// the mount point is not universally visible).
+	//
+	// /snap/$SNAP_NAME needs to be there as the code that creates such mount
+	// points must traverse writable host filesystem that contains /snap/*/ and
+	// normally such access is off-limits. This approach allows /snap/foo
+	// without allowing /snap/bin, for example.
+
+	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
+	// allow defining layout items that refer to SNAP_USER_DATA and
+	// SNAP_USER_COMMON.
+	as := &Assumptions{}
+	// TODO parallel-install: add instance specific path
+	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+snapName)
+	return computeAndSaveChanges(snapName, as)
 }
 
-func computeAndSaveChanges(snapName string) error {
+func computeAndSaveChanges(snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -148,8 +171,12 @@ func computeAndSaveChanges(snapName string) error {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
+	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
+	for _, entry := range currentBefore.Entries {
+		as.AddChange(&Change{Action: Mount, Entry: entry})
+	}
 
-	currentAfter, err := applyProfile(snapName, currentBefore, desired)
+	currentAfter, err := applyProfile(snapName, currentBefore, desired, as)
 	if err != nil {
 		return err
 	}
@@ -161,7 +188,7 @@ func computeAndSaveChanges(snapName string) error {
 	return nil
 }
 
-func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile) (*osutil.MountProfile, error) {
+func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -172,7 +199,7 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile) 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change)
+		synthesised, err := changePerform(change, as)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -248,6 +275,9 @@ func applyUserFstab(snapName string) error {
 
 	debugShowProfile(desired, "desired mount profile")
 
-	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired)
+	// TODO: configure the secure helper and inform it about directories that
+	// can be created without trespassing.
+	as := &Assumptions{}
+	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }

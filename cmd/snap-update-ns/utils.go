@@ -128,10 +128,10 @@ func OpenPath(path string) (int, error) {
 }
 
 // MkPrefix creates all the missing directories in a given base path and
-// returns the file descriptor to the leaf directory. This function is a base
-// for secure variants of mkdir, touch and symlink. None of the traversed
-// directories can be symbolic links.
-func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+// returns the file descriptor to the leaf directory as well as the restricted
+// flag. This function is a base for secure variants of mkdir, touch and
+// symlink. None of the traversed directories can be symbolic links.
+func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) (int, error) {
 	iter, err := strutil.NewPathIterator(base)
 	if err != nil {
 		// TODO: Reword the error and adjust the tests.
@@ -144,6 +144,10 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (i
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	// Open the root directory and start there.
+	//
+	// NOTE: We don't have to check for possible trespassing on / here because
+	// we are going to check for it in sec.MkDir call below which verifies that
+	// trespassing restrictions are not violated?
 	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open root directory: %v", err)
@@ -152,7 +156,7 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (i
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid)
+		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid, rs)
 		if err != nil {
 			return -1, err
 		}
@@ -167,9 +171,12 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (i
 // convenience). This function is meant to be used to construct subsequent
 // elements of some path. The return value contains the newly created file
 // descriptor for the new directory or -1 on error.
-func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
-	made := true
+func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) (int, error) {
+	if err := rs.Check(dirFd, dirName); err != nil {
+		return -1, err
+	}
 
+	made := true
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
 	if err := sysMkdirat(dirFd, name, uint32(perm.Perm())); err != nil {
@@ -197,6 +204,16 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 			sysClose(newFd)
 			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
 		}
+		// As soon as we find a place that is safe to write we can switch off
+		// the restricted mode (and thus any subsequent checks). This is
+		// because we only allow "writing" to read-only filesystems where
+		// writes fail with EROFS or to a tmpfs that snapd has privately
+		// mounted inside the per-snap mount namespace. As soon as we start
+		// walking over such tmpfs any subsequent children are either read-
+		// only bind mounts from $SNAP, other tmpfs'es  (e.g. one explicitly
+		// constructed for a layout) or writable places that are bind-mounted
+		// from $SNAP_DATA or similar.
+		rs.Lift()
 	}
 	return newFd, err
 }
@@ -207,9 +224,12 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 // convenience). This function is meant to be used to create the leaf file as
 // a preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	made := true
+func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
+	if err := rs.Check(dirFd, dirName); err != nil {
+		return err
+	}
 
+	made := true
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
 	// translated to textual form. It is added here for explicitness.
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_RDONLY
@@ -254,9 +274,12 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 // The directory is represented with a file descriptor and its name (for
 // convenience). This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
-func MkSymlink(dirFd int, dirName string, name string, oldname string) error {
+func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restrictions) error {
+	if err := rs.Check(dirFd, dirName); err != nil {
+		return err
+	}
+
 	// Create the final path segment as a symlink.
-	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
 		switch err {
 		case syscall.EEXIST:
@@ -311,7 +334,7 @@ func MkSymlink(dirFd int, dirName string, name string, oldname string) error {
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -325,7 +348,7 @@ func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) er
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
 	if err != nil {
 		return err
 	}
@@ -333,7 +356,7 @@ func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) er
 
 	if name != "" {
 		// Create the leaf as a directory.
-		leafFd, err := MkDir(dirFd, base, name, perm, uid, gid)
+		leafFd, err := MkDir(dirFd, base, name, perm, uid, gid, rs)
 		if err != nil {
 			return err
 		}
@@ -348,7 +371,7 @@ func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) er
 // This function is like MkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -366,7 +389,7 @@ func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) e
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
 	if err != nil {
 		return err
 	}
@@ -374,13 +397,13 @@ func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) e
 
 	if name != "" {
 		// Create the leaf as a file.
-		err = MkFile(dirFd, base, name, perm, uid, gid)
+		err = MkFile(dirFd, base, name, perm, uid, gid, rs)
 	}
 	return err
 }
 
 // MksymlinkAll is a secure implementation of "ln -s".
-func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string, rs *Restrictions) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -402,7 +425,7 @@ func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid)
+	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
 	if err != nil {
 		return err
 	}
@@ -410,7 +433,7 @@ func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID
 
 	if name != "" {
 		// Create the leaf as a symlink.
-		err = MkSymlink(dirFd, base, name, oldname)
+		err = MkSymlink(dirFd, base, name, oldname, rs)
 	}
 	return err
 }
@@ -545,10 +568,10 @@ type FatalError struct {
 // In the event of a failure the undo plan is executed and an error is
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
-func execWritableMimic(plan []*Change) ([]*Change, error) {
+func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := changePerform(change); err != nil {
+		if _, err := changePerform(change, as); err != nil {
 			// Drat, we failed! Let's undo everything according to our own undo
 			// plan, by following it in reverse order.
 
@@ -571,7 +594,7 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 				if recoveryUndoChange.Entry.OptBool("rbind") {
 					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
-				if _, err2 := changePerform(recoveryUndoChange); err2 != nil {
+				if _, err2 := changePerform(recoveryUndoChange, as); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
 					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
@@ -619,12 +642,12 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func createWritableMimic(dir, neededBy string) ([]*Change, error) {
+func createWritableMimic(dir, neededBy string, as *Assumptions) ([]*Change, error) {
 	plan, err := planWritableMimic(dir, neededBy)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := execWritableMimic(plan)
+	changes, err := execWritableMimic(plan, as)
 	if err != nil {
 		return nil, err
 	}
