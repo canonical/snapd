@@ -113,7 +113,7 @@ func (m *Monitor) Run() error {
 	}
 	m.tomb.Go(func() error {
 		for _, perr := range parseErrors {
-			logger.Noticef("udev enumeration error: %q\n", perr)
+			logger.Noticef("udev enumeration error: %s", perr)
 		}
 		for _, dev := range devices {
 			devPath := dev.DevicePath()
@@ -130,7 +130,7 @@ func (m *Monitor) Run() error {
 		for {
 			select {
 			case err := <-m.netlinkErrors:
-				logger.Noticef("udev event error: %q\n", err)
+				logger.Noticef("udev event error: %s", err)
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tomb.Dying():
