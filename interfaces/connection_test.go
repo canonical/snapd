@@ -96,6 +96,11 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	c.Assert(slot.StaticAttr("unknown", &val), ErrorMatches, `snap "producer" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.StaticAttr("attr", &intVal), ErrorMatches, `snap "producer" has interface "interface" with invalid value type for "attr" attribute`)
 	c.Check(slot.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
+
+	// static attributes passed via args take precedence over slot.Attrs
+	slot2 := NewConnectedSlot(s.slot, map[string]interface{}{"foo": "bar"}, nil)
+	slot2.StaticAttr("foo", &val)
+	c.Assert(val, Equals, "bar")
 }
 
 func (s *connSuite) TestSlotRef(c *C) {
@@ -129,6 +134,11 @@ func (s *connSuite) TestStaticPlugAttrs(c *C) {
 	c.Assert(plug.StaticAttr("unknown", &val), ErrorMatches, `snap "consumer" does not have attribute "unknown" for interface "interface"`)
 	c.Check(plug.StaticAttr("attr", &intVal), ErrorMatches, `snap "consumer" has interface "interface" with invalid value type for "attr" attribute`)
 	c.Check(plug.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
+
+	// static attributes passed via args take precedence over plug.Attrs
+	plug2 := NewConnectedPlug(s.plug, map[string]interface{}{"foo": "bar"}, nil)
+	plug2.StaticAttr("foo", &val)
+	c.Assert(val, Equals, "bar")
 }
 
 func (s *connSuite) TestDynamicSlotAttrs(c *C) {
