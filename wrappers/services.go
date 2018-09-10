@@ -115,6 +115,11 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			continue
 		}
 
+		// We can't start services that run under a user mode systemd
+		if app.IsUserService() {
+			continue
+		}
+
 		defer func(app *snap.AppInfo) {
 			if err == nil {
 				return
@@ -328,6 +333,10 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
+		// We can't stop services that run under a user mode systemd
+		if app.IsUserService() {
+			continue
+		}
 		// Skip stop on refresh when refresh mode is set to something
 		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
@@ -456,9 +465,13 @@ func genServiceFile(appInfo *snap.AppInfo) []byte {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+{{- if .MountUnit }}
 Requires={{.MountUnit}}
+{{- end }}
+{{- if .PrerequisiteTarget}}
 Wants={{.PrerequisiteTarget}}
-After={{.MountUnit}} {{.PrerequisiteTarget}}{{if .After}} {{ stringsJoin .After " " }}{{end}}
+{{- end}}
+After={{with .MountUnit}}{{.}} {{end}}{{with .PrerequisiteTarget}}{{.}}{{end}}{{if .After}} {{ stringsJoin .After " " }}{{end}}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
@@ -556,21 +569,25 @@ WantedBy={{.ServicesTarget}}
 	}{
 		App: appInfo,
 
-		Restart:            restartCond,
-		StopTimeout:        serviceStopTimeout(appInfo),
-		StartTimeout:       time.Duration(appInfo.StartTimeout),
-		ServicesTarget:     systemd.ServicesTarget,
-		PrerequisiteTarget: systemd.PrerequisiteTarget,
-		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
-		Remain:             remain,
-		KillMode:           killMode,
-		KillSignal:         appInfo.StopMode.KillSignal(),
+		Restart:      restartCond,
+		StopTimeout:  serviceStopTimeout(appInfo),
+		StartTimeout: time.Duration(appInfo.StartTimeout),
+		Remain:       remain,
+		KillMode:     killMode,
+		KillSignal:   appInfo.StopMode.KillSignal(),
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
+	}
+	if appInfo.IsUserService() {
+		wrapperData.ServicesTarget = systemd.UserServicesTarget
+	} else {
+		wrapperData.ServicesTarget = systemd.ServicesTarget
+		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
+		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -585,8 +602,10 @@ func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
 	socketTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Socket {{.SocketName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+{{- if .MountUnit}}
 Requires={{.MountUnit}}
 After={{.MountUnit}}
+{{- end}}
 X-Snappy=yes
 
 [Socket]
@@ -617,10 +636,12 @@ WantedBy={{.SocketsTarget}}
 		App:             appInfo,
 		ServiceFileName: filepath.Base(appInfo.ServiceFile()),
 		SocketsTarget:   systemd.SocketsTarget,
-		MountUnit:       filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		SocketName:      socketName,
 		SocketInfo:      socket,
 		ListenStream:    listenStream,
+	}
+	if !appInfo.IsUserService() {
+		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -658,8 +679,10 @@ func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
 	timerTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Timer {{.TimerName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+{{- if .MountUnit}}
 Requires={{.MountUnit}}
 After={{.MountUnit}}
+{{- end}}
 X-Snappy=yes
 
 [Timer]
@@ -691,8 +714,10 @@ WantedBy={{.TimersTarget}}
 		ServiceFileName: filepath.Base(app.ServiceFile()),
 		TimersTarget:    systemd.TimersTarget,
 		TimerName:       app.Name,
-		MountUnit:       filepath.Base(systemd.MountUnitPath(app.Snap.MountDir())),
 		Schedules:       schedules,
+	}
+	if !app.IsUserService() {
+		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(app.Snap.MountDir()))
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

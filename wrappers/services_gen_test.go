@@ -67,6 +67,27 @@ Type=%s
 WantedBy=multi-user.target
 `
 
+const expectedUserServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+After=
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=%s
+WorkingDirectory=/var/snap/snap/44
+ExecStop=/usr/bin/snap run --command=stop snap.app
+ExecReload=/usr/bin/snap run --command=reload snap.app
+ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
+TimeoutStopSec=10
+Type=%s
+
+[Install]
+WantedBy=default.target
+`
+
 var (
 	mountUnitPrefix = strings.Replace(dirs.SnapMountDir[1:], "/", "-", -1)
 )
@@ -75,6 +96,7 @@ var (
 	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
 	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz")
 	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes")
+	expectedUserAppService = fmt.Sprintf(expectedUserServiceFmt, "on-failure", "simple")
 )
 
 var (
@@ -270,6 +292,30 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapUserServiceFile(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: simple
+        daemon-mode: user
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, expectedUserAppService)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
