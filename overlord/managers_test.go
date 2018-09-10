@@ -258,6 +258,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	st.Set("refresh-request-salt", "request-salt")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {

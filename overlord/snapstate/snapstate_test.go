@@ -11732,6 +11732,11 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	// clear request-salt to have it generated
 	s.state.Set("refresh-request-salt", nil)
 
+	_, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "internal error: request salt is unset")
+
+	s.state.Set("refresh-request-salt", "request-salt")
+
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -11742,17 +11747,12 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	var requestSalt string
-	err = s.state.Get("refresh-request-salt", &requestSalt)
-	c.Assert(err, IsNil)
-	c.Assert(requestSalt, HasLen, 16, Commentf("unexpectedly length of request salt: %q", requestSalt))
-
 	c.Assert(len(s.fakeBackend.ops) >= 1, Equals, true)
 	storeAction := s.fakeBackend.ops[0]
 	c.Assert(storeAction.op, Equals, "storesvc-snap-action")
 	c.Assert(storeAction.curSnaps, HasLen, 1)
 	c.Assert(storeAction.refreshOpts, NotNil)
-	c.Assert(storeAction.refreshOpts.RequestSalt, Equals, requestSalt)
+	c.Assert(storeAction.refreshOpts.RequestSalt, Equals, "request-salt")
 }
 
 type canDisableSuite struct{}
