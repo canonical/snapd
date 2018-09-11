@@ -2,8 +2,5 @@
 
 for service in simple forking; do
     echo "Disabling $service service from install hook"
-    if [ "$(snapctl stop --disable snapctl-disable-services-install-hook.$service 2>&1)" != "" ]; then
-        echo "Expected disabling the $service service to be empty"
-        exit 1
-    fi
+    snapctl stop --disable "snapctl-disable-services-install-hook.$service"
 done
