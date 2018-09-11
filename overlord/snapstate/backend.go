@@ -69,8 +69,10 @@ type managerBackend interface {
 	// remove related
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
+	RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
+	RemoveSnapDataDir(info *snap.Info, otherInstances bool) error
 	DiscardSnapNamespace(snapName string) error
 
 	// alias related

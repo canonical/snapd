@@ -52,6 +52,26 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
 	return removeDirs(dirs)
 }
 
+// RemoveSnapDataDir removes base snap data directory
+func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error {
+	if info.InstanceKey != "" {
+		// data directories of snaps with instance key are never used by
+		// other instances
+		if err := os.Remove(snap.BaseDataDir(info.InstanceName())); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove snap %q base directory: %v", info.InstanceName(), err)
+		}
+	}
+	if !hasOtherInstances {
+		// remove the snap base directory only if there are no other
+		// snap instances using it
+		if err := os.Remove(snap.BaseDataDir(info.SnapName())); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove snap %q base directory: %v", info.SnapName(), err)
+		}
+	}
+
+	return nil
+}
+
 func (b Backend) untrashData(snap *snap.Info) error {
 	dirs, err := snapDataDirs(snap)
 	if err != nil {
@@ -72,9 +92,6 @@ func removeDirs(dirs []string) error {
 		if err := os.RemoveAll(dir); err != nil {
 			return err
 		}
-
-		// Attempt to remove the parent directory as well (ignore any failure)
-		os.Remove(filepath.Dir(dir))
 	}
 
 	return nil

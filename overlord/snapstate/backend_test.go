@@ -61,6 +61,8 @@ type fakeOp struct {
 	rmAliases []*backend.Alias
 
 	userID int
+
+	otherInstances bool
 }
 
 type fakeOps []fakeOp
@@ -615,6 +617,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
+	if name == "borken-undo-setup" && si.Revision == snap.R(2) {
+		return nil, errors.New(`cannot read info for "borken-undo-setup" snap`)
+	}
 	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
@@ -758,6 +763,9 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p pro
 		path:  s.MountDir(),
 		stype: typ,
 	})
+	if s.InstanceName() == "borken-undo-setup" {
+		return errors.New(`cannot undo setup of "borken-undo-setup" snap`)
+	}
 	return nil
 }
 
@@ -806,6 +814,26 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
+	f.ops = append(f.ops, fakeOp{
+		op:             "remove-snap-data-dir",
+		name:           info.InstanceName(),
+		path:           snap.BaseDataDir(info.SnapName()),
+		otherInstances: otherInstances,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
+	f.ops = append(f.ops, fakeOp{
+		op:             "remove-snap-dir",
+		name:           s.InstanceName(),
+		path:           snap.BaseDir(s.SnapName()),
+		otherInstances: otherInstances,
 	})
 	return nil
 }
