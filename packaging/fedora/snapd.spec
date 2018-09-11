@@ -577,8 +577,6 @@ chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
-# Move systemd-generator to the right place
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_systemdgeneratordir}
 popd
 
 # Install all systemd and dbus units, and env files
