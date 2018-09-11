@@ -57,8 +57,7 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	}
 
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify",
-		fmt.Sprintf("--cache-loc=%s", cacheDir)}
+	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if flags&skipReadCache != 0 {
 		args = append(args, "--skip-read-cache")
 	}
