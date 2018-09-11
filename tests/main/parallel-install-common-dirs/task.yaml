@@ -67,5 +67,15 @@ execute: |
     ! test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
     ! test -d "/var/snap/test-snapd-tools"
 
+    # make sure that the sole snap without instance key is handled correctly too
+    install_local test-snapd-tools
+    # another revision
+    install_local test-snapd-tools
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    test -d "/var/snap/test-snapd-tools"
+    snap remove test-snapd-tools
+    ! test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+    ! test -d "/var/snap/test-snapd-tools"
+
 restore:
     snap set system experimental.parallel-instances=null
