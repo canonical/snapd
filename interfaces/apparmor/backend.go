@@ -362,7 +362,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Load all unchanged profiles anyway. This ensures those are correct in
 	// the kernel even if the files on disk were not changed. We rely on
 	// apparmor cache to make this performant.
-	errReloadOther := reloadProfiles(unchanged, dir, cache)
+	pathnames := make([]string, len(unchanged))
+	for i, profile := range unchanged {
+		pathnames[i] = filepath.Join(dir, profile)
+	}
+	errReloadOther := loadProfiles(pathnames, cache, 0)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
