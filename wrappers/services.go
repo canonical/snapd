@@ -133,15 +133,12 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			// check if the service is disabled, if so don't start it up
 			// this could happen for example if the service was disabled in
 			// the install hook by snapctl
-			statuses, err := sysd.Status(app.ServiceName())
+			isEnabled, err := sysd.IsEnabled(app.ServiceName())
 			if err != nil {
 				return err
-			} else if len(statuses) != 1 {
-				// poorgramming error in Status()
-				return fmt.Errorf("Incorrect number of items (%d) returned from systemd Status, expected 1", len(statuses))
 			}
 
-			if statuses[0].Enabled {
+			if isEnabled {
 				services = append(services, app.ServiceName())
 			}
 		}
