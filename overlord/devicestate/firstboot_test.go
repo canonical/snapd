@@ -1441,9 +1441,9 @@ plugs:
   default-provider: gtk-common-themes
   target: $SNAP/data-dir/themes
 `
-	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	calcFname, calcDecl, calcRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
 
-	writeAssertionsToFile("foo.asserts", []asserts.Assertion{devAcct, fooRev, fooDecl})
+	writeAssertionsToFile("calc.asserts", []asserts.Assertion{devAcct, calcRev, calcDecl})
 
 	// put a 2nd firstboot snap into the SnapBlobDir
 	snapYaml = `name: gtk-common-themes
@@ -1455,9 +1455,9 @@ slots:
    read:
     - $SNAP/share/themes/Adawaita
 `
-	barFname, barDecl, barRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(65), "developerid")
+	themesFname, themesDecl, themesRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(65), "developerid")
 
-	writeAssertionsToFile("bar.asserts", []asserts.Assertion{devAcct, barDecl, barRev})
+	writeAssertionsToFile("themes.asserts", []asserts.Assertion{devAcct, themesDecl, themesRev})
 
 	// add a model assertion and its chain
 	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
@@ -1476,7 +1476,7 @@ snaps:
    file: %s
  - name: gtk-common-themes
    file: %s
-`, coreFname, kernelFname, gadgetFname, fooFname, barFname))
+`, coreFname, kernelFname, gadgetFname, calcFname, themesFname))
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
