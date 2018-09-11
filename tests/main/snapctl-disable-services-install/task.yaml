@@ -1,7 +1,7 @@
 summary: Check that `snapctl stop --disable` actually stops services on install
 
 prepare: |
-    snap pack $TESTSLIB/snaps/snapctl-disable-services-install
+    snap pack "$TESTSLIB"/snaps/snapctl-disable-services-install
 
 restore: |
     rm -f snapctl-disable-services-install_1.0_all.snap
@@ -15,6 +15,6 @@ execute: |
 
     for service in simple forking; do
         echo "Verify that the $service service isn't running"
-        snap services | MATCH "snapctl-disable-services-install\.$service\s\+disabled\s\+inactive" 
+        snap services | MATCH "snapctl-disable-services-install\\.$service\\s\\+disabled\\s\\+inactive"
     done
     
