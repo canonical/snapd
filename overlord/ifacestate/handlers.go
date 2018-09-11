@@ -562,15 +562,15 @@ func inSameChangeWaitChain(startT, searchT *state.Task) bool {
 		return false
 	}
 	// Do a recursive check if its in the same change
-	return inWaitChainWalker(startT, searchT)
+	return waitChainSearch(startT, searchT)
 }
 
-func inWaitChainWalker(startT, searchT *state.Task) bool {
+func waitChainSearch(startT, searchT *state.Task) bool {
 	for _, cand := range startT.HaltTasks() {
 		if cand == searchT {
 			return true
 		}
-		if inWaitChainWalker(cand, searchT) {
+		if waitChainSearch(cand, searchT) {
 			return true
 		}
 	}
