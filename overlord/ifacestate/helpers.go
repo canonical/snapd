@@ -77,7 +77,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
 		if snapInfo.SnapName() == "snapd" {
-			mapper = &CoreSnapdSystemMapper{}
+			mapper = &CoreSnapdCoreMapper{}
 			break
 		}
 	}
@@ -783,7 +783,7 @@ func (m *CoreSnapdCoreMapper) RemapSnapToResponse(snapName string) string {
 }
 
 // mapper contains the currently active snap mapper.
-var mapper SnapMapper = &CoreCoreSystemMapper{}
+var mapper SnapMapper = &CoreCoreCoreMapper{}
 
 // MockSnapMapper mocks the currently used snap mapper.
 func MockSnapMapper(new SnapMapper) (restore func()) {
