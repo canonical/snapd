@@ -709,6 +709,24 @@ func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
 	return snapName
 }
 
+// CoreCoreCoreMapper implements SnapMapper and makes implicit slots appear to
+// be on "core" in the state and in the API while also using the "core" snap
+// internally in memory.
+type CoreCoreCoreMapper struct {
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
+}
+
+// RemapSnapFromRequest renames the "system" snap to the "core" snap.
+//
+// This allows us to accept both legacy "core" and non-legacy "system" name
+// as the snap that holds implicit slots.
+func (m *CoreCoreCoreMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
 // mapper contains the currently active snap mapper.
 var mapper SnapMapper = &CoreCoreSystemMapper{}
 
