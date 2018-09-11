@@ -112,7 +112,7 @@ func (s *appArmorSuite) TestUnloadProfilesRunsAppArmorParserRemove(c *C) {
 	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"})
+	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"}, dirs.AppArmorCacheDir)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--remove", "snap.samba.smbd"},
@@ -122,7 +122,7 @@ func (s *appArmorSuite) TestUnloadProfilesRunsAppArmorParserRemove(c *C) {
 func (s *appArmorSuite) TestUnloadProfilesMany(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.UnloadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"})
+	err := apparmor.UnloadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, dirs.AppArmorCacheDir)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--remove", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
@@ -132,7 +132,7 @@ func (s *appArmorSuite) TestUnloadProfilesMany(c *C) {
 func (s *appArmorSuite) TestUnloadProfilesNone(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.UnloadProfiles([]string{})
+	err := apparmor.UnloadProfiles([]string{}, dirs.AppArmorCacheDir)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
 }
@@ -140,7 +140,7 @@ func (s *appArmorSuite) TestUnloadProfilesNone(c *C) {
 func (s *appArmorSuite) TestUnloadProfilesReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
-	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"})
+	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"}, dirs.AppArmorCacheDir)
 	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
 apparmor_parser output:
 `)
@@ -157,7 +157,7 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
 
 	fname := filepath.Join(dirs.AppArmorCacheDir, "profile")
 	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.UnloadProfiles([]string{"profile"})
+	err = apparmor.UnloadProfiles([]string{"profile"}, dirs.AppArmorCacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)

@@ -33,17 +33,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
-
-// UnloadProfiles removes the named profiles from the running kernel.
-//
-// The operation is done with: apparmor_parser --remove $names...
-// The binary cache file is removed from /var/cache/apparmor
-func UnloadProfiles(names []string) error {
-	return unloadProfiles(names, dirs.AppArmorCacheDir)
-}
 
 type aaParserFlags int
 
@@ -83,6 +74,10 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	return nil
 }
 
+// UnloadProfiles removes the named profiles from the running kernel.
+//
+// The operation is done with: apparmor_parser --remove $names...
+// The binary cache file is removed from /var/cache/apparmor
 func unloadProfiles(names []string, cacheDir string) error {
 	if len(names) == 0 {
 		return nil
