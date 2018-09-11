@@ -88,7 +88,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 		return nil, nil
 	}
 
-	s.state.Set("refresh-request-salt", "request-salt")
+	s.state.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
