@@ -35,4 +35,4 @@ execute: |
     [ -z "$(PATH=/bin:/snap/bin:/sbin $SENV)" ] || exit 1
 
     # regression test for LP: #1791691
-    PATH="" $SENV | MATCH '^PATH=/snap/bin$'
+    PATH="" $SENV | MATCH '^$'
