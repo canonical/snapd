@@ -285,7 +285,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -305,7 +305,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), ErrorMatches, "testing")
+	c.Assert(update.ComputeAndSaveChanges(snapName), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
