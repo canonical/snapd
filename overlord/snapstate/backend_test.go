@@ -132,7 +132,7 @@ type fakeStore struct {
 	fakeCurrentProgress int
 	fakeTotalProgress   int
 	state               *state.State
-	seenSalts           map[string]bool
+	seenPrivacyKeys     map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -378,12 +378,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		userID:   userID,
 	})
 
-	if f.seenSalts == nil {
+	if f.seenPrivacyKeys == nil {
 		// so that checks don't topple over this being uninitialized
-		f.seenSalts = make(map[string]bool)
+		f.seenPrivacyKeys = make(map[string]bool)
 	}
-	if opts != nil && opts.RequestSalt != "" {
-		f.seenSalts[opts.RequestSalt] = true
+	if opts != nil && opts.PrivacyKey != "" {
+		f.seenPrivacyKeys[opts.PrivacyKey] = true
 	}
 
 	sorted := make(byAction, len(actions))
