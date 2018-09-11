@@ -362,11 +362,15 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// the cache (since we know those changed for sure).  This allows us to
 	// work despite time being wrong (e.g. in the past). For more details see
 	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
-	errReloadChanged := reloadChangedProfiles(changed, dir, cache)
+	pathnames := make([]string, len(changed))
+	for i, profile := range changed {
+		pathnames[i] = filepath.Join(dir, profile)
+	}
+	errReloadChanged := loadProfiles(pathnames, cache, skipReadCache)
 	// Load all unchanged profiles anyway. This ensures those are correct in
 	// the kernel even if the files on disk were not changed. We rely on
 	// apparmor cache to make this performant.
-	pathnames := make([]string, len(unchanged))
+	pathnames = make([]string, len(unchanged))
 	for i, profile := range unchanged {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
