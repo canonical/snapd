@@ -52,7 +52,7 @@ create_nested_core_vm(){
 
     create_assertions_disk
 
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
+    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none,format=raw -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw"
 
     wait_for_ssh
     prepare_ssh
