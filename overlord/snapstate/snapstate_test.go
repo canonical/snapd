@@ -11863,7 +11863,7 @@ func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
 	c.Check(snapsup.Type, Equals, snap.Type(""))
 }
 
-func (s snapmgrTestSuite) TestOtherSnapsLike(c *C) {
+func (s snapmgrTestSuite) TestHasOtherInstances(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
