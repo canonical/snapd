@@ -74,6 +74,8 @@ type snapmgrTestSuite struct {
 	user  *auth.UserState
 	user2 *auth.UserState
 	user3 *auth.UserState
+
+	requestSalt string
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -155,6 +157,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Set("seed-time", time.Now())
+
+	s.requestSalt = "request-salt"
+	s.state.Set("refresh-request-salt", s.requestSalt)
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -437,6 +442,19 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 	})
 	verifyStopReason(c, ts, "remove")
+}
+
+func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
+	for _, t := range tasks {
+		if t.Kind() == "download-snap" {
+			var snapsup snapstate.SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			c.Assert(err, IsNil)
+			c.Check(snapsup.IsAutoRefresh, Equals, expected)
+			return
+		}
+	}
+	c.Fatalf("cannot find download-snap task in %v", tasks)
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -738,7 +756,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		SnapType: "app",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
@@ -751,6 +769,8 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
@@ -784,7 +804,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 		InstanceKey: "instance",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	// ensure stable ordering of updates list
@@ -827,7 +847,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	})
 
 	// updated snap is devmode, updatemany doesn't update it
-	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
 }
@@ -849,7 +869,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 	})
 
 	// if a snap installed without --classic gets a classic update it isn't installed
-	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, _ := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
 }
@@ -872,7 +892,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	})
 
 	// snap installed with classic: refresh gets classic
-	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 }
@@ -891,7 +911,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
 }
@@ -910,7 +930,7 @@ func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 0)
 }
@@ -947,7 +967,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 		Channel:  "channel-for-base",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	c.Check(updates, HasLen, 3)
@@ -1025,7 +1045,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 		Channel:  "channel-for-base",
 	})
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	c.Check(updates, HasLen, 4)
@@ -1089,7 +1109,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
@@ -1122,13 +1142,13 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	snapstate.ValidateRefreshes = validateRefreshes
 
 	// refresh all => no error
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
 
 	// refresh some-snap => report error
-	updates, tts, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0)
+	updates, tts, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, 0, nil)
 	c.Assert(err, Equals, validateErr)
 	c.Check(tts, HasLen, 0)
 	c.Check(updates, HasLen, 0)
@@ -1937,8 +1957,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:     "storesvc-snap-action",
-			userID: 1,
+			op:          "storesvc-snap-action",
+			userID:      1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2103,8 +2124,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:     "storesvc-snap-action",
-			userID: 1,
+			op:          "storesvc-snap-action",
+			userID:      1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2267,8 +2289,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:     "storesvc-snap-action",
-			userID: 1,
+			op:          "storesvc-snap-action",
+			userID:      1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2460,7 +2483,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
 			}},
-			userID: 1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			userID:      1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2675,7 +2699,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
 			}},
-			userID: 1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			userID:      1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -3125,7 +3150,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -3215,7 +3240,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// do UpdateMany using user 2 as fallback
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 2)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 2, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -3324,7 +3349,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	// no user is passed to use for UpdateMany
-	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
 		chg.AddAll(ts)
@@ -3419,7 +3444,8 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				Revision:      snap.R(7),
 				RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
-			userID: 1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			userID:      1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -3595,7 +3621,8 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
-			userID: 1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			userID:      1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -3883,7 +3910,8 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				TrackingChannel: "other-channel",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
-			userID: 1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			userID:      1,
 		},
 
 		{
@@ -4156,7 +4184,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: false,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
-		userID: 1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		userID:      1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-snap-action:action",
@@ -4190,7 +4219,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(12),
 	}
-	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 1)
 
@@ -4204,7 +4233,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 11),
 		}},
-		userID: 1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		userID:      1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-snap-action:action",
@@ -4256,7 +4286,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 12),
 		}},
-		userID: 1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		userID:      1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-snap-action:action",
@@ -4390,7 +4421,8 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
-		userID: 1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		userID:      1,
 	})
 }
 
@@ -4417,7 +4449,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		SnapType: "app",
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 
@@ -4430,7 +4462,8 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
-		userID: 1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		userID:      1,
 	})
 }
 
@@ -4456,7 +4489,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		Current:  si7.Revision,
 	})
 
-	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	updates, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Check(err, IsNil)
 	c.Check(updates, HasLen, 0)
 
@@ -4470,7 +4503,8 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Block:         []snap.Revision{snap.R(11)},
 		}},
-		userID: 1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		userID:      1,
 	})
 }
 
@@ -4560,7 +4594,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			snapstate.Set(s.state, snapName, &snapst)
 		}
 
-		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID)
+		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID, nil)
 		c.Check(err, IsNil)
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
@@ -7260,8 +7294,9 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 	expected := fakeOps{
 		{
-			op:     "storesvc-snap-action",
-			userID: 1,
+			op:          "storesvc-snap-action",
+			userID:      1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -7723,6 +7758,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	c.Check(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.IsReady(), Equals, false)
 	s.verifyRefreshLast(c)
+
+	checkIsAutoRefresh(c, chg.Tasks(), true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
@@ -9731,6 +9768,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			curSnaps: []store.CurrentSnap{
 				{InstanceName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
 			},
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -10366,8 +10404,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	expected := fakeOps{
 		// we check the snap
 		{
-			op:     "storesvc-snap-action",
-			userID: 1,
+			op:          "storesvc-snap-action",
+			userID:      1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -10382,8 +10421,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		// then we check core because its not installed already
 		// and continue with that
 		{
-			op:     "storesvc-snap-action",
-			userID: 1,
+			op:          "storesvc-snap-action",
+			userID:      1,
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -10924,8 +10964,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 	expected := fakeOps{{
-		op:     "storesvc-snap-action",
-		userID: 1,
+		op:          "storesvc-snap-action",
+		userID:      1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -10936,8 +10977,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		revno:  snap.R(42),
 		userID: 1,
 	}, {
-		op:     "storesvc-snap-action",
-		userID: 1,
+		op:          "storesvc-snap-action",
+		userID:      1,
+		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -11383,7 +11425,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 		SnapType: "app",
 	})
 
-	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
 	// enable layouts
@@ -11391,7 +11433,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -11409,7 +11451,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 		SnapType: "app",
 	})
 
-	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, HasLen, 0)
 
@@ -11418,7 +11460,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
+	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
@@ -11669,6 +11711,48 @@ func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
 		SnapID:   "some-snap-id",
 	})
 	c.Check(snapsup.Type, Equals, snap.Type(""))
+}
+
+func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
+	si := snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(7),
+		SnapID:   "other-snap-id",
+	}
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	// clear request-salt to have it generated
+	s.state.Set("refresh-request-salt", nil)
+
+	_, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "internal error: request salt is unset")
+
+	s.state.Set("refresh-request-salt", "request-salt")
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(len(s.fakeBackend.ops) >= 1, Equals, true)
+	storeAction := s.fakeBackend.ops[0]
+	c.Assert(storeAction.op, Equals, "storesvc-snap-action")
+	c.Assert(storeAction.curSnaps, HasLen, 1)
+	c.Assert(storeAction.refreshOpts, NotNil)
+	c.Assert(storeAction.refreshOpts.RequestSalt, Equals, "request-salt")
 }
 
 type canDisableSuite struct{}

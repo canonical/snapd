@@ -158,6 +158,7 @@ BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
+BuildRequires: golang(github.com/juju/ratelimit)
 BuildRequires: golang(github.com/kr/pretty)
 BuildRequires: golang(github.com/kr/text)
 BuildRequires: golang(github.com/mvo5/goconfigparser)
@@ -251,6 +252,7 @@ Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
+Requires:      golang(github.com/juju/ratelimit)
 Requires:      golang(github.com/kr/pretty)
 Requires:      golang(github.com/kr/text)
 Requires:      golang(github.com/mvo5/goconfigparser)
@@ -279,6 +281,7 @@ Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
+Provides:      bundled(golang(github.com/juju/ratelimit))
 Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
@@ -574,8 +577,6 @@ chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
-# Move systemd-generator to the right place
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_systemdgeneratordir}
 popd
 
 # Install all systemd and dbus units, and env files

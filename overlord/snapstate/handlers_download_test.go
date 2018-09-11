@@ -20,8 +20,12 @@
 package snapstate_test
 
 import (
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -32,6 +36,8 @@ type downloadSnapSuite struct {
 	baseHandlerSuite
 
 	fakeStore *fakeStore
+
+	requestSalt string
 }
 
 var _ = Suite(&downloadSnapSuite{})
@@ -46,6 +52,8 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
+	s.requestSalt = "request-salt"
+	s.state.Set("refresh-request-salt", s.requestSalt)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
@@ -73,7 +81,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	// the compat code called the store "Snap" endpoint
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "storesvc-snap-action",
+			op:          "storesvc-snap-action",
+			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -184,5 +193,49 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
+
+}
+
+func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
+	s.state.Lock()
+
+	// set auto-refresh rate-limit
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.rate-limit", "1234B")
+	tr.Commit()
+
+	// setup fake auto-refresh download
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(11),
+	}
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/snap",
+		},
+		Flags: snapstate.Flags{
+			IsAutoRefresh: true,
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	// ensure that rate limit was honored
+	c.Assert(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
+			opts: &store.DownloadOptions{
+				RateLimit: 1234,
+			},
+		},
+	})
 
 }

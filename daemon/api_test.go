@@ -3427,7 +3427,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
-	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -3472,7 +3472,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	} {
 		refreshSnapDecls = false
 
-		snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 			c.Check(names, check.HasLen, 0)
 			t := s.NewTask("fake-refresh-all", "Refreshing everything")
 			return tst.snaps, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -3496,7 +3496,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
 
-	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		return nil, nil, nil
 	}
@@ -3519,7 +3519,7 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 		return nil
 	}
 
-	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -3544,7 +3544,7 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 		return nil
 	}
 
-	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 1)
 		t := s.NewTask("fake-refresh-1", "Refreshing one")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -7269,6 +7269,61 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	})
 }
 
+func (s *apiSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result interface{}) {
+	s.daemon(c)
+
+	oldOK := stateOkayWarnings
+	oldAll := stateAllWarnings
+	oldPending := statePendingWarnings
+	stateOkayWarnings = func(*state.State, time.Time) int { calls += "ok"; return 0 }
+	stateAllWarnings = func(*state.State) []*state.Warning { calls += "all"; return nil }
+	statePendingWarnings = func(*state.State) ([]*state.Warning, time.Time) { calls += "show"; return nil, time.Time{} }
+	defer func() {
+		stateOkayWarnings = oldOK
+		stateAllWarnings = oldAll
+		statePendingWarnings = oldPending
+	}()
+
+	method := "GET"
+	f := warningsCmd.GET
+	if body != nil {
+		method = "POST"
+		f = warningsCmd.POST
+	}
+	q := url.Values{}
+	if all {
+		q.Set("select", "all")
+	}
+	req, err := http.NewRequest(method, "/v2/warnings?"+q.Encode(), body)
+	c.Assert(err, check.IsNil)
+
+	rsp, ok := f(warningsCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.NotNil)
+	return calls, rsp.Result
+}
+
+func (s *apiSuite) TestAllWarnings(c *check.C) {
+	calls, result := s.testWarnings(c, true, nil)
+	c.Check(calls, check.Equals, "all")
+	c.Check(result, check.DeepEquals, []state.Warning{})
+}
+
+func (s *apiSuite) TestSomeWarnings(c *check.C) {
+	calls, result := s.testWarnings(c, false, nil)
+	c.Check(calls, check.Equals, "show")
+	c.Check(result, check.DeepEquals, []state.Warning{})
+}
+
+func (s *apiSuite) TestAckWarnings(c *check.C) {
+	calls, result := s.testWarnings(c, false, bytes.NewReader([]byte(`{"action": "okay", "timestamp": "2006-01-02T15:04:05Z"}`)))
+	c.Check(calls, check.Equals, "ok")
+	c.Check(result, check.DeepEquals, 0)
+}
+
 func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
@@ -7316,7 +7371,6 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			},
 		},
 	})
-
 }
 
 func (s *appSuite) TestErrToResponse(c *check.C) {
