@@ -250,7 +250,11 @@ func setupSnapConfineReexec(info *snap.Info) error {
 			changed = append(changed, fname)
 		}
 	}
-	errReload := reloadProfiles(changed, dir, cache)
+	pathnames := make([]string, len(changed))
+	for i, profile := range changed {
+		pathnames[i] = filepath.Join(dir, profile)
+	}
+	errReload := loadProfiles(pathnames, cache, 0)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
