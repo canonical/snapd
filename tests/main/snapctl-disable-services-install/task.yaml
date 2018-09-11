@@ -8,10 +8,7 @@ restore: |
 
 execute: |
     echo "Verify that the install hook finishes while installing"
-    if ! snap install --dangerous snapctl-disable-services-install_1.0_all.snap; then
-        echo "Expected snap install to be successful"
-        exit 1
-    fi
+    snap install --dangerous snapctl-disable-services-install_1.0_all.snap
 
     for service in simple forking; do
         echo "Verify that the $service service isn't running"
