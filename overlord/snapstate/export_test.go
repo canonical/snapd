@@ -141,25 +141,23 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
-func MockModelWithBase(baseName string) (restore func()) {
-	return mockModel(map[string]string{"base": baseName})
+func SetModelWithBase(baseName string) {
+	setModel(map[string]string{"base": baseName})
 }
 
-func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
-	return mockModel(map[string]string{"kernel": "kernel=" + kernelTrack})
+func SetModelWithKernelTrack(kernelTrack string) {
+	setModel(map[string]string{"kernel": "kernel=" + kernelTrack})
 }
 
-func MockModelWithGadgetTrack(gadgetTrack string) (restore func()) {
-	return mockModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
+func SetModelWithGadgetTrack(gadgetTrack string) {
+	setModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
 }
 
-func MockModel() (restore func()) {
-	return mockModel(nil)
+func SetDefaultModel() {
+	setModel(nil)
 }
 
-func mockModel(override map[string]string) (restore func()) {
-	oldModel := Model
-
+func setModel(override map[string]string) {
 	model := map[string]interface{}{
 		"type":              "model",
 		"authority-id":      "brand",
@@ -183,8 +181,5 @@ func mockModel(override map[string]string) (restore func()) {
 
 	Model = func(*state.State) (*asserts.Model, error) {
 		return a.(*asserts.Model), nil
-	}
-	return func() {
-		Model = oldModel
 	}
 }
