@@ -2580,7 +2580,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		name:     "services-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 	}})
-	c.Check(s.fakeStore.seenSalts["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenSalts))
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -2796,7 +2796,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		name:     "services-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
 	}})
-	c.Check(s.fakeStore.seenSalts["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenSalts))
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -11737,7 +11737,7 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	storeAction := s.fakeBackend.ops[0]
 	c.Assert(storeAction.op, Equals, "storesvc-snap-action")
 	c.Assert(storeAction.curSnaps, HasLen, 2)
-	c.Assert(s.fakeStore.seenSalts["privacy-key"], Equals, true)
+	c.Assert(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
 }
 
 type canDisableSuite struct{}
