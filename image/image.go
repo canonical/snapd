@@ -328,6 +328,20 @@ func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
 	return mch.Clean().String(), nil
 }
 
+// neededDefaultProviders returns the names of all default-providers for
+// the content plugs that the given snap.Info needs.
+func neededDefaultProviders(info *snap.Info) (cps []string) {
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			var dprovider string
+			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+				cps = append(cps, dprovider)
+			}
+		}
+	}
+	return cps
+}
+
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -455,6 +469,13 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 		if info.Base != "" && !local.hasName(snaps, info.Base) {
 			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
+		}
+		// warn about missing default providers
+		dps := neededDefaultProviders(info)
+		for _, dp := range dps {
+			if !local.hasName(snaps, dp) {
+				fmt.Fprintf(Stderr, "WARNING: the %q default content provider %q is not getting installed.", info.InstanceName(), dp)
+			}
 		}
 
 		seen[name] = true
