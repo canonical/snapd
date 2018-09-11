@@ -254,6 +254,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		if !app.IsService() {
 			continue
 		}
+		if app.IsUserService() {
+			continue
+		}
 		// Generate service file
 		content, err := generateSnapServiceFile(app)
 		if err != nil {
@@ -398,7 +401,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || app.IsUserService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		nservices++
