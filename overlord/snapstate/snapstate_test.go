@@ -74,8 +74,6 @@ type snapmgrTestSuite struct {
 	user  *auth.UserState
 	user2 *auth.UserState
 	user3 *auth.UserState
-
-	requestSalt string
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -158,8 +156,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.state.Set("seed-time", time.Now())
 
-	s.requestSalt = "request-salt"
-	s.state.Set("refresh-request-salt", s.requestSalt)
+	s.state.Set("refresh-privacy-key", "privacy-key")
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -1955,11 +1952,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		name:     "some-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
 		{
-			op:          "storesvc-snap-action",
-			userID:      1,
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			op:     "storesvc-snap-action",
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2122,11 +2119,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		name:   "some-snap",
 		target: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
 		{
-			op:          "storesvc-snap-action",
-			userID:      1,
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			op:     "storesvc-snap-action",
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2289,9 +2286,8 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:          "storesvc-snap-action",
-			userID:      1,
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			op:     "storesvc-snap-action",
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2483,8 +2479,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
 			}},
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-			userID:      1,
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2587,6 +2582,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		name:     "services-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -2699,8 +2695,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
 			}},
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-			userID:      1,
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -2803,6 +2798,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		name:     "services-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
 	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -3444,8 +3440,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				Revision:      snap.R(7),
 				RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-			userID:      1,
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -3626,8 +3621,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-			userID:      1,
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -3920,8 +3914,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				TrackingChannel: "other-channel",
 				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-			userID:      1,
+			userID: 1,
 		},
 
 		{
@@ -4194,8 +4187,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: false,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-		userID:      1,
+		userID: 1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-snap-action:action",
@@ -4243,8 +4235,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 11),
 		}},
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-		userID:      1,
+		userID: 1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-snap-action:action",
@@ -4296,8 +4287,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			IgnoreValidation: true,
 			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 12),
 		}},
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-		userID:      1,
+		userID: 1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-snap-action:action",
@@ -4431,8 +4421,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-		userID:      1,
+		userID: 1,
 	})
 }
 
@@ -4472,8 +4461,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 			Revision:      snap.R(7),
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-		userID:      1,
+		userID: 1,
 	})
 }
 
@@ -4513,8 +4501,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			Block:         []snap.Revision{snap.R(11)},
 		}},
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
-		userID:      1,
+		userID: 1,
 	})
 }
 
@@ -7444,9 +7431,8 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 	expected := fakeOps{
 		{
-			op:          "storesvc-snap-action",
-			userID:      1,
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			op:     "storesvc-snap-action",
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -9923,7 +9909,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			curSnaps: []store.CurrentSnap{
 				{InstanceName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
 			},
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -10579,9 +10564,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	expected := fakeOps{
 		// we check the snap
 		{
-			op:          "storesvc-snap-action",
-			userID:      1,
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			op:     "storesvc-snap-action",
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -10596,9 +10580,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		// then we check core because its not installed already
 		// and continue with that
 		{
-			op:          "storesvc-snap-action",
-			userID:      1,
-			refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+			op:     "storesvc-snap-action",
+			userID: 1,
 		},
 		{
 			op: "storesvc-snap-action:action",
@@ -11139,9 +11122,8 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 	expected := fakeOps{{
-		op:          "storesvc-snap-action",
-		userID:      1,
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		op:     "storesvc-snap-action",
+		userID: 1,
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -11152,9 +11134,8 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		revno:  snap.R(42),
 		userID: 1,
 	}, {
-		op:          "storesvc-snap-action",
-		userID:      1,
-		refreshOpts: &store.RefreshOptions{RequestSalt: s.requestSalt},
+		op:     "storesvc-snap-action",
+		userID: 1,
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
@@ -11903,14 +11884,21 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
+	snapstate.Set(s.state, "other-snap_instance", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{&si},
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "instance",
+	})
 
 	// clear request-salt to have it generated
-	s.state.Set("refresh-request-salt", nil)
+	s.state.Set("refresh-privacy-key", nil)
 
 	_, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "internal error: request salt is unset")
 
-	s.state.Set("refresh-request-salt", "request-salt")
+	s.state.Set("refresh-privacy-key", "privacy-key")
 
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -11925,9 +11913,8 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 	c.Assert(len(s.fakeBackend.ops) >= 1, Equals, true)
 	storeAction := s.fakeBackend.ops[0]
 	c.Assert(storeAction.op, Equals, "storesvc-snap-action")
-	c.Assert(storeAction.curSnaps, HasLen, 1)
-	c.Assert(storeAction.refreshOpts, NotNil)
-	c.Assert(storeAction.refreshOpts.RequestSalt, Equals, "request-salt")
+	c.Assert(storeAction.curSnaps, HasLen, 2)
+	c.Assert(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
 }
 
 func (s snapmgrTestSuite) TestHasOtherInstances(c *C) {

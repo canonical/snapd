@@ -51,9 +51,8 @@ type fakeOp struct {
 	sinfo   snap.SideInfo
 	stype   snap.Type
 
-	curSnaps    []store.CurrentSnap
-	action      store.SnapAction
-	refreshOpts *store.RefreshOptions
+	curSnaps []store.CurrentSnap
+	action   store.SnapAction
 
 	old string
 
@@ -135,6 +134,7 @@ type fakeStore struct {
 	fakeCurrentProgress int
 	fakeTotalProgress   int
 	state               *state.State
+	seenPrivacyKeys     map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -375,11 +375,18 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		curSnaps = nil
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
-		op:          "storesvc-snap-action",
-		refreshOpts: opts,
-		curSnaps:    curSnaps,
-		userID:      userID,
+		op:       "storesvc-snap-action",
+		curSnaps: curSnaps,
+		userID:   userID,
 	})
+
+	if f.seenPrivacyKeys == nil {
+		// so that checks don't topple over this being uninitialized
+		f.seenPrivacyKeys = make(map[string]bool)
+	}
+	if opts != nil && opts.PrivacyKey != "" {
+		f.seenPrivacyKeys[opts.PrivacyKey] = true
+	}
 
 	sorted := make(byAction, len(actions))
 	copy(sorted, actions)

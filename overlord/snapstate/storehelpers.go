@@ -73,17 +73,17 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	var opts store.RefreshOptions
 
 	if origOpts != nil {
-		if origOpts.RequestSalt != "" {
+		if origOpts.PrivacyKey != "" {
 			// nothing to add
 			return origOpts, nil
 		}
 		opts = *origOpts
 	}
 
-	if err := st.Get("refresh-request-salt", &opts.RequestSalt); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && err != state.ErrNoState {
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
-	if opts.RequestSalt == "" {
+	if opts.PrivacyKey == "" {
 		return nil, fmt.Errorf("internal error: request salt is unset")
 	}
 	return &opts, nil

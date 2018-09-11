@@ -388,21 +388,21 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 }
 
 func genRefreshRequestSalt(st *state.State) error {
-	var requestSalt string
+	var refreshPrivacyKey string
 
 	st.Lock()
 	defer st.Unlock()
 
-	if err := st.Get("refresh-request-salt", &requestSalt); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && err != state.ErrNoState {
 		return err
 	}
-	if requestSalt != "" {
+	if refreshPrivacyKey != "" {
 		// nothing to do
 		return nil
 	}
 
-	requestSalt = strutil.MakeRandomString(16)
-	st.Set("refresh-request-salt", requestSalt)
+	refreshPrivacyKey = strutil.MakeRandomString(16)
+	st.Set("refresh-privacy-key", refreshPrivacyKey)
 
 	return nil
 }

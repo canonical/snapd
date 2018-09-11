@@ -301,9 +301,6 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 	c.Assert(err, check.IsNil)
 	shotfile.Close()
 
-	o := overlord.Mock()
-	st = o.State()
-
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
 			Snapshot: client.Snapshot{SetID: 42, Snap: "foo"},
@@ -313,6 +310,9 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 		return nil
 	}
 	restoreIter := snapshotstate.MockBackendIter(fakeIter)
+
+	o := overlord.Mock()
+	st = o.State()
 
 	stmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, check.IsNil)
