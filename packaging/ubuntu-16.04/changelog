@@ -1,3 +1,18 @@
+snapd (2.35.1) xenial; urgency=medium
+
+  *  New upstream release, LP: #1786438
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+    - snapcraft: do not use --diry in mkversion.sh
+    - cmd: add systemd environment generator
+    - snap-confine: map /var/lib/extrausers into snaps mount-namespace
+    - tests: cherry-pick test fixes from master for 2.35
+    - systemd: do not run "snapd.snap-repair.service.in on firstboot
+      bootstrap
+    - interfaces: retain order of inserted security backends
+    - selftest: detect if apparmor is unusable and error
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 03 Sep 2018 14:44:06 +0200
+
 snapd (2.35) xenial; urgency=medium
 
   * New upstream release, LP: #1786438

@@ -13,13 +13,12 @@ prepare: |
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    path="$(make_snap test-snapd-layout)"
 
-    echo "Sideload the regular snap"
-    snap install --dangerous "$path"
+    echo "Install the regular snap"
+    install_local test-snapd-layout
 
     echo "Sideload the parallel installed snap"
-    snap install --dangerous --name test-snapd-layout_foo "$path"
+    install_local_as test-snapd-layout test-snapd-layout_foo
 
     for name in test-snapd-layout test-snapd-layout_foo; do
         # workaround trespassing bug

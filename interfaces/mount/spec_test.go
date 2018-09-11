@@ -211,7 +211,6 @@ func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {
 	s.spec.AddOvername(snapInfo)
 	c.Assert(s.spec.MountEntries(), HasLen, 0)
 	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
-
 }
 
 func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {

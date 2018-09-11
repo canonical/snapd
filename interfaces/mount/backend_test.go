@@ -176,18 +176,18 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 		dirs.SnapDataDir = old
 	}()
 	dirs.SnapDataDir = "/var/snap"
-	snapEntry := osutil.MountEntry{Name: "/snap/snap-name_instance", Dir: "/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginOvername()}, DumpFrequency: 0, CheckPassNumber: 0}
-	dataEntry := osutil.MountEntry{Name: "/var/snap/snap-name_instance", Dir: "/var/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginOvername()}, DumpFrequency: 0, CheckPassNumber: 0}
-	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
-	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
-	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	snapEntry := osutil.MountEntry{Name: "/snap/snap-name_instance", Dir: "/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginOvername()}}
+	dataEntry := osutil.MountEntry{Name: "/var/snap/snap-name_instance", Dir: "/var/snap/snap-name", Type: "none", Options: []string{"rbind", osutil.XSnapdOriginOvername()}}
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}}
+	userFsEntry := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}}
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
 		if err := spec.AddMountEntry(fsEntry1); err != nil {
 			return err
 		}
-		return spec.AddUserMountEntry(fsEntry3)
+		return spec.AddUserMountEntry(userFsEntry)
 	}
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
@@ -204,7 +204,7 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 
 	// Check that the user-fstab file was written with user mount only
 	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name_instance.user-fstab")
-	c.Check(fn, testutil.FileEquals, fsEntry3.String()+"\n")
+	c.Check(fn, testutil.FileEquals, userFsEntry.String()+"\n")
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {

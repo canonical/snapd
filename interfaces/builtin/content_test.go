@@ -225,7 +225,6 @@ apps:
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
-	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info), Equals, "/var/snap/name/common/foo")
@@ -234,10 +233,16 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP//", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42")+"//")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info), Equals, "/var/snap/name/42/")
-	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info), Equals, "/snap/name/42/$PRUNE/bar")
-	c.Check(builtin.ResolveSpecialVariable("foo/snap/$SNAP/bar", info), Equals, "/snap/name/42/foo/snap/$SNAP/bar")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo/snap/$SNAP/bar", info), Equals, "/snap/name/42/foo/snap/$SNAP/bar")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA//", info), Equals, "/var/snap/name/42//")
+	// automatically prefixed with $SNAP
+	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	// contain valid $SNAP_* variables, but starting with one of them, end
+	// up automatically prefixed with $SNAP
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/$SNAP/bar", info), Equals, "/snap/name/42/foo/snap//snap/name/42/bar")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo/snap/$SNAP/bar", info), Equals, "/snap/name/42/foo/snap//snap/name/42/bar")
+	// contain invalid variables
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info), Equals, "/snap/name/42//bar")
+	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info), Equals, "/snap/name/42/bar//foo")
 }
 
 // Check that legacy syntax works and allows sharing read-only snap content

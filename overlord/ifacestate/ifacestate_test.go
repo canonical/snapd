@@ -22,6 +22,7 @@ package ifacestate_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -138,6 +140,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.o.TaskRunner(), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
 		addForeignTaskHandlers(s.o.TaskRunner())
+		mgr.DisableUDevMonitor()
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
@@ -3659,4 +3662,91 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithConnect(c *C) {
 
 func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 	s.testChangeConflict(c, "disconnect")
+}
+
+type udevMonitorMock struct {
+	ConnectError, RunError                             error
+	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
+}
+
+func (u *udevMonitorMock) Connect() error {
+	u.ConnectCalls++
+	return u.ConnectError
+}
+
+func (u *udevMonitorMock) Disconnect() error {
+	u.DisconnectCalls++
+	return nil
+}
+
+func (u *udevMonitorMock) Run() error {
+	u.RunCalls++
+	return u.RunError
+}
+
+func (u *udevMonitorMock) Stop() error {
+	u.StopCalls++
+	return nil
+}
+
+func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
+	u := udevMonitorMock{}
+
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
+	defer restoreTimeout()
+
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		return &u
+	})
+	defer restoreCreate()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	// succesfull initialization should result in exactly 1 connect and run call
+	for i := 0; i < 5; i++ {
+		c.Assert(mgr.Ensure(), IsNil)
+	}
+	mgr.Stop()
+
+	c.Assert(u.ConnectCalls, Equals, 1)
+	c.Assert(u.RunCalls, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 1)
+}
+
+func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
+	u := udevMonitorMock{
+		ConnectError: fmt.Errorf("Connect failed"),
+	}
+
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
+	defer restoreTimeout()
+
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		return &u
+	})
+	defer restoreCreate()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(mgr.Ensure(), ErrorMatches, "Connect failed")
+	c.Assert(u.ConnectCalls, Equals, 1)
+	c.Assert(u.RunCalls, Equals, 0)
+	c.Assert(u.StopCalls, Equals, 0)
+
+	u.ConnectError = nil
+	u.RunError = fmt.Errorf("Run failed")
+	c.Assert(mgr.Ensure(), ErrorMatches, "Run failed")
+	c.Assert(u.ConnectCalls, Equals, 2)
+	c.Assert(u.RunCalls, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 0)
+	c.Assert(u.DisconnectCalls, Equals, 1)
+
+	u.RunError = nil
+	c.Assert(mgr.Ensure(), IsNil)
+
+	mgr.Stop()
+
+	c.Assert(u.StopCalls, Equals, 1)
 }

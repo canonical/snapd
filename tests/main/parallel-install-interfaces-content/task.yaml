@@ -19,7 +19,6 @@ prepare: |
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    path="$(make_snap test-snapd-content-advanced-plug)"
 
     install_local test-snapd-content-advanced-slot
 
@@ -29,9 +28,9 @@ execute: |
         devmode=--devmode
     fi
 
-    snap install --dangerous --name test-snapd-content-advanced-plug "$path"
-    snap install --dangerous $devmode --name test-snapd-content-advanced-plug_foo "$path"
-    snap install --dangerous $devmode --name test-snapd-content-advanced-plug_bar "$path"
+    install_local test-snapd-content-advanced-plug
+    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_foo $devmode
+    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_bar $devmode
 
     test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target' "$VAR")"
 
