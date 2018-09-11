@@ -1,0 +1,11 @@
+{
+    "type": "model",
+    "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "series": "16",
+    "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "model": "pi2",
+    "architecture": "armhf",
+    "gadget": "pi2",
+    "kernel": "pi2-kernel",
+    "timestamp": "2018-09-11T15:00:00+00:00"
+}
