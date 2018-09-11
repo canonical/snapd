@@ -57,6 +57,9 @@ type Flags struct {
 	// Amend allows refreshing out of a snap unknown to the store
 	// and into one that is known.
 	Amend bool `json:"amend,omitempty"`
+
+	// IsAutoRefresh is true if the snap is currently auto-refreshed
+	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)

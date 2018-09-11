@@ -546,6 +546,14 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
 	s.testRetryError(c, err)
 }
 
+func (s *interfaceManagerSuite) TestAutoconnectConflictOnDiscardSnap(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("discard-snap", "")
+	s.state.Unlock()
+	err := s.createAutoconnectChange(c, task)
+	s.testRetryError(c, err)
+}
+
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
 	s.state.Lock()
 	task := s.state.NewTask("link-snap", "")
