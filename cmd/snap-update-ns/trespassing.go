@@ -44,12 +44,7 @@ func (as *Assumptions) AddUnrestrictedPaths(paths ...string) {
 	as.unrestrictedPaths = append(as.unrestrictedPaths, paths...)
 }
 
-// isRestricted returns true if a path follows restricted writing scheme.
-//
-// Writing to a restricted path results in step-by-step validation of each
-// directory, starting from the root of the file system. Unless writing is
-// allowed a mimic must be constructed to ensure that writes are not visible in
-// undesired locations of the host filesystem.
+// isRestricted checks whether a path falls under restricted writing scheme.
 //
 // Provided path is the full, absolute path of the entity that needs to be
 // created (directory, file or symbolic link).
@@ -113,6 +108,10 @@ func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, err
 
 // RestrictionsFor computes restrictions for the desired path.
 func (as *Assumptions) RestrictionsFor(desiredPath string) *Restrictions {
+	// Writing to a restricted path results in step-by-step validation of each
+	// directory, starting from the root of the file system. Unless writing is
+	// allowed a mimic must be constructed to ensure that writes are not visible in
+	// undesired locations of the host filesystem.
 	if as.isRestricted(desiredPath) {
 		return &Restrictions{assumptions: as, desiredPath: desiredPath, restricted: true}
 	}
@@ -121,10 +120,11 @@ func (as *Assumptions) RestrictionsFor(desiredPath string) *Restrictions {
 
 // Restrictions contains meta-data of a compound write operation.
 //
-// This structure helps various functions that write to the filesystem to keep
-// track of the ultimate destination across several calls (e.g. the function
-// that creates a file needs to call helpers to create subsequent directories).
-// Keeping track of the desired path aids in constructing useful error messages.
+// This structure helps functions that write to the filesystem to keep track of
+// the ultimate destination across several calls (e.g. the function that
+// creates a file needs to call helpers to create subsequent directories).
+// Keeping track of the desired path aids in constructing useful error
+// messages.
 //
 // In addition the structure keeps track of the restricted write mode flag which
 // is based on the full path of the desired object being constructed. This allows
@@ -136,7 +136,7 @@ type Restrictions struct {
 	restricted  bool
 }
 
-// Check verifies if writing to a directory would trespass on the host.
+// Check verifies whether writing to a directory would trespass on the host.
 //
 // The check is only performed in restricted mode. If the check fails a
 // TrespassingError is returned.
@@ -181,10 +181,7 @@ func (e *TrespassingError) Error() string {
 	return fmt.Sprintf("cannot write to %q because it would affect the host in %q", e.DesiredPath, e.ViolatedPath)
 }
 
-// isReadOnly returns true if a directory is ready only.
-//
-// Directories are read only when they reside on file systems mounted in read
-// only mode or when the underlying file system itself is inherently read only.
+// isReadOnly checks whether the underlying filesystem is read only or is mounted as such.
 func isReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 	// If something is mounted with f_flags & ST_RDONLY then is read-only.
 	if fsData.Flags&StReadOnly == StReadOnly {
@@ -198,7 +195,7 @@ func isReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 	return false
 }
 
-// isSnapdCreatedPrivateTmpfs returns true if a directory is a tmpfs mounted by snapd.
+// isSnapdCreatedPrivateTmpfs checks whether a directory resides on a tmpfs mounted by snapd
 //
 // The function inspects the directory and a list of changes that were applied
 // to the mount namespace. A directory is trusted if it is a tmpfs that was
