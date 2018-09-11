@@ -5,6 +5,12 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
+    snap set system experimental.parallel-instances=true
+    install_local_as test-snapd-tools test-snapd-tools_foo
+
+restore:
+    snap set system experimental.parallel-instances=null
+
 # TODO: update test for core18 but its already pretty confusing as is
 systems: [-ubuntu-core-18-*]
 
@@ -31,15 +37,17 @@ execute: |
     fi
     snap list | MATCH "$expected"
 
-    echo "List prints installed snap version"
+    echo "List prints installed snaps and versions"
     snap list | MATCH '^test-snapd-tools +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$'
+    snap list | MATCH '^test-snapd-tools_foo +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$'
 
     echo "Install test-snapd-tools again"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
+
     echo "And run snap list --all"
-    output=$(snap list --all |grep test-snapd-tools)
+    output=$(snap list --all |grep 'test-snapd-tools ')
     if [ "$(grep -c test-snapd-tools <<< "$output")" != "2" ]; then
         echo "Expected two test-snapd-tools in the output, got:"
         echo "$output"
@@ -47,6 +55,13 @@ execute: |
     fi
     if [ "$(grep -c disabled <<< "$output")" != "1" ]; then
         echo "Expected one disabled line in in the output, got:"
+        echo "$output"
+        exit 1
+    fi
+
+    output=$(snap list --all |grep 'test-snapd-tools_foo ')
+    if [ "$(grep -c test-snapd-tools_foo <<< "$output")" != "1" ]; then
+        echo "Expected test-snapd-tools_foo in the output, got:"
         echo "$output"
         exit 1
     fi
