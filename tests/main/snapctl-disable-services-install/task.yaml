@@ -13,7 +13,7 @@ execute: |
         exit 1
     fi
 
-    for service in "simple" "forking" do;
+    for service in simple forking; do
         echo "Verify that the $service service isn't running"
         snap services | MATCH "snapctl-disable-services-install\.$service\s\+disabled\s\+inactive" 
     done
