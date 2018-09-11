@@ -1952,6 +1952,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		name:     "some-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
 		{
 			op:     "storesvc-snap-action",
@@ -2118,6 +2119,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		name:   "some-snap",
 		target: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
 		{
 			op:     "storesvc-snap-action",
