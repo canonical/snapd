@@ -104,6 +104,17 @@ func (s *helpersSuite) TestCoreCoreCoreMapper(c *C) {
 	c.Assert(m.RemapSnapToState("core"), Equals, "core")
 }
 
+func (s *helpersSuite) TestCoreSnapdCoreMapper(c *C) {
+	var m ifacestate.SnapMapper = &ifacestate.CoreSnapdCoreMapper{}
+
+	c.Assert(m.RemapSnapFromRequest("system"), Equals, "snapd")
+	c.Assert(m.RemapSnapFromRequest("core"), Equals, "core")
+	c.Assert(m.RemapSnapToResponse("snapd"), Equals, "core")
+
+	c.Assert(m.RemapSnapFromState("core"), Equals, "snapd")
+	c.Assert(m.RemapSnapToState("snapd"), Equals, "core")
+}
+
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
 type caseMapper struct{}
 
