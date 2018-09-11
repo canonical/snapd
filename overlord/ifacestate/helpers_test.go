@@ -91,6 +91,30 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapToResponse("potato"), Equals, "potato")
 }
 
+func (s *helpersSuite) TestCoreCoreCoreMapper(c *C) {
+	var m ifacestate.SnapMapper = &ifacestate.CoreCoreCoreMapper{}
+
+	// The system snap is a nickname for "core" but only for incoming requests.
+	// Responses are not affected and use "core" for compatibility.
+	c.Assert(m.RemapSnapFromRequest("system"), Equals, "core")
+	c.Assert(m.RemapSnapFromRequest("core"), Equals, "core")
+	c.Assert(m.RemapSnapToResponse("core"), Equals, "core")
+
+	c.Assert(m.RemapSnapFromState("core"), Equals, "core")
+	c.Assert(m.RemapSnapToState("core"), Equals, "core")
+}
+
+func (s *helpersSuite) TestCoreSnapdCoreMapper(c *C) {
+	var m ifacestate.SnapMapper = &ifacestate.CoreSnapdCoreMapper{}
+
+	c.Assert(m.RemapSnapFromRequest("system"), Equals, "snapd")
+	c.Assert(m.RemapSnapFromRequest("core"), Equals, "core")
+	c.Assert(m.RemapSnapToResponse("snapd"), Equals, "core")
+
+	c.Assert(m.RemapSnapFromState("core"), Equals, "snapd")
+	c.Assert(m.RemapSnapToState("snapd"), Equals, "core")
+}
+
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
 type caseMapper struct{}
 

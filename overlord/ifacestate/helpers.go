@@ -77,7 +77,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
 		if snapInfo.SnapName() == "snapd" {
-			mapper = &CoreSnapdSystemMapper{}
+			mapper = &CoreSnapdCoreMapper{}
 			break
 		}
 	}
@@ -709,8 +709,81 @@ func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
 	return snapName
 }
 
+// CoreCoreCoreMapper implements SnapMapper and makes implicit slots appear to
+// be on "core" in the state and in the API while also using the "core" snap
+// internally in memory.
+type CoreCoreCoreMapper struct {
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
+}
+
+// RemapSnapFromRequest renames the "system" snap to the "core" snap.
+//
+// This allows us to accept both legacy "core" and non-legacy "system" name
+// as the snap that holds implicit slots.
+func (m *CoreCoreCoreMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
+// CoreSnapdCoreMapper implements SnapMapper and makes implicit slots appear to
+// be on "core" in the state and in the API while using the "snapd" snap
+// internally in memory.
+//
+type CoreSnapdCoreMapper struct {
+	IdentityMapper // Embedding the identity mapper allows us to cut on boilerplate.
+}
+
+// RemapSnapFromState renames the "core" snap to the "snapd" snap.
+//
+// This allows modern snapd to load an old state that remembers connections
+// between slots on the "core" snap and other snaps. In memory we are actually
+// using "snapd" snap for hosting those slots and this lets us stay compatible.
+func (m *CoreSnapdCoreMapper) RemapSnapFromState(snapName string) string {
+	if snapName == "core" {
+		return "snapd"
+	}
+	return snapName
+}
+
+// RemapSnapToState renames the "snapd" snap to the "core" snap.
+//
+// This allows the state to stay backwards compatible as all the connections
+// seem to refer to the "core" snap, as in pre core{16,18} days where there was
+// only one core snap.
+func (m *CoreSnapdCoreMapper) RemapSnapToState(snapName string) string {
+	if snapName == "snapd" {
+		return "core"
+	}
+	return snapName
+}
+
+// RemapSnapFromRequest renames the "system" snap to the "core" snap.
+//
+// This allows us to accept both legacy "core" and non-legacy "system" name
+// as the snap that holds implicit slots.
+func (m *CoreSnapdCoreMapper) RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "snapd"
+	}
+	return snapName
+}
+
+// RemapSnapToResponse renames the "snapd" snap to the "core" snap.
+//
+// This allows us to make all the implicitly defined slots, that are really
+// associated with the "snapd" snap to seemingly occupy the "core" snap
+// instead. This is done for compatibility with existing software.
+func (m *CoreSnapdCoreMapper) RemapSnapToResponse(snapName string) string {
+	if snapName == "snapd" {
+		return "core"
+	}
+	return snapName
+}
+
 // mapper contains the currently active snap mapper.
-var mapper SnapMapper = &CoreCoreSystemMapper{}
+var mapper SnapMapper = &CoreCoreCoreMapper{}
 
 // MockSnapMapper mocks the currently used snap mapper.
 func MockSnapMapper(new SnapMapper) (restore func()) {

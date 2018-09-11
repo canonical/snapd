@@ -27,7 +27,7 @@ import (
 )
 
 func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
-	_, ok := mapper.(*CoreSnapdSystemMapper)
+	_, ok := mapper.(*CoreSnapdCoreMapper)
 	return ok
 }
 
