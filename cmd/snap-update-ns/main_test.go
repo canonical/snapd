@@ -40,7 +40,6 @@ func Test(t *testing.T) { TestingT(t) }
 
 type mainSuite struct {
 	testutil.BaseTest
-	sec *update.Secure
 	log *bytes.Buffer
 }
 
@@ -48,7 +47,6 @@ var _ = Suite(&mainSuite{})
 
 func (s *mainSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.sec = &update.Secure{}
 	buf, restore := logger.MockLogger()
 	s.BaseTest.AddCleanup(restore)
 	s.log = buf
@@ -58,7 +56,7 @@ func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -79,7 +77,7 @@ func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = update.ComputeAndSaveChanges(snapName, s.sec)
+	err = update.ComputeAndSaveChanges(snapName)
 	c.Assert(err, IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
@@ -114,7 +112,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	// represented here. The changes have only one goal: tell
 	// snap-update-ns how the mimic can be undone in case it is no longer
 	// needed.
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		// The change that we were asked to perform is to create a bind mount
 		// from within the snap to /usr/share/mysnap.
 		c.Assert(chg, DeepEquals, &update.Change{
@@ -146,7 +144,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), IsNil)
+	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals,
 		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
@@ -180,7 +178,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -223,7 +221,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), IsNil)
+	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -245,7 +243,7 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -265,7 +263,7 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), ErrorMatches, "testing")
+	c.Assert(update.ComputeAndSaveChanges(snapName), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -329,7 +327,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -350,7 +348,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	defer restore()
 
 	// The error was ignored, and no mount was recorded in the profile
-	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), IsNil)
+	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -360,7 +358,7 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	defer dirs.SetRootDir("/")
 
 	var changes []update.Change
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		changes = append(changes, *chg)
 		return nil, nil
 	})

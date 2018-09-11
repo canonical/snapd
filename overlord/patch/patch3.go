@@ -27,7 +27,7 @@ import (
 )
 
 func init() {
-	patches[3] = patch3
+	patches[3] = []PatchFunc{patch3}
 }
 
 // patch3:
