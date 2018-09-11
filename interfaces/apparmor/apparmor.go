@@ -37,14 +37,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// LoadProfiles loads apparmor profiles from the given files.
-//
-// If no such profiles were previously loaded then they are simply added to the kernel.
-// If there were some profiles with the same name before, those profiles are replaced.
-func LoadProfiles(fnames []string) error {
-	return loadProfiles(fnames, dirs.AppArmorCacheDir, 0)
-}
-
 // UnloadProfiles removes the named profiles from the running kernel.
 //
 // The operation is done with: apparmor_parser --remove $names...
@@ -64,6 +56,10 @@ const (
 	skipReadCache aaParserFlags = 1 << iota
 )
 
+// loadProfiles loads apparmor profiles from the given files.
+//
+// If no such profiles were previously loaded then they are simply added to the kernel.
+// If there were some profiles with the same name before, those profiles are replaced.
 func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	if len(fnames) == 0 {
 		return nil
