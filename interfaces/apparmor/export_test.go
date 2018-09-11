@@ -31,6 +31,7 @@ var (
 	ProfileGlobs               = profileGlobs
 	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
 	DowngradeConfinement       = downgradeConfinement
+	LoadProfiles               = loadProfiles
 )
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
