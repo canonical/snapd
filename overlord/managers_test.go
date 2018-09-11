@@ -259,7 +259,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
 
-	st.Set("refresh-request-salt", "request-salt")
+	st.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
