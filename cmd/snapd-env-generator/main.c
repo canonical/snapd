@@ -32,7 +32,7 @@ int main(int argc, char **argv)
 
 	char *path = getenv("PATH");
 	if (path == NULL || sc_streq(path, "")) {
-               printf("PATH=%s\n", snap_bin_dir);
+	       // do nothing, until systemd is fixed, see LP#1791691
                return 0;
         }
 	char buf[PATH_MAX + 1] = { 0 };
