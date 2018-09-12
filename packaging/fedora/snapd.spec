@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35.1
+Version:        2.35.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -794,6 +794,13 @@ fi
 %endif
 
 %changelog
+* Wed Sep 12 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.2
+ - cmd,overlord/snapstate: go 1.11 format fixes
+ - ifacestate: fix hang when retrying content providers
+ - snap-env-generator: do nothing when PATH is unset
+ - interfaces/modem-manager: allow access to more USB strings
+
 * Mon Sep 03 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.35.1
  - packaging/fedora: Merge changes from Fedora Dist-Git
