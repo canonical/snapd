@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.35.1
+Version:        2.35.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -281,9 +281,6 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
-# move snapd-generator
-install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/
 
 # Don't ship apparmor helper service when AppArmor is not enabled
 %if ! %{with apparmor}
