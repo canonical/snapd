@@ -87,9 +87,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 		Name:      "media-hub",
 		Interface: "media-hub",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -116,9 +114,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 		Name:      "media-hub",
 		Interface: "media-hub",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -141,9 +137,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 		Name:      "media-hub",
 		Interface: "media-hub",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 

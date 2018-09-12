@@ -94,9 +94,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c 
 		Name:      "modem-manager",
 		Interface: "modem-manager",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -123,9 +121,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c
 		Name:      "modem-manager",
 		Interface: "modem-manager",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -150,9 +146,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c 
 		Name:      "modem-manager",
 		Interface: "modem-manager",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 

@@ -87,9 +87,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Name:      "ofono",
 		Interface: "ofono",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -113,9 +111,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Name:      "ofono",
 		Interface: "ofono",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -137,9 +133,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Name:      "ofono",
 		Interface: "ofono",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
