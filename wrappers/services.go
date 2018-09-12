@@ -254,9 +254,6 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		if !app.IsService() {
 			continue
 		}
-		if app.IsUserService() {
-			continue
-		}
 		// Generate service file
 		content, err := generateSnapServiceFile(app)
 		if err != nil {
@@ -301,19 +298,21 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			continue
 		}
 
-		svcName := app.ServiceName()
+		if !app.IsUserService() {
+			svcName := app.ServiceName()
 
-		if strutil.ListContains(disabledSvcs, app.Name) {
-			// service is disabled, nothing to do
-			continue
-		}
+			if strutil.ListContains(disabledSvcs, app.Name) {
+				// service is disabled, nothing to do
+				continue
+			}
 
-		if !preseedMode() {
-			if err := sysd.Enable(svcName); err != nil {
-				return err
+			if !preseedMode() {
+				if err := sysd.Enable(svcName); err != nil {
+					return err
+				}
+				enabled = append(enabled, svcName)
 			}
 		}
-		enabled = append(enabled, svcName)
 	}
 
 	if len(written) > 0 && !preseedMode() {
@@ -401,7 +400,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if !app.IsService() || app.IsUserService() || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		nservices++
@@ -410,9 +409,11 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 
 		for _, socket := range app.Sockets {
 			path := socket.File()
-			socketServiceName := filepath.Base(path)
-			if err := sysd.Disable(socketServiceName); err != nil {
-				return err
+			if !app.IsUserService() {
+				socketServiceName := filepath.Base(path)
+				if err := sysd.Disable(socketServiceName); err != nil {
+					return err
+				}
 			}
 
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -423,9 +424,11 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		if app.Timer != nil {
 			path := app.Timer.File()
 
-			timerName := filepath.Base(path)
-			if err := sysd.Disable(timerName); err != nil {
-				return err
+			if !app.IsUserService() {
+				timerName := filepath.Base(path)
+				if err := sysd.Disable(timerName); err != nil {
+					return err
+				}
 			}
 
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -433,8 +436,10 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			}
 		}
 
-		if err := sysd.Disable(serviceName); err != nil {
-			return err
+		if !app.IsUserService() {
+			if err := sysd.Disable(serviceName); err != nil {
+				return err
+			}
 		}
 
 		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
