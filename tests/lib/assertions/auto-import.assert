@@ -1,7 +1,6 @@
 type: system-user
-authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
-revision: 1
-brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
 email: snappy-dev@lists.launchpad.net
 models:
   - pc
@@ -11,18 +10,18 @@ name: user1
 password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
 series:
   - 16
-since: 2016-10-10T15:03:21+00:00
-until: 2017-10-09T15:03:21+00:00
+since: 2018-09-11T15:03:21+00:00
+until: 2019-09-10T15:03:21+00:00
 username: user1
-sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
+sign-key-sha3-384: GviipVKTtx3xUSQUQJ4BgzicfuXo4-P8j3Tdbkj1ipVZURJ84rT_ub_pMZjpP2Ii
 
-AcLBXAQAAQoABgUCWD1lgAAKCRCi4irWmF+hRcO6D/9FpYFqLxz8mzyI31js9TfmsVOuaWpe6DBn
-Nu2Ay168waDgOMtTU1MBONn5qeX44mukSz0v5XL6SIRcrVPRavM1Epfda/IRizysLcPe1cMoh1iq
-hEarVS6V63MZgmGPgrfv9NXL7eoU+w+OXOcrxonZnIMiq4EwRY4udBYCMWAXRO4tQkIyNmXXdJqd
-8JVo0pUfZDkRq8SAOt2FzSxVVpPcUyos7rLExzAsN6YCflatcW23gjfjx8EVzka+Pg25pyevz11x
-srsg641cXTSVznN9k62BhOgrTgZXuunrhYRoe6/sAfq2By8yzsf9rv9bNYBDyH1CTk3ejUt/NJyu
-Xs2mv6pXERrIz2SXJoz7VO6UnzNte4vVni0vs117wJevOnVdymjxcbDwseHs2PgZag+lCdSADwGI
-NhMHzB/XZ+eMaGv3yPSsHZ9nU+YgwiuR5QeI6AqfoQqbi3HF1LVNMptsnbMX346zgI8iKKL22bqA
-bXC21F22aotXsaLo6v/TlaBStIggxY5HQ0+FHLR4sfYtiFFGF277eIuDSN8EHv1S/4klDBv2qXzu
-PtSUE+u9HMCAum8arnGzpgPW8KZBHLdA9pp/ibLsRJrbuqGWZPHGLkBjLWBCSd/a19mYyD5GzeUf
-FwdVIDMvilpIPzKm2HzX5SLJrbIz0eMeGR7dqOK7ug==
+AcLBXAQAAQoABgUCW5hHBQAKCRBG7jdDygWV0VvAEACKM2hH7Os5H3pO73IWPZ3jREWzgMsswTlA
+erCUS7Xr86QW4TzJ9zry0HqQzJPlBVsjxPTvNG8+kF6MQ0ZKK4LKRDmnQ8kxgvogBwWVMfn0W/iT
+uyiCCROd2x4Q2RvrohAgzlTnfCSmd2/U7dhxvLKLgFYLpkbx8NJ4SbVQ/kHaZu2cWICRI8EO47iJ
+XVE4+TTBEkjNMdXbm8/mb3EFckbVpaX0HXk2QXAQLSvOwktRefuJujVzGyTD1eFySawPH5s9zGE5
+TRSeIpDrSdMNRvK+6xh1WqxLa+CiMq+0HfncSSnMxOVwYva3xx8MLPKtzCxwSFM2odGumm/TkCpw
+i7MdGWI24UTT5STmw2OeJZNVo3wNjwRgr3jpRNMqzkm/S63Kuts0yS33yUqf6v0eaHeL8BPNTrOK
+5M9rbTq5mQv2b5UTshLX2X+0WI5f4IKWjcL+ZrJ0G1s++2aCw8zPfCzYTeo3tQIcHtnyVc09MoK8
+o+kCtDjIdU+ddhSHiDAqYbf4BTg1QxDKZboU8jnBR3bDIGmnizu4qutNcgixLpHpU8u2Asq1btyv
+c5ZaBhbrlrB/n+/vzptdprKrR1QpvuW4EQN1Z4DK0SFfVni9sdVeG6KqGu7DD3Vxiq1Qk4Aq3sbo
+kD+edYrBvGP90J66GfZDLA6HCLY1n8mX+K3VLE9FWw==
