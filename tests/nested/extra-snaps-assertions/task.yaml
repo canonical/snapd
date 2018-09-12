@@ -35,27 +35,21 @@ prepare: |
     mkdir -p /tmp/work-dir
 
     snap download core
-
     /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img --extra-snaps core_*.snap
     mv ubuntu-core.img /tmp/work-dir
 
     . "$TESTSLIB/nested.sh"
     create_assertions_disk
-
-    . "$TESTSLIB/systemd.sh"
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
+    start_nested_vm
 
 restore: |
-    . "$TESTSLIB/systemd.sh"
-    systemd_stop_and_destroy_unit nested-vm
-    rm -rf /tmp/work-dir
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_core_vm
 
 execute: |
     . "$TESTSLIB/nested.sh"
     wait_for_ssh
     prepare_ssh
-
-    cd "$SPREAD_PATH"
 
     echo "Wait for first boot to be done"
     while ! execute_remote "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
@@ -64,4 +58,4 @@ execute: |
     execute_remote "snap known model" | MATCH "series: 16"
 
     echo "Make sure core has an actual revision"
-    execute_remote "snap list" | MATCH "^core +[0-9]+\-[0-9.]+ +[0-9]+ +canonical +"
+    execute_remote "snap list" | MATCH "^core +[0-9]+\-[0-9.]+ +[0-9]+ +$CORE_CHANNEL +canonical✓ +core"

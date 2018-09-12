@@ -81,30 +81,9 @@ __END__
 `)
 	defer cmd.Restore()
 
-	devs := make(chan *HotplugDeviceInfo)
-	errors := make(chan error)
-	c.Assert(EnumerateExistingDevices(devs, errors), IsNil)
-
-	devices := []*HotplugDeviceInfo{}
-	var stop bool
-	for !stop {
-		select {
-		case err := <-errors:
-			if err != nil {
-				c.Fatalf("unexpected error: %s", err)
-			}
-		case dev, ok := <-devs:
-			if !ok {
-				stop = true
-				break
-			}
-			devices = append(devices, dev)
-		}
-	}
-
-	_, ok := <-errors
-	c.Assert(ok, Equals, false)
-
+	devices, perrs, err := EnumerateExistingDevices()
+	c.Assert(err, IsNil)
+	c.Assert(perrs, HasLen, 0)
 	c.Assert(devices, HasLen, 2)
 
 	v, _ := devices[0].Attribute("DEVPATH")
@@ -134,35 +113,11 @@ __END__
 `)
 	defer cmd.Restore()
 
-	devs := make(chan *HotplugDeviceInfo)
-	errors := make(chan error)
-	c.Assert(EnumerateExistingDevices(devs, errors), IsNil)
-
-	var parseErrors []error
-	devices := []*HotplugDeviceInfo{}
-
-	var stop bool
-	for !stop {
-		select {
-		case e, ok := <-errors:
-			if ok {
-				parseErrors = append(parseErrors, e)
-			}
-		case dev, ok := <-devs:
-			if !ok {
-				stop = true
-			} else {
-				devices = append(devices, dev)
-			}
-		}
-	}
-
-	_, ok := <-errors
-	c.Assert(ok, Equals, false)
-
-	c.Assert(parseErrors, HasLen, 2)
-	c.Assert(parseErrors[0], ErrorMatches, `failed to parse udevadm output "E: DEVPATH"`)
-	c.Assert(parseErrors[1], ErrorMatches, `no device block marker found before "E: K=V"`)
+	devices, perrs, err := EnumerateExistingDevices()
+	c.Assert(err, IsNil)
+	c.Assert(perrs, HasLen, 2)
+	c.Assert(perrs[0], ErrorMatches, `cannot parse udevadm output "E: DEVPATH"`)
+	c.Assert(perrs[1], ErrorMatches, `no device block marker found before "E: K=V"`)
 
 	// successfully parsed devices are still reported
 	c.Assert(devices, HasLen, 1)

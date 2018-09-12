@@ -97,6 +97,7 @@ type fakeDownload struct {
 	name     string
 	macaroon string
 	target   string
+	opts     *store.DownloadOptions
 }
 
 type byName []store.CurrentSnap
@@ -131,6 +132,7 @@ type fakeStore struct {
 	fakeCurrentProgress int
 	fakeTotalProgress   int
 	state               *state.State
+	seenPrivacyKeys     map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -370,7 +372,19 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	if len(curSnaps) == 0 {
 		curSnaps = nil
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap-action", curSnaps: curSnaps, userID: userID})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op:       "storesvc-snap-action",
+		curSnaps: curSnaps,
+		userID:   userID,
+	})
+
+	if f.seenPrivacyKeys == nil {
+		// so that checks don't topple over this being uninitialized
+		f.seenPrivacyKeys = make(map[string]bool)
+	}
+	if opts != nil && opts.PrivacyKey != "" {
+		f.seenPrivacyKeys[opts.PrivacyKey] = true
+	}
 
 	sorted := make(byAction, len(actions))
 	copy(sorted, actions)
@@ -485,7 +499,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
+func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
 	f.pokeStateLock()
 
 	if _, key := snap.SplitInstanceName(name); key != "" {
@@ -495,10 +509,15 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if user != nil {
 		macaroon = user.StoreMacaroon
 	}
+	// only add the options if they contain anything interessting
+	if *dlOpts == (store.DownloadOptions{}) {
+		dlOpts = nil
+	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
 		name:     name,
 		target:   targetFn,
+		opts:     dlOpts,
 	})
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 

@@ -5,6 +5,12 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
+    snap set system experimental.parallel-instances=true
+    install_local_as test-snapd-tools test-snapd-tools_foo
+
+restore:
+    snap set system experimental.parallel-instances=null
+
 # TODO: update test for core18 but its already pretty confusing as is
 systems: [-ubuntu-core-18-*]
 
@@ -27,19 +33,21 @@ execute: |
     elif [ "$SPREAD_BACKEND" = "external" ] || [ "$SPREAD_BACKEND" = "autopkgtest" ]; then
         expected='^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +(edge|beta|candidate|stable) +canonical✓ +core *$'
     else
-        expected='^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\+git[0-9]+\.[0-9a-f]+)? +[0-9]+ +edge +canonical✓ +core *$'
+        expected="^core .* [0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-f]+)? +[0-9]+ +$CORE_CHANNEL +canonical✓ +core *$"
     fi
     snap list | MATCH "$expected"
 
-    echo "List prints installed snap version"
+    echo "List prints installed snaps and versions"
     snap list | MATCH '^test-snapd-tools +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$'
+    snap list | MATCH '^test-snapd-tools_foo +[0-9]+(\.[0-9]+)* +x[0-9]+ +- +- +- *$'
 
     echo "Install test-snapd-tools again"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
+
     echo "And run snap list --all"
-    output=$(snap list --all |grep test-snapd-tools)
+    output=$(snap list --all |grep 'test-snapd-tools ')
     if [ "$(grep -c test-snapd-tools <<< "$output")" != "2" ]; then
         echo "Expected two test-snapd-tools in the output, got:"
         echo "$output"
@@ -50,3 +58,5 @@ execute: |
         echo "$output"
         exit 1
     fi
+
+    snap list --all | MATCH 'test-snapd-tools_foo '
