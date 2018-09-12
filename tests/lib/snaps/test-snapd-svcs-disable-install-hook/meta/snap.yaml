@@ -3,7 +3,7 @@ version: 1.0
 apps:
     simple:
         daemon: simple
-        command: "sleep 60"
+        command: bin/simple.sh
     forking:
         daemon: forking
         command: bin/forking.sh
