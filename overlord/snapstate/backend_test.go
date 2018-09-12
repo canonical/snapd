@@ -893,7 +893,7 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 }
 
 func (f *fakeSnappyBackend) AppendOp(op *fakeOp) {
-    f.mu.Lock()
-    defer f.mu.Unlock()
-    f.ops = append(f.ops, *op)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ops = append(f.ops, *op)
 }
