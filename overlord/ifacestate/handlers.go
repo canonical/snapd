@@ -653,6 +653,17 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 
 		// other snap that affects us because of plug or slot
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" || k == "discard-snap" {
+			if k == "setup-profiles" {
+				var corePhase2 bool
+				if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+					return err
+				}
+				// core-phase-2 is now no-op, we shouldn't conflict on it; note, old snapd would create
+				// this task even for regular snaps if installed together with core and dangerous flag.
+				if corePhase2 {
+					continue
+				}
+			}
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 			// if snap is getting installed/refreshed - temporary conflict, retry later
 			return &state.Retry{After: connectRetryTimeout}

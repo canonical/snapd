@@ -562,6 +562,14 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
 	s.testRetryError(c, err)
 }
 
+func (s *interfaceManagerSuite) TestAutoconnectConflictOnSetupProfiles(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("setup-profiles", "")
+	s.state.Unlock()
+	err := s.createAutoconnectChange(c, task)
+	s.testRetryError(c, err)
+}
+
 func (s *interfaceManagerSuite) TestSymmetricAutoconnectIgnore(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -620,6 +628,46 @@ func (s *interfaceManagerSuite) TestAutoconnectRetryOnConnect(c *C) {
 
 	err := s.createAutoconnectChange(c, task)
 	c.Assert(err, ErrorMatches, `task should be retried`)
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectIgnoresSetupProfilesPhase2(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "consumer"},
+	}
+
+	chg := s.state.NewChange("install", "...")
+	t1 := s.state.NewTask("auto-connect", "...")
+	t1.Set("snap-setup", sup)
+
+	t2 := s.state.NewTask("setup-profiles", "...")
+	corePhase2 := true
+	t2.Set("core-phase-2", corePhase2)
+	t2.Set("snap-setup", sup)
+	t2.WaitFor(t1)
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	// auto-connect task is done
+	c.Assert(t1.Status(), Equals, state.DoneStatus)
+	// change not finished because of hook tasks
+	c.Assert(chg.Status(), Equals, state.DoStatus)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
