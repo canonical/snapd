@@ -18,6 +18,7 @@ parts:
     # FIXME: this should probably go upstream
     plugin: x-builddeb
     source: .
+    source-type: git
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
