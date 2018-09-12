@@ -229,6 +229,31 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 	})
 }
 
+func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		sdcmd := cmd[0]
+		if len(cmd) >= 2 {
+			sdcmd = cmd[len(cmd)-2]
+		}
+		if sdcmd == "is-enabled" {
+			return nil, systemd.NewError(1, cmd, []byte("disabled\n"))
+		}
+		panic("unexpected systemctl command " + sdcmd)
+	})
+	defer r()
+
+	err := wrappers.StartServices(info.Services(), nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"--root", s.tempdir, "is-enabled", filepath.Base(svcFile)},
+	})
+}
+
 func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
 	// sanity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
