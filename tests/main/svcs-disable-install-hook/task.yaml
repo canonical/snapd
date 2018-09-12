@@ -7,6 +7,6 @@ execute: |
 
     for service in simple forking; do
         echo "Verify that the $service service isn't running"
-        snap services | MATCH "test-snapd-svcs-disable-install-hook\\.$service\\s\\+disabled\\s\\+inactive"
+        snap services | MATCH "test-snapd-svcs-disable-install-hook\\.$service\\s\+disabled\\s\+inactive"
     done
     
