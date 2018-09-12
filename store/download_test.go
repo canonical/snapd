@@ -46,9 +46,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type downloadSuite struct{}
+type downloadSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&downloadSuite{})
+
+func (s *downloadSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	mockXdelta := testutil.MockCommand(c, "xdelta3", "")
+	s.AddCleanup(mockXdelta.Restore)
+}
 
 func (s *downloadSuite) TestActualDownload(c *C) {
 	n := 0
