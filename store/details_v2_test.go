@@ -17,6 +17,7 @@
  *
  */
 
+// not using store_test as this is a very low level test
 package store
 
 import (
