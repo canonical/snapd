@@ -43,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // hook setup by devicestate
@@ -401,6 +403,23 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
 }
 
+// autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
+// there is no limit.
+func autoRefreshRateLimited(st *state.State) (rate int64) {
+	tr := config.NewTransaction(st)
+
+	var rateLimit string
+	err := tr.Get("core", "refresh.rate-limit", &rateLimit)
+	if err != nil {
+		return 0
+	}
+	val, err := strutil.ParseByteSize(rateLimit)
+	if err != nil {
+		return 0
+	}
+	return val
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -412,6 +431,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	theStore := Store(st)
+	rate := autoRefreshRateLimited(st)
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
@@ -420,6 +440,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
+
+	dlOpts := &store.DownloadOptions{}
+	if snapsup.IsAutoRefresh && rate > 0 {
+		dlOpts.RateLimit = rate
+	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
@@ -429,10 +454,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(tomb.Context(nil), snapsup.InstanceName(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 	}
 	if err != nil {
 		return err
@@ -466,14 +491,14 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
+	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
 		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb)
+	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	if err != nil {
 		return err
 	}
@@ -761,6 +786,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapst.UserID = snapsup.UserID
 		}
 	}
+	// keep instance key
+	snapst.InstanceKey = snapsup.InstanceKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
 	if err != nil {

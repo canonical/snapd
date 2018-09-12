@@ -43,6 +43,24 @@
 			"revisionTime": "2017-07-20T12:40:56Z"
 		},
 		{
+			"checksumSHA1": "dqtKfXGotqkiYaS328PpWeusig8=",
+			"path": "github.com/juju/ratelimit",
+			"revision": "59fac5042749a5afb9af70e813da1dd5474f0167",
+			"revisionTime": "2017-10-26T09:04:26Z"
+		},
+		{
+			"checksumSHA1": "3ohk4dFYrERZ6WTdKkIwnTA0HSI=",
+			"path": "github.com/kr/pretty",
+			"revision": "73f6ac0b30a98e433b289500d779f50c1a6f0712",
+			"revisionTime": "2018-05-06T08:33:45Z"
+		},
+		{
+			"checksumSHA1": "SbguDK5lY8uhaHNrmJmNbiWIGM0=",
+			"path": "github.com/kr/text",
+			"revision": "e2ffdb16a802fe2bb95e2e35ff34f0e53aeef34f",
+			"revisionTime": "2018-05-06T08:24:08Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
@@ -159,10 +177,10 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "CEFTYXtWmgSh+3Ik1NmDaJcz4E0=",
+			"checksumSHA1": "9gypWnVZJEaH3jMK9KqOp4xgQD4=",
 			"path": "gopkg.in/check.v1",
-			"revision": "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
-			"revisionTime": "2016-12-08T18:13:25Z"
+			"revision": "788fd78401277ebd861206a03c884797c6ec5541",
+			"revisionTime": "2018-06-28T17:31:08Z"
 		},
 		{
 			"checksumSHA1": "mWrTCVjXPLevlqKUqpzSoEM3tu8=",

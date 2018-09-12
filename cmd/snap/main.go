@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -286,16 +287,24 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	return parser
 }
 
+var isStdinTTY = terminal.IsTerminal(0)
+
 // ClientConfig is the configuration of the Client used by all commands.
 var ClientConfig = client.Config{
 	// we need the powerful snapd socket
 	Socket: dirs.SnapdSocket,
 	// Allow interactivity if we have a terminal
-	Interactive: terminal.IsTerminal(0),
+	Interactive: isStdinTTY,
 }
 
 // Client returns a new client using ClientConfig as configuration.
 func Client() *client.Client {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
+This command has been left available for documentation purposes only.
+`), runtime.GOOS)
+		os.Exit(1)
+	}
 	return client.New(&ClientConfig)
 }
 
@@ -318,7 +327,7 @@ func resolveApp(snapApp string) (string, error) {
 }
 
 func main() {
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f

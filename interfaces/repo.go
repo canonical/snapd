@@ -278,6 +278,29 @@ func (r *Repository) Plug(snapName, plugName string) *snap.PlugInfo {
 	return r.plugs[snapName][plugName]
 }
 
+// Connection returns the specified Connection object or an error.
+func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
+	// Ensure that such plug exists
+	plug := r.plugs[connRef.PlugRef.Snap][connRef.PlugRef.Name]
+	if plug == nil {
+		return nil, fmt.Errorf("snap %q has no plug named %q", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	// Ensure that such slot exists
+	slot := r.slots[connRef.SlotRef.Snap][connRef.SlotRef.Name]
+	if slot == nil {
+		return nil, fmt.Errorf("snap %q has no slot named %q", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+	// Ensure that slot and plug are connected
+	conn, ok := r.slotPlugs[slot][plug]
+	if !ok {
+		return nil, fmt.Errorf("no connection from %s:%s to %s:%s",
+			connRef.PlugRef.Snap, connRef.PlugRef.Name,
+			connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	return conn, nil
+}
+
 // AddPlug adds a plug to the repository.
 // Plug names must be valid snap names, as defined by ValidateName.
 // Plug name must be unique within a particular snap.
@@ -288,7 +311,7 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	snapName := plug.Snap.InstanceName()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(snapName); err != nil {
 		return err
 	}
 	// Reject plugs with invalid names
@@ -383,7 +406,7 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	snapName := slot.Snap.InstanceName()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(snapName); err != nil {
 		return err
 	}
 	// Reject slots with invalid names
@@ -761,6 +784,10 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	}
 	for _, slotInfo := range r.slots[snapName] {
 		for plugInfo := range r.slotPlugs[slotInfo] {
+			// self-connection, ignore here as we got it already in the plugs loop above
+			if plugInfo.Snap == slotInfo.Snap {
+				continue
+			}
 			connRef := NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}

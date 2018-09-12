@@ -41,6 +41,9 @@ apps:
   camera:
     command: bin/run
     plugs: [ camera ]
+  cifs-mount:
+    command: bin/run
+    plugs: [ cifs-mount ]
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
@@ -260,6 +263,9 @@ apps:
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
+  screencast-legacy:
+    command: bin/run
+    plugs: [ screencast-legacy ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]

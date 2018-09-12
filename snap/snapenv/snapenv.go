@@ -101,21 +101,19 @@ func basicEnv(info *snap.Info) map[string]string {
 		// always mounted on /snap OR it is a classically confined snap where
 		// /snap is a part of the distribution package.
 		//
-		// NOTE for parallel-installs snap-confine takes care of making
-		// the environment of each snap instance appear as if it's the
-		// only snap, i.e. SNAP paths point to the same locations within
-		// the mount namespace
-		"SNAP":                 filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
-		"SNAP_COMMON":          snap.CommonDataDir(info.SnapName()),
-		"SNAP_DATA":            snap.DataDir(info.SnapName(), info.Revision),
-		"SNAP_NAME":            info.SnapName(),
-		"SNAP_INSTANCE":        filepath.Join(dirs.CoreSnapMountDir, info.InstanceName(), info.Revision.String()),
-		"SNAP_INSTANCE_NAME":   info.InstanceName(),
-		"SNAP_INSTANCE_COMMON": info.CommonDataDir(),
-		"SNAP_INSTANCE_DATA":   info.DataDir(),
-		"SNAP_VERSION":         info.Version,
-		"SNAP_REVISION":        info.Revision.String(),
-		"SNAP_ARCH":            arch.UbuntuArchitecture(),
+		// For parallel-installs the mount namespace setup is making the
+		// environment of each snap instance appear as if it's the only
+		// snap, i.e. SNAP paths point to the same locations within the
+		// mount namespace
+		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
+		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
+		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
+		"SNAP_NAME":          info.SnapName(),
+		"SNAP_INSTANCE_NAME": info.InstanceName(),
+		"SNAP_INSTANCE_KEY":  info.InstanceKey,
+		"SNAP_VERSION":       info.Version,
+		"SNAP_REVISION":      info.Revision.String(),
+		"SNAP_ARCH":          arch.UbuntuArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
@@ -127,17 +125,16 @@ func basicEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func userEnv(info *snap.Info, home string) map[string]string {
-	// TODO parallel-install: use of proper instance/store name
+	// To keep things simple the user variables always point to the
+	// instance-specific directories.
 	result := map[string]string{
-		"SNAP_USER_COMMON":          snap.UserCommonDataDir(home, info.SnapName()),
-		"SNAP_USER_DATA":            snap.UserDataDir(home, info.SnapName(), info.Revision),
-		"SNAP_INSTANCE_USER_COMMON": info.UserCommonDataDir(home),
-		"SNAP_INSTANCE_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":           info.UserXdgRuntimeDir(sys.Geteuid()),
+		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
+		"SNAP_USER_DATA":   info.UserDataDir(home),
+		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(sys.Geteuid()),
 	}
 	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {
-		result["HOME"] = snap.UserDataDir(home, info.SnapName(), info.Revision)
+		result["HOME"] = info.UserDataDir(home)
 	}
 	return result
 }

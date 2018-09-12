@@ -77,17 +77,20 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 
-	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
+	s.AddCleanup(snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {}))
 
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
 	err = interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
-	interfaces.MockSystemKey(`
-{
-"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor-features": ["caps", "dbus"]
-}`)
+
+	s.AddCleanup(snap.MockIsStdoutTTY(false))
+	s.AddCleanup(snap.MockIsStdinTTY(false))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
