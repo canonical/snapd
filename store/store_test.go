@@ -6499,7 +6499,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
 		},
-	}, nil, &store.RefreshOptions{RequestSalt: "123"})
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -6579,7 +6579,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := store.New(&cfg, authContext)
 
-	opts := &store.RefreshOptions{RequestSalt: "foo"}
+	opts := &store.RefreshOptions{PrivacyKey: "foo"}
 	currentSnaps := []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
@@ -6737,7 +6737,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			InstanceName: "other_foo",
 			Channel:      "stable",
 		},
-	}, nil, &store.RefreshOptions{RequestSalt: "123"})
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
