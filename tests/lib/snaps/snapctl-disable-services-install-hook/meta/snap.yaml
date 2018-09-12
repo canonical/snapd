@@ -6,4 +6,4 @@ apps:
         command: "sleep 60"
     forking:
         daemon: forking
-        command: sh -c "sleep 60 &"
+        command: bin/forking.sh
