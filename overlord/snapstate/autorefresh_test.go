@@ -101,6 +101,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
 
 	s.state.Set("seed-time", time.Now())
+	s.state.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
