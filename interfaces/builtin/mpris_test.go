@@ -160,9 +160,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -184,9 +182,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -206,9 +202,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -229,9 +223,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -253,9 +245,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -275,9 +265,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)

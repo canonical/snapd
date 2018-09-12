@@ -91,9 +91,7 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 		Name:      "network-manager",
 		Interface: "network-manager",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -118,9 +116,7 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 		Name:      "network-manager",
 		Interface: "network-manager",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -142,9 +138,7 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 		Name:      "network-manager",
 		Interface: "network-manager",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 	apparmorSpec := &apparmor.Specification{}

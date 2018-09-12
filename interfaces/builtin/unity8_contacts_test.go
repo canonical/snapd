@@ -106,9 +106,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -132,9 +130,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
@@ -156,9 +152,7 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 		Name:      "unity8-contacts",
 		Interface: "unity8-contacts",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil,
-
-		nil)
+	}, nil, nil)
 
 	release.OnClassic = false
 
