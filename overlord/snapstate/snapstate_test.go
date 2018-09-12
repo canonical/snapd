@@ -180,6 +180,7 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
+	snapstate.Model = nil
 }
 
 type ForeignTaskTracker interface {
@@ -1000,7 +1001,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
-	snapstate.MockModelWithBase("core18")
+	snapstate.SetModelWithBase("core18")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1266,7 +1267,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.MockModelWithKernelTrack("18")
+	snapstate.SetModelWithKernelTrack("18")
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -1284,7 +1285,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.MockModelWithKernelTrack("18")
+	snapstate.SetModelWithKernelTrack("18")
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -1302,7 +1303,7 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.SetModelWithGadgetTrack("18")
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -1320,7 +1321,7 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.SetModelWithGadgetTrack("18")
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -4849,7 +4850,7 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.MockModelWithKernelTrack("18")
+	snapstate.SetModelWithKernelTrack("18")
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -4881,7 +4882,7 @@ func (s *snapmgrTestSuite) TestUpdateGadgetTrackChecksSwitchingTracks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.SetModelWithGadgetTrack("18")
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -8647,7 +8648,7 @@ var _ = Suite(&canRemoveSuite{})
 func (s *canRemoveSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
-	snapstate.MockModel()
+	snapstate.SetDefaultModel()
 }
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
@@ -8692,7 +8693,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	snapstate.MockModelWithBase("core18")
+	snapstate.SetModelWithBase("core18")
 	os := &snap.Info{
 		Type: snap.TypeOS,
 	}
@@ -8705,7 +8706,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	snapstate.MockModelWithBase("core18")
+	snapstate.SetModelWithBase("core18")
 
 	// pretend we have a snap installed that has no base (which means
 	// it needs core)
@@ -11280,7 +11281,7 @@ func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchKernel(c *C) 
 	defer s.state.Unlock()
 
 	// snapd cannot be installed unless the model uses a base snap
-	snapstate.MockModelWithKernelTrack("18")
+	snapstate.SetModelWithKernelTrack("18")
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -11310,7 +11311,7 @@ func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchGadget(c *C) 
 	defer s.state.Unlock()
 
 	// snapd cannot be installed unless the model uses a base snap
-	snapstate.MockModelWithGadgetTrack("18")
+	snapstate.SetModelWithGadgetTrack("18")
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -11647,8 +11648,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	defer s.state.Unlock()
 
 	// snapd cannot be installed unless the model uses a base snap
-	restore := snapstate.MockModelWithBase("core18")
-	defer restore()
+	snapstate.SetModelWithBase("core18")
 
 	// but snapd do not for install
 	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
