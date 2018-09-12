@@ -137,7 +137,6 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			if err != nil {
 				return err
 			}
-
 			if isEnabled {
 				services = append(services, app.ServiceName())
 			}
