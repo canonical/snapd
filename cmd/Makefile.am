@@ -7,9 +7,6 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-# FIXME: get this via something like pkgconf once it is defined there
-SYSTEMD_SYSTEM_ENV_GENERATOR_DIR=/usr/lib/systemd/system-environment-generators
-
 CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
 	-Wno-missing-field-initializers -Wno-unused-parameter
 
@@ -245,7 +242,7 @@ snap_confine_snap_confine_SOURCES += \
 	snap-confine/seccomp-support.h
 snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
 if STATIC_LIBSECCOMP
-snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libseccomp)
 else
 snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
 endif  # STATIC_LIBSECCOMP
@@ -254,7 +251,7 @@ endif  # SECCOMP
 if APPARMOR
 snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
-snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
 else
 snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
@@ -344,7 +341,12 @@ endif
 ## snap-mgmt
 ##
 
-libexec_PROGRAMS += snap-mgmt/snap-mgmt
+libexec_SCRIPTS = snap-mgmt/snap-mgmt
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt
+
+snap-mgmt/$(am__dirstamp):
+	mkdir -p $$(dirname $@)
+	touch $@
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
@@ -398,7 +400,7 @@ snap_discard_ns_snap_discard_ns_STATIC =
 if APPARMOR
 snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
-snap_discard_ns_snap_discard_ns_STATIC += $(shell pkg-config --static --libs libapparmor)
+snap_discard_ns_snap_discard_ns_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
 else
 snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
@@ -463,7 +465,8 @@ snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
 ## snapd-generator
 ##
 
-libexec_PROGRAMS += snapd-generator/snapd-generator
+systemdsystemgeneratordir = $(SYSTEMD_SYSTEM_GENERATOR_DIR)
+systemdsystemgenerator_PROGRAMS = snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
