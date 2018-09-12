@@ -57,6 +57,9 @@ type assertMgrSuite struct {
 	storeSigning *assertstest.StoreStack
 	dev1Acct     *asserts.Account
 	dev1Signing  *assertstest.SigningDB
+	brandAcct    *asserts.Account
+	brandAcctKey *asserts.AccountKey
+	brandSigning *assertstest.SigningDB
 
 	restore func()
 }
@@ -100,6 +103,19 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
+	// brand
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "verified",
+	}, "")
+	brandAcctKey := assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
+	err = s.storeSigning.Add(s.brandAcct)
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(brandAcctKey)
+	c.Assert(err, IsNil)
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
@@ -120,6 +136,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 func (s *assertMgrSuite) TearDownTest(c *C) {
 	s.restore()
+	snapstate.Model = nil
 }
 
 func (s *assertMgrSuite) TestDB(c *C) {
@@ -627,9 +644,30 @@ func (s *assertMgrSuite) stateFromDecl(c *C, decl *asserts.SnapDeclaration, inst
 	})
 }
 
-func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
+func (s *assertMgrSuite) setModel(model *asserts.Model) {
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return model, nil
+	}
+	s.state.Set("seeded", true)
+}
+
+func (s *assertMgrSuite) TestRefreshAssertionsTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return nil, state.ErrNoState
+	}
+
+	err := assertstate.RefreshAssertions(s.state, nil, 0)
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+}
+
+func (s *assertMgrSuite) TestRefreshAssertionsNoStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 	snapDeclBar := s.snapDecl(c, "bar", nil)
@@ -668,7 +706,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	err = s.storeSigning.Add(snapDeclFoo1)
 	c.Assert(err, IsNil)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshAssertions(s.state, nil, 0)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -688,7 +726,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	err = s.storeSigning.Add(dev1Acct1)
 	c.Assert(err, IsNil)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshAssertions(s.state, nil, 0)
 	c.Assert(err, IsNil)
 
 	a, err = assertstate.DB(s.state).Find(asserts.AccountType, map[string]string{
@@ -720,7 +758,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	})()
 
 	// no error, kept the old one
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshAssertions(s.state, nil, 0)
 	c.Assert(err, IsNil)
 
 	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -731,6 +769,129 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 	c.Check(a.(*asserts.SnapDeclaration).Revision(), Equals, 1)
 }
+
+func (s *assertMgrSuite) TestRefreshAssertionsWithStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup a model and store assertion
+	a, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.setModel(a.(*asserts.Model))
+
+	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"authority-id": s.storeSigning.AuthorityID,
+		"operator-id":  s.storeSigning.AuthorityID,
+		"store":        "my-brand-store",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	storeAs := a.(*asserts.Store)
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+
+	// previous state
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	// one changed assertion
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "fo-o",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+
+	// store assertion is missing
+	err = assertstate.RefreshAssertions(s.state, nil, 0)
+	c.Assert(err, IsNil)
+
+	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+
+	// changed again
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "f-oo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "2",
+	}
+	snapDeclFoo2, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo2)
+	c.Assert(err, IsNil)
+
+	// store assertion is available
+	err = s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	err = assertstate.RefreshAssertions(s.state, nil, 0)
+	c.Assert(err, IsNil)
+
+	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "f-oo")
+
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
+
+	// store assertion has changed
+	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"authority-id": s.storeSigning.AuthorityID,
+		"operator-id":  s.storeSigning.AuthorityID,
+		"store":        "my-brand-store",
+		"location":     "the-cloud",
+		"revision":     "1",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	storeAs = a.(*asserts.Store)
+	err = s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	err = assertstate.RefreshAssertions(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	a, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.Store).Location(), Equals, "the-cloud")
+}
+
+// XXX: test actual partial RefreshAssertionsOptions
 
 func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
 	s.state.Lock()

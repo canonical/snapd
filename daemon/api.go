@@ -925,7 +925,7 @@ var (
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 
-	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
+	assertstateRefreshAssertions = assertstate.RefreshAssertions
 )
 
 func ensureStateSoonImpl(st *state.State) {
@@ -960,7 +960,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
-	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	if err := assertstateRefreshAssertions(st, nil, inst.userID); err != nil {
 		return nil, err
 	}
 
@@ -1015,6 +1015,14 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
+
+	// refresh store assertion to have current information to interpret
+	// snap declarations
+	opts := assertstate.RefreshAssertionsOptions{Store: true}
+	if err := assertstateRefreshAssertions(st, &opts, inst.userID); err != nil {
+		return nil, err
+	}
+
 	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
@@ -1049,6 +1057,13 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
+	// refresh store assertion to have current information to interpret
+	// snap declarations
+	opts := assertstate.RefreshAssertionsOptions{Store: true}
+	if err = assertstateRefreshAssertions(st, &opts, inst.userID); err != nil {
+		return "", nil, err
+	}
+
 	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 
 	tset, err := snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
@@ -1077,7 +1092,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
-	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	if err = assertstateRefreshAssertions(st, nil, inst.userID); err != nil {
 		return "", nil, err
 	}
 

@@ -377,6 +377,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 	}
 
+	// XXX: fetch device store assertion (and prereqs) if available
+
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
