@@ -752,6 +752,55 @@ ListenStream=%s
 	c.Check(sock3File, testutil.FileContains, expected)
 }
 
+func (s *servicesTestSuite) TestAddSnapUserSocketFiles(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+  daemon-mode: user
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_USER_COMMON/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_USER_DATA/sock2.socket
+    sock3:
+      listen-stream: $XDG_RUNTIME_DIR/sock3.socket
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	sock1File := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.sock1.socket")
+	sock2File := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.sock2.socket")
+	sock3File := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.sock3.socket")
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	expected := `[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock1
+ListenStream=%h/snap/hello-snap/common/sock1.socket
+SocketMode=0666
+
+`
+	c.Check(sock1File, testutil.FileContains, expected)
+
+	expected = `[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock2
+ListenStream=%h/snap/hello-snap/12/sock2.socket
+
+`
+	c.Check(sock2File, testutil.FileContains, expected)
+
+	expected = `[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock3
+ListenStream=%t/snap.hello-snap/sock3.socket
+
+`
+	c.Check(sock3File, testutil.FileContains, expected)
+}
+
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"

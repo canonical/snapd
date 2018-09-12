@@ -674,13 +674,22 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 
 func renderListenStream(socket *snap.SocketInfo) string {
 	snap := socket.App.Snap
-	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
-	// TODO: when we support User/Group in the generated systemd unit,
-	// adjust this accordingly
-	serviceUserUid := sys.UserID(0)
-	runtimeDir := snap.UserXdgRuntimeDir(serviceUserUid)
-	listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
-	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
+	listenStream := socket.ListenStream
+	if socket.App.IsUserService() {
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", snap.UserDataDir("%h"), -1)
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", snap.UserCommonDataDir("%h"), -1)
+		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
+		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", snap.InstanceName()), -1)
+	} else {
+		listenStream = strings.Replace(listenStream, "$SNAP_DATA", snap.DataDir(), -1)
+		// TODO: when we support User/Group in the generated
+		// systemd unit, adjust this accordingly
+		serviceUserUid := sys.UserID(0)
+		runtimeDir := snap.UserXdgRuntimeDir(serviceUserUid)
+		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
+		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
+	}
+	return listenStream
 }
 
 func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
