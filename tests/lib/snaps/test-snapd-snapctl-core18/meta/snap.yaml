@@ -1,0 +1,10 @@
+name: test-snapd-snapctl-core18
+version: '0.1'
+summary: Test snapctl on core18
+description: Test snapctl on core18
+base: core18
+
+apps:
+  service:
+    command: bin/service
+    daemon: oneshot

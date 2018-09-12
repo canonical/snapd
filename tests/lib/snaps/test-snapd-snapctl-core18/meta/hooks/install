@@ -1,0 +1,3 @@
+#!/bin/bash -e
+
+snapctl stop --disable snapctl-core18.service
