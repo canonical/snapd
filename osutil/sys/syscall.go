@@ -89,7 +89,7 @@ func FchownAt(dirfd uintptr, path string, uid UserID, gid GroupID, flags int) er
 	if err != nil {
 		return err
 	}
-	_, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, dirfd, uintptr(unsafe.Pointer(p0)), uintptr(uid), uintptr(gid), uintptr(flags), 0)
+	_, _, errno := syscall.Syscall6(_SYS_FCHOWNAT, dirfd, uintptr(unsafe.Pointer(p0)), uintptr(uid), uintptr(gid), uintptr(flags), 0)
 	if errno == 0 {
 		return nil
 	}

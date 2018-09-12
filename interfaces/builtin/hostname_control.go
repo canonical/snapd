@@ -38,23 +38,23 @@ const hostnameControlConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/hostnamectl           ixr,
 
 # Allow access to hostname system service
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
-    member="Get{,All}"
-    peer=(label=unconfined),
+    member="Get{,All}",
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect,
+
 dbus (receive)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(label=unconfined),
-dbus (send)
-    bus=system
-    path=/org/freedesktop/hostname1
-    interface=org.freedesktop.DBus.Introspectable
-    member=Introspect
     peer=(label=unconfined),
 dbus(receive, send)
     bus=system
@@ -63,9 +63,8 @@ dbus(receive, send)
     member=Set{,Pretty,Static}Hostname
     peer=(label=unconfined),
 
-# Needed to use 'sethostname'. See man 7 capabilities
-capability sys_admin,
-# Needed to use 'hostnamectl set-hostname'
+# Needed to use 'sethostname' and 'hostnamectl set-hostname'. See man 7
+# capabilities
 capability sys_admin,
 `
 

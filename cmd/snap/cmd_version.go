@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 
@@ -51,16 +50,7 @@ func (cmd cmdVersion) Execute(args []string) error {
 }
 
 func printVersions() error {
-	sv, err := Client().ServerVersion()
-	if err != nil {
-		sv = &client.ServerVersion{
-			Version:     i18n.G("unavailable"),
-			Series:      "-",
-			OSID:        "-",
-			OSVersionID: "-",
-		}
-	}
-
+	sv := serverVersion()
 	w := tabWriter()
 
 	fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
@@ -77,5 +67,5 @@ func printVersions() error {
 	}
 	w.Flush()
 
-	return err
+	return nil
 }

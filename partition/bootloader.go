@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	// bootloader variable used to determine if boot was successful.
-	// Set to value of either bootloaderBootmodeTry (when attempting
-	// to boot a new rootfs) or bootloaderBootmodeSuccess (to denote
+	// bootloader variable used to determine if boot was
+	// successful.  Set to value of either modeTry (when
+	// attempting to boot a new rootfs) or modeSuccess (to denote
 	// that the boot of the new rootfs was successful).
 	bootmodeVar = "snap_mode"
 
