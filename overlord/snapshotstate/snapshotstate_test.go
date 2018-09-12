@@ -301,9 +301,6 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 	c.Assert(err, check.IsNil)
 	shotfile.Close()
 
-	o := overlord.Mock()
-	st = o.State()
-
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
 			Snapshot: client.Snapshot{SetID: 42, Snap: "foo"},
@@ -313,6 +310,16 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 		return nil
 	}
 	restoreIter := snapshotstate.MockBackendIter(fakeIter)
+
+	o := overlord.Mock()
+	st = o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+
 	st.Lock()
 	defer func() {
 		if c.Failed() {
@@ -320,12 +327,6 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 			st.Unlock()
 		}
 	}()
-
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
-	c.Assert(err, check.IsNil)
-	o.AddManager(stmgr)
-	shmgr := snapshotstate.Manager(st, o.TaskRunner())
-	o.AddManager(shmgr)
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
@@ -369,14 +370,15 @@ func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
 
 	o := overlord.Mock()
 	st := o.State()
-	st.Lock()
-	defer st.Unlock()
 
 	stmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
 	o.AddManager(shmgr)
+
+	st.Lock()
+	defer st.Unlock()
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
@@ -491,10 +493,6 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	o := overlord.Mock()
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
 
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
@@ -509,6 +507,19 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 			HomeDir:  homedir,
 		}, nil
 	})()
+
+	o := overlord.Mock()
+	st := o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+	o.AddManager(o.TaskRunner())
+
+	st.Lock()
+	defer st.Unlock()
 
 	snapshots := make(map[string]*client.Snapshot, 3)
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
@@ -532,13 +543,6 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 			Epoch:    *snap.E("0"),
 		}
 	}
-
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
-	c.Assert(err, check.IsNil)
-	o.AddManager(stmgr)
-	shmgr := snapshotstate.Manager(st, o.TaskRunner())
-	o.AddManager(shmgr)
-	o.AddManager(o.TaskRunner())
 
 	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
 	c.Assert(err, check.IsNil)
@@ -579,11 +583,6 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	o := overlord.Mock()
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
-
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
 	// sanity check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
@@ -619,6 +618,19 @@ exec /bin/tar "$@"
 		}, nil
 	})()
 
+	o := overlord.Mock()
+	st := o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+	o.AddManager(o.TaskRunner())
+
+	st.Lock()
+	defer st.Unlock()
+
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
@@ -637,13 +649,6 @@ exec /bin/tar "$@"
 		}
 		c.Assert(os.Mkdir(filepath.Join(homedir, "snap", name, "common", "common-"+name), mode), check.IsNil)
 	}
-
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
-	c.Assert(err, check.IsNil)
-	o.AddManager(stmgr)
-	shmgr := snapshotstate.Manager(st, o.TaskRunner())
-	o.AddManager(shmgr)
-	o.AddManager(o.TaskRunner())
 
 	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
 	c.Assert(err, check.IsNil)
@@ -729,14 +734,15 @@ func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
 
 	o := overlord.Mock()
 	st := o.State()
-	st.Lock()
-	defer st.Unlock()
 
 	stmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
 	o.AddManager(shmgr)
+
+	st.Lock()
+	defer st.Unlock()
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
@@ -824,10 +830,6 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	o := overlord.Mock()
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
 
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
@@ -842,6 +844,19 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 			HomeDir:  homedir,
 		}, nil
 	})()
+
+	o := overlord.Mock()
+	st := o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+	o.AddManager(o.TaskRunner())
+
+	st.Lock()
+	defer st.Unlock()
 
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -862,13 +877,6 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 
 	// move the old away
 	c.Assert(os.Rename(filepath.Join(homedir, "snap"), filepath.Join(homedir, "snap.old")), check.IsNil)
-
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
-	c.Assert(err, check.IsNil)
-	o.AddManager(stmgr)
-	shmgr := snapshotstate.Manager(st, o.TaskRunner())
-	o.AddManager(shmgr)
-	o.AddManager(o.TaskRunner())
 
 	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user"})
 	c.Assert(err, check.IsNil)
@@ -893,11 +901,6 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	o := overlord.Mock()
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
-
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
 
@@ -911,6 +914,19 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 			HomeDir:  homedir,
 		}, nil
 	})()
+
+	o := overlord.Mock()
+	st := o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+	o.AddManager(o.TaskRunner())
+
+	st.Lock()
+	defer st.Unlock()
 
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -934,13 +950,6 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	// but poison the well
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", "too-snap"), 0), check.IsNil)
-
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
-	c.Assert(err, check.IsNil)
-	o.AddManager(stmgr)
-	shmgr := snapshotstate.Manager(st, o.TaskRunner())
-	o.AddManager(shmgr)
-	o.AddManager(o.TaskRunner())
 
 	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user"})
 	c.Assert(err, check.IsNil)

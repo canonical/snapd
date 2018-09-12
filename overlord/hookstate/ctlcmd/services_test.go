@@ -174,6 +174,8 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
+
+	s.st.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (s *servicectlSuite) TearDownTest(c *C) {

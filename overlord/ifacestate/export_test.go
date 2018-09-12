@@ -33,6 +33,7 @@ var (
 	GetConns                     = getConns
 	SetConns                     = setConns
 	DefaultDeviceKey             = defaultDeviceKey
+	InSameChangeWaitChain        = inSameChangeWaitChain
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
