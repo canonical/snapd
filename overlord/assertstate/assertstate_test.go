@@ -455,6 +455,22 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 }
 
+func (s *assertMgrSuite) TestValidateSnapMissingSnapSetup(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*internal error: cannot obtain snap setup: no state entry for key.*`)
+}
+
 func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "foo.snap")
