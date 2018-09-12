@@ -145,9 +145,6 @@ func (f *fakeStore) pokeStateLock() {
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	f.fakeBackend.mu.Lock()
-	defer f.fakeBackend.mu.Unlock()
-
 	_, instanceKey := snap.SplitInstanceName(spec.Name)
 	if instanceKey != "" {
 		return nil, fmt.Errorf("internal error: unexpected instance name: %q", spec.Name)
@@ -161,7 +158,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	if user != nil {
 		userID = user.ID
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: info.Revision, userID: userID})
+	f.fakeBackend.AppendOp(&fakeOp{op: "storesvc-snap", name: spec.Name, revno: info.Revision, userID: userID})
 
 	return info, err
 }
@@ -350,9 +347,6 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	}
 	f.pokeStateLock()
 
-	f.fakeBackend.mu.Lock()
-	defer f.fakeBackend.mu.Unlock()
-
 	if len(currentSnaps) == 0 && len(actions) == 0 {
 		return nil, nil
 	}
@@ -378,7 +372,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	if len(curSnaps) == 0 {
 		curSnaps = nil
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap-action", curSnaps: curSnaps, userID: userID})
+	f.fakeBackend.AppendOp(&fakeOp{op: "storesvc-snap-action", curSnaps: curSnaps, userID: userID})
 
 	sorted := make(byAction, len(actions))
 	copy(sorted, actions)
@@ -408,7 +402,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				installErrors[a.InstanceName] = err
 				continue
 			}
-			f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+			f.fakeBackend.AppendOp(&fakeOp{
 				op:     "storesvc-snap-action:action",
 				action: *a,
 				revno:  info.Revision,
@@ -496,9 +490,6 @@ func (f *fakeStore) SuggestedCurrency() string {
 func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
 	f.pokeStateLock()
 
-	f.fakeBackend.mu.Lock()
-	defer f.fakeBackend.mu.Unlock()
-
 	if _, key := snap.SplitInstanceName(name); key != "" {
 		return fmt.Errorf("internal error: unsupported download with instance name %q", name)
 	}
@@ -516,7 +507,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 		target:   targetFn,
 		opts:     dlOpts,
 	})
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
+	f.fakeBackend.AppendOp(&fakeOp{op: "storesvc-download", name: name})
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
@@ -530,10 +521,7 @@ func (f *fakeStore) WriteCatalogs(ctx context.Context, _ io.Writer, _ store.Snap
 	}
 	f.pokeStateLock()
 
-	f.fakeBackend.mu.Lock()
-	defer f.fakeBackend.mu.Unlock()
-
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+	f.fakeBackend.AppendOp(&fakeOp{
 		op: "x-commands",
 	})
 
@@ -546,10 +534,7 @@ func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, 
 	}
 	f.pokeStateLock()
 
-	f.fakeBackend.mu.Lock()
-	defer f.fakeBackend.mu.Unlock()
-
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+	f.fakeBackend.AppendOp(&fakeOp{
 		op: "x-sections",
 	})
 
@@ -566,9 +551,6 @@ type fakeSnappyBackend struct {
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	op := fakeOp{
 		op:   "open-snap-file",
 		path: snapFilePath,
@@ -601,20 +583,17 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		name = info.SuggestedName
 	}
 
-	f.ops = append(f.ops, op)
+	f.AppendOp(&op)
 	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
 		revno = si.Revision
 	}
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:    "setup-snap",
 		name:  instanceName,
 		path:  snapFilePath,
@@ -690,10 +669,7 @@ apps:
 }
 
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:    "cleanup-trash",
 		name:  si.InstanceName(),
 		revno: si.Revision,
@@ -707,9 +683,6 @@ func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, use
 }
 
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	p.Notify("copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
@@ -717,7 +690,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	}
 
 	if newInfo.MountDir() == f.copySnapDataFailTrigger {
-		f.ops = append(f.ops, fakeOp{
+		f.AppendOp(&fakeOp{
 			op:   "copy-data.failed",
 			path: newInfo.MountDir(),
 			old:  old,
@@ -725,7 +698,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 		return errors.New("fail")
 	}
 
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "copy-data",
 		path: newInfo.MountDir(),
 		old:  old,
@@ -734,9 +707,6 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 }
 
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",
@@ -745,7 +715,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) erro
 		return errors.New("fail")
 	}
 
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "link-snap",
 		path: info.MountDir(),
 	})
@@ -763,10 +733,7 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 }
 
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "start-snap-services",
 		path: svcSnapMountDir(svcs),
 	})
@@ -774,10 +741,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.M
 }
 
 func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),
 	})
@@ -785,11 +749,8 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	p.Notify("setup-snap")
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:    "undo-setup-snap",
 		name:  s.InstanceName(),
 		path:  s.MountDir(),
@@ -799,15 +760,12 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p pro
 }
 
 func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	p.Notify("undo-copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "undo-copy-snap-data",
 		path: newInfo.MountDir(),
 		old:  old,
@@ -816,11 +774,8 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	meter.Notify("unlink")
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "unlink-snap",
 		path: info.MountDir(),
 	})
@@ -828,11 +783,8 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 }
 
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	meter.Notify("remove-snap-files")
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:    "remove-snap-files",
 		path:  s.MountDir(),
 		stype: typ,
@@ -841,10 +793,7 @@ func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, met
 }
 
 func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "remove-snap-data",
 		path: info.MountDir(),
 	})
@@ -852,10 +801,7 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 }
 
 func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
 	})
@@ -863,10 +809,7 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 }
 
 func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "discard-namespace",
 		name: snapName,
 	})
@@ -874,38 +817,29 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 }
 
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
 		sinfo = *sideInfo
 	}
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:    "candidate",
 		sinfo: sinfo,
 	})
 }
 
 func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	old := "<no-current>"
 	if curInfo != nil {
 		old = curInfo.MountDir()
 	}
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:  "current",
 		old: old,
 	})
 }
 
 func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:    kind + ":" + status.String(),
 		name:  snapsup.InstanceName(),
 		revno: snapsup.Revision(),
@@ -921,9 +855,6 @@ func (ba byAlias) Less(i, j int) bool {
 }
 
 func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	if len(add) != 0 {
 		add = append([]*backend.Alias(nil), add...)
 		sort.Sort(byAlias(add))
@@ -932,7 +863,7 @@ func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backen
 		remove = append([]*backend.Alias(nil), remove...)
 		sort.Sort(byAlias(remove))
 	}
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:        "update-aliases",
 		aliases:   add,
 		rmAliases: remove,
@@ -941,12 +872,15 @@ func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backen
 }
 
 func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.ops = append(f.ops, fakeOp{
+	f.AppendOp(&fakeOp{
 		op:   "remove-snap-aliases",
 		name: snapName,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) AppendOp(op *fakeOp) {
+    f.mu.Lock()
+    defer f.mu.Unlock()
+    f.ops = append(f.ops, *op)
 }
