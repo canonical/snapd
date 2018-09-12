@@ -1,0 +1,13 @@
+{
+    "type": "system-user",
+    "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "series": ["16"],
+    "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "email": "snappy-dev@lists.launchpad.net",
+    "models": ["pc","pc-i386","pi2"],
+    "name": "user1",
+    "username": "user1",
+    "password": "$6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1",
+    "since": "2018-09-11T15:03:21+00:00",
+    "until": "2019-09-10T15:03:21+00:00"
+}
