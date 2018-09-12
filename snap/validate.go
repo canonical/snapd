@@ -201,9 +201,16 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
-		return fmt.Errorf(
-			"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+	if socket.App.IsUserService() {
+		if !(strings.HasPrefix(path, "$SNAP_USER_DATA/") || strings.HasPrefix(path, "$SNAP_USER_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
+		}
+	} else {
+		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+		}
 	}
 
 	return nil
@@ -515,8 +522,7 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 		}
 
 		if app.IsUserService() != other.IsUserService() {
-			return fmt.Errorf("application %q refers to different daemon-mode application %q in before/after",
-				app.Name, dep)
+			return fmt.Errorf("before/after references service with different daemon-mode %q", dep)
 		}
 	}
 	return nil

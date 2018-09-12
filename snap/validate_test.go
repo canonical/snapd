@@ -244,6 +244,9 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 		// socket paths out of the snap dirs
 		"/some/path/my.socket",
 		"/var/snap/mysnap/20/my.socket", // path is correct but has hardcoded prefix
+		// Variables only valid for user mode services
+		"$SNAP_USER_DATA/my.socket",
+		"$SNAP_USER_COMMON/my.socket",
 	}
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
@@ -328,6 +331,53 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 		socket.ListenStream = invalidPort
 		err := ValidateApp(app)
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *C) {
+	app := createSampleApp()
+	app.Daemon = "simple"
+	app.DaemonMode = "user"
+	validListenAddresses := []string{
+		// socket paths using variables as prefix
+		"$SNAP_USER_DATA/my.socket",
+		"$SNAP_USER_COMMON/my.socket",
+		"$XDG_RUNTIME_DIR/my.socket",
+		// abstract sockets
+		"@snap.mysnap.my.socket",
+		// addresses and ports
+		"1",
+		"1023",
+		"1024",
+		"65535",
+		"127.0.0.1:8080",
+		"[::]:8080",
+		"[::1]:8080",
+	}
+	socket := app.Sockets["sock"]
+	for _, validAddress := range validListenAddresses {
+		socket.ListenStream = validAddress
+		err := ValidateApp(app)
+		c.Check(err, IsNil, Commentf(validAddress))
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) {
+	app := createSampleApp()
+	app.Daemon = "simple"
+	app.DaemonMode = "user"
+	invalidListenAddresses := []string{
+		// socket paths out of the snap dirs
+		"/some/path/my.socket",
+		// Variables only valid for system mode services
+		"$SNAP_DATA/my.socket",
+		"$SNAP_COMMON/my.socket",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": must have a prefix of .*`)
 	}
 }
 
@@ -1196,7 +1246,7 @@ apps:
 	}, {
 		name: "user daemon wants system daemon",
 		desc: mixedSystemUserDaemons,
-		err: `application "bar" refers to different daemon-mode application "foo" in before/after`,
+		err:  `invalid definition of application "bar": before/after references service with different daemon-mode "foo"`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
