@@ -136,13 +136,52 @@ func findError(format string, ref *asserts.Ref, err error) error {
 	}
 }
 
-// RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
-func RefreshSnapDeclarations(s *state.State, userID int) error {
-	snapStates, err := snapstate.All(s)
-	if err != nil {
-		return nil
+type RefreshAssertionsOptions struct {
+	Store            bool
+	SnapDeclarations bool
+}
+
+var defaulRefreshAssertionsOpts = RefreshAssertionsOptions{
+	Store:            true,
+	SnapDeclarations: true,
+}
+
+// RefreshAssertions refetches current assertions, in particular snap
+// declarations. It is to be invoked regularly or in preparation of an
+// operation. opts == nil means both device store and snap-declaration
+// assertions will be refreshed.
+func RefreshAssertions(s *state.State, opts *RefreshAssertionsOptions, userID int) error {
+	if opts == nil {
+		opts = &defaulRefreshAssertionsOpts
 	}
+
+	model, err := snapstate.ModelPastSeed(s)
+	if err != nil {
+		return err
+	}
+
+	var snapStates map[string]*snapstate.SnapState
+	if opts.SnapDeclarations {
+		var err error
+		snapStates, err = snapstate.All(s)
+		if err != nil {
+			return err
+		}
+	}
+
 	fetching := func(f asserts.Fetcher) error {
+		if opts.Store && model.Store() != "" {
+			storeRef := &asserts.Ref{
+				Type:       asserts.StoreType,
+				PrimaryKey: []string{model.Store()},
+			}
+
+			err := f.Fetch(storeRef)
+			if err != nil && !asserts.IsNotFound(err) {
+				return err
+			}
+		}
+
 		for _, snapst := range snapStates {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
@@ -386,5 +425,9 @@ func delayedCrossMgrInit() {
 
 // AutoRefreshAssertions tries to refresh all assertions
 func AutoRefreshAssertions(s *state.State, userID int) error {
-	return RefreshSnapDeclarations(s, userID)
+	opts := RefreshAssertionsOptions{
+		Store:            true,
+		SnapDeclarations: true,
+	}
+	return RefreshAssertions(s, &opts, userID)
 }

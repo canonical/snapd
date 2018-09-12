@@ -95,6 +95,9 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// XXX: try to fetch the device store assertion if available at least
+	// once per overall change
+
 	err = doFetch(t.State(), snapsup.UserID, func(f asserts.Fetcher) error {
 		return snapasserts.FetchSnapAssertions(f, sha3_384)
 	})

@@ -9208,6 +9208,7 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	snapstate.Model = nil
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -12451,4 +12452,56 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 		SnapType: "os",
 	})
 	c.Assert(s.snapmgr.CanStandby(), Equals, false)
+}
+
+type modelPastSeedSuite struct {
+	st *state.State
+}
+
+var _ = Suite(&modelPastSeedSuite{})
+
+func (s *modelPastSeedSuite) SetUpTest(c *C) {
+	s.st = state.New(nil)
+}
+
+func (s *modelPastSeedSuite) TearDownTest(c *C) {
+	snapstate.Model = nil
+}
+
+func (s *modelPastSeedSuite) TestTooEarly(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return nil, state.ErrNoState
+	}
+
+	expectedErr := &snapstate.ChangeConflictError{
+		Message: "too early for operation, device not yet seeded or" +
+			" device model not acknowledged",
+		ChangeKind: "seed",
+	}
+
+	// not seeded, no model assertion
+	_, err := snapstate.ModelPastSeed(s.st)
+	c.Assert(err, DeepEquals, expectedErr)
+
+	// seeded, no model assertion
+	s.st.Set("seeded", true)
+	_, err = snapstate.ModelPastSeed(s.st)
+	c.Assert(err, DeepEquals, expectedErr)
+}
+
+func (s *modelPastSeedSuite) TestReady(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// seeded and model assertion
+	s.st.Set("seeded", true)
+
+	snapstate.SetDefaultModel()
+
+	modelAs, err := snapstate.ModelPastSeed(s.st)
+	c.Assert(err, IsNil)
+	c.Check(modelAs.Model(), Equals, "baz-3000")
 }
