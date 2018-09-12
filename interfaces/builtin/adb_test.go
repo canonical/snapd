@@ -85,6 +85,11 @@ func (s *adbSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "network inet stream,")
+
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "/run/udev/data/c189:* r,")
 

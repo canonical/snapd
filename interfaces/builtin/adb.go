@@ -125,6 +125,12 @@ var adbVendorList = map[int]string{
 }
 
 var adbPermanentSlotAppArmor = `
+# Allow adb (server) to use TCP/IP for localhost IPC.
+# TODO: once fine-grained network mediation is possible, constrain this to localhost.
+network inet stream,
+`
+
+var adbConnectedSlotAppArmor = `
 # Allow adb (server) to access all usb devices and rely on the device cgroup for mediation.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
@@ -135,10 +141,6 @@ var adbPermanentSlotAppArmor = `
 
 # Allow reading the serial number of all the USB devices.
 /sys/devices/**/usb*/*/serial r,
-
-# Allow adb (server) to use TCP/IP for localhost IPC.
-# TODO: once fine-grained network mediation is possible, constrain this to localhost.
-network inet stream,
 `
 
 var adbPermanentSlotSecComp = `
@@ -167,6 +169,11 @@ type adbInterface struct {
 
 func (iface *adbInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(adbPermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *adbInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(adbConnectedSlotAppArmor)
 	return nil
 }
 
