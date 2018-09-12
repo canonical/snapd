@@ -1,3 +1,13 @@
+snapd (2.35.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1786438
+    - cmd,overlord/snapstate: go 1.11 format fixes
+    - ifacestate: fix hang when retrying content providers
+    - snap-env-generator: do nothing when PATH is unset
+    - interfaces/modem-manager: allow access to more USB strings
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 12 Sep 2018 09:32:00 +0200
+
 snapd (2.35.1~14.04) trusty; urgency=medium
 
   *  New upstream release, LP: #1786438
