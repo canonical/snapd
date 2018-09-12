@@ -204,6 +204,14 @@ func (cs *clientSuite) TestClientLogsOpts(c *check.C) {
 	}
 }
 
+func (cs *clientSuite) TestClientLogsNotFound(c *check.C) {
+	cs.rsp = `{"type":"error","status-code":404,"status":"Not Found","result":{"message":"snap \"foo\" not found","kind":"snap-not-found","value":"foo"}}`
+	cs.status = 404
+	actual, err := testClientLogs(cs, c)
+	c.Assert(err, check.ErrorMatches, `snap "foo" not found`)
+	c.Check(actual, check.HasLen, 0)
+}
+
 func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
