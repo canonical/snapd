@@ -1,4 +1,4 @@
-name: snapctl-disable-services-install-hook
+name: test-snapd-svcs-disable-install-hook
 version: 1.0
 apps:
     simple:

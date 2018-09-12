@@ -3,10 +3,10 @@ summary: Check that `snapctl stop --disable` actually stops services on install
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local snapctl-disable-services-install-hook
+    install_local test-snapd-svcs-disable-install-hook
 
     for service in simple forking; do
         echo "Verify that the $service service isn't running"
-        snap services | MATCH "snapctl-disable-services-install-hook\\.$service\\s\\+disabled\\s\\+inactive"
+        snap services | MATCH "test-snapd-svcs-disable-install-hook\\.$service\\s\\+disabled\\s\\+inactive"
     done
     

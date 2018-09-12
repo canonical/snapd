@@ -2,5 +2,5 @@
 
 for service in simple forking; do
     echo "Disabling $service service from install hook"
-    snapctl stop --disable "snapctl-disable-services-install-hook.$service"
+    snapctl stop --disable "test-snapd-svcs-disable-install-hook.$service"
 done
