@@ -492,7 +492,7 @@ Restart={{.Restart}}
 {{- if .App.RestartDelay}}
 RestartSec={{.App.RestartDelay.Seconds}}
 {{- end}}
-WorkingDirectory={{.App.Snap.DataDir}}
+WorkingDirectory={{.WorkingDir}}
 {{- if .App.StopCommand}}
 ExecStop={{.App.LauncherStopCommand}}
 {{- end}}
@@ -561,6 +561,7 @@ WantedBy={{.ServicesTarget}}
 		App *snap.AppInfo
 
 		Restart            string
+		WorkingDir         string
 		StopTimeout        time.Duration
 		StartTimeout       time.Duration
 		ServicesTarget     string
@@ -592,10 +593,12 @@ WantedBy={{.ServicesTarget}}
 	}
 	if appInfo.IsUserService() {
 		wrapperData.ServicesTarget = systemd.UserServicesTarget
+		wrapperData.WorkingDir = appInfo.Snap.UserDataDir("%h")
 	} else {
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
+		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
