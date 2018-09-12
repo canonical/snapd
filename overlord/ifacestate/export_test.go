@@ -31,6 +31,7 @@ var (
 	ConnectPriv               = connect
 	GetConns                  = getConns
 	SetConns                  = setConns
+	InSameChangeWaitChain     = inSameChangeWaitChain
 )
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
