@@ -1,5 +1,14 @@
 summary: Check that snap user services are installed and started.
 
+systems:
+    # The core snap currently doesn't set /etc/systemd/user as a
+    # writable path, so the test fails
+    - -ubuntu-core-*
+    # Ubuntu 14.04's systemd doesn't have user@.service
+    - -ubuntu-14.04-*
+    # Amazon Linux 2 gives error "Unit user@12345.service not loaded."
+    - -amazon-linux-2-*
+
 kill-timeout: 5m
 
 prepare: |
