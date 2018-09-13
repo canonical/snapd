@@ -106,7 +106,8 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 // are services. Service units will be started in the order provided by the
 // caller.
 func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) (err error) {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	services := make([]string, 0, len(apps))
 	for _, app := range apps {
@@ -115,17 +116,21 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			continue
 		}
 
-		// We can't start services that run under a user mode systemd
+		var sysd systemd.Systemd
 		if app.IsUserService() {
-			continue
+			sysd = userSysd
+		} else {
+			sysd = systemSysd
 		}
 
 		defer func(app *snap.AppInfo) {
 			if err == nil {
 				return
 			}
-			if e := stopService(sysd, app, inter); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+			if !app.IsUserService() {
+				if e := stopService(sysd, app, inter); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+				}
 			}
 			for _, socket := range app.Sockets {
 				socketService := filepath.Base(socket.File())
@@ -141,7 +146,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			}
 		}(app)
 
-		if len(app.Sockets) == 0 && app.Timer == nil {
+		if len(app.Sockets) == 0 && app.Timer == nil && !app.IsUserService() {
 			// check if the service is disabled, if so don't start it up
 			// this could happen for example if the service was disabled in
 			// the install hook by snapctl or if the service was disabled in
@@ -163,11 +168,13 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			timings.Run(tm, "start-socket-service", fmt.Sprintf("start socket service %q", socketService), func(nested timings.Measurer) {
-				err = sysd.Start(socketService)
-			})
-			if err != nil {
-				return err
+			if !app.IsUserService() {
+				timings.Run(tm, "start-socket-service", fmt.Sprintf("start socket service %q", socketService), func(nested timings.Measurer) {
+					err = sysd.Start(socketService)
+				})
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -178,11 +185,13 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			timings.Run(tm, "start-timer-service", fmt.Sprintf("start timer service %q", timerService), func(nested timings.Measurer) {
-				err = sysd.Start(timerService)
-			})
-			if err != nil {
-				return err
+			if !app.IsUserService() {
+				timings.Run(tm, "start-timer-service", fmt.Sprintf("start timer service %q", timerService), func(nested timings.Measurer) {
+					err = sysd.Start(timerService)
+				})
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -195,7 +204,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 		// https://github.com/systemd/systemd/issues/8102
 		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
 		timings.Run(tm, "start-service", fmt.Sprintf("start service %q", srv), func(nested timings.Measurer) {
-			err = sysd.Start(srv)
+			err = systemSysd.Start(srv)
 		})
 		if err != nil {
 			// cleanup was set up by iterating over apps
@@ -224,14 +233,21 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 	}
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	var written []string
 	var enabled []string
+	var userEnabled []string
 	defer func() {
 		if err == nil {
 			return
 		}
 		for _, s := range enabled {
 			if e := sysd.Disable(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
+			}
+		}
+		for _, s := range userEnabled {
+			if e := userSysd.Disable(s); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
 			}
 		}
@@ -298,9 +314,13 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			continue
 		}
 
-		if !app.IsUserService() {
-			svcName := app.ServiceName()
-
+		svcName := app.ServiceName()
+		if app.IsUserService() {
+			if err := userSysd.Enable(svcName); err != nil {
+				return err
+			}
+			userEnabled = append(userEnabled, svcName)
+		} else {
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				// service is disabled, nothing to do
 				continue
@@ -396,7 +416,8 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	nservices := 0
 
 	for _, app := range s.Apps {
@@ -405,15 +426,19 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		}
 		nservices++
 
+		var sysd systemd.Systemd
+		if app.IsUserService() {
+			sysd = userSysd
+		} else {
+			sysd = systemSysd
+		}
 		serviceName := filepath.Base(app.ServiceFile())
 
 		for _, socket := range app.Sockets {
 			path := socket.File()
-			if !app.IsUserService() {
-				socketServiceName := filepath.Base(path)
-				if err := sysd.Disable(socketServiceName); err != nil {
-					return err
-				}
+			socketServiceName := filepath.Base(path)
+			if err := sysd.Disable(socketServiceName); err != nil {
+				return err
 			}
 
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -424,11 +449,9 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		if app.Timer != nil {
 			path := app.Timer.File()
 
-			if !app.IsUserService() {
-				timerName := filepath.Base(path)
-				if err := sysd.Disable(timerName); err != nil {
-					return err
-				}
+			timerName := filepath.Base(path)
+			if err := sysd.Disable(timerName); err != nil {
+				return err
 			}
 
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -436,10 +459,8 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			}
 		}
 
-		if !app.IsUserService() {
-			if err := sysd.Disable(serviceName); err != nil {
-				return err
-			}
+		if err := sysd.Disable(serviceName); err != nil {
+			return err
 		}
 
 		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
@@ -450,7 +471,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 
 	// only reload if we actually had services
 	if nservices > 0 {
-		if err := sysd.DaemonReload(); err != nil {
+		if err := systemSysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
