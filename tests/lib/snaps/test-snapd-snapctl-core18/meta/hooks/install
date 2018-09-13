@@ -1,3 +1,3 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
-snapctl stop --disable snapctl-core18.service
+snapctl stop --disable test-snapd-snapctl-core18.service
