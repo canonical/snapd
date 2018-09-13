@@ -746,3 +746,10 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	}
 	return []string{plugRef.Snap, slotRef.Snap}, nil
 }
+
+func ensureSystemSnapIsPresent(st *state.State) error {
+	st.Lock()
+	defer st.Unlock()
+	_, err := snapstate.CoreInfo(st)
+	return err
+}
