@@ -684,9 +684,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -702,13 +703,37 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	return m.backend.CopySnapData(newInfo, oldInfo, pb)
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb); copyDataErr != nil {
+		if oldInfo != nil {
+			// there is another revision of the snap, cannot remove
+			// shared data directory
+			return copyDataErr
+		}
+
+		// cleanup shared snap data directory
+		st.Lock()
+		defer st.Unlock()
+
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+		if err != nil {
+			t.Errorf("cannot undo partial snap data copy: %v", snapsup.InstanceName(), err)
+			return copyDataErr
+		}
+		// no other instances of this snap, shared data directory can be
+		// removed now too
+		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+			t.Errorf("cannot undo partial snap data copy: %v", snapsup.InstanceName(), err)
+		}
+		return copyDataErr
+	}
+	return nil
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -724,7 +749,29 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb); err != nil {
+		return err
+	}
+
+	if oldInfo != nil {
+		// there is other revision of this snap, cannot remove shared
+		// directory anyway
+		return nil
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+	// no other instances of this snap and no other revisions, shared data
+	// directory can be removed
+	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
