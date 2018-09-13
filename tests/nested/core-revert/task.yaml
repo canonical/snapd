@@ -34,8 +34,6 @@ execute: |
 
     cd "$SPREAD_PATH"
     execute_remote "sudo snap install network-manager"
-    execute_remote "sudo snap install bluez"
-    execute_remote "sudo bluez.bluetoothctl -a"
     execute_remote "snap aliases" | MATCH "nmcli"
 
     # configure network-manager to take over the connection control on next reboot
@@ -45,14 +43,19 @@ execute: |
     execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
     execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
 
-    wait_for_ssh
+    if ! wait_for_ssh; then
+        echo "ssh not stablished, exiting..."
+        exit 1
+    fi
 
-    while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${CORE_REFRESH_CHANNEL}\" channel"; do sleep 1 ; done
+    while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${CORE_REFRESH_CHANNEL}\" channel"; do
+        sleep 1
+    done
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     # make sure network-manager is on charge of eth0
     execute_remote "nmcli c" | MATCH eth0
     execute_remote "nmcli d" | MATCH "eth0 +ethernet +connected"
-    execute_remote "sudo bluez.bluetoothctl -a"
+
     # sanity check, no refresh should be done here but the command shouldn't fail
     execute_remote "sudo snap refresh"
 
@@ -60,13 +63,16 @@ execute: |
 
     execute_remote "sudo snap revert core" || true
 
-    wait_for_ssh
+    if ! wait_for_ssh; then
+        echo "ssh not stablished, exiting..."
+        exit 1
+    fi
 
     while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
     execute_remote "snap aliases" | MATCH "nmcli"
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
-    execute_remote "sudo bluez.bluetoothctl -a"
+    #execute_remote "sudo bluez.bluetoothctl -a"
     # this currently fails, refresh from the old version conflicts with aliases
     # execute_remote "sudo snap refresh"
 
