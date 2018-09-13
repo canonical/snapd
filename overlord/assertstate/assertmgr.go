@@ -87,7 +87,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
-		return nil
+		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
 	}
 
 	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(snapsup.SnapPath)

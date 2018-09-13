@@ -128,7 +128,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
-				info, err = snap.ReadInfo(seq.RealName, seq)
+				info, err = snap.ReadInfo(name, seq)
 				if err != nil {
 					break
 				}
