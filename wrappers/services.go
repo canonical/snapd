@@ -614,7 +614,9 @@ WantedBy={{.ServicesTarget}}
 	}
 	if appInfo.IsUserService() {
 		wrapperData.ServicesTarget = systemd.UserServicesTarget
-		wrapperData.WorkingDir = appInfo.Snap.UserDataDir("%h")
+		// FIXME: ideally use UserDataDir("%h"), but then the
+		// unit fails if the directory doesn't exist.
+		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 	} else {
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget

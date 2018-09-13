@@ -77,7 +77,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
-WorkingDirectory=%%h/snap/snap/44
+WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app

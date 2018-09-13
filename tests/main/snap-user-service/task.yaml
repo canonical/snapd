@@ -1,0 +1,34 @@
+summary: Check that snap user services are installed and started.
+
+kill-timeout: 5m
+
+prepare: |
+    systemctl stop user@"$(id -u test)".service
+
+restore: |
+    systemctl stop user@"$(id -u test)".service
+    rm -rf /run/user/"$(id -u test)"/*
+
+execute: |
+    echo "Create XDG_RUNTIME_DIR for test user"
+    USER_RUNTIME_DIR=/run/user/"$(id -u test)"
+    mkdir -p "$USER_RUNTIME_DIR" || true
+    rm -rf "${USER_RUNTIME_DIR:?}"/*
+    chmod u=rwX,go= "$USER_RUNTIME_DIR"
+    chown test:test "$USER_RUNTIME_DIR"
+
+    # This isn't quote-safe, but is good enough for our tests.
+    function as_user() {
+      su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" $*" test
+    }
+
+    echo "When the service snap is installed"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-user-service
+
+    echo "And the user mode systemd instance is started"
+    systemctl start user@"$(id -u test)".service
+
+    echo "We can see the service running"
+    as_user systemctl --user status snap.test-snapd-user-service.test-snapd-user-service|MATCH "running"
