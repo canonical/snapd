@@ -91,6 +91,14 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if wantedSnap == slot.Snap {
 				ok = true
 			}
+			// Normally snap nicknames are handled internally in the snapd API
+			// layer.  This specific command is an exception as it does
+			// client-side filtering.  As a special case, when the user asked
+			// for the snap "core" but we see the "system" nickname, treat that
+			// as a match.
+			if wantedSnap == "core" && slot.Snap == "system" {
+				ok = true
+			}
 
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
 				if wantedSnap == slot.Connections[i].Snap {
