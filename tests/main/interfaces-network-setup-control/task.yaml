@@ -13,8 +13,8 @@ prepare: |
 
 restore: |
     rm -f call.error
-    rm -f /etc/netplan/test001
-    rm -f /etc/network/test001
+    rm -f /etc/netplan/test001 /etc/netplan/test002
+    rm -f /etc/network/test001 /etc/network/test002
 
 execute: |
     dirs="/etc/netplan /etc/network"
@@ -42,7 +42,7 @@ execute: |
     echo "Then the snap is not able to access the networking configuration dirs"
     for dir in $dirs; do
         if [ -d "$dir" ]; then
-            if test-snapd-sh.with-network-setup-control-plug -c "touch $dir/test001" 2>call.error; then
+            if test-snapd-sh.with-network-setup-control-plug -c "touch $dir/test002" 2>call.error; then
                 echo "Expected permission error calling desktop with disconnected plug"
                 exit 1
             fi
