@@ -398,12 +398,14 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 	return df
 }
 
-func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
-	snapID := name + "-id"
+func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+
+	snapID := snapName + "-id"
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:   snapID,
-		RealName: name,
+		RealName: snapName,
 		Revision: revision,
 		Channel:  "stable",
 	}
@@ -412,14 +414,15 @@ func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, deve
 	yamlText := fmt.Sprintf(`
 name: %s
 version: %s
-%s`, name, version, extraYaml)
+%s`, snapName, version, extraYaml)
 
 	// Mock the snap on disk
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, yamlText, sideInfo)
 	if active {
 		dir, rev := filepath.Split(snapInfo.MountDir())
 		c.Assert(os.Symlink(rev, dir+"current"), check.IsNil)
 	}
+	c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -448,7 +451,7 @@ version: %s
 		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 			"series":       "16",
 			"snap-id":      snapID,
-			"snap-name":    name,
+			"snap-name":    snapName,
 			"publisher-id": devAcct.AccountID(),
 			"timestamp":    time.Now().Format(time.RFC3339),
 		}, nil, "")
@@ -476,13 +479,14 @@ version: %s
 		c.Assert(err, check.IsNil)
 
 		var snapst snapstate.SnapState
-		snapstate.Get(st, name, &snapst)
+		snapstate.Get(st, instanceName, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
 		snapst.Channel = "stable"
+		snapst.InstanceKey = instanceKey
 
-		snapstate.Set(st, name, &snapst)
+		snapstate.Set(st, instanceName, &snapst)
 	}
 
 	return snapInfo
@@ -1532,18 +1536,24 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(2), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(3), true, "")
+	s.mkInstalledInState(c, d, "local_foo", "foo", "v4", snap.R(4), true, "")
 
+	expectedHappy := map[string]bool{
+		"local":     true,
+		"local_foo": true,
+	}
 	for _, t := range []struct {
 		q        string
 		numSnaps int
 		typ      ResponseType
 	}{
-		{"?select=enabled", 1, "sync"},
-		{`?select=`, 1, "sync"},
-		{"", 1, "sync"},
-		{"?select=all", 3, "sync"},
+		{"?select=enabled", 2, "sync"},
+		{`?select=`, 2, "sync"},
+		{"", 2, "sync"},
+		{"?select=all", 4, "sync"},
 		{"?select=invalid-field", 0, "error"},
 	} {
+		c.Logf("trying: %v", t)
 		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/snaps%s", t.q), nil)
 		c.Assert(err, check.IsNil)
 		rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
@@ -1552,7 +1562,11 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 		if rsp.Type != "error" {
 			snaps := snapList(rsp.Result)
 			c.Assert(snaps, check.HasLen, t.numSnaps)
-			c.Assert(snaps[0]["name"], check.Equals, "local")
+			seen := map[string]bool{}
+			for _, s := range snaps {
+				seen[s["name"].(string)] = true
+			}
+			c.Assert(seen, check.DeepEquals, expectedHappy)
 		}
 	}
 }
