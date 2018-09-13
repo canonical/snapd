@@ -716,13 +716,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
 		if err != nil {
-			t.Errorf("cannot undo partial snap data copy: %v", snapsup.InstanceName(), err)
+			t.Errorf("cannot undo partial snap %q data copy: %v", snapsup.InstanceName(), err)
 			return copyDataErr
 		}
 		// no other instances of this snap, shared data directory can be
 		// removed now too
 		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
-			t.Errorf("cannot undo partial snap data copy: %v", snapsup.InstanceName(), err)
+			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
 		}
 		return copyDataErr
 	}
