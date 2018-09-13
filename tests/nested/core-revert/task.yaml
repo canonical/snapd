@@ -72,8 +72,7 @@ execute: |
     execute_remote "snap aliases" | MATCH "nmcli"
     execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
-    #execute_remote "sudo bluez.bluetoothctl -a"
-    # this currently fails, refresh from the old version conflicts with aliases
-    # execute_remote "sudo snap refresh"
 
+
+    execute_remote "sudo snap refresh"
     execute_remote "sudo cat /var/log/syslog" | MATCH -v "hsearch_r failed for.* No such process"
