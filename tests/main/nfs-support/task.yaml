@@ -74,7 +74,7 @@ execute: |
             systemctl enable nfsserver.service
             systemctl start nfsserver.service
             ;;
-        *)
+        amazon-*)
             systemctl enable nfs
             systemctl restart nfs
             ;;
