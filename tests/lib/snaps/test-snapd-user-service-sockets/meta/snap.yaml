@@ -1,0 +1,15 @@
+name: test-snapd-user-service-sockets
+version: 1.0
+apps:
+    test-snapd-user-service-sockets:
+        command: bin/start
+        daemon: simple
+        daemon-mode: user
+        plugs: [network-bind]
+        sockets:
+            sock1:
+                listen-stream: $SNAP_USER_COMMON/common.sock
+            sock2:
+                listen-stream: $SNAP_USER_DATA/data.sock
+            sock3:
+                listen-stream: $XDG_RUNTIME_DIR/run.sock

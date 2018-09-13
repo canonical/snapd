@@ -1,0 +1,31 @@
+summary: Check that sockets for user services are created correctly
+
+kill-timeout: 5m
+
+prepare: |
+    systemctl stop user@"$(id -u test)".service
+
+restore: |
+    systemctl stop user@"$(id -u test)".service
+    rm -rf /run/user/"$(id -u test)"/*
+
+execute: |
+    echo "Create XDG_RUNTIME_DIR for test user"
+    USER_RUNTIME_DIR=/run/user/"$(id -u test)"
+    mkdir -p "$USER_RUNTIME_DIR" || true
+    rm -rf "${USER_RUNTIME_DIR:?}"/*
+    chmod u=rwX,go= "$USER_RUNTIME_DIR"
+    chown test:test "$USER_RUNTIME_DIR"
+
+    echo "When the service snap is installed"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-user-service-sockets
+
+    echo "And the user mode systemd instance is started"
+    systemctl start user@"$(id -u test)".service
+
+    echo "It's sockets are created in the test user's directories"
+    [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
+    [ -S ~test/snap/test-snapd-user-service-sockets/x1/data.sock ]
+    [ -S "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock ]
