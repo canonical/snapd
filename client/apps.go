@@ -113,6 +113,15 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 		return nil, err
 	}
 
+	if rsp.StatusCode != 200 {
+		var r response
+		defer rsp.Body.Close()
+		if err := decodeInto(rsp.Body, &r); err != nil {
+			return nil, err
+		}
+		return nil, r.err(client)
+	}
+
 	ch := make(chan Log, 20)
 	go func() {
 		// logs come in application/json-seq, described in RFC7464: it's
