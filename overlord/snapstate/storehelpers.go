@@ -356,7 +356,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 
 	actionsByUserID := make(map[int][]*store.SnapAction)
 	stateByInstanceName := make(map[string]*SnapState, len(snapStates))
-	ignoreValidation := make(map[string]bool)
+	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) {
@@ -391,7 +391,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			InstanceName: installed.InstanceName,
 		})
 		if snapst.IgnoreValidation {
-			ignoreValidation[installed.SnapID] = true
+			ignoreValidationByInstanceName[installed.InstanceName] = true
 		}
 		nCands++
 	}
@@ -446,5 +446,5 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		updates = append(updates, updatesForUser...)
 	}
 
-	return updates, stateByInstanceName, ignoreValidation, nil
+	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
 }
