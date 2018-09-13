@@ -659,7 +659,7 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 					return err
 				}
 				// core-phase-2 is now no-op, we shouldn't conflict on it; note, old snapd would create
-				// this task even for regular snaps if installed together with core and dangerous flag.
+				// this task even for regular snaps if installed with the dangerous flag.
 				if corePhase2 {
 					continue
 				}
