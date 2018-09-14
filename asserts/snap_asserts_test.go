@@ -406,6 +406,104 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 2)
 
+	headers = map[string]interface{}{
+		"plugs": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"store"},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 3)
+
+	headers = map[string]interface{}{
+		"plugs": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"on-store": []interface{}{"store"},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 3)
+
+	headers = map[string]interface{}{
+		"slots": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"store"},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 3)
+
+	headers = map[string]interface{}{
+		"slots": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"on-store": []interface{}{"store"},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 3)
+
+	// higher format features win
+
+	headers = map[string]interface{}{
+		"plugs": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"on-store": []interface{}{"store"},
+				},
+			},
+		},
+		"slots": map[string]interface{}{
+			"interface4": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"plug-attributes": map[string]interface{}{
+						"x": "$SLOT(x)",
+					},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 3)
+
+	headers = map[string]interface{}{
+		"plugs": map[string]interface{}{
+			"interface4": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slot-attributes": map[string]interface{}{
+						"x": "$SLOT(x)",
+					},
+				},
+			},
+		},
+		"slots": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"on-store": []interface{}{"store"},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 3)
+
 	// errors
 	headers = map[string]interface{}{
 		"plugs": "what",
