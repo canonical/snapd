@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -43,52 +44,38 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 		return proposedName
 	}
 
-	// extract number suffix if present
-	pname := []rune(proposedName)
-	end := len(pname) - 1
-	suffixIndex := end
-	for suffixIndex >= 0 && unicode.IsDigit(pname[suffixIndex]) {
-		suffixIndex--
+	suffixNumValue := 0
+	prefix := strings.TrimRightFunc(proposedName, unicode.IsDigit)
+	if prefix != proposedName {
+		suffixNumValue, _ = strconv.Atoi(proposedName[len(prefix):])
 	}
-
-	var suffixNumValue uint64
-	// if numeric suffix hasn't been found, append "-" before the number
-	if suffixIndex == end {
-		pname = append(pname, '-')
-		suffixIndex++
-	} else {
-		var err error
-		suffixNumValue, err = strconv.ParseUint(string(pname[suffixIndex+1:]), 10, 32)
-		if err != nil {
-			suffixIndex = end
-		}
-	}
+	prefix = strings.TrimRight(prefix, "-")
 
 	// increase suffix value until we have a unique name
 	for {
 		suffixNumValue++
-		proposedName = fmt.Sprintf("%s%d", string(pname[:suffixIndex+1]), suffixNumValue)
+		proposedName = fmt.Sprintf("%s%d", prefix, suffixNumValue)
 		if isUnique(proposedName) {
 			return proposedName
 		}
 	}
 }
 
-const maxLen = 20
+const maxGenerateSlotNameLen = 20
 
-// cleanupSlotName sanitizes proposedName to make it a valid slot name that
+// makeSlotName sanitizes a string to make it a valid slot name that
 // passes validation rules implemented by ValidateSlotName (see snap/validate.go):
 // - only lowercase letter, digits and dashes are allowed
 // - must start with a letter
 // - no double dashes, cannot end with a dash.
-// In addition names are truncated not to exceed maxLen characters.
-func cleanupSlotName(proposedName string) string {
+// In addition names are truncated not to exceed maxGenerateSlotNameLen characters.
+func makeSlotName(s string) string {
 	var out []rune
 	var charCount int
 	// the dash flag is used to prevent consecutive dashes, and the dash in the front
 	dash := true
 Loop:
-	for _, c := range proposedName {
+	for _, c := range s {
 		switch {
 		case c == '-' && !dash:
 			dash = true
@@ -97,14 +84,14 @@ Loop:
 			out = append(out, unicode.ToLower(c))
 			dash = false
 			charCount++
-			if charCount >= maxLen {
+			if charCount >= maxGenerateSlotNameLen {
 				break Loop
 			}
 		case unicode.IsDigit(c) && charCount > 0:
 			out = append(out, c)
 			dash = false
 			charCount++
-			if charCount >= maxLen {
+			if charCount >= maxGenerateSlotNameLen {
 				break Loop
 			}
 		default:
@@ -112,24 +99,21 @@ Loop:
 		}
 	}
 	// make sure the name doesn't end with a dash
-	if len(out) > 0 && out[len(out)-1] == '-' {
-		out = out[:len(out)-1]
-	}
-	return string(out)
+	return strings.TrimRight(string(out), "-")
 }
 
 var nameAttrs = []string{"NAME", "ID_MODEL_FROM_DATABASE", "ID_MODEL"}
 
-// suggestedSlotName returns the shortest name derived from attributes defined by nameAttrs, or
-// the fallbackName if there is no known attribute to derive name from. The name created from
-// attributes is cleaned up by cleanupSlotName function.
-// The fallbackName is typically the name of the interface.
+// suggestedSlotName returns the shortest name derived from attributes defined
+// by nameAttrs, or the fallbackName if there is no known attribute to derive
+// name from. The name created from attributes is sanitized to ensure it's a
+// valid slot name. The fallbackName is typically the name of the interface.
 func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) string {
 	var candidates []string
 	for _, attr := range nameAttrs {
 		name, ok := devinfo.Attribute(attr)
 		if ok {
-			name = cleanupSlotName(name)
+			name = makeSlotName(name)
 			if name != "" {
 				candidates = append(candidates, name)
 			}

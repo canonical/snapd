@@ -32,7 +32,7 @@ var (
 	ConnectPriv                  = connect
 	GetConns                     = getConns
 	SetConns                     = setConns
-	CleanupSlotName              = cleanupSlotName
+	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
