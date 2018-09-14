@@ -40,7 +40,6 @@ type utilsSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
 	log *bytes.Buffer
-	sec *update.Secure
 }
 
 var _ = Suite(&utilsSuite{})
@@ -52,7 +51,6 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	buf, restore := logger.MockLogger()
 	s.BaseTest.AddCleanup(restore)
 	s.log = buf
-	s.sec = &update.Secure{}
 }
 
 func (s *utilsSuite) TearDownTest(c *C) {
@@ -303,14 +301,14 @@ func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 	}
 
 	// Mock the act of performing changes, each of the change we perform is coming from the plan.
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		c.Assert(plan, testutil.DeepContains, chg)
 		return nil, nil
 	})
 	defer restore()
 
 	// The executed plan leaves us with a simplified view of the plan that is suitable for undo.
-	undoPlan, err := update.ExecWritableMimic(plan, s.sec)
+	undoPlan, err := update.ExecWritableMimic(plan)
 	c.Assert(err, IsNil)
 	c.Assert(undoPlan, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -338,7 +336,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	// the recovery path are recorded.
 	var recoveryPlan []*update.Change
 	recovery := false
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		if !recovery {
 			c.Assert(plan, testutil.DeepContains, chg)
 			if chg.Entry.Name == "/tmp/.snap/foo/dir" {
@@ -353,7 +351,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	defer restore()
 
 	// The executed plan fails, leaving us with the error and an empty undo plan.
-	undoPlan, err := update.ExecWritableMimic(plan, s.sec)
+	undoPlan, err := update.ExecWritableMimic(plan)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(undoPlan, HasLen, 0)
 	// The changes we managed to perform were undone correctly.
@@ -377,13 +375,13 @@ func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 	}
 
 	// Mock the act of performing changes and just fail on any request.
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		return nil, errTesting
 	})
 	defer restore()
 
 	// The executed plan fails, the recovery didn't fail (it's empty) so we just return that error.
-	undoPlan, err := update.ExecWritableMimic(plan, s.sec)
+	undoPlan, err := update.ExecWritableMimic(plan)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(undoPlan, HasLen, 0)
 }
@@ -404,7 +402,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// execute function ends up in a situation where it cannot perform the
 	// recovery path and will have to return a fatal error.
 	i := -1
-	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		i++
 		if i > 0 {
 			return nil, fmt.Errorf("failure-%d", i)
@@ -414,20 +412,18 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	defer restore()
 
 	// The plan partially succeeded and we cannot undo those changes.
-	_, err := update.ExecWritableMimic(plan, s.sec)
+	_, err := update.ExecWritableMimic(plan)
 	c.Assert(err, ErrorMatches, `cannot undo change ".*" while recovering from earlier error failure-1: failure-2`)
 	c.Assert(err, FitsTypeOf, &update.FatalError{})
 }
 
 // realSystemSuite is not isolated / mocked from the system.
 type realSystemSuite struct {
-	sec *update.Secure
 }
 
 var _ = Suite(&realSystemSuite{})
 
 func (s *realSystemSuite) SetUpTest(c *C) {
-	s.sec = &update.Secure{}
 }
 
 // Check that we can actually create directories.
