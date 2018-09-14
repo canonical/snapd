@@ -2389,6 +2389,25 @@ func (s *RepositorySuite) TestConnection(c *C) {
 	c.Assert(err, ErrorMatches, `snap "a" has no slot named "b"`)
 }
 
+func (s *RepositorySuite) TestConnectWithStaticAttrs(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+
+	connRef := NewConnRef(s.plug, s.slot)
+
+	plugAttrs := map[string]interface{}{"foo":"bar"}
+	slotAttrs := map[string]interface{}{"boo":"baz"}
+	_, err := s.testRepo.Connect(connRef, plugAttrs, nil, slotAttrs, nil, nil)
+	c.Assert(err, IsNil)
+
+	conn, err := s.testRepo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Assert(conn.Plug.Name(), Equals, "plug")
+	c.Assert(conn.Slot.Name(), Equals, "slot")
+	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, plugAttrs)
+	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, slotAttrs)
+}
+
 type hotplugTestInterface struct{ InterfaceName string }
 
 func (h *hotplugTestInterface) Name() string {
