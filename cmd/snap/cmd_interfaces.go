@@ -28,6 +28,7 @@ import (
 )
 
 type cmdInterfaces struct {
+	clientMixin
 	Interface   string `short:"i"`
 	Positionals struct {
 		Query interfacesSlotOrPlugSpec `skip-help:"true"`
@@ -72,7 +73,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := Client().Connections()
+	ifaces, err := x.client.Connections()
 	if err != nil {
 		return err
 	}

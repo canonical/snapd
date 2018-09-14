@@ -89,7 +89,7 @@ func (s *BuySnapSuite) TearDownTest(c *check.C) {
 }
 
 func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"buy"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "the required argument `<snap>` was not provided")
 	c.Check(s.Stdout(), check.Equals, "")
@@ -97,13 +97,13 @@ func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
 }
 
 func (s *BuySnapSuite) TestBuyInvalidCharacters(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"buy", "a:b"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "a:b"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "cannot buy snap: invalid characters in name")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 
-	_, err = snap.Parser().ParseArgs([]string{"buy", "c*d"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"buy", "c*d"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "cannot buy snap: invalid characters in name")
 	c.Check(s.Stdout(), check.Equals, "")
@@ -161,7 +161,7 @@ func (s *BuySnapSuite) TestBuyFreeSnapFails(c *check.C) {
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "cannot buy snap: snap is free")
 	c.Assert(rest, check.DeepEquals, []string{"hello"})
@@ -306,7 +306,7 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 	// Confirm the purchase.
 	s.password = "the password"
 
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
@@ -367,7 +367,7 @@ func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
 	// Confirm the purchase.
 	s.password = "the password"
 
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `Sorry, your payment method has been declined by the issuer. Please review your
 payment details at https://my.ubuntu.com/payment/edit and try again.`)
@@ -404,7 +404,7 @@ func (s *BuySnapSuite) TestBuySnapFailsNoPaymentMethod(c *check.C) {
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `You need to have a payment method associated with your account in order to buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.
 
@@ -439,7 +439,7 @@ func (s *BuySnapSuite) TestBuySnapFailsNotAcceptedTerms(c *check.C) {
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `In order to buy "hello", you need to agree to the latest terms and conditions. Please visit https://my.ubuntu.com/payment/edit to do this.
 
@@ -453,7 +453,7 @@ func (s *BuySnapSuite) TestBuyFailsWithoutLogin(c *check.C) {
 	// We don't login here
 	s.Logout(c)
 
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "You need to be logged in to purchase software. Please run 'snap login' and try again.")
 	c.Check(rest, check.DeepEquals, []string{"hello"})
