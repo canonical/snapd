@@ -671,8 +671,8 @@ func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs ma
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
-	cplug := NewConnectedPlug(plug, plugDynamicAttrs)
-	cslot := NewConnectedSlot(slot, slotDynamicAttrs)
+	cplug := NewConnectedPlug(plug, nil, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, nil, slotDynamicAttrs)
 
 	// policyCheck is null when reloading connections
 	if policyCheck != nil {
@@ -1098,7 +1098,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			iface := slotInfo.Interface
 
 			// declaration based checks disallow
-			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
+			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
 			if !ok || err != nil {
 				continue
 			}
@@ -1131,7 +1131,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			iface := slotInfo.Interface
 
 			// declaration based checks disallow
-			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
+			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
 			if !ok || err != nil {
 				continue
 			}
