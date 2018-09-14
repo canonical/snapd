@@ -61,7 +61,7 @@ func (ovs *overlordSuite) TearDownTest(c *C) {
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
-	restore := patch.Mock(42, nil)
+	restore := patch.Mock(42, 2, nil)
 	defer restore()
 
 	var configstateInitCalled bool
@@ -92,9 +92,14 @@ func (ovs *overlordSuite) TestNew(c *C) {
 
 	s.Lock()
 	defer s.Unlock()
-	var patchLevel int
+	var patchLevel, patchSublevel int
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
+	s.Get("patch-sublevel", &patchSublevel)
+	c.Check(patchSublevel, Equals, 2)
+	var refreshPrivacyKey string
+	s.Get("refresh-privacy-key", &refreshPrivacyKey)
+	c.Check(refreshPrivacyKey, HasLen, 16)
 
 	// store is setup
 	sto := snapstate.Store(s)
@@ -103,7 +108,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -127,6 +132,24 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Check(got, DeepEquals, expected)
 }
 
+func (ovs *overlordSuite) TestNewWithStateSnapmgrUpdate(c *C) {
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	state := o.State()
+	c.Assert(err, IsNil)
+	state.Lock()
+	defer state.Unlock()
+
+	var refreshPrivacyKey string
+	state.Get("refresh-privacy-key", &refreshPrivacyKey)
+	c.Check(refreshPrivacyKey, HasLen, 16)
+}
+
 func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	fakeState := []byte(``)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
@@ -141,9 +164,13 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 		s.Set("patched", true)
 		return nil
 	}
-	patch.Mock(1, map[int]func(*state.State) error{1: p})
+	sp := func(s *state.State) error {
+		s.Set("patched2", true)
+		return nil
+	}
+	patch.Mock(1, 1, map[int][]patch.PatchFunc{1: {p, sp}})
 
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0}}`))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0, "patch-sublevel":0}}`))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -160,9 +187,16 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(level, Equals, 1)
 
+	var sublevel int
+	c.Assert(state.Get("patch-sublevel", &sublevel), IsNil)
+	c.Check(sublevel, Equals, 1)
+
 	var b bool
 	err = state.Get("patched", &b)
 	c.Assert(err, IsNil)
+	c.Check(b, Equals, true)
+
+	c.Assert(state.Get("patched2", &b), IsNil)
 	c.Check(b, Equals, true)
 }
 

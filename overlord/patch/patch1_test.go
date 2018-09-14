@@ -107,7 +107,7 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	c.Assert(err, IsNil)
 
 	// go from patch-level 0 to patch-level 1
-	restorer := patch.MockLevel(1)
+	restorer := patch.MockLevel(1, 1)
 	defer restorer()
 
 	err = patch.Apply(st)
