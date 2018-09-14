@@ -473,5 +473,7 @@ fixed-width fonts, so it can be hard to tell.
 		fmt.Fprintln(Stderr, msg)
 	}
 
+	checkWarnings(cli.WarningsSummary())
+
 	return nil
 }
