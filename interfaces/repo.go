@@ -609,7 +609,13 @@ type plugValidator interface {
 
 type PolicyFunc func(*ConnectedPlug, *ConnectedSlot) (bool, error)
 
-func (r *Repository) getInfos(ref *ConnRef) (*snap.PlugInfo, *snap.SlotInfo, error) {
+// Connect establishes a connection between a plug and a slot.
+// The plug and the slot must have the same interface.
+// When connections are reloaded policyCheck is null (we don't check policy again).
+func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	plugSnapName := ref.PlugRef.Snap
 	plugName := ref.PlugRef.Name
 	slotSnapName := ref.SlotRef.Snap
@@ -618,31 +624,17 @@ func (r *Repository) getInfos(ref *ConnRef) (*snap.PlugInfo, *snap.SlotInfo, err
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return nil, nil, &UnknownPlugSlotError{Msg: fmt.Sprintf("cannot connect plug %q from snap %q: no such plug", plugName, plugSnapName)}
+		return nil, &UnknownPlugSlotError{Msg: fmt.Sprintf("cannot connect plug %q from snap %q: no such plug", plugName, plugSnapName)}
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return nil, nil, &UnknownPlugSlotError{fmt.Sprintf("cannot connect slot %q from snap %q: no such slot", slotName, slotSnapName)}
+		return nil, &UnknownPlugSlotError{fmt.Sprintf("cannot connect slot %q from snap %q: no such slot", slotName, slotSnapName)}
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
-		return nil, nil, fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+		return nil, fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
-	}
-
-	return plug, slot, nil
-}
-
-// Connect establishes a connection between a plug and a slot.
-// The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	plug, slot, err := r.getInfos(ref)
-	if err != nil {
-		return nil, err
 	}
 
 	iface, ok := r.ifaces[plug.Interface]
@@ -673,6 +665,7 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 		}
 	}
 
+	// Connect the plug
 	if r.slotPlugs[slot] == nil {
 		r.slotPlugs[slot] = make(map[*snap.PlugInfo]*Connection)
 	}
