@@ -223,6 +223,19 @@ func MockDoRetry(retry, timeout time.Duration) (restore func()) {
 	}
 }
 
+type hijacked struct {
+	do func(*http.Request) (*http.Response, error)
+}
+
+func (h hijacked) Do(req *http.Request) (*http.Response, error) {
+	return h.do(req)
+}
+
+// Hijack lets the caller take over the raw http request
+func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
+	client.doer = hijacked{f}
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
