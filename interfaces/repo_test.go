@@ -2395,8 +2395,8 @@ func (s *RepositorySuite) TestConnectWithStaticAttrs(c *C) {
 
 	connRef := NewConnRef(s.plug, s.slot)
 
-	plugAttrs := map[string]interface{}{"foo":"bar"}
-	slotAttrs := map[string]interface{}{"boo":"baz"}
+	plugAttrs := map[string]interface{}{"foo": "bar"}
+	slotAttrs := map[string]interface{}{"boo": "baz"}
 	_, err := s.testRepo.Connect(connRef, plugAttrs, nil, slotAttrs, nil, nil)
 	c.Assert(err, IsNil)
 
