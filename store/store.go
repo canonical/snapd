@@ -76,7 +76,7 @@ type RefreshOptions struct {
 	// managed via snapd-control.
 	RefreshManaged bool
 
-	RequestSalt string
+	PrivacyKey string
 }
 
 // the LimitTime should be slightly more than 3 times of our http.Client
@@ -2140,7 +2140,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	requestSalt := ""
 	if opts != nil {
-		requestSalt = opts.RequestSalt
+		requestSalt = opts.PrivacyKey
 	}
 	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
 	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
