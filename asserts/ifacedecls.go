@@ -37,6 +37,8 @@ type AttrMatchContext interface {
 const (
 	// feature label for $SLOT()/$PLUG()/$MISSING
 	dollarAttrConstraintsFeature = "dollar-attr-constraints"
+	// feature label for on-store/on-brand/on-model
+	deviceScopeConstraintsFeature = "device-scope-constraints"
 )
 
 type attrMatcher interface {
@@ -364,6 +366,58 @@ type OnClassicConstraint struct {
 	SystemIDs []string
 }
 
+// DeviceScopeConstraint specifies a constraints based on which brand
+// store, brand or model the device belongs to.
+type DeviceScopeConstraint struct {
+	Store []string
+	Brand []string
+	// Model is a list of precise "<brand>/<model>" constraints
+	Model []string
+}
+
+var (
+	validStoreID        = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
+	validBrandSlahModel = regexp.MustCompile("^(" +
+		strings.Trim(validAccountID.String(), "^$") +
+		")/(" +
+		strings.Trim(validModel.String(), "^$") +
+		")$")
+	deviceScopeConstraints = map[string]*regexp.Regexp{
+		"on-store": validStoreID,
+		"on-brand": validAccountID,
+		"on-model": validBrandSlahModel,
+	}
+)
+
+func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
+	for field := range deviceScopeConstraints {
+		if cMap[field] != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
+	deviceConstr := make(map[string][]string, 2)
+	for field, validRegexp := range deviceScopeConstraints {
+		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
+		if err != nil {
+			return nil, err
+		}
+		deviceConstr[field] = vals
+	}
+
+	if len(deviceConstr) == 0 {
+		return nil, fmt.Errorf("internal error: misdetected device scope constraints in %s", context)
+	}
+	return &DeviceScopeConstraint{
+		Store: deviceConstr["on-store"],
+		Brand: deviceConstr["on-brand"],
+		Model: deviceConstr["on-model"],
+	}, nil
+}
+
 // rules
 
 var (
@@ -401,6 +455,7 @@ type constraintsHolder interface {
 	setAttributeConstraints(field string, cstrs *AttributeConstraints)
 	setIDConstraints(field string, cstrs []string)
 	setOnClassicConstraint(onClassic *OnClassicConstraint)
+	setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint)
 }
 
 func baseCompileConstraints(context string, cDef constraintsDef, target constraintsHolder, attrConstraints, idConstraints []string) error {
@@ -465,8 +520,17 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 		}
 		target.setOnClassicConstraint(c)
 	}
-	if defaultUsed == len(attributeConstraints)+len(idConstraints)+1 {
-		return fmt.Errorf("%s must specify at least one of %s, %s, on-classic", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
+	if !detectDeviceScopeConstraint(cMap) {
+		defaultUsed++
+	} else {
+		c, err := compileDeviceScopeConstraint(cMap, context)
+		if err != nil {
+			return err
+		}
+		target.setDeviceScopeConstraint(c)
+	}
+	if defaultUsed == len(attributeConstraints)+len(idConstraints)+1+1 {
+		return fmt.Errorf("%s must specify at least one of %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
 	}
 	return nil
 }
@@ -637,9 +701,14 @@ type PlugInstallationConstraints struct {
 	PlugAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+
+	DeviceScope *DeviceScopeConstraint
 }
 
 func (c *PlugInstallationConstraints) feature(flabel string) bool {
+	if flabel == deviceScopeConstraintsFeature {
+		return c.DeviceScope != nil
+	}
 	return c.PlugAttributes.feature(flabel)
 }
 
@@ -665,6 +734,10 @@ func (c *PlugInstallationConstraints) setOnClassicConstraint(onClassic *OnClassi
 	c.OnClassic = onClassic
 }
 
+func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
+	c.DeviceScope = deviceScope
+}
+
 func compilePlugInstallationConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
 	plugInstCstrs := &PlugInstallationConstraints{}
 	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-attributes"}, []string{"plug-snap-type"})
@@ -686,9 +759,14 @@ type PlugConnectionConstraints struct {
 	SlotAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+
+	DeviceScope *DeviceScopeConstraint
 }
 
 func (c *PlugConnectionConstraints) feature(flabel string) bool {
+	if flabel == deviceScopeConstraintsFeature {
+		return c.DeviceScope != nil
+	}
 	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
 }
 
@@ -718,6 +796,10 @@ func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []strin
 
 func (c *PlugConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
+}
+
+func (c *PlugConnectionConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
+	c.DeviceScope = deviceScope
 }
 
 var (
@@ -869,9 +951,14 @@ type SlotInstallationConstraints struct {
 	SlotAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+
+	DeviceScope *DeviceScopeConstraint
 }
 
 func (c *SlotInstallationConstraints) feature(flabel string) bool {
+	if flabel == deviceScopeConstraintsFeature {
+		return c.DeviceScope != nil
+	}
 	return c.SlotAttributes.feature(flabel)
 }
 
@@ -897,6 +984,10 @@ func (c *SlotInstallationConstraints) setOnClassicConstraint(onClassic *OnClassi
 	c.OnClassic = onClassic
 }
 
+func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
+	c.DeviceScope = deviceScope
+}
+
 func compileSlotInstallationConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
 	slotInstCstrs := &SlotInstallationConstraints{}
 	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-attributes"}, []string{"slot-snap-type"})
@@ -918,9 +1009,14 @@ type SlotConnectionConstraints struct {
 	PlugAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+
+	DeviceScope *DeviceScopeConstraint
 }
 
 func (c *SlotConnectionConstraints) feature(flabel string) bool {
+	if flabel == deviceScopeConstraintsFeature {
+		return c.DeviceScope != nil
+	}
 	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
 }
 
@@ -954,6 +1050,10 @@ var (
 
 func (c *SlotConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
+}
+
+func (c *SlotConnectionConstraints) setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint) {
+	c.DeviceScope = deviceScope
 }
 
 func compileSlotConnectionConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
