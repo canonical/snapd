@@ -836,14 +836,12 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 			Snap:  &snap.Info{SuggestedName: "consumer"},
 			Name:  "plug",
 			Attrs: map[string]interface{}{"attr1": "value1"}}, nil,
-
 			map[string]interface{}{"attr3": "value3"}),
 
 		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{
 			Snap:  &snap.Info{SuggestedName: "producer"},
 			Name:  "slot",
 			Attrs: map[string]interface{}{"attr2": "value2"}}, nil,
-
 			map[string]interface{}{"attr4": "value4"}),
 	}
 	ts, err := ifacestate.Disconnect(s.state, conn)
