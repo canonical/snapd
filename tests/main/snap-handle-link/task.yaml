@@ -41,7 +41,7 @@ execute: |
     install_local snap-store
     snap handle-link snap://package | MATCH "Fake snap got snap://package"
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if [[ "$SPREAD_SYSTEM" != ubuntu-1[46].04-* ]]; then
         # Ubuntu 14.04 ships with an ancient xdg-open shell script
         # that doesn't look up scheme handlers.  Other xdg-mime
         # implementations on the system (e.g. GLib) should be fine
