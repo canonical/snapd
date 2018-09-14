@@ -117,16 +117,6 @@ func NewConnectedSlot(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]
 	}
 }
 
-// NewConnectedSlotReload creates an object representing a connected slot that is reloaded with static attributes
-// restored from state (not from the SlotInfo).
-func NewConnectedSlotReload(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
-	return &ConnectedSlot{
-		slotInfo:     slot,
-		staticAttrs:  utils.CopyAttributes(staticAttrs),
-		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
-	}
-}
-
 // NewConnectedPlug creates an object representing a connected plug.
 func NewConnectedPlug(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
 	var static map[string]interface{}
@@ -138,16 +128,6 @@ func NewConnectedPlug(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]
 	return &ConnectedPlug{
 		plugInfo:     plug,
 		staticAttrs:  utils.CopyAttributes(static),
-		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
-	}
-}
-
-// NewConnectedPlugReload creates an object representing a connected plug that is reloaded with static attributes
-// restored from state (not from the PlugInfo).
-func NewConnectedPlugReload(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
-	return &ConnectedPlug{
-		plugInfo:     plug,
-		staticAttrs:  utils.CopyAttributes(staticAttrs),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
