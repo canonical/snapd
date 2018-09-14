@@ -2406,7 +2406,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		PlugRef: interfaces.PlugRef{Snap: siP.InstanceName(), Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: siC.InstanceName(), Name: "slot"},
 	}
-	_, err = repo.Connect(connRef, nil, nil, nil)
+	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
@@ -3371,7 +3371,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}, plugDynAttrs, slotDynAttrs, nil)
+	}, nil, plugDynAttrs, nil, slotDynAttrs, nil)
 
 	chg := s.state.NewChange("install", "")
 	t := s.state.NewTask("auto-disconnect", "")
@@ -3440,7 +3440,7 @@ func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingK
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	sup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{

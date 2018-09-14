@@ -3897,7 +3897,7 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
@@ -3960,7 +3960,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
@@ -4149,7 +4149,7 @@ func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	conns := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -4330,7 +4330,7 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	st := d.overlord.State()
@@ -4543,7 +4543,7 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	st := d.overlord.State()

@@ -634,30 +634,9 @@ func (r *Repository) getInfos(ref *ConnRef) (*snap.PlugInfo, *snap.SlotInfo, err
 	return plug, slot, nil
 }
 
-// Connect re-establishes a connection between a plug and a slot as part of connection reloading.
-// When connections are reloaded policyCheck is null (we don't check policy again).
-func (r *Repository) ConnectReload(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]interface{}) (*Connection, error) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	plug, slot, err := r.getInfos(ref)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := r.ifaces[plug.Interface]; !ok {
-		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
-	}
-
-	cplug := NewConnectedPlugReload(plug, plugStaticAttrs, plugDynamicAttrs)
-	cslot := NewConnectedSlotReload(slot, slotStaticAttrs, slotDynamicAttrs)
-
-	return r.connect(plug, slot, cplug, cslot), nil
-}
-
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
+func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -671,8 +650,8 @@ func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs ma
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
-	cplug := NewConnectedPlug(plug, nil, plugDynamicAttrs)
-	cslot := NewConnectedSlot(slot, nil, slotDynamicAttrs)
+	cplug := NewConnectedPlug(plug, plugStaticAttrs, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
 
 	// policyCheck is null when reloading connections
 	if policyCheck != nil {
@@ -694,12 +673,6 @@ func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs ma
 		}
 	}
 
-	return r.connect(plug, slot, cplug, cslot), nil
-}
-
-// connect creates Connection object for given (ConnectedPlug, ConnectedSlot) and establishes the connection in the repository.
-// Note: repository must be locked by the caller.
-func (r *Repository) connect(plug *snap.PlugInfo, slot *snap.SlotInfo, cplug *ConnectedPlug, cslot *ConnectedSlot) *Connection {
 	if r.slotPlugs[slot] == nil {
 		r.slotPlugs[slot] = make(map[*snap.PlugInfo]*Connection)
 	}
@@ -710,7 +683,7 @@ func (r *Repository) connect(plug *snap.PlugInfo, slot *snap.SlotInfo, cplug *Co
 	conn := &Connection{Plug: cplug, Slot: cslot}
 	r.slotPlugs[slot][plug] = conn
 	r.plugSlots[plug][slot] = conn
-	return conn
+	return conn, nil
 }
 
 // Disconnect disconnects the named plug from the slot of the given snap.
