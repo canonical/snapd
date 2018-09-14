@@ -31,6 +31,7 @@ import (
 )
 
 type cmdLogin struct {
+	clientMixin
 	Positional struct {
 		Email string
 	} `positional-args:"yes"`
@@ -64,7 +65,7 @@ func init() {
 		}})
 }
 
-func requestLoginWith2faRetry(email, password string) error {
+func requestLoginWith2faRetry(cli *client.Client, email, password string) error {
 	var otp []byte
 	var err error
 
@@ -74,7 +75,6 @@ func requestLoginWith2faRetry(email, password string) error {
 		i18n.G("Wrong again. Once more: "),
 	}
 
-	cli := Client()
 	reader := bufio.NewReader(nil)
 
 	for i := 0; ; i++ {
@@ -94,7 +94,7 @@ func requestLoginWith2faRetry(email, password string) error {
 	}
 }
 
-func requestLogin(email string) error {
+func requestLogin(cli *client.Client, email string) error {
 	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
 	password, err := ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")
@@ -103,7 +103,7 @@ func requestLogin(email string) error {
 	}
 
 	// strings.TrimSpace needed because we get \r from the pty in the tests
-	return requestLoginWith2faRetry(email, strings.TrimSpace(string(password)))
+	return requestLoginWith2faRetry(cli, email, strings.TrimSpace(string(password)))
 }
 
 func (x *cmdLogin) Execute(args []string) error {
@@ -125,7 +125,7 @@ func (x *cmdLogin) Execute(args []string) error {
 		email = string(in)
 	}
 
-	err := requestLogin(email)
+	err := requestLogin(x.client, email)
 	if err != nil {
 		return err
 	}

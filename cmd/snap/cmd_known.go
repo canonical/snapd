@@ -32,6 +32,7 @@ import (
 )
 
 type cmdKnown struct {
+	clientMixin
 	KnownOptions struct {
 		// XXX: how to get a list of assert types for completion?
 		AssertTypeName assertTypeName `required:"true"`
@@ -112,7 +113,7 @@ func (x *cmdKnown) Execute(args []string) error {
 	if x.Remote {
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 	} else {
-		assertions, err = Client().Known(string(x.KnownOptions.AssertTypeName), headers)
+		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers)
 	}
 	if err != nil {
 		return err
