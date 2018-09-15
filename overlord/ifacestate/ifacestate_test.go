@@ -1368,7 +1368,7 @@ plugs:
   interface: test
 `
 
-// The setup-profiles task will not auto-connect a plug that was previously
+// The auto-connect task will not auto-connect a plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C) {
 	s.state.Lock()
@@ -1420,7 +1420,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
-// The setup-profiles task will auto-connect plugs with viable candidates.
+// The auto-connect task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	// Add an OS snap.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
@@ -1464,7 +1464,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	c.Assert(ifaces.Connections, HasLen, 1) //FIXME add deep eq
 }
 
-// The setup-profiles task will auto-connect slots with viable candidates.
+// The auto-connect task will auto-connect slots with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
@@ -1515,7 +1515,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
-// The setup-profiles task will auto-connect slots with viable multiple candidates.
+// The auto-connect task will auto-connect slots with viable multiple candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiplePlugs(c *C) {
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
@@ -1576,7 +1576,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 	})
 }
 
-// The setup-profiles task will not auto-connect slots if viable alternative slots are present.
+// The auto-connect task will not auto-connect slots if viable alternative slots are present.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlternative(c *C) {
 	// Mock the interface that will be used by the test
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -1616,7 +1616,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	c.Check(conns, HasLen, 0)
 }
 
-// The setup-profiles task will auto-connect plugs with viable candidates also condidering snap declarations.
+// The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
 	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
@@ -1630,7 +1630,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *
 	})
 }
 
-// The setup-profiles task will *not* auto-connect plugs with viable candidates when snap declarations are missing.
+// The auto-connect task will *not* auto-connect plugs with viable candidates when snap declarations are missing.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhenMissingDecl(c *C) {
 	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
@@ -1691,9 +1691,9 @@ slots:
 	check(conns, repo.Interfaces().Connections)
 }
 
-// The setup-profiles task will only touch connection state for the task it
+// The auto-connect task will only touch connection state for the task it
 // operates on or auto-connects to and will leave other state intact.
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionState(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionState(c *C) {
 	// Add an OS snap in place.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 
@@ -1743,7 +1743,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 }
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyIgnoresStrayConnection(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c *C) {
 	// Add an OS snap
 	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
@@ -1811,11 +1811,11 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	c.Assert(len(slots) > 18, Equals, true)
 }
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	snapInfo := s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
-	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, snapInfo.InstanceName(), snapInfo.Revision)
+	s.testDoSetupSnapSecurityReloadsConnectionsWhenInvokedOn(c, snapInfo.InstanceName(), snapInfo.Revision)
 
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
@@ -1827,11 +1827,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnSlotSide(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInvokedOnSlotSide(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	snapInfo := s.mockSnap(c, producerYaml)
-	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, snapInfo.InstanceName(), snapInfo.Revision)
+	s.testDoSetupSnapSecurityReloadsConnectionsWhenInvokedOn(c, snapInfo.InstanceName(), snapInfo.Revision)
 
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
@@ -1843,7 +1843,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision snap.Revision) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision snap.Revision) {
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
@@ -1964,7 +1964,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 }
 
-// setup-profiles needs to setup security for connected slots after autoconnection
+// auto-connect needs to setup security for connected slots after autoconnection
 func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c *C) {
 	// Add an OS snap.
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
