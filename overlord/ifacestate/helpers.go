@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -371,6 +372,11 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	modelAs, err := devicestate.Model(c.st)
+	if err != nil {
+		return false, err
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -398,6 +404,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
+		Model:               modelAs,
 	}
 
 	return ic.CheckAutoConnect() == nil, nil

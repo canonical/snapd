@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -69,6 +70,7 @@ type interfaceManagerSuite struct {
 	secBackend     *ifacetest.TestSecurityBackend
 	mockSnapCmd    *testutil.MockCmd
 	storeSigning   *assertstest.StoreStack
+	brandSigning   *assertstest.SigningDB
 	log            *bytes.Buffer
 }
 
@@ -77,6 +79,9 @@ var _ = Suite(&interfaceManagerSuite{})
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
@@ -98,8 +103,20 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.state.Lock()
+	defer s.state.Unlock()
 	assertstate.ReplaceDB(s.state, s.db)
-	s.state.Unlock()
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id": "my-brand",
+	}, "")
+	err = assertstate.Add(s.state, brandAcct)
+	c.Assert(err, IsNil)
+
+	brandPubKey, err := s.brandSigning.PublicKey("")
+	c.Assert(err, IsNil)
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPubKey, "")
+	err = assertstate.Add(s.state, brandAccKey)
+	c.Assert(err, IsNil)
 
 	s.privateHookMgr = nil
 	s.privateMgr = nil
@@ -1422,6 +1439,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 
 // The auto-connect task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
+	s.mockModel(c, nil)
+
 	// Add an OS snap.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 
@@ -1466,6 +1485,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 
 // The auto-connect task will auto-connect slots with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
+	s.mockModel(c, nil)
+
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	// Add an OS snap.
@@ -1517,6 +1538,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 
 // The auto-connect task will auto-connect slots with viable multiple candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiplePlugs(c *C) {
+	s.mockModel(c, nil)
+
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	// Add an OS snap.
@@ -1618,6 +1641,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 
 // The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
+	s.mockModel(c, nil)
+
 	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
 		c.Check(conns, DeepEquals, map[string]interface{}{
@@ -1691,9 +1716,144 @@ slots:
 	check(conns, repo.Interfaces().Connections)
 }
 
-// The auto-connect task will only touch connection state for the task it
+// The auto-connect task will check snap declarations providing the
+// model assertion to fulfill device scope constraints: here no store
+// in the model assertion fails an on-store constraint.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeNoStore(c *C) {
+
+	s.mockModel(c, nil)
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// Ensure nothing is connected.
+		c.Check(conns, HasLen, 0)
+		c.Check(repoConns, HasLen, 0)
+	})
+}
+
+// The auto-connect task will check snap declarations providing the
+// model assertion to fulfill device scope constraints: here the wrong
+// store in the model assertion fails an on-store constraint.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongStore(c *C) {
+
+	s.mockModel(c, map[string]interface{}{
+		"store": "other-store",
+	})
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// Ensure nothing is connected.
+		c.Check(conns, HasLen, 0)
+		c.Check(repoConns, HasLen, 0)
+	})
+}
+
+// The auto-connect task will check snap declarations providing the
+// model assertion to fulfill device scope constraints: here the right
+// store in the model assertion passes an on-store constraint.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeRightStore(c *C) {
+
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-store",
+	})
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// Ensure that "test" plug is now saved in the state as auto-connected.
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test",
+				"plug-static": map[string]interface{}{"attr1": "value1"},
+				"slot-static": map[string]interface{}{"attr2": "value2"},
+			}})
+		// Ensure that "test" is really connected.
+		c.Check(repoConns, HasLen, 1)
+	})
+}
+
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c *C, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-auto-connection: false
+`))
+	defer restore()
+	// Add the producer snap
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnapDecl(c, "producer", "one-publisher", nil)
+	s.mockSnap(c, producerYaml)
+
+	// Initialize the manager. This registers the producer snap.
+	mgr := s.manager(c)
+
+	s.mockSnapDecl(c, "consumer", "one-publisher", map[string]interface{}{
+		"format": "3",
+		"plugs": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	snapInfo := s.mockSnap(c, consumerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			SnapID:   snapInfo.SnapID,
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	_ = s.state.Get("conns", &conns)
+
+	repo := mgr.Repository()
+	plug := repo.Plug("consumer", "plug")
+	c.Assert(plug, Not(IsNil))
+
+	check(conns, repo.Interfaces().Connections)
+}
+
+func (s *interfaceManagerSuite) mockModel(c *C, extraHeaders map[string]interface{}) {
+	headers := map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	for k, v := range extraHeaders {
+		headers[k] = v
+	}
+	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	defer s.state.Unlock()
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	c.Assert(err, IsNil)
+}
+
+// The setup-profiles task will only touch connection state for the task it
 // operates on or auto-connects to and will leave other state intact.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionState(c *C) {
+	s.mockModel(c, nil)
+
 	// Add an OS snap in place.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 
@@ -1966,6 +2126,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 
 // auto-connect needs to setup security for connected slots after autoconnection
 func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c *C) {
+	s.mockModel(c, nil)
+
 	// Add an OS snap.
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
@@ -2763,6 +2925,8 @@ plugs:
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
+	s.mockModel(c, nil)
+
 	// Add both the old and new core snaps
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 	s.mockSnap(c, coreSnapYaml)
@@ -2848,6 +3012,8 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 }
 
 func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
+	s.mockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
@@ -3016,6 +3182,8 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
+	s.mockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
@@ -3084,6 +3252,8 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
+	s.mockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, selfconnectSnapYaml)
 	repo := s.manager(c).Repository()
