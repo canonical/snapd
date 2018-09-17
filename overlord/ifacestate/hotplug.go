@@ -182,13 +182,10 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			proposedName = suggestedSlotName(devinfo, iface.Name())
 		}
 		proposedName = ensureUniqueName(proposedName, func(name string) bool {
-			if m.repo.Slot(coreSnapInfo.InstanceName(), name) != nil {
-				return false
-			}
 			if slot, ok := stateSlots[name]; ok {
 				return slot.HotplugDeviceKey == key
 			}
-			return true
+			return m.repo.Slot(coreSnapInfo.InstanceName(), name) == nil
 		})
 		slot := &snap.SlotInfo{
 			Name:             proposedName,
