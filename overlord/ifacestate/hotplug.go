@@ -185,11 +185,10 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			if m.repo.Slot(coreSnapInfo.InstanceName(), name) != nil {
 				return false
 			}
-			slot, ok := stateSlots[name]
-			if !ok {
-				return true
+			if slot, ok := stateSlots[name]; ok {
+				return slot.HotplugDeviceKey == key
 			}
-			return slot.HotplugDeviceKey == key
+			return true
 		})
 		slot := &snap.SlotInfo{
 			Name:             proposedName,
