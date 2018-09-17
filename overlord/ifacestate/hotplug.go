@@ -166,8 +166,19 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		if attrs == nil {
 			attrs = make(map[string]interface{})
 		}
+
+		// Generate slot name if not provided by slot spec
+		// TODO: reuse old name from state
+		name := slotSpec.Name
+		if name == "" {
+			name = suggestedSlotName(devinfo, iface.Name())
+		}
+		name = ensureUniqueName(name, func(string) bool {
+			// TODO
+			return true
+		})
 		slot := &snap.SlotInfo{
-			Name:             slotSpec.Name,
+			Name:             name,
 			Snap:             coreSnapInfo,
 			Interface:        iface.Name(),
 			Attrs:            attrs,
