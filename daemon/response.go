@@ -226,8 +226,11 @@ func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
 	return func(format string, v ...interface{}) Response {
-		res := &errorResult{
-			Message: fmt.Sprintf(format, v...),
+		res := &errorResult{}
+		if len(v) == 0 {
+			res.Message = format
+		} else {
+			res.Message = fmt.Sprintf(format, v...)
 		}
 		if status == 401 {
 			res.Kind = errorKindLoginRequired
