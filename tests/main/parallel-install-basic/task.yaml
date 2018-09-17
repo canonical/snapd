@@ -13,7 +13,8 @@ execute: |
 
     devmode=
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-        # TODO prallel-install: disable devmode once AppArmor profile updates are in
+        # TODO parallel-install: disable devmode once AppArmor profile updates
+        # are in
         devmode=--devmode
     fi
 
@@ -32,6 +33,7 @@ execute: |
     MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools_foo'                      < snap_foo-env.txt
     MATCH 'SNAP_NAME=test-snapd-tools'                                   < snap_foo-env.txt
     MATCH 'SNAP_INSTANCE_KEY=foo'                                        < snap_foo-env.txt
+    MATCH 'SNAP=/snap/test-snapd-tools/x1'                               < snap_foo-env.txt
     MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'                < snap_foo-env.txt
     MATCH 'SNAP_DATA=/var/snap/test-snapd-tools/x1'                      < snap_foo-env.txt
     MATCH 'SNAP_USER_DATA=/home/test/snap/test-snapd-tools_foo/x1'       < snap_foo-env.txt
@@ -42,6 +44,7 @@ execute: |
     MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools'           < snap-env.txt
     MATCH 'SNAP_NAME=test-snapd-tools'                    < snap-env.txt
     MATCH 'SNAP_INSTANCE_KEY=$'                           < snap-env.txt
+    MATCH 'SNAP=/snap/test-snapd-tools/x1'                < snap-env.txt
 
     mkdir /var/snap/test-snapd-tools_foo/common/foobar
     chown test:test /var/snap/test-snapd-tools_foo/common/foobar
