@@ -39,7 +39,7 @@ import (
 type Specification struct {
 	// The mount profile is internally re-sorted by snap-update-ns based on
 	// the source of given mount entry and MountEntry.Dir. See
-	// cmd/snap-update-ns/sorting.go
+	// cmd/snap-update-ns/sorting.go for details.
 
 	layout   []osutil.MountEntry
 	general  []osutil.MountEntry
@@ -143,8 +143,9 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
 	result := make([]osutil.MountEntry, 0, len(spec.overname)+len(spec.layout)+len(spec.general))
-	// overname is the mappings for parallel installation of snaps and must
-	// come first
+	// overname is the mappings that were added to support parallel
+	// installation of snaps and must come first, as they establish the base
+	// namespace for any futher operations
 	result = append(result, spec.overname...)
 	result = append(result, spec.layout...)
 	result = append(result, spec.general...)

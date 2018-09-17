@@ -172,9 +172,10 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	// for extra safety.
 	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
 		// The path starts with $ and ValidatePathVariables() ensures
-		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, no other
-		// $VARs, while ExpandSnapVariables() only expands $SNAP,
-		// $SNAP_DATA and $SNAP_COMMON
+		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
+		// other $VARs are present. It is ok to use
+		// ExpandSnapVariables() since it only expands $SNAP, $SNAP_DATA
+		// and $SNAP_COMMON
 		return snapInfo.ExpandSnapVariables(path)
 	}
 	// Always prefix with $SNAP if nothing else is provided or the path

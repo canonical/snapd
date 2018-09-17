@@ -231,7 +231,6 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP//", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42")+"//")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info), Equals, "/var/snap/name/42/")
 	// automatically prefixed with $SNAP
 	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
