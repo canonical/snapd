@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -299,13 +300,17 @@ var ClientConfig = client.Config{
 
 // Client returns a new client using ClientConfig as configuration.
 func Client() *client.Client {
+	cli := client.New(&ClientConfig)
 	if runtime.GOOS != "linux" {
-		fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
+		cli.Hijack(func(*http.Request) (*http.Response, error) {
+			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
 This command has been left available for documentation purposes only.
 `), runtime.GOOS)
-		os.Exit(1)
+			os.Exit(1)
+			panic("execution continued past call to exit")
+		})
 	}
-	return client.New(&ClientConfig)
+	return cli
 }
 
 func init() {
