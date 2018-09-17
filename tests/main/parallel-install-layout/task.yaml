@@ -19,7 +19,8 @@ execute: |
 
     devmode=
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-        # TODO prallel-install: disable devmode once AppArmor profile updates are in
+        # TODO parallel-install: disable devmode once AppArmor profile updates
+        # are in
         devmode=--devmode
     fi
 
