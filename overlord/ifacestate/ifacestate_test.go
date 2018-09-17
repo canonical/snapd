@@ -22,6 +22,7 @@ package ifacestate_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -138,6 +140,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.o.TaskRunner(), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
 		addForeignTaskHandlers(s.o.TaskRunner())
+		mgr.DisableUDevMonitor()
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
@@ -400,8 +403,8 @@ func (s *interfaceManagerSuite) testDisconnectConflicts(c *C, snapName string, o
 	chg.AddTask(t)
 
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil, nil),
 	}
 
 	_, err := ifacestate.Disconnect(s.state, conn)
@@ -450,8 +453,8 @@ func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil, nil),
 	}
 	_, err = ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
@@ -538,6 +541,14 @@ func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
 	s.state.Lock()
 	task := s.state.NewTask("unlink-snap", "")
+	s.state.Unlock()
+	err := s.createAutoconnectChange(c, task)
+	s.testRetryError(c, err)
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectConflictOnDiscardSnap(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("discard-snap", "")
 	s.state.Unlock()
 	err := s.createAutoconnectChange(c, task)
 	s.testRetryError(c, err)
@@ -824,12 +835,13 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{
 			Snap:  &snap.Info{SuggestedName: "consumer"},
 			Name:  "plug",
-			Attrs: map[string]interface{}{"attr1": "value1"}},
+			Attrs: map[string]interface{}{"attr1": "value1"}}, nil,
 			map[string]interface{}{"attr3": "value3"}),
+
 		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{
 			Snap:  &snap.Info{SuggestedName: "producer"},
 			Name:  "slot",
-			Attrs: map[string]interface{}{"attr2": "value2"}},
+			Attrs: map[string]interface{}{"attr2": "value2"}}, nil,
 			map[string]interface{}{"attr4": "value4"}),
 	}
 	ts, err := ifacestate.Disconnect(s.state, conn)
@@ -2269,8 +2281,8 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 
 	s.state.Lock()
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil, nil),
 	}
 
 	ts, err := ifacestate.Disconnect(s.state, conn)
@@ -3146,6 +3158,99 @@ slots:
 	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
 }
 
+func (s *interfaceManagerSuite) TestAutoconnectForDefaultContentProviderWrongOrderWaitChain(c *C) {
+	restore := ifacestate.MockContentLinkRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
+	s.mockSnap(c, `name: snap-content-plug
+version: 1
+plugs:
+ shared-content-plug:
+  interface: content
+  default-provider: snap-content-slot
+  content: shared-content
+`)
+	s.mockSnap(c, `name: snap-content-slot
+version: 1
+slots:
+ shared-content-slot:
+  interface: content
+  content: shared-content
+`)
+	s.manager(c)
+
+	s.state.Lock()
+
+	supContentPlug := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "snap-content-plug"},
+	}
+	supContentSlot := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "snap-content-slot"},
+	}
+	chg := s.state.NewChange("install", "...")
+
+	// Setup a wait chain in the "wrong" order, i.e. pretend we seed
+	// the consumer of the content interface before we seed the producer
+	// (see LP:#1772844) for a real world example of this).
+	tInstPlug := s.state.NewTask("link-snap", "Install snap-content-plug")
+	tInstPlug.Set("snap-setup", supContentPlug)
+	chg.AddTask(tInstPlug)
+
+	tConnectPlug := s.state.NewTask("auto-connect", "...plug")
+	tConnectPlug.Set("snap-setup", supContentPlug)
+	tConnectPlug.WaitFor(tInstPlug)
+	chg.AddTask(tConnectPlug)
+
+	tInstSlot := s.state.NewTask("link-snap", "Install snap-content-slot")
+	tInstSlot.Set("snap-setup", supContentSlot)
+	tInstSlot.WaitFor(tInstPlug)
+	tInstSlot.WaitFor(tConnectPlug)
+	chg.AddTask(tInstSlot)
+
+	tConnectSlot := s.state.NewTask("auto-connect", "...slot")
+	tConnectSlot.Set("snap-setup", supContentSlot)
+	tConnectSlot.WaitFor(tInstPlug)
+	tConnectSlot.WaitFor(tInstSlot)
+	tConnectSlot.WaitFor(tConnectPlug)
+	chg.AddTask(tConnectSlot)
+
+	// pretend plug install was done by snapstate
+	tInstPlug.SetStatus(state.DoneStatus)
+
+	// run the change, this will trigger the auto-connect of the plug
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// check that auto-connect did finish and not hang
+	s.state.Lock()
+	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
+	c.Check(tInstSlot.Status(), Equals, state.DoStatus)
+	c.Check(tConnectSlot.Status(), Equals, state.DoStatus)
+
+	// pretend snapstate finished installing the slot
+	tInstSlot.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+
+	// run again
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// and now the slot side auto-connected
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(tConnectSlot.Status(), Equals, state.DoneStatus)
+}
+
 func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3659,4 +3764,150 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithConnect(c *C) {
 
 func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 	s.testChangeConflict(c, "disconnect")
+}
+
+type udevMonitorMock struct {
+	ConnectError, RunError                             error
+	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
+}
+
+func (u *udevMonitorMock) Connect() error {
+	u.ConnectCalls++
+	return u.ConnectError
+}
+
+func (u *udevMonitorMock) Disconnect() error {
+	u.DisconnectCalls++
+	return nil
+}
+
+func (u *udevMonitorMock) Run() error {
+	u.RunCalls++
+	return u.RunError
+}
+
+func (u *udevMonitorMock) Stop() error {
+	u.StopCalls++
+	return nil
+}
+
+func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
+	u := udevMonitorMock{}
+	st := s.state
+	st.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	st.Unlock()
+
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
+	defer restoreTimeout()
+
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		return &u
+	})
+	defer restoreCreate()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	// succesfull initialization should result in exactly 1 connect and run call
+	for i := 0; i < 5; i++ {
+		c.Assert(mgr.Ensure(), IsNil)
+	}
+	mgr.Stop()
+
+	c.Assert(u.ConnectCalls, Equals, 1)
+	c.Assert(u.RunCalls, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 1)
+}
+
+func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
+	u := udevMonitorMock{
+		ConnectError: fmt.Errorf("Connect failed"),
+	}
+	st := s.state
+	st.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	st.Unlock()
+
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
+	defer restoreTimeout()
+
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		return &u
+	})
+	defer restoreCreate()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(mgr.Ensure(), ErrorMatches, "Connect failed")
+	c.Assert(u.ConnectCalls, Equals, 1)
+	c.Assert(u.RunCalls, Equals, 0)
+	c.Assert(u.StopCalls, Equals, 0)
+
+	u.ConnectError = nil
+	u.RunError = fmt.Errorf("Run failed")
+	c.Assert(mgr.Ensure(), ErrorMatches, "Run failed")
+	c.Assert(u.ConnectCalls, Equals, 2)
+	c.Assert(u.RunCalls, Equals, 1)
+	c.Assert(u.StopCalls, Equals, 0)
+	c.Assert(u.DisconnectCalls, Equals, 1)
+
+	u.RunError = nil
+	c.Assert(mgr.Ensure(), IsNil)
+
+	mgr.Stop()
+
+	c.Assert(u.StopCalls, Equals, 1)
+}
+
+func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
+	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
+	defer restoreTimeout()
+
+	var udevMonitorCreated bool
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+		udevMonitorCreated = true
+		return &udevMonitorMock{}
+	})
+	defer restoreCreate()
+
+	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	for i := 0; i < 5; i++ {
+		c.Assert(mgr.Ensure(), IsNil)
+		c.Assert(udevMonitorCreated, Equals, false)
+	}
+
+	// core snap appears in the system
+	st := s.state
+	st.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	st.Unlock()
+
+	// and udev monitor is now created
+	c.Assert(mgr.Ensure(), IsNil)
+	c.Assert(udevMonitorCreated, Equals, true)
 }

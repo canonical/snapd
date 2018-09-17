@@ -293,7 +293,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// Add snippets derived from the layout definition.
-	spec.(*Specification).AddSnapLayout(snapInfo)
+	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
 	//

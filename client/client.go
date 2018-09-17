@@ -223,6 +223,19 @@ func MockDoRetry(retry, timeout time.Duration) (restore func()) {
 	}
 }
 
+type hijacked struct {
+	do func(*http.Request) (*http.Response, error)
+}
+
+func (h hijacked) Do(req *http.Request) (*http.Response, error) {
+	return h.do(req)
+}
+
+// Hijack lets the caller take over the raw http request
+func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
+	client.doer = hijacked{f}
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
@@ -250,17 +263,24 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	defer rsp.Body.Close()
 
 	if v != nil {
-		dec := json.NewDecoder(rsp.Body)
-		if err := dec.Decode(v); err != nil {
-			r := dec.Buffered()
-			buf, err1 := ioutil.ReadAll(r)
-			if err1 != nil {
-				buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
-			}
-			return fmt.Errorf("cannot decode %q: %s", buf, err)
+		if err := decodeInto(rsp.Body, v); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func decodeInto(reader io.Reader, v interface{}) error {
+	dec := json.NewDecoder(reader)
+	if err := dec.Decode(v); err != nil {
+		r := dec.Buffered()
+		buf, err1 := ioutil.ReadAll(r)
+		if err1 != nil {
+			buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
+		}
+		return fmt.Errorf("cannot decode %q: %s", buf, err)
+	}
 	return nil
 }
 
