@@ -412,13 +412,14 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 
 	names := []struct{ proposedName, resultingName string }{
 		{"foo", "foo"},
+		{"slot", "slot2"},
 		{"slot1", "slot2"},
 		{"slot1234", "slot1235"},
-		{"slot-1", "slot-3"},
-		{"slot3-5", "slot3-7"},
+		{"slot-1", "slot2"},
+		{"slot3-5", "slot36"},
 		{"slot3-1", "slot3-1"},
 		{"11", "12"},
-		{"12foo", "12foo-1"},
+		{"12foo", "12foo1"},
 	}
 
 	for _, name := range names {
@@ -426,18 +427,23 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 	}
 }
 
-func (s *hotplugSuite) TestCleanupSlotName(c *C) {
+func (s *hotplugSuite) TestMakeSlotName(c *C) {
 	names := []struct{ proposedName, resultingName string }{
 		{"", ""},
 		{"-", ""},
 		{"slot1", "slot1"},
 		{"-slot1", "slot1"},
 		{"a--slot-1", "a-slot-1"},
+		{"(-slot", "slot"},
+		{"(--slot", "slot"},
+		{"slot-", "slot"},
+		{"slot---", "slot"},
+		{"slot-(", "slot"},
 		{"Integrated_Webcam_HD", "integratedwebcamhd"},
 		{"Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers", "xeone3-1200v5e3-1500v5"},
 	}
 	for _, name := range names {
-		c.Assert(ifacestate.CleanupSlotName(name.proposedName), Equals, name.resultingName)
+		c.Assert(ifacestate.MakeSlotName(name.proposedName), Equals, name.resultingName)
 	}
 }
 

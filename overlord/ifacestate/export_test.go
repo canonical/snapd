@@ -35,7 +35,7 @@ var (
 	DefaultDeviceKey             = defaultDeviceKey
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
-	CleanupSlotName              = cleanupSlotName
+	MakeSlotName                 = makeSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
 )
 
