@@ -59,9 +59,4 @@ execute: |
         exit 1
     fi
 
-    output=$(snap list --all |grep 'test-snapd-tools_foo ')
-    if [ "$(grep -c test-snapd-tools_foo <<< "$output")" != "1" ]; then
-        echo "Expected test-snapd-tools_foo in the output, got:"
-        echo "$output"
-        exit 1
-    fi
+    snap list --all | MATCH 'test-snapd-tools_foo '

@@ -171,7 +171,10 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	// Content cannot be mounted at arbitrary locations, validate the path
 	// for extra safety.
 	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
-		// Starts with $SNAP, $SNAP_DATA, $SNAP_COMMON, no other $VARs
+		// The path starts with $ and ValidatePathVariables() ensures
+		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, no other
+		// $VARs, while ExpandSnapVariables() only expands $SNAP,
+		// $SNAP_DATA and $SNAP_COMMON
 		return snapInfo.ExpandSnapVariables(path)
 	}
 	// Always prefix with $SNAP if nothing else is provided or the path

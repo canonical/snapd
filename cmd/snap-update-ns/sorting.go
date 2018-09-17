@@ -25,8 +25,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// byOriginAndMagicDir allows sorting an array of entries that automagically assumes
-// each entry ends with a trailing slash.
+// byOriginAndMagicDir allows sorting an array of entries by the source of mount
+// entry (overname, layout, content) and lexically by mount point name.
+// Automagically adds a trailing slash to paths.
 type byOriginAndMagicDir []osutil.MountEntry
 
 func (c byOriginAndMagicDir) Len() int      { return len(c) }
@@ -38,6 +39,9 @@ func (c byOriginAndMagicDir) Less(i, j int) bool {
 	iOrigin := iMe.XSnapdOrigin()
 	jOrigin := jMe.XSnapdOrigin()
 	if iOrigin == "overname" && iOrigin != jOrigin {
+		// should ith element be created by 'overname' mapping it is
+		// always sorted before jth element if that comes from layouts
+		// or content interface
 		return true
 	}
 
