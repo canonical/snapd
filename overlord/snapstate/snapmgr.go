@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // overridden in the tests
@@ -327,6 +328,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
 
+	if err := genRefreshRequestSalt(st); err != nil {
+		return nil, fmt.Errorf("cannot generate request salt: %v", err)
+	}
+
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -380,6 +385,26 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	writeSnapReadme()
 
 	return m, nil
+}
+
+func genRefreshRequestSalt(st *state.State) error {
+	var refreshPrivacyKey string
+
+	st.Lock()
+	defer st.Unlock()
+
+	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if refreshPrivacyKey != "" {
+		// nothing to do
+		return nil
+	}
+
+	refreshPrivacyKey = strutil.MakeRandomString(16)
+	st.Set("refresh-privacy-key", refreshPrivacyKey)
+
+	return nil
 }
 
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
