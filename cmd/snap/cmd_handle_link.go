@@ -70,11 +70,7 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled(cli *client.Client) error {
 		return fmt.Errorf(i18n.G("Snap Store required"))
 	}
 
-	opts := client.SnapOptions{
-		Channel: "edge", // FIXME: remove this when snap-store published to stable
-		Classic: true,
-	}
-	changeID, err := cli.Install("snap-store", &opts)
+	changeID, err := cli.Install("snap-store", nil)
 	if err != nil {
 		return err
 	}
