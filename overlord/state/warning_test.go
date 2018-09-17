@@ -194,6 +194,17 @@ func (stateSuite) TestCheckpoint(c *check.C) {
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["hello"]`)
 }
 
+func (stateSuite) TestWarningsSummaryReturnsLastLastAdded(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+	t0 := time.Now().Add(-100 * time.Hour)
+	st.AddWarning("hello", t0, never, state.DefaultExpireAfter, state.DefaultRepeatAfter)
+	n, t := st.WarningsSummary()
+	c.Check(n, check.Equals, 1)
+	c.Check(t, check.DeepEquals, t0)
+}
+
 func (stateSuite) TestShowAndOkay(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
