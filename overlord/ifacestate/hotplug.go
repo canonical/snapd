@@ -167,18 +167,32 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			attrs = make(map[string]interface{})
 		}
 
-		// Generate slot name if not provided by slot spec
-		// TODO: reuse old name from state
-		name := slotSpec.Name
-		if name == "" {
-			name = suggestedSlotName(devinfo, iface.Name())
+		// Determine slot name:
+		// - if a slot for given device key exists in hotplug state, use old name
+		// - otherwise use name provided by slot spec, if set
+		// - if not, use auto-generated name.
+		proposedName := slotSpec.Name
+		for _, stateSlot := range stateSlots {
+			if stateSlot.HotplugDeviceKey == key {
+				proposedName = stateSlot.Name
+				break
+			}
 		}
-		name = ensureUniqueName(name, func(string) bool {
-			// TODO
-			return true
+		if proposedName == "" {
+			proposedName = suggestedSlotName(devinfo, iface.Name())
+		}
+		proposedName = ensureUniqueName(proposedName, func(name string) bool {
+			if m.repo.Slot(coreSnapInfo.InstanceName(), name) != nil {
+				return false
+			}
+			slot, ok := stateSlots[name]
+			if !ok {
+				return true
+			}
+			return slot.HotplugDeviceKey == key
 		})
 		slot := &snap.SlotInfo{
-			Name:             name,
+			Name:             proposedName,
 			Snap:             coreSnapInfo,
 			Interface:        iface.Name(),
 			Attrs:            attrs,
