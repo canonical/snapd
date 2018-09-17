@@ -69,3 +69,8 @@ execute: |
     echo "Checking that the $HOTPLUG_SLOT is recreated and reconnected"
     check_slot_connected
 
+    echo "Restarting snapd"
+    sudo systemctl restart snapd.service snapd.socket
+
+    echo "Checking that the $HOTPLUG_SLOT is recreated and reconnected after restart"
+    check_slot_connected

@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -1248,8 +1249,21 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		if conn.HotplugRemoved {
 			recreate = append(recreate, id)
 		} else {
-			// TODO: we have never observed remove event for this device: check if any attributes of the slot changed and if so,
-			// disconnect and connect again. if attributes haven't changed, there is nothing to do.
+			// TODO: we have never observed remove event for this device: check if any attributes of the slot changed.
+			slot, err := m.repo.SlotForDeviceKey(deviceKey, ifaceName)
+			if err != nil {
+				return err
+			}
+			connRef, err := interfaces.ParseConnRef(id)
+			if err != nil {
+				return err
+			}
+			if reflect.DeepEqual(slot.Attrs, conn.StaticSlotAttrs) {
+				// reload the connection
+				if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
+					return err
+				}// else - TODO
+			} // else - TODO
 		}
 	}
 
