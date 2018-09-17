@@ -36,11 +36,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var noConflictOnConnectTasks = func(task *state.Task) bool {
-	// TODO: reconsider this check with regard to interface hooks
-	return task.Kind() != "connect" && task.Kind() != "disconnect"
-}
-
 var connectRetryTimeout = time.Second * 5
 
 // ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.

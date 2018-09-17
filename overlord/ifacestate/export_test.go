@@ -36,6 +36,7 @@ var (
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
 	CleanupSlotName              = cleanupSlotName
+	InSameChangeWaitChain        = inSameChangeWaitChain
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

@@ -101,15 +101,13 @@ func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner) (devices []*HotplugDev
 		parseErrors = append(parseErrors, fmt.Errorf("cannot read udevadm output: %s", err))
 	}
 	if err := cmd.Wait(); err != nil {
-		parseErrors = append(parseErrors, fmt.Errorf("cannot to read udevadm output: %s", err))
+		parseErrors = append(parseErrors, fmt.Errorf("cannot read udevadm output: %s", err))
 	}
 	return devices, parseErrors
 }
 
-// EnumerateExistingDevices all devices by parsing 'udevadm info -e' command output and reports them
-// via devices channel. The devices channel gets closed to indicate that all devices were processed.
-// Parsing errors are reported to parseErrors channel. Fatal errors encountered when starting udevadm
-// are reported by the error return value.
+// EnumerateExistingDevices enumerates all devices by parsing 'udevadm info -e' command output.
+// Non-fatal parsing errors are reported via parseErrors and they don't stop the parser.
 func EnumerateExistingDevices() (devices []*HotplugDeviceInfo, parseErrors []error, fatalError error) {
 	cmd := exec.Command(udevadmBin, "info", "-e")
 	stdout, err := cmd.StdoutPipe()

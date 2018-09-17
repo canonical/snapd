@@ -518,6 +518,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-32)
             echo "
+                gccgo-6
                 evolution-data-server
                 gnome-online-accounts
                 "
@@ -542,6 +543,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
+                gccgo-8
                 evolution-data-server
                 "
             ;;
