@@ -70,8 +70,8 @@ var _ = Suite(&SpecificationSuite{
 
 func (s *SpecificationSuite) SetUpTest(c *C) {
 	s.spec = &ifacetest.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 // AddSnippet is not broken
