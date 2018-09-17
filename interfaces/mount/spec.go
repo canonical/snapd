@@ -145,7 +145,7 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 	result := make([]osutil.MountEntry, 0, len(spec.overname)+len(spec.layout)+len(spec.general))
 	// overname is the mappings that were added to support parallel
 	// installation of snaps and must come first, as they establish the base
-	// namespace for any futher operations
+	// namespace for any further operations
 	result = append(result, spec.overname...)
 	result = append(result, spec.layout...)
 	result = append(result, spec.general...)
