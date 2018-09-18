@@ -34,6 +34,13 @@ var defaultTemplate = `
 
 ###VAR###
 
+# parallel-installs: for instances with instance key set, the SNAP and
+# SNAP_{DATA,COMMON} are remapped, to appear same as for non-keyed snaps, make
+# sure we allow access to both instance specific and snap specific locations. In
+# contrast, SNAP_NAME SNAP_USER_{DATA,COMMON}, XDG_RUNTIME_DIR are not remapped,
+# rules need to use SNAP_INSTANCE_NAME, applications supporting parallel
+# installation should use $SNAP_INSTANCE_NAME when accessing such paths
+
 ###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/consoles>
@@ -59,6 +66,8 @@ var defaultTemplate = `
   deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
   deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
   deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
+  deny @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/**/__pycache__/*.pyc.[0-9]* w,
 
   # for perl apps/services
   #include <abstractions/perl>
@@ -363,6 +372,8 @@ var defaultTemplate = `
   @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
+  # parallel-installs: should snap use $SNAP_INSTANCE_NAME for these paths, make
+  # sure it has access too
   @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/                   r,
   @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/**  mrklix,
@@ -373,26 +384,26 @@ var defaultTemplate = `
   @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/**  mrkix,
 
   # Read-only home area for other versions
-  owner @{HOME}/snap/@{SNAP_NAME}/                  r,
-  owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
   # Writable home area for this version.
-  owner @{HOME}/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
-  owner @{HOME}/snap/@{SNAP_NAME}/common/** wl,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
 
   # Read-only system area for other versions
   /var/snap/@{SNAP_NAME}/   r,
   /var/snap/@{SNAP_NAME}/** mrkix,
+  # parallel-installs: should snap use $SNAP_INSTANCE_NAME for these paths, make
+  # sure it has access too
   /var/snap/@{SNAP_INSTANCE_NAME}/   r,
   /var/snap/@{SNAP_INSTANCE_NAME}/** mrkix,
 
   # Writable system area only for this version
   /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
   /var/snap/@{SNAP_NAME}/common/** wl,
+  # parallel-installs: should snap use $SNAP_INSTANCE_NAME for these paths, make
+  # sure it has access too
   /var/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
   /var/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
 
