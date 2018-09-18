@@ -30,8 +30,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type evalSymlinksFn func(string) (string, error)
-
 // evalSymlinks is either filepath.EvalSymlinks or a mocked function for
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks

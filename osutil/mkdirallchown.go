@@ -22,14 +22,22 @@ package osutil
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
+// XXX: we need to come back and fix this; this is a hack to unblock us.
+//      As part of the fixing we should unify with the similar code in
+//      cmd/snap-update-ns/utils.(*Secure).MkdirAll
+var mu sync.Mutex
+
 // MkdirAllChown is like os.MkdirAll but it calls os.Chown on any
 // directories it creates.
 func MkdirAllChown(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+	mu.Lock()
+	defer mu.Unlock()
 	return mkdirAllChown(filepath.Clean(path), perm, uid, gid)
 }
 

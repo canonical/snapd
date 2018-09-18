@@ -104,7 +104,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | README)
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | README)
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it

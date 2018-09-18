@@ -55,10 +55,10 @@ apps:
 		Name:      "home",
 		Interface: "home",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["home"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *HomeInterfaceSuite) TestName(c *C) {
@@ -166,7 +166,7 @@ apps:
   command: foo
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := interfaces.NewConnectedPlug(info.Plugs["home"], nil)
+	plug := interfaces.NewConnectedPlug(info.Plugs["home"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
