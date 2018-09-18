@@ -21,7 +21,6 @@ package backend_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -29,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -63,6 +63,9 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
@@ -76,10 +79,9 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 
 	// ensure correct mount unit
 	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, un))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Assert(filepath.Join(dirs.SnapServicesDir, un), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 13
 Before=snapd.service
 
 [Mount]
@@ -90,8 +92,7 @@ Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, dirs.StripRootDir(dirs.SnapMountDir)))
-
+`[1:], dirs.StripRootDir(dirs.SnapMountDir)))
 }
 
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {

@@ -46,9 +46,15 @@ func (x *cmdWatch) Execute(args []string) error {
 	cli := Client()
 	id, err := x.GetChangeID(cli)
 	if err != nil {
+		if err == noChangeFoundOK {
+			return nil
+		}
 		return err
 	}
-	_, err = wait(cli, id)
+
+	// this is the only valid use of wait without a waitMixin (ie
+	// without --no-wait), so we fake it here.
+	_, err = waitMixin{skipAbort: true}.wait(cli, id)
 
 	return err
 }

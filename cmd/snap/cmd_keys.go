@@ -36,7 +36,10 @@ type cmdKeys struct {
 func init() {
 	cmd := addCommand("keys",
 		i18n.G("List cryptographic keys"),
-		i18n.G("List cryptographic keys that can be used for signing assertions."),
+		i18n.G(`
+The keys command lists cryptographic keys that can be used for signing
+assertions.
+`),
 		func() flags.Commander {
 			return &cmdKeys{}
 		}, map[string]string{"json": i18n.G("Output results in JSON format")}, nil)
@@ -49,42 +52,54 @@ type Key struct {
 	Sha3_384 string `json:"sha3-384"`
 }
 
+func outputJSON(keys []Key) error {
+	obj, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "%s\n", obj)
+	return nil
+}
+
+func outputText(keys []Key) error {
+	if len(keys) == 0 {
+		fmt.Fprintf(Stdout, "No keys registered, see `snapcraft create-key`")
+		return nil
+	}
+
+	w := tabWriter()
+	defer w.Flush()
+
+	fmt.Fprintln(w, i18n.G("Name\tSHA3-384"))
+	for _, key := range keys {
+		fmt.Fprintf(w, "%s\t%s\n", key.Name, key.Sha3_384)
+	}
+	return nil
+}
+
 func (x *cmdKeys) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	w := tabWriter()
-	if !x.JSON {
-		fmt.Fprintln(w, i18n.G("Name\tSHA3-384"))
-		defer w.Flush()
-	}
 	keys := []Key{}
 
 	manager := asserts.NewGPGKeypairManager()
-	display := func(privk asserts.PrivateKey, fpr string, uid string) error {
+	collect := func(privk asserts.PrivateKey, fpr string, uid string) error {
 		key := Key{
 			Name:     uid,
 			Sha3_384: privk.PublicKey().ID(),
 		}
-		if x.JSON {
-			keys = append(keys, key)
-		} else {
-			fmt.Fprintf(w, "%s\t%s\n", key.Name, key.Sha3_384)
-		}
+		keys = append(keys, key)
 		return nil
 	}
-	err := manager.Walk(display)
+	err := manager.Walk(collect)
 	if err != nil {
 		return err
 	}
 	if x.JSON {
-		obj, err := json.Marshal(keys)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(Stdout, "%s\n", obj)
+		return outputJSON(keys)
 	}
 
-	return nil
+	return outputText(keys)
 }

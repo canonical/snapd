@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -125,6 +125,7 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/ipv4/conf/*/log_martians w,
 @{PROC}/sys/net/ipv4/tcp_syncookies w,
 @{PROC}/sys/net/ipv6/conf/*/forwarding w,
+@{PROC}/sys/net/netfilter/nf_conntrack_helper rw,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/firewall-control

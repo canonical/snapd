@@ -35,8 +35,13 @@ const cameraConnectedPlugAppArmor = `
 
 # Allow detection of cameras. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
+/sys/devices/pci**/usb*/**/busnum r,
+/sys/devices/pci**/usb*/**/devnum r,
 /sys/devices/pci**/usb*/**/idVendor r,
 /sys/devices/pci**/usb*/**/idProduct r,
+/sys/devices/pci**/usb*/**/interface r,
+/sys/devices/pci**/usb*/**/modalias r,
+/sys/devices/pci**/usb*/**/speed r,
 /run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
 /sys/class/video4linux/ r,
 /sys/devices/pci**/usb*/**/video4linux/** r,

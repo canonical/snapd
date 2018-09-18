@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -77,6 +78,16 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 
 	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
+
+	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	c.Assert(err, IsNil)
+	err = interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+	interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`)
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -243,7 +254,7 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see "snap --help"`)
+	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'`)
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {

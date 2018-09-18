@@ -22,6 +22,17 @@ export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 
+# On 18.04 the released version of apt (1.6.1) has a bug that causes
+# problem on "apt purge snapd". To ensure this won't happen add the
+# right dependency on 18.04.
+ifeq (${VERSION_ID},"18.04")
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
+endif
+# Same as above for 18.10 just a different version.
+ifeq (${VERSION_ID},"18.10")
+	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.7.0~alpha2)"
+endif
+
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 
@@ -46,6 +57,8 @@ GOOS := $(shell go env GOOS)
 BUILDFLAGS:=
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
 export DH_GOLANG_GO_GENERATE=0
+# workaround for https://github.com/golang/go/issues/23721
+export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
@@ -53,6 +66,8 @@ TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
+
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 BUILT_USING_PACKAGES=
 # export DEB_BUILD_MAINT_OPTIONS = hardening=+all
@@ -70,7 +85,10 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH),amd64)
+		VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
+endif
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
@@ -115,6 +133,8 @@ endif
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	# XXX: hacky^2
+	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -122,7 +142,9 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+
+	# this is the main go build
+	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
@@ -137,6 +159,20 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 endif
 
+	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+	# (static linking on powerpc with cgo is broken)
+ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
+	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	# ensure that libseccomp is not dynamically linked
+	ldd _build/bin/snap-seccomp
+	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
+	# revert again so that the subsequent tests work
+	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+ endif
+endif
+
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
@@ -144,6 +180,9 @@ endif
 
 	# Generate the real systemd/dbus/env config files
 	$(MAKE) -C data all
+
+	# build squashfuse and rename to snapfuse
+	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -179,12 +218,12 @@ override_dh_install:
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
 
-	# install snapd's systemd units / upstart jobs, done
+	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
 	# ubuntu/14.04 release branch adds/changes bits here
 	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
 		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
-	# we called this apps-bin-path.sh instead of snapd.sh, and
+	# We called this apps-bin-path.sh instead of snapd.sh, and
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
@@ -192,6 +231,10 @@ override_dh_install:
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+
+	# On Ubuntu and Debian we don't need to install the apparmor helper service.
+	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
+	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
 	dh_install
 
@@ -206,4 +249,4 @@ override_dh_auto_clean:
 	rm -vf snap.8
 
 override_dh_gencontrol:
-	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)"
+	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)" $(SUBSTVARS)

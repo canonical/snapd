@@ -1,7 +1,7 @@
 name: basic-iface-hooks-consumer
 version: 1.0
 plugs:
-    foo:
-        interface: content
-        target: initialtarget
-        content: xyz
+    consumer:
+        interface: dummy
+        consumer-attr-1: consumer-value-1
+        consumer-attr-2: consumer-value-2

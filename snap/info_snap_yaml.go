@@ -66,31 +66,44 @@ type appYaml struct {
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	WatchdogTimeout timeout.Timeout `yaml:"watchdog-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
+	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
+	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
 	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
 	SlotNames   []string         `yaml:"slots,omitempty"`
 	PlugNames   []string         `yaml:"plugs,omitempty"`
 
-	BusName string `yaml:"bus-name,omitempty"`
+	BusName  string `yaml:"bus-name,omitempty"`
+	CommonID string `yaml:"common-id,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 
 	Sockets map[string]socketsYaml `yaml:"sockets,omitempty"`
+
+	After  []string `yaml:"after,omitempty"`
+	Before []string `yaml:"before,omitempty"`
+
+	Timer string `yaml:"timer,omitempty"`
+
+	Autostart string `yaml:"autostart,omitempty"`
 }
 
 type hookYaml struct {
-	PlugNames []string `yaml:"plugs,omitempty"`
-	SlotNames []string `yaml:"slots,omitempty"`
+	PlugNames   []string           `yaml:"plugs,omitempty"`
+	SlotNames   []string           `yaml:"slots,omitempty"`
+	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 }
 
 type layoutYaml struct {
-	Bind    string `yaml:"bind,omitempty"`
-	Type    string `yaml:"type,omitempty"`
-	User    string `yaml:"user,omitempty"`
-	Group   string `yaml:"group,omitempty"`
-	Mode    string `yaml:"mode,omitempty"`
-	Symlink string `yaml:"symlink,omitempty"`
+	Bind     string `yaml:"bind,omitempty"`
+	BindFile string `yaml:"bind-file,omitempty"`
+	Type     string `yaml:"type,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Group    string `yaml:"group,omitempty"`
+	Mode     string `yaml:"mode,omitempty"`
+	Symlink  string `yaml:"symlink,omitempty"`
 }
 
 type socketsYaml struct {
@@ -103,7 +116,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
+		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
@@ -163,7 +176,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 			snap.Layout[path] = &Layout{
 				Snap: snap, Path: path,
-				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink, BindFile: l.BindFile,
 				User: user, Group: group, Mode: mode,
 			}
 		}
@@ -173,6 +186,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	snap.renameClashingCorePlugs()
 
 	snap.BadInterfaces = make(map[string]string)
+	SanitizePlugsSlots(snap)
 
 	// FIXME: validation of the fields
 	return snap, nil
@@ -287,8 +301,15 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,
+			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
+			StopMode:        yApp.StopMode,
+			RefreshMode:     yApp.RefreshMode,
+			Before:          yApp.Before,
+			After:           yApp.After,
+			Autostart:       yApp.Autostart,
+			WatchdogTimeout: yApp.WatchdogTimeout,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
@@ -345,6 +366,16 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 				SocketMode:   data.SocketMode,
 			}
 		}
+		if yApp.Timer != "" {
+			app.Timer = &TimerInfo{
+				App:   app,
+				Timer: yApp.Timer,
+			}
+		}
+		// collect all common IDs
+		if app.CommonID != "" {
+			snap.CommonIDs = append(snap.CommonIDs, app.CommonID)
+		}
 	}
 	return nil
 }
@@ -357,8 +388,9 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap: snap,
-			Name: hookName,
+			Snap:        snap,
+			Name:        hookName,
+			Environment: yHook.Environment,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)

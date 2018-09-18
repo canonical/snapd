@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-policy_module(snappy,0.0.12)
+policy_module(snappy,0.0.14)
 
 ########################################
 #
@@ -41,6 +41,9 @@ files_type(snappy_var_t)
 
 type snappy_var_lib_t;
 files_type(snappy_var_lib_t)
+
+type snappy_var_cache_t;
+files_type(snappy_var_cache_t)
 
 type snappy_var_run_t;
 files_pid_file(snappy_var_run_t)
@@ -73,7 +76,7 @@ allow snappy_t init_t:unix_stream_socket connectto;
 # Allow snapd to read file contexts
 gen_require(` type file_context_t; ')
 allow snappy_t file_context_t:dir search;
-allow snappy_t file_context_t:file { getattr open read };
+allow snappy_t file_context_t:file { map getattr open read };
 
 # Allow snapd to read procfs
 gen_require(` type proc_t; ')
@@ -83,14 +86,18 @@ allow snappy_t proc_t:file { getattr open read };
 gen_require(` type sysfs_t; ')
 allow snappy_t sysfs_t:dir read;
 allow snappy_t sysfs_t:file { getattr setattr open read write };
-allow snappy_t sysfs_t:lnk_file read;
+allow snappy_t sysfs_t:lnk_file { getattr read };
 
+
+# This silences a read AVC denial event on the lost+found directory.
+gen_require(` type lost_found_t; ')
+dontaudit snappy_t lost_found_t:dir read;
 
 # Allow snapd to read SSL cert store
 gen_require(` type cert_t; ')
-allow snappy_t cert_t:dir search;
+allow snappy_t cert_t:dir { search open read };
 allow snappy_t cert_t:file { getattr open read };
-allow snappy_t cert_t:lnk_file read;
+allow snappy_t cert_t:lnk_file { getattr open read };
 
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
@@ -126,27 +133,31 @@ allow snappy_t dbusd_etc_t:lnk_file { read };
 gen_require(` type udev_rules_t; type udev_exec_t; ')
 allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove_name };
 allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
-allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read };
+allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read map };
 
 # Allow snapd to manipulate udev
 gen_require(` type udev_t; type udev_var_run_t; ')
 allow snappy_t udev_t:unix_stream_socket connectto;
 allow snappy_t udev_var_run_t:file { getattr open read };
+allow snappy_t udev_var_run_t:dir { read };
 allow snappy_t udev_var_run_t:sock_file { getattr open read write };
 
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
-gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
-allow snappy_t systemd_unit_file_t:dir { search open read write add_name remove_name };
-allow snappy_t systemd_unit_file_t:file { getattr open read write create rename unlink };
-allow snappy_t systemd_systemctl_exec_t:file { execute execute_no_trans getattr open read };
+systemd_config_all_services(snappy_t)
+systemd_manage_all_unit_files(snappy_t)
+systemd_manage_all_unit_lnk_files(snappy_t)
+systemd_exec_systemctl(snappy_t)
 
 # Allow snapd to mount snaps
 gen_require(` type mount_exec_t; ')
-allow snappy_t mount_exec_t:file { execute execute_no_trans getattr open read };
+allow snappy_t mount_exec_t:file { map execute execute_no_trans getattr open read };
 
 # Allow snapd to execute unsquashfs
 gen_require(` type bin_t; ')
-allow snappy_t bin_t:file { execute execute_no_trans };
+allow snappy_t bin_t:file { map execute execute_no_trans };
+
+# Allow snappy to exec snap-seccomp
+allow snappy_t snappy_exec_t:file { execute_no_trans };
 
 # Allow snapd to get FUSE device attributes
 gen_require(` type fuse_device_t; ')
@@ -161,10 +172,31 @@ manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 # Allow snapd to manage mounts
 gen_require(` type fs_t; type mount_var_run_t; ')
 allow snappy_t fs_t:filesystem { mount unmount };
-allow snappy_t mount_var_run_t:dir search;
-allow snappy_t mount_var_run_t:file { getattr setattr open read write };
+allow snappy_t mount_var_run_t:dir { add_name remove_name write search };
+allow snappy_t mount_var_run_t:file { create getattr setattr open read write rename unlink lock };
+
+gen_require(` type user_tmp_t; ')
+allow snappy_t user_tmp_t:dir { read };
+
+gen_require(` type systemd_unit_file_t; ')
+allow snappy_t systemd_unit_file_t:dir { rmdir };
+
+gen_require(` type fixed_disk_device_t; ')
+allow snappy_t fixed_disk_device_t:blk_file { getattr };
+
+gen_require(` type loop_control_device_t; ')
+allow snappy_t loop_control_device_t:chr_file { getattr };
+
+gen_require(` type usr_t; ')
+allow snappy_t usr_t:dir { write };
+
+gen_require(` type home_root_t; ')
+allow snappy_t home_root_t:dir { read };
 
 # Allow snapd to manage its persistent data
+manage_dirs_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
+manage_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
+manage_lnk_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
 manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
@@ -177,19 +209,38 @@ gen_require(` type tmp_t; ')
 allow snappy_t tmp_t:dir { getattr setattr add_name create read remove_name rmdir write };
 allow snappy_t tmp_t:file { getattr setattr create open unlink write };
 
+# Allow snappy to mmap files in /var/cache
+allow snappy_t snappy_var_cache_t:file { map };
+
+# Allow snapd to use ssh-keygen
+gen_require(` type ssh_keygen_exec_t; ')
+allow snappy_t ssh_keygen_exec_t:file { execute execute_no_trans getattr open read map };
+
+# Allow snapd to access passwd file for lookup
+auth_read_passwd(snappy_t);
+
 # Until we can figure out how to apply the label to mounted snaps,
 # we need to grant snapd access to "unlabeled files"
 gen_require(` type unlabeled_t; ')
 allow snappy_t unlabeled_t:dir { getattr search open read };
+allow snappy_t unlabeled_t:lnk_file { getattr read };
 allow snappy_t unlabeled_t:file { getattr open read };
+
+# Until we can figure out why some things are randomly getting unconfined_t,
+# we need to grant access to "unconfined" files
+gen_require(` type unconfined_t; ')
+allow snappy_t unconfined_t:dir { getattr search open read };
+allow snappy_t unconfined_t:file { getattr open read };
 
 logging_send_syslog_msg(snappy_t);
 
-allow snappy_t self:capability { sys_admin dac_override chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
+allow snappy_t self:capability { sys_admin sys_chroot dac_override dac_read_search chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
 allow snappy_t self:tun_socket relabelto;
 allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
 
+# Various socket permissions
 allow snappy_t self:fifo_file rw_fifo_file_perms;
+allow snappy_t self:netlink_route_socket create_netlink_socket_perms;
 allow snappy_t self:unix_stream_socket create_stream_socket_perms;
 allow snappy_t self:tcp_socket create_stream_socket_perms;
 allow snappy_t self:udp_socket create_stream_socket_perms;
@@ -215,3 +266,19 @@ corenet_tcp_sendrecv_dns_port(snappy_t)
 corenet_udp_sendrecv_dns_port(snappy_t)
 corenet_tcp_connect_dns_port(snappy_t)
 corenet_sendrecv_dns_client_packets(snappy_t)
+
+# allow communication with polkit over dbus
+optional_policy(`
+  policykit_dbus_chat(snappy_t)
+')
+
+# allow communication with system bus
+optional_policy(`
+  dbus_system_bus_client(snappy_t)
+')
+
+# allow reading sssd files
+optional_policy(`
+  sssd_read_public_files(snappy_t)
+  sssd_stream_connect(snappy_t)
+')

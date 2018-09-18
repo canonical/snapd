@@ -1,0 +1,15 @@
+#!/usr/bin/python3
+import signal
+import subprocess
+
+def main() -> None:
+	print("start-refresh-mode-sigkill")
+	print("running a process")
+	# This actual sleep process is (ahem) actually needed because the test is
+	# looking for it. In addition this actually checks how children are (or
+	# are not) killed by systemd.
+	subprocess.call(["sleep", "3133731337"])
+
+
+if __name__ == "__main__":
+    main()

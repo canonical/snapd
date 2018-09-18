@@ -85,7 +85,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # TODO: remove this rule once seccomp errno with logging is implemented.
 # java apps attempt this, presumably to handle interface changes, but a
 # corresponding AppArmor rule is required (eg, network netlink dgram) to use

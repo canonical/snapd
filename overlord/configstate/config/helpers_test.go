@@ -20,6 +20,8 @@
 package config_test
 
 import (
+	"encoding/json"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -135,4 +137,38 @@ func (s *configHelpersSuite) TestConfigSnapshotNoConfigs(c *C) {
 
 	// no configuration to restore in revision-config
 	c.Assert(config.RestoreRevisionConfig(s.state, "snap1", snap.R(1)), IsNil)
+}
+
+func (s *configHelpersSuite) TestSnapConfig(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	empty1 := json.RawMessage(nil)
+
+	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, {}} {
+		rawCfg, err := config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, IsNil)
+
+		// can set to empty when empty and it's fine
+		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
+		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, IsNil)
+
+		cfg := json.RawMessage(`{"foo":"bar"}`)
+		c.Assert(config.SetSnapConfig(s.state, "snap1", &cfg), IsNil)
+
+		// the set sets it
+		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Assert(rawCfg, NotNil)
+		c.Check(*rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
+
+		// empty or nil clears it
+		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
+		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, IsNil)
+	}
 }

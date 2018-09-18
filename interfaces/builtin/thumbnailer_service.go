@@ -110,7 +110,7 @@ func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -124,10 +124,11 @@ func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.S
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
-	new := plug.Snap.Name()
+	// TODO parallel-install: use of proper instance/store name
+	new := plug.Snap().InstanceName()
 	snippet = strings.Replace(snippet, old, new, -1)
 
 	old = "###PLUG_SECURITY_TAGS###"
@@ -137,7 +138,7 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.S
 	return nil
 }
 
-func (iface *thumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *thumbnailerServiceInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return true
 }
 

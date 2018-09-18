@@ -1,0 +1,67 @@
+summary: Ensure that the location-control interface works.
+
+details: |
+    The location-control interface allows a snap to operate as the location service.
+
+    A snap which defines the location-control plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+    The snap is also declaring a plug on this interface must be able to ask for its properties.
+
+# dbus-launch not supported in ubuntu-core
+# s390x does not support locationd
+systems: [-ubuntu-core-*, -ubuntu-*-s390x]
+
+prepare: |
+    #shellcheck source=tests/lib/dbus.sh
+    . "$TESTSLIB/dbus.sh"
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    echo "Given a snap declaring a plug on the location-control interface is installed"
+    snap install test-snapd-location-control-provider
+
+    echo "And the provider dbus loop is started"
+    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-location-control-provider.provider
+
+restore: |
+    rm -f getprop.error
+
+    #shellcheck source=tests/lib/dbus.sh
+    . "$TESTSLIB/dbus.sh"
+    stop_dbus_unit
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i location-control | MATCH "^- +test-snapd-location-control-provider:location-control$"
+
+    echo "The interface can be connected"
+    snap connect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
+
+    echo "Then wait until the dbus name is properly reserved"
+    for _ in $(seq 10); do
+        if test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"; then
+            break
+        else
+            sleep 1
+        fi
+    done
+
+    echo "Check the location-control is working from the consumer app in the snap"
+    test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+    
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
+
+    echo "And the location provider props cannot be accessed"
+    if test-snapd-location-control-provider.consumer Get 2>"${PWD}"/getprop.error; then
+        echo "Expected permission error trying to get props with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < getprop.error
+
+    echo "And the plug can be re-connected"
+    snap connect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test

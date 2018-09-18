@@ -195,7 +195,6 @@ accept
 accept4
 bind
 listen
-shutdown
 socket AF_NETLINK - NETLINK_ROUTE
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
@@ -304,7 +303,7 @@ func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -335,13 +334,13 @@ func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 	     Similar case for chnlat*.
 	   So we intetionally skipped modem, rild and chnlat.
 	*/
-	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	spec.TagDevice(`KERNEL=="tun"`)
 	spec.TagDevice(`KERNEL=="dsp"`)
 	return nil
 }
 
-func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
@@ -353,7 +352,7 @@ func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, s
 	return nil
 }
 
-func (iface *ofonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ofonoInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

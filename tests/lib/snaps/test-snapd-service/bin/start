@@ -1,4 +1,7 @@
 #!/bin/sh
+
+trap "echo reloading reloading reloading" HUP
+
 snapctl get service-option > "$SNAP_DATA/service-option"
 while true; do
     echo "running"

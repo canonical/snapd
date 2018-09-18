@@ -1,2 +1,7 @@
 name: config-versions
 version: 1.0
+
+apps:
+  sh:
+    command: bin/sh
+    plugs: [home]

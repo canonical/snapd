@@ -30,9 +30,12 @@ import (
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 func (r *repairSuite) TestRun(c *C) {
+	defer release.MockOnClassic(false)()
+
 	r1 := sysdb.InjectTrusted(r.storeSigning.Trusted)
 	defer r1()
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{r.repairRootAcctKey})
@@ -51,7 +54,10 @@ exit 0
 
 	repair.MockBaseURL(mockServer.URL)
 
-	err := repair.ParseArgs([]string{"run"})
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap-repair", "run"}
+	err := repair.Run()
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), HasLen, 0)
 

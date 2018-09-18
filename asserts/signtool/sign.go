@@ -38,6 +38,14 @@ type Options struct {
 	// plus an optional pseudo-header "body" to specify
 	// the body of the assertion
 	Statement []byte
+
+	// Complement specifies complementary headers to what is in
+	// Statement, for use by tools that fill-in/compute some of
+	// the headers. Headers appearing both in Statement and
+	// Complement are an error, except for "type" that needs
+	// instead to match if present. Pseudo-header "body" can also
+	// be specified here.
+	Complement map[string]interface{}
 }
 
 // Sign produces the text of a signed assertion as specified by opts.
@@ -47,6 +55,20 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse the assertion input as JSON: %v", err)
 	}
+
+	for name, value := range opts.Complement {
+		if v, ok := headers[name]; ok {
+			if name == "type" {
+				if v != value {
+					return nil, fmt.Errorf("repeated assertion type does not match")
+				}
+			} else {
+				return nil, fmt.Errorf("complementary header %q clashes with assertion input", name)
+			}
+		}
+		headers[name] = value
+	}
+
 	typCand, ok := headers["type"]
 	if !ok {
 		return nil, fmt.Errorf("missing assertion type header")

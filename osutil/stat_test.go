@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 )
@@ -103,17 +104,20 @@ func (s *StatTestSuite) TestLookPathDefaultReturnsDefaultWhenNotFound(c *C) {
 }
 
 func makeTestPath(c *C, path string, mode os.FileMode) string {
-	path = filepath.Join(c.MkDir(), path)
+	return makeTestPathInDir(c, c.MkDir(), path, mode)
+}
 
-	switch {
-	// request for directory
-	case strings.HasSuffix(path, "/"):
-		err := os.MkdirAll(path, os.FileMode(mode))
-		c.Assert(err, IsNil)
-	default:
+func makeTestPathInDir(c *C, dir string, path string, mode os.FileMode) string {
+	mkdir := strings.HasSuffix(path, "/")
+	path = filepath.Join(dir, path)
+
+	if mkdir {
+		// request for directory
+		c.Assert(os.MkdirAll(path, mode), IsNil)
+	} else {
 		// request for a file
-		err := ioutil.WriteFile(path, nil, os.FileMode(mode))
-		c.Assert(err, IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(path, nil, mode), IsNil)
 	}
 
 	return path
@@ -142,4 +146,60 @@ func (s *StatTestSuite) TestIsWritableDir(c *C) {
 		writable := IsWritable(makeTestPath(c, t.path, t.mode))
 		c.Check(writable, Equals, t.isWritable, Commentf("incorrect result for %q (%s), got %v, expected %v", t.path, t.mode, writable, t.isWritable))
 	}
+}
+
+func (s *StatTestSuite) TestIsDirNotExist(c *C) {
+	for _, e := range []error{
+		os.ErrNotExist,
+		syscall.ENOENT,
+		syscall.ENOTDIR,
+		&os.PathError{Err: syscall.ENOENT},
+		&os.PathError{Err: syscall.ENOTDIR},
+		&os.LinkError{Err: syscall.ENOENT},
+		&os.LinkError{Err: syscall.ENOTDIR},
+		&os.SyscallError{Err: syscall.ENOENT},
+		&os.SyscallError{Err: syscall.ENOTDIR},
+	} {
+		c.Check(IsDirNotExist(e), Equals, true, Commentf("%#v (%v)", e, e))
+	}
+
+	for _, e := range []error{
+		nil,
+		fmt.Errorf("hello"),
+	} {
+		c.Check(IsDirNotExist(e), Equals, false)
+	}
+}
+
+func (s *StatTestSuite) TestDirExists(c *C) {
+	for _, t := range []struct {
+		make   string
+		path   string
+		exists bool
+		isDir  bool
+	}{
+		{"", "foo", false, false},
+		{"", "foo/bar", false, false},
+		{"foo", "foo/bar", false, false},
+		{"foo", "foo", true, false},
+		{"foo/", "foo", true, true},
+	} {
+		base := c.MkDir()
+		comm := Commentf("path:%q make:%q", t.path, t.make)
+		if t.make != "" {
+			makeTestPathInDir(c, base, t.make, 0755)
+		}
+		exists, isDir, err := DirExists(filepath.Join(base, t.path))
+		c.Check(exists, Equals, t.exists, comm)
+		c.Check(isDir, Equals, t.isDir, comm)
+		c.Check(err, IsNil, comm)
+	}
+
+	p := makeTestPath(c, "foo/bar", 0)
+	c.Assert(os.Chmod(filepath.Dir(p), 0), IsNil)
+	defer os.Chmod(filepath.Dir(p), 0755)
+	exists, isDir, err := DirExists(p)
+	c.Check(exists, Equals, false)
+	c.Check(isDir, Equals, false)
+	c.Check(err, NotNil)
 }

@@ -30,8 +30,11 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/snapcore/squashfuse"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 )
 
 var (
@@ -74,13 +77,18 @@ func Available() error {
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
-var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+var jctl = func(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
-	args := make([]string, 0, 2*len(svcs)+6)
-	args = append(args, "-o", "json", "-n", n, "--no-pager") // len(this)+1 == that ^ fixed number
+	args := make([]string, 0, 2*len(svcs)+6)        // the fixed number is 6
+	args = append(args, "-o", "json", "--no-pager") //   3...
+	if n < 0 {
+		args = append(args, "--no-tail") // < 2
+	} else {
+		args = append(args, "-n", strconv.Itoa(n)) // ... + 2 ...
+	}
 	if follow {
-		args = append(args, "-f") // this is the +1 :-)
+		args = append(args, "-f") // ... + 1 == 6
 	}
 
 	for i := range svcs {
@@ -90,7 +98,7 @@ var jctl = func(svcs []string, n string, follow bool) (io.ReadCloser, error) {
 	return osutilStreamCommand("journalctl", args...)
 }
 
-func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser, error)) func() {
+func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, error)) func() {
 	oldJctl := jctl
 	jctl = f
 	return func() {
@@ -103,13 +111,14 @@ type Systemd interface {
 	DaemonReload() error
 	Enable(service string) error
 	Disable(service string) error
-	Start(service string) error
+	Start(service ...string) error
+	StartNoBlock(service ...string) error
 	Stop(service string, timeout time.Duration) error
-	Kill(service, signal string) error
+	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
-	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
-	WriteMountUnitFile(name, what, where, fstype string) (string, error)
+	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
+	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
 	Unmask(service string) error
 }
@@ -124,8 +133,11 @@ const (
 	// the target prerequisite for systemd units we generate
 	PrerequisiteTarget = "network-online.target"
 
-	// the default target for systemd units that we generate
+	// the default target for systemd socket units that we generate
 	SocketsTarget = "sockets.target"
+
+	// the default target for systemd timer units that we generate
+	TimersTarget = "timers.target"
 )
 
 type reporter interface {
@@ -172,14 +184,20 @@ func (s *systemd) Mask(serviceName string) error {
 	return err
 }
 
-// Start the given service
-func (*systemd) Start(serviceName string) error {
-	_, err := systemctlCmd("start", serviceName)
+// Start the given service or services
+func (*systemd) Start(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"start"}, serviceNames...)...)
+	return err
+}
+
+// StartNoBlock starts the given service or services non-blocking
+func (*systemd) StartNoBlock(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"start", "--no-block"}, serviceNames...)...)
 	return err
 }
 
 // LogReader for the given services
-func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
+func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadCloser, error) {
 	return jctl(serviceNames, n, follow)
 }
 
@@ -311,8 +329,11 @@ loop:
 }
 
 // Kill all processes of the unit with the given signal
-func (s *systemd) Kill(serviceName, signal string) error {
-	_, err := systemctlCmd("kill", serviceName, "-s", signal)
+func (s *systemd) Kill(serviceName, signal, who string) error {
+	if who == "" {
+		who = "all"
+	}
+	_, err := systemctlCmd("kill", serviceName, "-s", signal, "--kill-who="+who)
 	return err
 }
 
@@ -397,51 +418,29 @@ func (l Log) PID() string {
 	return "-"
 }
 
-// useFuse detects if we should be using squashfuse instead
-func useFuse() bool {
-	if !osutil.FileExists("/dev/fuse") {
-		return false
-	}
-
-	_, err := exec.LookPath("squashfuse")
-	if err != nil {
-		return false
-	}
-
-	out, err := exec.Command("systemd-detect-virt", "--container").Output()
-	if err != nil {
-		return false
-	}
-
-	virt := strings.TrimSpace(string(out))
-	if virt != "none" {
-		return true
-	}
-
-	return false
-}
-
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
+func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string) (string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
-		options = append(options, "ro", "x-gdu.hide")
+		newFsType, newOptions, err := squashfs.FsType()
+		if err != nil {
+			return "", err
+		}
+		options = append(options, newOptions...)
+		fstype = newFsType
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		fstype = "none"
-	} else if fstype == "squashfs" && useFuse() {
-		options = append(options, "allow_other")
-		fstype = "fuse.squashfuse"
 	}
 
 	c := fmt.Sprintf(`[Unit]
-Description=Mount unit for %s
+Description=Mount unit for %s, revision %s
 Before=snapd.service
 
 [Mount]
@@ -452,7 +451,7 @@ Options=%s
 
 [Install]
 WantedBy=multi-user.target
-`, name, what, where, fstype, strings.Join(options, ","))
+`, name, revision, what, where, fstype, strings.Join(options, ","))
 
 	mu := MountUnitPath(where)
 	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)

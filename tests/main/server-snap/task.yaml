@@ -1,6 +1,7 @@
 summary: Check snap web servers
 
-systems: [-fedora-*, -opensuse-*]
+# arch: there is no ip6-localhost
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
@@ -23,7 +24,9 @@ prepare: |
 
     EOF
     echo "Wait for the service to be listening, limited to the task kill-timeout"
-    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+    # shellcheck source=tests/lib/network.sh
+    . $TESTSLIB/network.sh
+    wait_listen_port "$PORT"
 
 restore: |
     rm -f request.txt

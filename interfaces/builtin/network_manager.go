@@ -144,6 +144,13 @@ dbus send
      peer=(name="org.freedesktop.resolve1"),
 
 dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="SetLink{DNS,Domains}"
+     peer=(label=unconfined),
+
+dbus (send)
    bus=system
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus
@@ -266,7 +273,6 @@ accept4
 bind
 listen
 sethostname
-shutdown
 # netlink
 socket AF_NETLINK - -
 `
@@ -429,7 +435,7 @@ func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
 	if release.OnClassic {
@@ -444,7 +450,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
@@ -472,12 +478,12 @@ func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification
 	return nil
 }
 
-func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkManagerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(networkManagerConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *networkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

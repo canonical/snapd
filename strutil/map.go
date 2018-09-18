@@ -109,6 +109,9 @@ func (o *OrderedMap) UnmarshalYAML(u func(interface{}) error) error {
 		if !ok || !good {
 			return fmt.Errorf("cannot read %q", item.Key)
 		}
+		if seen[k] {
+			return fmt.Errorf("found duplicate key %q", k)
+		}
 		seen[k] = true
 		keys[i] = k
 	}

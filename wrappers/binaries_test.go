@@ -67,7 +67,6 @@ apps:
   post-stop-command: bin/missya
   daemon: forking
 `
-const contentsHello = "HELLO"
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	// no completers support -> no problem \o/
@@ -96,7 +95,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithExistingCompleters(c
 }
 
 func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C) {
-	info := snaptest.MockSnap(c, packageHello, contentsHello, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
 	completer := filepath.Join(dirs.CompletersDir, "hello-snap.world")
 	completerExisted := osutil.FileExists(completer)
 
@@ -143,7 +142,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesCleansUpOnFailure(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  bye:
   command: bin/bye
-`, contentsHello, &snap.SideInfo{Revision: snap.R(11)})
+`, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, NotNil)

@@ -1,13 +1,21 @@
 summary: Check that prepare-image works for uboot-systems
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 environment:
-    ROOT: /tmp/root
-    IMAGE: /tmp/root/image
-    GADGET: /tmp/root/gadget
+    ROOT: /home/test/tmp/
+    IMAGE: /home/test/tmp/image
+    GADGET: /home/test/tmp/gadget
+
 prepare: |
     mkdir -p $ROOT
     chown test:test $ROOT
+
 restore: |
     rm -rf $ROOT
+
 execute: |
     # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
     echo Creating model assertion

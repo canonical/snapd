@@ -20,9 +20,6 @@
 package osutil_test
 
 import (
-	"io/ioutil"
-	"path/filepath"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
@@ -33,18 +30,12 @@ type mountSuite struct{}
 var _ = Suite(&mountSuite{})
 
 func (s *mountSuite) TestIsMountedHappyish(c *C) {
-	mockMountInfoFn := filepath.Join(c.MkDir(), "mountinfo")
-	restore := osutil.MockMountInfoPath(mockMountInfoFn)
-	defer restore()
-
-	// note the different optinal fields
-	content := []byte(`
-44 24 7:1 / /snap/ubuntu-core/855 rw,relatime shared:27 - squashfs /dev/loop1 ro
-44 24 7:1 / /snap/something/123 rw,relatime - squashfs /dev/loop2 ro
-44 24 7:1 / /snap/random/456 rw,relatime opt:1 shared:27 - squashfs /dev/loop1 ro
-`)
-	err := ioutil.WriteFile(mockMountInfoFn, content, 0644)
-	c.Assert(err, IsNil)
+	// note the different optional fields
+	const content = "" +
+		"44 24 7:1 / /snap/ubuntu-core/855 rw,relatime shared:27 - squashfs /dev/loop1 ro\n" +
+		"44 24 7:1 / /snap/something/123 rw,relatime - squashfs /dev/loop2 ro\n" +
+		"44 24 7:1 / /snap/random/456 rw,relatime opt:1 shared:27 - squashfs /dev/loop1 ro\n"
+	defer osutil.MockMountInfo(content)()
 
 	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
 	c.Check(err, IsNil)
@@ -63,25 +54,10 @@ func (s *mountSuite) TestIsMountedHappyish(c *C) {
 	c.Check(mounted, Equals, false)
 }
 
-func (s *mountSuite) TestIsMountedNotThereErr(c *C) {
-	restore := osutil.MockMountInfoPath("/no/such/file")
-	defer restore()
+func (s *mountSuite) TestIsMountedBroken(c *C) {
+	defer osutil.MockMountInfo("44 24 7:1 ...truncated-stuff")()
 
-	_, err := osutil.IsMounted("/snap/ubuntu-core/855")
-	c.Check(err, ErrorMatches, "open /no/such/file: no such file or directory")
-}
-
-func (s *mountSuite) TestIsMountedIncorrectLines(c *C) {
-	mockMountInfoFn := filepath.Join(c.MkDir(), "mountinfo")
-	restore := osutil.MockMountInfoPath(mockMountInfoFn)
-	defer restore()
-
-	content := []byte(`
-invalid line
-`)
-	err := ioutil.WriteFile(mockMountInfoFn, content, 0644)
-	c.Assert(err, IsNil)
-
-	_, err = osutil.IsMounted("/snap/ubuntu-core/855")
-	c.Check(err, ErrorMatches, `unexpected mountinfo line: "invalid line"`)
+	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
+	c.Check(err, ErrorMatches, "incorrect number of fields, .*")
+	c.Check(mounted, Equals, false)
 }

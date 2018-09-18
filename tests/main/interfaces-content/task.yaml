@@ -1,5 +1,11 @@
 summary: Ensure that the content sharing interface works.
 
+# This test purges the state which causes the device to reinitialize
+# with (potentially) a different core snap. Running this on core will
+# also trigger a reboot in the middle of the tests because the new
+# core will be applied. So skip the test on core devices.
+systems: [-ubuntu-core-*]
+
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap
@@ -9,21 +15,27 @@ details: |
     reconnected.
 
 prepare: |
-    echo "Given a snap declaring a content sharing slot is installed"
-    snap install --edge test-snapd-content-slot
+    echo "Ensure an empty state so that installing test-snapd-content-plug"
+    echo "will pull in test-snapd-content-slot *and* core"
 
-    echo "And a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service
+    rm -f /var/lib/snapd/state.json
+    systemctl start snapd
 
 execute: |
-    CONNECTED_PATTERN="test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
-    DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot:shared-content-slot +-.*?- +test-snapd-content-plug:shared-content-plug"
+    echo "When a snap declaring a content sharing plug is installed"
+    snap install --edge test-snapd-content-plug
+    echo "Then this pulls in the default provider"
+    snap list | MATCH  test-snapd-content-slot
 
     echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
 
     echo "And fstab files are created"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
 
     echo "And we can use the shared content"
     test-snapd-content-plug.content-plug | grep "Some shared content"
@@ -31,18 +43,14 @@ execute: |
     echo "And the current mount profile is the same as the desired mount profile"
     diff -u /run/snapd/ns/snap.test-snapd-content-plug.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
 
-    echo "============================================"
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the fstab files are removed"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -eq 0 ]
 
     echo "When the plug is reconnected"
     snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the fstab files are recreated"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]

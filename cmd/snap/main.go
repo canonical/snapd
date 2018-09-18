@@ -114,12 +114,14 @@ func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander
 // addDebugCommand replaces parser.addCommand() in a way that is
 // compatible with re-constructing a pristine parser. It is meant for
 // adding debug commands.
-func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
 	}
 	debugCommands = append(debugCommands, info)
 	return info
@@ -165,7 +167,7 @@ func Parser() *flags.Parser {
 		printVersions()
 		panic(&exitStatus{0})
 	}
-	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+	parser := flags.NewParser(&optionsData, flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = i18n.G(`
 Install, configure, refresh and remove snap packages. Snaps are
@@ -174,9 +176,15 @@ enabling secure distribution of the latest apps and utilities for
 cloud, servers, desktops and the internet of things.
 
 This is the CLI for snapd, a background service that takes care of
-snaps on the system. Start with 'snap list' to see installed snaps.
-`)
-	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
+snaps on the system. Start with 'snap list' to see installed snaps.`)
+	// hide the unhelpful "[OPTIONS]" from help output
+	parser.Usage = ""
+	if version := parser.FindOptionByLongName("version"); version != nil {
+		version.Description = i18n.G("Print the version and exit")
+		version.Hidden = true
+	}
+	// add --help like what go-flags would do for us, but hidden
+	addHelp(parser)
 
 	// Add all regular commands
 	for _, c := range commands {
@@ -241,6 +249,39 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 			logger.Panicf("cannot add debug command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+		opts := cmd.Options()
+		if c.optDescs != nil && len(opts) != len(c.optDescs) {
+			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+		}
+		for _, opt := range opts {
+			name := opt.LongName
+			if name == "" {
+				name = string(opt.ShortName)
+			}
+			desc, ok := c.optDescs[name]
+			if !(c.optDescs == nil || ok) {
+				logger.Panicf("%s missing description for %s", c.name, name)
+			}
+			lintDesc(c.name, name, desc, opt.Description)
+			if desc != "" {
+				opt.Description = desc
+			}
+		}
+
+		args := cmd.Args()
+		if c.argDescs != nil && len(args) != len(c.argDescs) {
+			logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+		}
+		for i, arg := range args {
+			name, desc := arg.Name, ""
+			if c.argDescs != nil {
+				name = c.argDescs[i].name
+				desc = c.argDescs[i].desc
+			}
+			lintArg(c.name, name, desc, arg.Description)
+			arg.Name = name
+			arg.Description = desc
+		}
 	}
 	return parser
 }
@@ -279,7 +320,29 @@ func resolveApp(snapApp string) (string, error) {
 func main() {
 	cmd.ExecInCoreSnap()
 
-	// magic \o/
+	// check for magic symlink to /usr/bin/snap:
+	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
+	if os.Args[0] == filepath.Join(dirs.GlobalRootDir, "/usr/lib/command-not-found") {
+		cmd := &cmdAdviseSnap{
+			Command: true,
+			Format:  "pretty",
+		}
+		// the bash.bashrc handler runs:
+		//    /usr/lib/command-not-found -- "$1"
+		// so skip over any "--"
+		for _, arg := range os.Args[1:] {
+			if arg != "--" {
+				cmd.Positionals.CommandOrPkg = arg
+				break
+			}
+		}
+		if err := cmd.Execute(nil); err != nil {
+			fmt.Fprintln(Stderr, err)
+		}
+		return
+	}
+
+	// 2. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		var err error
@@ -323,6 +386,19 @@ func (e *exitStatus) Error() string {
 	return fmt.Sprintf("internal error: exitStatus{%d} being handled as normal error", e.code)
 }
 
+var wrongDashes = string([]rune{
+	0x2010, // hyphen
+	0x2011, // non-breaking hyphen
+	0x2012, // figure dash
+	0x2013, // en dash
+	0x2014, // em dash
+	0x2015, // horizontal bar
+	0xfe58, // small em dash
+	0x2015, // figure dash
+	0x2e3a, // two-em dash
+	0x2e3b, // three-em dash
+})
+
 func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
@@ -336,16 +412,29 @@ func run() error {
 				return nil
 			}
 			if e.Type == flags.ErrUnknownCommand {
-				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
+				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
 			}
 		}
 
 		msg, err := errorToCmdMessage("", err, nil)
+
+		if cmdline := strings.Join(os.Args, " "); strings.ContainsAny(cmdline, wrongDashes) {
+			// TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.
+			fmt.Fprintf(Stderr, i18n.G(`Your command included some characters that look like dashes but are not:
+    %+q
+in some situations you might find that when copying from an online source such
+as a blog you need to replace “typographic” dashes and quotes with their ASCII
+equivalent.  Dashes in particular are homoglyphs on most terminals and in most
+fixed-width fonts, so it can be hard to tell.
+
+`), cmdline)
+		}
+
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintf(Stderr, msg)
+		fmt.Fprintln(Stderr, msg)
 	}
 
 	return nil

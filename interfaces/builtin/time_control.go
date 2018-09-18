@@ -95,8 +95,26 @@ capability sys_time,
 
 # As the core snap ships the hwclock utility we can also allow
 # clients to use it now that they have access to the relevant
-# device nodes.
+# device nodes. Note: some invocations of hwclock will try to
+# write to the audit subsystem. We omit 'capability audit_write'
+# and 'capability net_admin' here. Applications requiring audit
+# logging should plug 'netlink-audit'.
 /sbin/hwclock ixr,
+`
+
+const timeControlConnectedPlugSecComp = `
+# Description: Can set time and date via systemd' timedated D-Bus interface.
+# Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
+# https://www.freedesktop.org/wiki/Software/systemd/timedated/; This also
+# gives full access to the RTC device nodes and relevant parts of sysfs.
+
+settimeofday
+
+# util-linux built with libaudit tries to write to the audit subsystem. We
+# allow the socket call here to avoid seccomp kill, but omit the AppArmor
+# capability rules.
+bind
+socket AF_NETLINK - NETLINK_AUDIT
 `
 
 var timeControlConnectedPlugUDev = []string{`SUBSYSTEM=="rtc"`}
@@ -109,6 +127,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  timeControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
 		connectedPlugUDev:     timeControlConnectedPlugUDev,
 		reservedForOS:         true,
 	})

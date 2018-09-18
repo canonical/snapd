@@ -31,9 +31,11 @@ import (
 )
 
 type NetlinkConnectorInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const netlinkConnectorMockPlugSnapInfoYaml = `name: other
@@ -49,15 +51,15 @@ var _ = Suite(&NetlinkConnectorInterfaceSuite{
 })
 
 func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "netlink-connector",
-			Interface: "netlink-connector",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "netlink-connector",
+		Interface: "netlink-connector",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, netlinkConnectorMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["netlink-connector"]}
+	s.plugInfo = plugSnap.Plugs["netlink-connector"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestName(c *C) {
@@ -65,23 +67,23 @@ func (s *NetlinkConnectorInterfaceSuite) TestName(c *C) {
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "netlink-connector",
 		Interface: "netlink-connector",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"netlink-connector slots are reserved for the core snap")
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_CONNECTOR\n")

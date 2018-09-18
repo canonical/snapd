@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,24 +37,32 @@ import (
 )
 
 type baseDeclSuite struct {
-	baseDecl *asserts.BaseDeclaration
+	baseDecl        *asserts.BaseDeclaration
+	restoreSanitize func()
 }
 
 var _ = Suite(&baseDeclSuite{})
 
 func (s *baseDeclSuite) SetUpSuite(c *C) {
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.baseDecl = asserts.BuiltinBaseDeclaration()
+}
+
+func (s *baseDeclSuite) TearDownSuite(c *C) {
+	s.restoreSanitize()
 }
 
 func (s *baseDeclSuite) connectCand(c *C, iface, slotYaml, plugYaml string) *policy.ConnectCandidate {
 	if slotYaml == "" {
 		slotYaml = fmt.Sprintf(`name: slot-snap
+version: 0
 slots:
   %s:
 `, iface)
 	}
 	if plugYaml == "" {
 		plugYaml = fmt.Sprintf(`name: plug-snap
+version: 0
 plugs:
   %s:
 `, iface)
@@ -62,8 +70,8 @@ plugs:
 	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
 	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
 	return &policy.ConnectCandidate{
-		Plug:            plugSnap.Plugs[iface],
-		Slot:            slotSnap.Slots[iface],
+		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil),
+		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -71,6 +79,7 @@ plugs:
 func (s *baseDeclSuite) installSlotCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
 	if yaml == "" {
 		yaml = fmt.Sprintf(`name: install-slot-snap
+version: 0
 type: %s
 slots:
   %s:
@@ -86,6 +95,7 @@ slots:
 func (s *baseDeclSuite) installPlugCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
 	if yaml == "" {
 		yaml = fmt.Sprintf(`name: install-plug-snap
+version: 0
 type: %s
 plugs:
   %s:
@@ -135,6 +145,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
+		"dummy":         true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -211,6 +222,55 @@ func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 	c.Check(err, ErrorMatches, `auto-connection denied by slot rule of interface \"home\"`)
 }
 
+func (s *baseDeclSuite) TestHomeReadAll(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  home:
+    read: all
+`
+	restore := release.MockOnClassic(true)
+	defer restore()
+	cand := s.connectCand(c, "home", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	release.OnClassic = false
+	err = cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestHomeReadDefault(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  home: null
+`
+	restore := release.MockOnClassic(true)
+	defer restore()
+	cand := s.connectCand(c, "home", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	// Same as TestInterimAutoConnectionHome()
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	release.OnClassic = false
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// Same as TestInterimAutoConnectionHome()
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
@@ -243,12 +303,14 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	// same publisher, same content
 	cand = s.connectCand(c, "stuff", `
 name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -267,12 +329,14 @@ plugs:
 
 	// same publisher, different content
 	cand = s.connectCand(c, "stuff", `name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -448,7 +512,7 @@ plugs:
 // describe installation rules for slots succinctly for cross-checking,
 // if an interface is not mentioned here a slot of its type can only
 // be installed by a core snap (and this was taken care by
-// SanitizeSlot),
+// BeforePrepareSlot),
 // otherwise the entry for the interface is the list of snap types it
 // can be installed by (using the declaration naming);
 // ATM a nil entry means even stricter rules that would need be tested
@@ -492,14 +556,17 @@ var (
 		"serial-port": {"core", "gadget"},
 		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
+		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
-		"udisks2":                   {"app"},
+		"udisks2":                   {"app", "core"},
 		"uhid":                      {"core"},
 		"unity8":                    {"app"},
 		"unity8-calendar":           {"app"},
 		"unity8-contacts":           {"app"},
 		"upower-observe":            {"app", "core"},
+		"wayland":                   {"app", "core"},
+		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
 		"docker":          nil,
@@ -525,7 +592,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		types, ok := slotInstallation[iface.Name()]
 		compareWithSanitize := false
 		if !ok { // common ones, only core can install them,
-			// their plain SanitizeSlot checked for that
+			// their plain BeforePrepareSlot checked for that
 			types = []string{"core"}
 			compareWithSanitize = true
 		}
@@ -545,8 +612,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				slot := &interfaces.Slot{SlotInfo: slotInfo}
-				sanitizeErr := slot.Sanitize(iface)
+				sanitizeErr := interfaces.BeforePrepareSlot(iface, slotInfo)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
@@ -632,7 +698,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
-		"udisks2":                   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
 	}
@@ -706,7 +771,9 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"udisks2":               true,
 		"unity8":                true,
+		"wayland":               true,
 	}
 
 	for _, iface := range all {
@@ -739,12 +806,14 @@ func (s *baseDeclSuite) TestConnectionContent(c *C) {
 
 	// same publisher, same content
 	cand = s.connectCand(c, "stuff", `name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -764,12 +833,14 @@ plugs:
 	// same publisher, different content
 	cand = s.connectCand(c, "stuff", `
 name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -792,8 +863,16 @@ revision: 0
 `)
 }
 
+func (s *baseDeclSuite) TestDoesNotPanic(c *C) {
+	// In case there are any issues in the actual interfaces we'd get a panic
+	// on snapd startup. This test prevents this from happing unnoticed.
+	_, err := policy.ComposeBaseDeclaration(builtin.Interfaces())
+	c.Assert(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {
 	const plugYaml = `name: plug-snap
+version: 0
 plugs:
   browser-support:
    allow-sandbox: true
@@ -804,4 +883,59 @@ plugs:
 
 	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestOpticalDriveWrite(c *C) {
+	type options struct {
+		readonlyYamls []string
+		writableYamls []string
+	}
+
+	opts := &options{
+		readonlyYamls: []string{
+			// Non-specified "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: null
+`,
+			// Undefined "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: {}
+`,
+			// False "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: false
+`,
+		},
+		writableYamls: []string{
+			// True "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: true
+`,
+		},
+	}
+
+	checkOpticalDriveAutoConnect := func(plugYaml string, checker Checker) {
+		cand := s.connectCand(c, "optical-drive", "", plugYaml)
+		err := cand.Check()
+		c.Check(err, checker)
+		err = cand.CheckAutoConnect()
+		c.Check(err, checker)
+	}
+
+	for _, plugYaml := range opts.readonlyYamls {
+		checkOpticalDriveAutoConnect(plugYaml, IsNil)
+	}
+	for _, plugYaml := range opts.writableYamls {
+		checkOpticalDriveAutoConnect(plugYaml, NotNil)
+	}
 }

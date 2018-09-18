@@ -71,11 +71,9 @@ apps:
    command: svc
    daemon: simple
 `
-	const contents = ""
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
-
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(info, nil)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -103,9 +101,9 @@ version: 1.0
 `
 	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(info, nil)
 	c.Assert(err, IsNil)
 
 	mountDir := info.MountDir()
@@ -145,12 +143,12 @@ apps:
 `
 	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(info, nil)
 	c.Assert(err, IsNil)
 
-	err = s.be.LinkSnap(info)
+	err = s.be.LinkSnap(info, nil)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -187,9 +185,9 @@ apps:
 `
 	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(info, nil)
 	c.Assert(err, IsNil)
 
 	err = s.be.UnlinkSnap(info, progress.Null)
@@ -217,7 +215,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-	err := s.be.LinkSnap(info)
+	err := s.be.LinkSnap(info, nil)
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -245,7 +243,7 @@ apps:
    command: svc
    daemon: simple
 `
-	s.info = snaptest.MockSnap(c, yaml, "", &snap.SideInfo{Revision: snap.R(11)})
+	s.info = snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
@@ -274,7 +272,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	err := s.be.LinkSnap(s.info)
+	err := s.be.LinkSnap(s.info, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &os.PathError{})
 
@@ -305,7 +303,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	})
 	defer r()
 
-	err := s.be.LinkSnap(s.info)
+	err := s.be.LinkSnap(s.info, nil)
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {

@@ -1,13 +1,10 @@
 summary: Check that download caching works
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     snap install test-snapd-tools
     snap remove test-snapd-tools
     snap install test-snapd-tools
-    for i in $(seq 10); do
-        if journalctl -u snapd | MATCH "using cache for .*/test-snapd-tools.*\.snap"; then
-            break
-        fi
-        sleep 1
-    done
-    journalctl -u snapd | MATCH "using cache for .*/test-snapd-tools.*\.snap"
+    check_journalctl_log 'using cache for .*/test-snapd-tools.*\.snap' -u snapd

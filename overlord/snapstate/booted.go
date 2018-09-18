@@ -133,6 +133,9 @@ func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revis
 	case snap.TypeOS:
 		kind = "core"
 		bootVar = "snap_core"
+	case snap.TypeBase:
+		kind = "base"
+		bootVar = "snap_core"
 	default:
 		return "", snap.Revision{}, fmt.Errorf("cannot find boot revision for anything but core and kernel")
 	}

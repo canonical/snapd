@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "stop service"
+
+if [ -n "$1" ]; then
+    sleep "$1"
+fi

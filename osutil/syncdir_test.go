@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type EnsureDirStateSuite struct {
@@ -53,13 +54,51 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, HasLen, 0)
 	// The content is correct
-	content, err := ioutil.ReadFile(path.Join(s.dir, "expected.snap"))
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("expected"))
+	c.Assert(path.Join(s.dir, "expected.snap"), testutil.FileEquals, "expected")
 	// The permissions are correct
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
+}
+
+func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
+	name1 := filepath.Join(s.dir, "expected.snap")
+	err := ioutil.WriteFile(name1, []byte("expected-1"), 0600)
+	c.Assert(err, IsNil)
+
+	name2 := filepath.Join(s.dir, "expected.snap-update-ns")
+	err = ioutil.WriteFile(name2, []byte("expected-2"), 0600)
+	c.Assert(err, IsNil)
+
+	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]*osutil.FileState{
+		"expected.snap":           {Content: []byte("expected-1"), Mode: 0600},
+		"expected.snap-update-ns": {Content: []byte("expected-2"), Mode: 0600},
+	})
+	c.Assert(err, IsNil)
+	// Report says that nothing has changed
+	c.Assert(changed, HasLen, 0)
+	c.Assert(removed, HasLen, 0)
+	// The content is correct
+	c.Assert(name1, testutil.FileEquals, "expected-1")
+	c.Assert(name2, testutil.FileEquals, "expected-2")
+	// The permissions are correct
+	stat, err := os.Stat(name1)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
+	stat, err = os.Stat(name2)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
+}
+
+func (s *EnsureDirStateSuite) TestMultipleMatches(c *C) {
+	name := filepath.Join(s.dir, "foo")
+	err := ioutil.WriteFile(name, []byte("content"), 0600)
+	c.Assert(err, IsNil)
+	// When a file is matched by multiple globs it removed correctly.
+	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"foo", "f*"}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(changed, HasLen, 0)
+	c.Assert(removed, DeepEquals, []string{"foo"})
 }
 
 func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
@@ -72,9 +111,7 @@ func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	c.Assert(changed, DeepEquals, []string{"missing.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is correct
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("content"))
+	c.Assert(name, testutil.FileEquals, "content")
 	// The permissions are correct
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -121,9 +158,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 	c.Assert(changed, DeepEquals, []string{"differing.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is changed
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("Hello World"))
+	c.Assert(name, testutil.FileEquals, "Hello World")
 	// The permissions are what we expect
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -142,9 +177,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	c.Assert(changed, DeepEquals, []string{"differing.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is changed
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("good"))
+	c.Assert(name, testutil.FileEquals, "good")
 	// The permissions are what we expect
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -165,9 +198,7 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	c.Assert(changed, DeepEquals, []string{"sensitive.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is still the same
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("password"))
+	c.Assert(name, testutil.FileEquals, "password")
 	// The permissions are changed
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -175,20 +206,18 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
-	c.Assert(func() {
-		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
-	}, PanicMatches, `EnsureDirState got filename "subdir/file.snap" which has a path component`)
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
+	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
-	c.Assert(func() {
-		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
-	}, PanicMatches, `EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
+	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
-	c.Assert(func() { osutil.EnsureDirState(s.dir, "[", nil) },
-		PanicMatches, `EnsureDirState got invalid pattern "\[": syntax error in pattern`)
+	_, _, err := osutil.EnsureDirState(s.dir, "[", nil)
+	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got invalid pattern "\[": syntax error in pattern`)
 }
 
 func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {

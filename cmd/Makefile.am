@@ -7,6 +7,9 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
+# FIXME: get this via something like pkgconf once it is defined there
+SYSTEMD_SYSTEM_ENV_GENERATOR_DIR=/usr/lib/systemd/system-environment-generators
+
 CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
 	-Wno-missing-field-initializers -Wno-unused-parameter
 
@@ -15,15 +18,17 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim snapd-generator snapd-env-generator
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-unit-tests
+check: check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
 check-syntax-c:
+	echo "WARNING: check-syntax-c produces different results for different version of indent"
+	echo "Your version of indent: `indent --version`"
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
@@ -37,7 +42,7 @@ check-syntax-c:
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/unit-tests
+	SNAP_DEVICE_HELPER=$(srcdir)/snap-confine/snap-device-helper $(HAVE_VALGRIND) ./snap-confine/unit-tests
 	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:
@@ -99,6 +104,10 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
 libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
+
+noinst_LIBRARIES += libsnap-confine-private-debug.a
+libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
+libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -199,18 +208,23 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.c \
 	snap-confine/user-support.h
 
-snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\"
+snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
-snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
+snap_confine_snap_confine_LDADD += $(snap_confine_snap_confine_extra_libs)
 # _STATIC is where we collect statically linked in libraries
 snap_confine_snap_confine_STATIC =
+# use a separate variable instead of snap_confine_snap_confine_LDADD to collect
+# all external libraries, this way it can be reused in
+# snap_confine_snap_confine_debug_LDADD withouth applying any text
+# transformations
+snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS)
 
 if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
 else
-snap_confine_snap_confine_LDADD += -lcap
+snap_confine_snap_confine_extra_libs += -lcap
 endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
@@ -233,7 +247,7 @@ snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
 if STATIC_LIBSECCOMP
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
 else
-snap_confine_snap_confine_LDADD += $(SECCOMP_LIBS)
+snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
 endif  # STATIC_LIBSECCOMP
 endif  # SECCOMP
 
@@ -242,7 +256,7 @@ snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
 else
-snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
+snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
 
@@ -252,7 +266,7 @@ noinst_PROGRAMS += snap-confine/snap-confine-debug
 snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
 snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
 snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
-snap_confine_snap_confine_debug_LDADD = $(snap_confine_snap_confine_LDADD)
+snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.a $(snap_confine_snap_confine_extra_libs)
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
@@ -277,7 +291,8 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
 	snap-confine/quirks.h \
-	snap-confine/snap-confine-args-test.c
+	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
@@ -326,6 +341,16 @@ else
 endif
 
 ##
+## snap-mgmt
+##
+
+libexec_PROGRAMS += snap-mgmt/snap-mgmt
+
+snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+
+
+##
 ## ubuntu-core-launcher
 ##
 
@@ -334,19 +359,19 @@ install-exec-hook::
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 ##
-## snappy-app-dev
+## snap-device-helper
 ##
 
 EXTRA_DIST += \
-	snap-confine/snappy-app-dev
+	snap-confine/snap-device-helper
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
 # Install support script for udev rules
 install-exec-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecdir)
 
 ##
 ## snap-discard-ns
@@ -421,4 +446,56 @@ system_shutdown_unit_tests_SOURCES = \
 system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
+endif
+
+##
+## snap-gdb-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdb-shim.c
+
+snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+
+##
+## snapd-generator
+##
+
+libexec_PROGRAMS += snapd-generator/snapd-generator
+
+snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
+snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
+
+##
+## snapd-env-generator
+##
+
+systemdsystemenvgeneratordir=$(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
+systemdsystemenvgenerator_PROGRAMS = snapd-env-generator/snapd-env-generator
+
+snapd_env_generator_snapd_env_generator_SOURCES = snapd-env-generator/main.c
+snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.a
+EXTRA_DIST += snapd-env-generator/snapd-env-generator.rst
+
+if HAVE_RST2MAN
+snapd-env-generator/%.7: snapd-env-generator/%.rst
+	mkdir -p snapd-env-generator
+	$(HAVE_RST2MAN) $^ > $@
+
+dist_man_MANS += snapd-env-generator/snapd-env-generator.7
+CLEANFILES += snapd-env-generator/snapd-env-generator.7
+endif
+
+##
+## snapd-apparmor
+##
+
+EXTRA_DIST += snapd-apparmor/snapd-apparmor
+
+install-exec-local::
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+if APPARMOR
+	install -m 755 $(srcdir)/snapd-apparmor/snapd-apparmor $(DESTDIR)$(libexecdir)
 endif

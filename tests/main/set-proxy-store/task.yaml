@@ -1,5 +1,5 @@
 summary: Check that the setting proxy.store config works
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1

@@ -1,11 +1,29 @@
 summary: Check snap search
 
+# s390x,ppc64el have nothing featured
+systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
+restore: |
+    rm -f featured.txt
+
 execute: |
     echo "List all featured snaps"
-    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+    expected="(?s).*Name +Version +Publisher +Notes +Summary *\n\
     (.*?\n)?\
     .*"
-    snap find | grep -Pzq "$expected"
+    snap find > featured.txt
+    if ! grep -Pzq "$expected" < featured.txt; then
+        echo "expected out put $expected not found in:"
+        cat featured.txt
+        exit 1
+    fi
+    MATCH "No search term specified. Here are some interesting snaps" < featured.txt
+    MATCH "Provide a search term for more specific results." < featured.txt
+
     if [ $(snap find | wc -l) -gt 50 ]; then
         echo "Found more than 50 featured apps, this seems bogus:"
         snap find
@@ -20,7 +38,7 @@ execute: |
     echo "Exact matches"
     for snapName in test-snapd-tools test-snapd-python-webserver
     do
-        expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+        expected="(?s)Name +Version +Publisher +Notes +Summary *\n\
     (.*?\n)?\
     $snapName +.*? *\n\
     .*"
@@ -28,14 +46,27 @@ execute: |
     done
 
     echo "Partial terms work too"
-    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+    expected="(?s)Name +Version +Publisher +Notes +Summary *\n\
     (.*?\n)?\
     test-snapd-tools +.*? *\n\
     .*"
     snap find test-snapd- | grep -Pzq "$expected"
 
-    # cassandra only available for amd64
+    echo "List of snaps in a section works"
+    # NOTE: this shows featured snaps which change all the time, do not
+    # make any assumptions about the contents
+    test $(snap find --section=featured | wc -l) -gt 1
+
+    # TODO: discuss with the store how we can make this test stable, i.e.
+    #       that section/snap changes do not break us
     if [ $(uname -m) = "x86_64" ]; then
-        echo "List of snaps in a section works"
-        snap find --section=database | MATCH cassandra
+        snap find --section=video vlc | MATCH vlc
+    else
+        snap find --section=video vlc 2>&1 | MATCH 'No matching snaps'
+    fi
+
+    # LP: 1740605
+    if snap find " " | grep "status code 403"; then
+        echo 'snap find " " returns non user friendly error with whitespace query'
+        exit 1
     fi

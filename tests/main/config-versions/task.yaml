@@ -1,14 +1,14 @@
 summary: Check that snap configuration is maintained on per-revision basis.
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 details: |
     This test ensures that snap configuration is mainted per snap revision
     and is restored on revert.
 
 prepare: |
-    snap pack $TESTSLIB/snaps/config-versions
-    snap pack $TESTSLIB/snaps/config-versions-v2
+    snap pack "$TESTSLIB"/snaps/config-versions
+    snap pack "$TESTSLIB"/snaps/config-versions-v2
 
 restore: |
     rm -f config-versions_1.0_all.snap

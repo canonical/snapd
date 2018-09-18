@@ -1,0 +1,47 @@
+name: test-snapd-eds
+version: '0.1'
+summary: utilities to test evolution-data-server interfaces of snapd
+description: |
+  This package contains utilities designed to test a confined
+  application's ability to access addressbooks and calendars managed
+  by evolution-data-server.
+
+grade: stable
+confinement: strict
+
+apps:
+  contacts:
+    command: bin/contacts
+    plugs:
+      - contacts-service
+  calendar:
+    command: bin/calendar
+    plugs:
+      - calendar-service
+
+environment:
+  GSETTINGS_BACKEND: memory
+  EDS_CAMEL_PROVIDER_DIR: $SNAP/usr/lib/evolution-data-server/camel-providers
+  XDG_DATA_DIRS: $SNAP/usr/share:$XDG_DATA_DIRS
+
+parts:
+  main:
+    plugin: meson
+    source: .
+    meson-parameters:
+      - --prefix=/
+    build-packages:
+      - libebook1.2-dev
+      - libecal1.2-dev
+      - pkg-config
+  evolution-data-server:
+    plugin: nil
+    install: |
+      glib-compile-schemas $SNAPCRAFT_PART_INSTALL/usr/share/glib-2.0/schemas
+    stage:
+      - usr/share/glib-2.0/schemas/*
+      - usr/lib/evolution-data-server/camel-providers/*
+    build-packages:
+      - libglib2.0-bin
+    stage-packages:
+      - evolution-data-server

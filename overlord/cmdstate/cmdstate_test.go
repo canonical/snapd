@@ -40,6 +40,7 @@ func TestCommand(t *testing.T) { check.TestingT(t) }
 type cmdSuite struct {
 	rootdir string
 	state   *state.State
+	se      *overlord.StateEngine
 	manager overlord.StateManager
 	restore func()
 }
@@ -53,8 +54,8 @@ type statr interface {
 func (s *cmdSuite) waitfor(thing statr) {
 	s.state.Unlock()
 	for i := 0; i < 5; i++ {
-		s.manager.Ensure()
-		s.manager.Wait()
+		s.se.Ensure()
+		s.se.Wait()
 		s.state.Lock()
 		if thing.Status().Ready() {
 			return
@@ -69,8 +70,12 @@ func (s *cmdSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(d)
 	s.rootdir = d
 	s.state = state.New(nil)
-	s.manager = cmdstate.Manager(s.state)
-	s.restore = cmdstate.MockExecTimeout(time.Second / 10)
+	s.se = overlord.NewStateEngine(s.state)
+	runner := state.NewTaskRunner(s.state)
+	s.manager = cmdstate.Manager(s.state, runner)
+	s.se.AddManager(s.manager)
+	s.se.AddManager(runner)
+	s.restore = cmdstate.MockDefaultExecTimeout(time.Second / 10)
 }
 
 func (s *cmdSuite) TearDownTest(c *check.C) {
@@ -81,7 +86,7 @@ func (s *cmdSuite) TestExecTask(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	argvIn := []string{"/bin/echo", "hello"}
-	tasks := cmdstate.Exec(s.state, "this is the summary", argvIn).Tasks()
+	tasks := cmdstate.ExecWithTimeout(s.state, "this is the summary", argvIn, time.Second/10).Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	task := tasks[0]
 	c.Check(task.Kind(), check.Equals, "exec-command")
@@ -96,7 +101,7 @@ func (s *cmdSuite) TestExecHappy(c *check.C) {
 	defer s.state.Unlock()
 
 	fn := filepath.Join(s.rootdir, "flag")
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"touch", fn})
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"touch", fn}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -110,7 +115,7 @@ func (s *cmdSuite) TestExecSad(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sh", "-c", "echo hello; false"})
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sh", "-c", "echo hello; false"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -123,12 +128,12 @@ func (s *cmdSuite) TestExecAbort(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"})
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "1h"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	s.manager.Ensure()
+	s.se.Ensure()
 	s.state.Lock()
 
 	c.Assert(chg.Status(), check.Equals, state.DoingStatus)
@@ -145,14 +150,14 @@ func (s *cmdSuite) TestExecStop(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"})
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "1h"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
 	c.Assert(chg.Status(), check.Equals, state.DoStatus)
 
 	s.state.Unlock()
-	s.manager.Stop()
+	s.se.Stop()
 	s.state.Lock()
 
 	c.Check(chg.Status(), check.Equals, state.DoStatus)
@@ -163,7 +168,7 @@ func (s *cmdSuite) TestExecTimesOut(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1m"})
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "1m"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -171,4 +176,25 @@ func (s *cmdSuite) TestExecTimesOut(c *check.C) {
 
 	c.Check(chg.Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(chg.Tasks()[0].Log(), "\n"), check.Matches, `(?s).*ERROR exceeded maximum runtime.*`)
+}
+
+func (s *cmdSuite) TestExecTimeoutMissing(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := cmdstate.MockDefaultExecTimeout(1 * time.Second)
+	defer restore()
+
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "0.3"}, time.Second/10)
+	c.Assert(len(ts.Tasks()), check.Equals, 1)
+	t := ts.Tasks()[0]
+	// no timeout means the default timeout will be used
+	t.Clear("timeout")
+	chg := s.state.NewChange("do-the-thing", "Doing the thing")
+	chg.AddAll(ts)
+
+	s.waitfor(chg)
+
+	// slept for
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 }

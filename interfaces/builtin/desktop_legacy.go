@@ -212,6 +212,23 @@ dbus send
     interface=org.freedesktop.DBus.Properties
     member=GetAll
     peer=(label=unconfined),
+
+# gtk2/gvfs gtk_show_uri()
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=ListMountableInfo,
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=LookupMount,
+
+# This leaks the names of snaps with desktop files
+/var/lib/snapd/desktop/applications/ r,
+/var/lib/snapd/desktop/applications/mimeinfo.cache r,
+/var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
 `
 
 const desktopLegacyConnectedPlugSecComp = `

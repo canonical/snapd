@@ -22,18 +22,12 @@ restore: |
     rm -f snapd.error
 
 execute: |
-    CONNECTED_PATTERN=":snapd-control +test-snapd-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-control-consumer:snapd-control"
-
-    echo "Then it is connected by default"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    echo "The interface is connected by default"
+    snap interfaces -i snapd-control | MATCH ":snapd-control .*test-snapd-control-consumer"
 
     if [ "$(snap debug confinement)" = strict ] ; then
-        echo "================================================"
-
         echo "When the plug is disconnected"
         snap disconnect test-snapd-control-consumer:snapd-control
-        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
         echo "Then the snap command is not able to control snapd"
         if test-snapd-control-consumer.list 2>snapd.error; then
@@ -43,11 +37,8 @@ execute: |
         grep -q "Permission denied" snapd.error
     fi
 
-    echo "================================================"
-
     echo "When the plug is connected"
     snap connect test-snapd-control-consumer:snapd-control
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to control snapd"
     ! test-snapd-control-consumer.list | grep -q test-snapd-tools

@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 
 # shellcheck source=tests/lib/systemd.sh
-. $TESTSLIB/systemd.sh
+. "$TESTSLIB"/systemd.sh
 
 wait_for_ssh(){
     retry=300
@@ -34,10 +34,10 @@ create_nested_core_vm(){
     # determine arch related vars
     case "$NESTED_ARCH" in
     amd64)
-        QEMU="$(which qemu-system-x86_64)"
+        QEMU="$(command -v qemu-system-x86_64)"
         ;;
     i386)
-        QEMU="$(which qemu-system-i386)"
+        QEMU="$(command -v qemu-system-i386)"
         ;;
     *)
         echo "unsupported architecture"

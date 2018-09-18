@@ -1,0 +1,88 @@
+summary: Ensure snap userd allows settings via xdg-settings
+
+systems:
+    # Not supposed to work on Ubuntu Core systems as we don't have
+    # a user session environment there
+    - -ubuntu-core-*
+
+environment:
+    DISPLAY: :0
+
+restore: |
+    . "$TESTSLIB/dirs.sh"
+    . "$TESTSLIB/pkgdb.sh"
+    rm -f dbus.env
+    umount -f /usr/bin/xdg-settings || true
+    umount -f /usr/bin/zenity || true
+
+execute: |
+    . "$TESTSLIB/pkgdb.sh"
+    . "$TESTSLIB/dirs.sh"
+    . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-xdg-settings
+
+    # setup dbus
+    dbus-launch > dbus.env
+    export $(cat dbus.env | xargs)
+
+    # wait for session to be ready
+    ping_settings() {
+        dbus-send --session                                        \
+            --dest=io.snapcraft.Settings                           \
+            --type=method_call                                     \
+            --print-reply                                          \
+            /                                                      \
+            org.freedesktop.DBus.Peer.Ping
+    }
+    while ! ping_settings ; do
+        sleep .5
+    done
+
+    # Create a small helper which will tell us if snap passes
+    # the settings to the right handler
+    cat << 'EOF' > /tmp/xdg-settings
+    #!/bin/sh
+    echo "$@" > /tmp/xdg-settings-output
+    EOF
+    chmod +x /tmp/xdg-settings
+    touch /usr/bin/xdg-settings
+    mount --bind /tmp/xdg-settings /usr/bin/xdg-settings
+
+    ensure_xdg_settings_output() {
+        rm -f /tmp/xdg-settings-output
+        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+
+        # run xdg-settings from inside the snap
+        test-snapd-xdg-settings.set-default-web-browser browser.desktop
+
+        # verify that the command was transmitted corrected via dbus
+        test -e /tmp/xdg-settings-output
+        test "$(cat /tmp/xdg-settings-output)" = "set default-web-browser test-snapd-xdg-settings_browser.desktop"
+    }
+
+    # ensure zenity answers "yes"
+    touch /usr/bin/zenity
+    mount --bind /bin/true /usr/bin/zenity
+
+    ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
+
+    # Ensure settings whitelist for settings and values works
+    rm /tmp/xdg-settings-output
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set random-settting something
+    test ! -e /tmp/xdg-settings-output
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set default-web-browser inälid
+    test ! -e /tmp/xdg-settings-output
+
+
+    # ensure zenity answers "no"
+    umount /usr/bin/zenity
+    mount --bind /bin/false /usr/bin/zenity
+
+    rm -f /tmp/xdg-settings-output
+    if test-snapd-xdg-settings.set-default-web-browser browser.desktop; then
+        echo "setting the browser should fails if zenity returns false"
+        echo "test broken"
+        exit 1
+    fi
+    test ! -e /tmp/xdg-settings-output

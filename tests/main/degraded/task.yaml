@@ -1,0 +1,17 @@
+summary: Check that the system is not in "degraded" state
+
+# run this early to ensure no test created failed units yet
+priority: 500
+
+execute: |
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+    wait_for_service "multi-user.target"
+
+    if systemctl status | grep "State: [d]egraded"; then
+        echo "systemctl reports the system is in degraded mode"
+        # add debug output
+        systemctl --failed
+        systemctl status
+        exit 1
+    fi

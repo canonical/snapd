@@ -35,14 +35,12 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/gl{,32}/ r,
 /var/lib/snapd/lib/gl{,32}/** rm,
 
-# Supports linux-driver-management from Solus (staged symlink trees into libdirs)
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}glx-provider/**.so{,.*}  rm,
-
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}tls/libnvidia*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}*nvidia.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
 
 # Support reading the Vulkan ICD files
@@ -50,11 +48,17 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/vulkan/** r,
 /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
+# Support reading the GLVND EGL vendor files
+/var/lib/snapd/lib/glvnd/ r,
+/var/lib/snapd/lib/glvnd/** r,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
+
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
 /dev/dri/ r,
 /dev/dri/card0 rw,
+
 # nvidia
 /etc/vdpau_wrapper.cfg r,
 @{PROC}/driver/nvidia/params r,
@@ -65,11 +69,20 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 # eglfs
 /dev/vchiq rw,
 
+# cuda
+@{PROC}/sys/vm/mmap_min_addr r,
+@{PROC}/devices r,
+/sys/devices/system/memory/block_size_bytes r,
+unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
+
+# Parallels guest tools 3D acceleration (video toolgate)
+@{PROC}/driver/prl_vtg rw,
+
 # /sys/devices
-/sys/devices/pci[0-9]*/**/config r,
-/sys/devices/pci[0-9]*/**/revision r,
-/sys/devices/pci[0-9]*/**/{,subsystem_}device r,
-/sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
+/sys/devices/pci[0-9a-f]*/**/config r,
+/sys/devices/pci[0-9a-f]*/**/revision r,
+/sys/devices/pci[0-9a-f]*/**/{,subsystem_}device r,
+/sys/devices/pci[0-9a-f]*/**/{,subsystem_}vendor r,
 /sys/devices/**/drm{,_dp_aux_dev}/** r,
 
 # FIXME: this is an information leak and snapd should instead query udev for
@@ -77,7 +90,7 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 /sys/bus/pci/devices/ r,
 /sys/bus/platform/devices/soc:gpu/ r,
 /run/udev/data/+drm:card* r,
-/run/udev/data/+pci:[0-9]* r,
+/run/udev/data/+pci:[0-9a-f]* r,
 /run/udev/data/+platform:soc:gpu* r,
 
 # FIXME: for each device in /dev that this policy references, lookup the

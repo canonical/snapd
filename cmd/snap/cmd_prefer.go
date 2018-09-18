@@ -26,6 +26,7 @@ import (
 )
 
 type cmdPrefer struct {
+	waitMixin
 	Positionals struct {
 		Snap installedSnapName `required:"yes"`
 	} `positional-args:"true"`
@@ -35,13 +36,13 @@ var shortPreferHelp = i18n.G("Prefer aliases from a snap and disable conflicts")
 var longPreferHelp = i18n.G(`
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled
-(removed for manual ones).
+(or removed, for manual ones).
 `)
 
 func init() {
 	addCommand("prefer", shortPreferHelp, longPreferHelp, func() flags.Commander {
 		return &cmdPrefer{}
-	}, nil, []argDesc{
+	}, waitDescs, []argDesc{
 		{name: "<snap>"},
 	})
 }
@@ -56,14 +57,13 @@ func (x *cmdPrefer) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	chg, err := wait(cli, id)
+	chg, err := x.wait(cli, id)
 	if err != nil {
-		return err
-	}
-	if err := showAliasChanges(chg); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
-	return nil
+	return showAliasChanges(chg)
 }

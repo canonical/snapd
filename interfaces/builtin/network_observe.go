@@ -35,9 +35,9 @@ const networkObserveConnectedPlugAppArmor = `
 # it gives privileged read-only access to networking information and should
 # only be used with trusted apps.
 
-# network-monitor can't allow this otherwise we are basically
-# network-management, but don't explicitly deny since someone might try to use
-# network-management with network-monitor and that shouldn't fail weirdly
+# network-observe can't allow this otherwise we are basically network-control,
+# but don't explicitly deny since someone might try to use network-control with
+# network-observe and that shouldn't fail weirdly
 #capability net_admin,
 
 #include <abstractions/nameservice>

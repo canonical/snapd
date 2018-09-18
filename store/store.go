@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,27 +33,27 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
+	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
-	"gopkg.in/retry.v1"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -84,92 +84,12 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
-func infoFromRemote(d *snapDetails) *snap.Info {
-	info := &snap.Info{}
-	info.Architectures = d.Architectures
-	info.Type = d.Type
-	info.Version = d.Version
-	info.Epoch = d.Epoch
-	info.RealName = d.Name
-	info.SnapID = d.SnapID
-	info.Revision = snap.R(d.Revision)
-	info.EditedTitle = d.Title
-	info.EditedSummary = d.Summary
-	info.EditedDescription = d.Description
-	info.PublisherID = d.DeveloperID
-	info.Publisher = d.Developer
-	info.Channel = d.Channel
-	info.Sha3_384 = d.DownloadSha3_384
-	info.Size = d.DownloadSize
-	info.IconURL = d.IconURL
-	info.AnonDownloadURL = d.AnonDownloadURL
-	info.DownloadURL = d.DownloadURL
-	info.Prices = d.Prices
-	info.Private = d.Private
-	info.Paid = len(info.Prices) > 0
-	info.Confinement = snap.ConfinementType(d.Confinement)
-	info.Contact = d.Contact
-	info.License = d.License
-	info.Base = d.Base
-
-	deltas := make([]snap.DeltaInfo, len(d.Deltas))
-	for i, d := range d.Deltas {
-		deltas[i] = snap.DeltaInfo{
-			FromRevision:    d.FromRevision,
-			ToRevision:      d.ToRevision,
-			Format:          d.Format,
-			AnonDownloadURL: d.AnonDownloadURL,
-			DownloadURL:     d.DownloadURL,
-			Size:            d.Size,
-			Sha3_384:        d.Sha3_384,
-		}
-	}
-	info.Deltas = deltas
-
-	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
-	for _, url := range d.ScreenshotURLs {
-		screenshots = append(screenshots, snap.ScreenshotInfo{
-			URL: url,
-		})
-	}
-	info.Screenshots = screenshots
-	// FIXME: once the store sends "contact" for everything, remove
-	//        the "SupportURL" part of the if
-	if info.Contact == "" {
-		info.Contact = d.SupportURL
-	}
-
-	// fill in the tracks data
-	if len(d.ChannelMapList) > 0 {
-		info.Channels = make(map[string]*snap.ChannelSnapInfo)
-		info.Tracks = make([]string, len(d.ChannelMapList))
-		for i, cm := range d.ChannelMapList {
-			info.Tracks[i] = cm.Track
-			for _, ch := range cm.SnapDetails {
-				// nothing in this channel
-				if ch.Info == "" {
-					continue
-				}
-				var k string
-				if strings.HasPrefix(ch.Channel, cm.Track) {
-					k = ch.Channel
-				} else {
-					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
-				}
-				info.Channels[k] = &snap.ChannelSnapInfo{
-					Revision:    snap.R(ch.Revision),
-					Confinement: snap.ConfinementType(ch.Confinement),
-					Version:     ch.Version,
-					Channel:     ch.Channel,
-					Epoch:       ch.Epoch,
-					Size:        ch.DownloadSize,
-				}
-			}
-		}
-	}
-
-	return info
-}
+var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
+	retry.Exponential{
+		Initial: 900 * time.Millisecond,
+		Factor:  1.3,
+	},
+))
 
 // Config represents the configuration to access the snap store
 type Config struct {
@@ -185,6 +105,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	InfoFields   []string
 	DeltaFormat  string
 
 	// CacheDownloads is the number of downloads that should be cached
@@ -222,6 +143,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	infoFields   []string
 	deltaFormat  string
 	// reused http client
 	client *http.Client
@@ -244,24 +166,6 @@ func respToError(resp *http.Response, msg string) error {
 	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
-func getStructFields(s interface{}) []string {
-	st := reflect.TypeOf(s)
-	num := st.NumField()
-	fields := make([]string, 0, num)
-	for i := 0; i < num; i++ {
-		tag := st.Field(i).Tag.Get("json")
-		idx := strings.IndexRune(tag, ',')
-		if idx > -1 {
-			tag = tag[:idx]
-		}
-		if tag != "" {
-			fields = append(fields, tag)
-		}
-	}
-
-	return fields
-}
-
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
 	// only xdelta3 is supported for now, so check the binary exists here
@@ -270,8 +174,7 @@ func useDeltas() bool {
 		return false
 	}
 
-	deltasDefault := release.OnClassic
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
 func useStaging() bool {
@@ -306,6 +209,7 @@ func apiURL() *url.URL {
 func storeURL(api *url.URL) (*url.URL, error) {
 	var override string
 	var overrideName string
+	// XXX: time to drop FORCE_CPI support
 	// XXX: Deprecated but present for backward-compatibility: this used
 	// to be "Click Package Index".  Remove this once people have got
 	// used to SNAPPY_FORCE_API_URL instead.
@@ -353,11 +257,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func myappsURL() string {
+var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
+
+func storeDeveloperURL() string {
 	if useStaging() {
-		return "https://myapps.developer.staging.ubuntu.com/"
+		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://myapps.developer.ubuntu.com/"
+	return defaultStoreDeveloperURL
 }
 
 var defaultConfig = Config{}
@@ -380,6 +286,8 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
+	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
 }
 
 type searchResults struct {
@@ -394,12 +302,6 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
-// The fields we are interested in
-var detailFields = getStructFields(snapDetails{})
-
-// The fields we are interested in for snap.ChannelSnapInfos
-var channelSnapInfoFields = getStructFields(channelSnapInfoDetails{})
-
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
 
@@ -409,19 +311,24 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		cfg = &defaultConfig
 	}
 
-	fields := cfg.DetailFields
-	if fields == nil {
-		fields = detailFields
+	detailFields := cfg.DetailFields
+	if detailFields == nil {
+		detailFields = defaultConfig.DetailFields
 	}
 
-	architecture := arch.UbuntuArchitecture()
-	if cfg.Architecture != "" {
-		architecture = cfg.Architecture
+	infoFields := cfg.InfoFields
+	if infoFields == nil {
+		infoFields = defaultConfig.InfoFields
 	}
 
-	series := release.Series
-	if cfg.Series != "" {
-		series = cfg.Series
+	architecture := cfg.Architecture
+	if cfg.Architecture == "" {
+		architecture = arch.UbuntuArchitecture()
+	}
+
+	series := cfg.Series
+	if cfg.Series == "" {
+		series = release.Series
 	}
 
 	deltaFormat := cfg.DeltaFormat
@@ -435,7 +342,8 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
 		fallbackStoreID: cfg.StoreID,
-		detailFields:    fields,
+		detailFields:    detailFields,
+		infoFields:      infoFields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 
@@ -458,13 +366,14 @@ const (
 	// one at a time; so it's better to consider that as part of
 	// individual endpoint paths.
 	searchEndpPath      = "api/v1/snaps/search"
-	detailsEndpPath     = "api/v1/snaps/details"
-	bulkEndpPath        = "api/v1/snaps/metadata"
 	ordersEndpPath      = "api/v1/snaps/purchases/orders"
 	buyEndpPath         = "api/v1/snaps/purchases/buy"
 	customersMeEndpPath = "api/v1/snaps/purchases/customers/me"
 	sectionsEndpPath    = "api/v1/snaps/sections"
 	commandsEndpPath    = "api/v1/snaps/names"
+	// v2
+	snapActionEndpPath = "v2/snaps/refresh"
+	snapInfoEndpPath   = "v2/snaps/info"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -533,14 +442,9 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
-// hasStoreAuth returns true if given user has store macaroons setup
-func hasStoreAuth(user *auth.UserState) bool {
-	return user != nil && user.StoreMacaroon != ""
-}
-
 // authAvailable returns true if there is a user and/or device session setup
 func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		return true, nil
 	} else {
 		var device *auth.DeviceState
@@ -659,13 +563,13 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 }
 
 // authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
-func authenticateDevice(r *http.Request, device *auth.DeviceState) {
+func authenticateDevice(r *http.Request, device *auth.DeviceState, apiLevel apiLevel) {
 	if device.SessionMacaroon != "" {
-		r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
+		r.Header.Set(hdrSnapDeviceAuthorization[apiLevel], fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
 	}
 }
 
-func (s *Store) setStoreID(r *http.Request) {
+func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
 		cand, err := s.authContext.StoreID(storeID)
@@ -676,9 +580,33 @@ func (s *Store) setStoreID(r *http.Request) {
 		}
 	}
 	if storeID != "" {
-		r.Header.Set("X-Ubuntu-Store", storeID)
+		r.Header.Set(hdrSnapDeviceStore[apiLevel], storeID)
+		return true
 	}
+	return false
 }
+
+type apiLevel int
+
+const (
+	apiV1Endps apiLevel = 0 // api/v1 endpoints
+	apiV2Endps apiLevel = 1 // v2 endpoints
+)
+
+var (
+	hdrSnapDeviceAuthorization = []string{"X-Device-Authorization", "Snap-Device-Authorization"}
+	hdrSnapDeviceStore         = []string{"X-Ubuntu-Store", "Snap-Device-Store"}
+	hdrSnapDeviceSeries        = []string{"X-Ubuntu-Series", "Snap-Device-Series"}
+	hdrSnapDeviceArchitecture  = []string{"X-Ubuntu-Architecture", "Snap-Device-Architecture"}
+	hdrSnapClassic             = []string{"X-Ubuntu-Classic", "Snap-Classic"}
+)
+
+type deviceAuthNeed int
+
+const (
+	deviceAuthPreferred deviceAuthNeed = iota
+	deviceAuthCustomStoreOnly
+)
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
@@ -686,8 +614,16 @@ type requestOptions struct {
 	URL          *url.URL
 	Accept       string
 	ContentType  string
+	APILevel     apiLevel
 	ExtraHeaders map[string]string
 	Data         []byte
+
+	// DeviceAuthNeed indicates the level of need to supply device
+	// authorization for this request, can be:
+	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthCustomStoreOnly: should be provided only in case
+	//    of a custom store
+	DeviceAuthNeed deviceAuthNeed
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -714,11 +650,23 @@ var expectedCatalogPreamble = []interface{}{
 	json.Delim('['),
 }
 
-type catalogItem struct {
-	Name string `json:"package_name"`
+type alias struct {
+	Name string `json:"name"`
 }
 
-func decodeCatalog(resp *http.Response, names io.Writer) error {
+type catalogItem struct {
+	Name    string   `json:"package_name"`
+	Version string   `json:"version"`
+	Summary string   `json:"summary"`
+	Aliases []alias  `json:"aliases"`
+	Apps    []string `json:"apps"`
+}
+
+type SnapAdder interface {
+	AddSnap(snapName, version, summary string, commands []string) error
+}
+
+func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 	const what = "decode new commands catalog"
 	if resp.StatusCode != 200 {
 		return respToError(resp, what)
@@ -739,8 +687,25 @@ func decodeCatalog(resp *http.Response, names io.Writer) error {
 		if err := dec.Decode(&v); err != nil {
 			return fmt.Errorf(what+": %v", err)
 		}
-		if v.Name != "" {
-			fmt.Fprintln(names, v.Name)
+		if v.Name == "" {
+			continue
+		}
+		fmt.Fprintln(names, v.Name)
+		if len(v.Apps) == 0 {
+			continue
+		}
+
+		commands := make([]string, 0, len(v.Aliases)+len(v.Apps))
+
+		for _, alias := range v.Aliases {
+			commands = append(commands, alias.Name)
+		}
+		for _, app := range v.Apps {
+			commands = append(commands, snap.JoinSnapApp(v.Name, app))
+		}
+
+		if err := db.AddSnap(v.Name, v.Version, v.Summary, commands); err != nil {
+			return err
 		}
 	}
 
@@ -774,57 +739,85 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp *http.Response
-	if ctx != nil {
-		resp, err = ctxhttp.Do(ctx, client, req)
-	} else {
-		resp, err = client.Do(req)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
-		refreshed := false
-		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-			// refresh user
-			err = s.refreshUser(user)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+	authRefreshes := 0
+	for {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return nil, err
 		}
-		if strings.Contains(wwwAuth, "refresh_device_session=1") {
-			// refresh device session
-			if s.authContext == nil {
-				return nil, fmt.Errorf("internal error: no authContext")
-			}
-			device, err := s.authContext.Device()
-			if err != nil {
-				return nil, err
-			}
 
-			err = s.refreshDeviceSession(device)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+		var resp *http.Response
+		if ctx != nil {
+			resp, err = ctxhttp.Do(ctx, client, req)
+		} else {
+			resp, err = client.Do(req)
 		}
-		if refreshed {
-			// close previous response and retry
-			// TODO: make this non-recursive or add a recursion limit
-			resp.Body.Close()
-			return s.doRequest(ctx, client, reqOptions, user)
+		if err != nil {
+			return nil, err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == 401 && authRefreshes < 4 {
+			// 4 tries: 2 tries for each in case both user
+			// and device need refreshing
+			var refreshNeed authRefreshNeed
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				refreshNeed.user = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				refreshNeed.device = true
+			}
+			if refreshNeed.needed() {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					return nil, err
+				}
+				// close previous response and retry
+				resp.Body.Close()
+				authRefreshes++
+				continue
+			}
+		}
+
+		return resp, err
+	}
+}
+
+type authRefreshNeed struct {
+	device bool
+	user   bool
+}
+
+func (rn *authRefreshNeed) needed() bool {
+	return rn.device || rn.user
+}
+
+func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+	if need.user {
+		// refresh user
+		err := s.refreshUser(user)
+		if err != nil {
+			return err
 		}
 	}
+	if need.device {
+		// refresh device session
+		if s.authContext == nil {
+			return fmt.Errorf("internal error: no authContext")
+		}
+		device, err := s.authContext.Device()
+		if err != nil {
+			return err
+		}
 
-	return resp, err
+		err = s.refreshDeviceSession(device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // build a new http.Request with headers for the store
@@ -839,7 +832,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	if s.authContext != nil {
+	customStore := s.setStoreID(req, reqOptions.APILevel)
+
+	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -856,21 +851,22 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 				return nil, err
 			}
 		}
-		authenticateDevice(req, device)
+		authenticateDevice(req, device, reqOptions.APILevel)
 	}
 
 	// only set user authentication if user logged in to the store
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		authenticateUser(req, user)
 	}
 
 	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", reqOptions.Accept)
-	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
-	req.Header.Set("X-Ubuntu-Series", s.series)
-	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
-	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
-	req.Header.Set("X-Ubuntu-No-CDN", strconv.FormatBool(s.noCDN))
+	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
+	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
+	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
+	if reqOptions.APILevel == apiV1Endps {
+		req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
@@ -880,9 +876,44 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		req.Header.Set(header, value)
 	}
 
-	s.setStoreID(req)
-
 	return req, nil
+}
+
+func (s *Store) cdnHeader() (string, error) {
+	if s.noCDN {
+		return "none", nil
+	}
+
+	if s.authContext == nil {
+		return "", nil
+	}
+
+	// set Snap-CDN from cloud instance information
+	// if available
+
+	// TODO: do we want a more complex retry strategy
+	// where we first to send this header and if the
+	// operation fails that way to even get the connection
+	// then we retry without sending this?
+
+	cloudInfo, err := s.authContext.CloudInfo()
+	if err != nil {
+		return "", err
+	}
+
+	if cloudInfo != nil {
+		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
+		if cloudInfo.Region != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
+		}
+		if cloudInfo.AvailabilityZone != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
+		}
+
+		return strings.Join(cdnParams, " "), nil
+	}
+
+	return "", nil
 }
 
 func (s *Store) extractSuggestedCurrency(resp *http.Response) {
@@ -995,44 +1026,23 @@ func mustBuy(paid bool, bought bool) bool {
 
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
-	Name    string
-	Channel string
-	// AnyChannel can be set to query for any revision independent of channel
-	AnyChannel bool
-	// Revision can be set to query for an exact revision
-	Revision snap.Revision
+	Name string
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := s.defaultSnapQuery()
+	query := url.Values{}
+	query.Set("fields", strings.Join(s.infoFields, ","))
+	query.Set("architecture", s.architecture)
 
-	channel := snapSpec.Channel
-	var sel string
-	if channel == "" {
-		channel = "stable" // default
-	}
-	if snapSpec.AnyChannel {
-		channel = ""
-	}
-	if !snapSpec.Revision.Unset() {
-		query.Set("revision", snapSpec.Revision.String())
-		channel = ""
-		sel = fmt.Sprintf(" at revision %s", snapSpec.Revision)
-	}
-	if channel != "" {
-		sel = fmt.Sprintf(" in channel %q", channel)
-	}
-	query.Set("channel", channel)
-
-	u := s.endpointURL(path.Join(detailsEndpPath, snapSpec.Name), query)
+	u := s.endpointURL(path.Join(snapInfoEndpPath, snapSpec.Name), query)
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+		Method:   "GET",
+		URL:      u,
+		APILevel: apiV2Endps,
 	}
 
-	var remote *snapDetails
+	var remote storeInfo
 	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
@@ -1045,11 +1055,14 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case 404:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
+		msg := fmt.Sprintf("get details for snap %q", snapSpec.Name)
 		return nil, respToError(resp, msg)
 	}
 
-	info := infoFromRemote(remote)
+	info, err := infoFromStoreInfo(&remote)
+	if err != nil {
+		return nil, err
+	}
 
 	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {
@@ -1065,6 +1078,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 type Search struct {
 	Query   string
 	Section string
+	Scope   string
 	Private bool
 	Prefix  bool
 }
@@ -1110,6 +1124,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	if search.Section != "" {
 		q.Set("section", search.Section)
 	}
+	if search.Scope != "" {
+		q.Set("scope", search.Scope)
+	}
 
 	if release.OnClassic {
 		q.Set("confinement", "strict,classic")
@@ -1154,11 +1171,12 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 }
 
 // Sections retrieves the list of available store sections.
-func (s *Store) Sections(user *auth.UserState) ([]string, error) {
+func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.endpointURL(sectionsEndpPath, nil),
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            s.endpointURL(sectionsEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	var sectionData sectionResults
@@ -1185,7 +1203,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
-func (s *Store) WriteCatalogs(names io.Writer) error {
+func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAdder) error {
 	u := *s.endpointURL(commandsEndpPath, nil)
 
 	q := u.Query()
@@ -1197,9 +1215,10 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 
 	u.RawQuery = q.Encode()
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            &u,
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	// do not log body for catalog updates (its huge)
@@ -1208,10 +1227,10 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		Timeout:    10 * time.Second,
 	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), client, reqOptions, nil)
+		return s.doRequest(ctx, client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
-		return decodeCatalog(resp, names)
+		return decodeCatalog(resp, names, adder)
 	}
 
 	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
@@ -1237,6 +1256,9 @@ type RefreshCandidate struct {
 	Channel string
 	// whether validation should be ignored
 	IgnoreValidation bool
+
+	// try to refresh a local snap to a store revision
+	Amend bool
 }
 
 // the exact bits that we need to send to the store
@@ -1249,11 +1271,6 @@ type currentSnapJSON struct {
 	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
 }
 
-type metadataWrapper struct {
-	Snaps  []*currentSnapJSON `json:"snaps"`
-	Fields []string           `json:"fields"`
-}
-
 func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	// the store gets confused if we send snaps without a snapid
 	// (like local ones)
@@ -1263,7 +1280,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		}
 		return nil
 	}
-	if !cs.Revision.Store() {
+	if !cs.Revision.Store() && !cs.Amend {
 		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
 		return nil
 	}
@@ -1281,119 +1298,6 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		IgnoreValidation: cs.IgnoreValidation,
 		// confinement purposely left empty
 	}
-}
-
-// query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
-	if flags == nil {
-		flags = &RefreshOptions{}
-	}
-
-	if len(currentSnaps) == 0 {
-		// nothing to do
-		return nil, nil
-	}
-
-	// build input for the updates endpoint
-	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  currentSnaps,
-		Fields: s.detailFields,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.endpointURL(bulkEndpPath, nil),
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	if useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.addHeader("X-Ubuntu-Delta-Formats", s.deltaFormat)
-	}
-	if flags.RefreshManaged {
-		reqOptions.addHeader("X-Ubuntu-Refresh-Managed", "true")
-	}
-
-	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &updateData, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "query the store for updates")
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return updateData.Payload.Packages, nil
-}
-
-var refreshForCandidates = (*Store).refreshForCandidates
-
-// LookupRefresh returns a snap's store-offered revision information given its refresh candidate.
-func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
-	cur := currentSnap(installed)
-	if cur == nil {
-		return nil, ErrLocalSnap
-	}
-
-	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(latest) != 1 {
-		return nil, ErrSnapNotFound
-	}
-
-	rsnap := latest[0]
-	if !acceptableUpdate(rsnap, installed) {
-		return nil, ErrNoUpdateAvailable
-	}
-
-	return infoFromRemote(rsnap), nil
-}
-
-// ListRefresh returns the available updates for a list of refresh candidates.
-// NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
-	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
-	for _, cs := range installed {
-		cur := currentSnap(cs)
-		if cur == nil {
-			continue
-		}
-		currentSnaps = append(currentSnaps, cur)
-		candidateMap[cs.SnapID] = cs
-	}
-
-	latest, err := s.refreshForCandidates(currentSnaps, user, flags)
-	if err != nil {
-		return nil, err
-	}
-
-	toRefresh := make([]*snap.Info, 0, len(latest))
-	for _, rsnap := range latest {
-		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
-			continue
-		}
-
-		toRefresh = append(toRefresh, infoFromRemote(rsnap))
-	}
-
-	return toRefresh, nil
-}
-
-func acceptableUpdate(remote *snapDetails, installed *RefreshCandidate) bool {
-	rrev := snap.R(remote.Revision)
-	return !(rrev == installed.Revision || findRev(rrev, installed.Block))
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1425,6 +1329,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if err := s.cacher.Get(downloadInfo.Sha3_384, targetPath); err == nil {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
 	}
 
@@ -1442,7 +1347,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	partialPath := targetPath + ".partial"
-	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -1458,6 +1363,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			os.Remove(w.Name())
 		}
 	}()
+	if resume > 0 {
+		logger.Debugf("Resuming download of %q at %d.", partialPath, resume)
+	} else {
+		logger.Debugf("Starting download of %q.", partialPath)
+	}
 
 	authAvail, err := s.authAvailable(user)
 	if err != nil {
@@ -1471,6 +1381,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+		if err != nil {
+			logger.Debugf("download of %q failed: %#v", url, err)
+		}
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
@@ -1488,6 +1401,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// If hashsum is incorrect retry once
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
+		logger.Debugf("Truncating and trying again from scratch.")
 		err = w.Truncate(0)
 		if err != nil {
 			return err
@@ -1497,6 +1411,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 			return err
 		}
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+		if err != nil {
+			logger.Debugf("download of %q failed: %#v", url, err)
+		}
 	}
 
 	if err != nil {
@@ -1514,6 +1431,19 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+	reqOptions := requestOptions{
+		Method:       "GET",
+		URL:          storeURL,
+		ExtraHeaders: map[string]string{},
+	}
+	if cdnHeader != "" {
+		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+
+	return &reqOptions
+}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1521,21 +1451,23 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		return err
 	}
 
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return err
+	}
+
 	var finalErr error
+	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := &requestOptions{
-			Method: "GET",
-			URL:    storeURL,
-		}
+		reqOptions := downloadOptions(storeURL, cdnHeader)
+
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
 		h := crypto.SHA3_384.New()
 
 		if resume > 0 {
-			reqOptions.ExtraHeaders = map[string]string{
-				"Range": fmt.Sprintf("bytes=%d-", resume),
-			}
+			reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 			// seed the sha3 with the already local file
 			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
 				return err
@@ -1584,7 +1516,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		if pbar == nil {
 			pbar = progress.Null
 		}
-		pbar.Start(name, float64(resp.ContentLength))
+		dlSize = float64(resp.ContentLength)
+		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar)
 		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
@@ -1610,6 +1543,20 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			finalErr = HashError{name, actualSha3, sha3_384}
 		}
 		break
+	}
+	if finalErr == nil {
+		// not using quantity.FormatFoo as this is just for debug
+		dt := time.Since(startTime)
+		r := dlSize / dt.Seconds()
+		var p rune
+		for _, p = range " kMGTPEZY" {
+			if r < 1000 {
+				break
+			}
+			r /= 1000
+		}
+
+		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
 }
@@ -1704,7 +1651,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
-	w, err := os.Create(deltaPath)
+	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -1989,4 +1936,479 @@ func (s *Store) SetCacheDownloads(fileCount int) {
 	} else {
 		s.cacher = &nullCache{}
 	}
+}
+
+// snap action: install/refresh
+
+type CurrentSnap struct {
+	InstanceName     string
+	SnapID           string
+	Revision         snap.Revision
+	TrackingChannel  string
+	RefreshedDate    time.Time
+	IgnoreValidation bool
+	Block            []snap.Revision
+}
+
+type currentSnapV2JSON struct {
+	SnapID           string     `json:"snap-id"`
+	InstanceKey      string     `json:"instance-key"`
+	Revision         int        `json:"revision"`
+	TrackingChannel  string     `json:"tracking-channel"`
+	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
+	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
+}
+
+type SnapActionFlags int
+
+const (
+	SnapActionIgnoreValidation SnapActionFlags = 1 << iota
+	SnapActionEnforceValidation
+)
+
+type SnapAction struct {
+	Action       string
+	InstanceName string
+	SnapID       string
+	Channel      string
+	Revision     snap.Revision
+	Flags        SnapActionFlags
+	Epoch        *snap.Epoch
+}
+
+func isValidAction(action string) bool {
+	switch action {
+	case "download", "install", "refresh":
+		return true
+	default:
+		return false
+	}
+}
+
+type snapActionJSON struct {
+	Action           string      `json:"action"`
+	InstanceKey      string      `json:"instance-key"`
+	Name             string      `json:"name,omitempty"`
+	SnapID           string      `json:"snap-id,omitempty"`
+	Channel          string      `json:"channel,omitempty"`
+	Revision         int         `json:"revision,omitempty"`
+	Epoch            *snap.Epoch `json:"epoch,omitempty"`
+	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
+}
+
+type snapRelease struct {
+	Architecture string `json:"architecture"`
+	Channel      string `json:"channel"`
+}
+
+type snapActionResult struct {
+	Result           string    `json:"result"`
+	InstanceKey      string    `json:"instance-key"`
+	SnapID           string    `json:"snap-id,omitempy"`
+	Name             string    `json:"name,omitempty"`
+	Snap             storeSnap `json:"snap"`
+	EffectiveChannel string    `json:"effective-channel,omitempty"`
+	Error            struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Extra   struct {
+			Releases []snapRelease `json:"releases"`
+		} `json:"extra"`
+	} `json:"error"`
+}
+
+type snapActionRequest struct {
+	Context []*currentSnapV2JSON `json:"context"`
+	Actions []*snapActionJSON    `json:"actions"`
+	Fields  []string             `json:"fields"`
+}
+
+type snapActionResultList struct {
+	Results   []*snapActionResult `json:"results"`
+	ErrorList []struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error-list"`
+}
+
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
+
+// SnapAction queries the store for snap information for the given
+// install/refresh actions, given the context information about
+// current installed snaps in currentSnaps. If the request was overall
+// successul (200) but there were reported errors it will return both
+// the snap infos and an SnapActionError.
+func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+	if opts == nil {
+		opts = &RefreshOptions{}
+	}
+
+	if len(currentSnaps) == 0 && len(actions) == 0 {
+		// nothing to do
+		return nil, &SnapActionError{NoResults: true}
+	}
+
+	authRefreshes := 0
+	for {
+		snaps, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
+
+		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
+			// do we need to try to refresh auths?, 2 tries
+			var refreshNeed authRefreshNeed
+			for _, otherErr := range saErr.Other {
+				switch otherErr {
+				case errUserAuthorizationNeedsRefresh:
+					refreshNeed.user = true
+				case errDeviceAuthorizationNeedsRefresh:
+					refreshNeed.device = true
+				}
+			}
+			if refreshNeed.needed() {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					// best effort
+					logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
+				}
+				authRefreshes++
+				// TODO: we could avoid retrying here
+				// if refreshAuth gave no error we got
+				// as many non-error results from the
+				// store as actions anyway
+				continue
+			}
+		}
+
+		return snaps, err
+	}
+}
+
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+
+	// TODO: the store already requires instance-key but doesn't
+	// yet support repeating in context or sending actions for the
+	// same snap-id, for now we keep instance-key handling internal
+
+	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
+	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
+	instanceNameToKey := make(map[string]string, len(currentSnaps))
+	for i, curSnap := range currentSnaps {
+		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
+			return nil, fmt.Errorf("internal error: invalid current snap information")
+		}
+		instanceKey := curSnap.SnapID
+		if _, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName); snapInstanceKey != "" {
+			// due to privacy concerns, avoid sending the local names to the
+			// backend and instead just number current snaps, this requires
+			// extra hoops to translate instance key -> instance name
+
+			// TODO parallel-install: ensure that instance key is
+			// stable across refreshes
+			instanceKey = fmt.Sprintf("%d-%s", i, curSnap.SnapID)
+		}
+		curSnaps[instanceKey] = curSnap
+		instanceNameToKey[curSnap.InstanceName] = instanceKey
+
+		channel := curSnap.TrackingChannel
+		if channel == "" {
+			channel = "stable"
+		}
+		var refreshedDate *time.Time
+		if !curSnap.RefreshedDate.IsZero() {
+			refreshedDate = &curSnap.RefreshedDate
+		}
+		curSnapJSONs[i] = &currentSnapV2JSON{
+			SnapID:           curSnap.SnapID,
+			InstanceKey:      instanceKey,
+			Revision:         curSnap.Revision.N,
+			TrackingChannel:  channel,
+			IgnoreValidation: curSnap.IgnoreValidation,
+			RefreshedDate:    refreshedDate,
+		}
+	}
+
+	downloadNum := 0
+	installNum := 0
+	installs := make(map[string]*SnapAction, len(actions))
+	downloads := make(map[string]*SnapAction, len(actions))
+	refreshes := make(map[string]*SnapAction, len(actions))
+	actionJSONs := make([]*snapActionJSON, len(actions))
+	for i, a := range actions {
+		if !isValidAction(a.Action) {
+			return nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
+		}
+		if a.InstanceName == "" {
+			return nil, fmt.Errorf("internal error: action without instance name")
+		}
+		var ignoreValidation *bool
+		if a.Flags&SnapActionIgnoreValidation != 0 {
+			var t = true
+			ignoreValidation = &t
+		} else if a.Flags&SnapActionEnforceValidation != 0 {
+			var f = false
+			ignoreValidation = &f
+		}
+
+		var instanceKey string
+		aJSON := &snapActionJSON{
+			Action:           a.Action,
+			SnapID:           a.SnapID,
+			Channel:          a.Channel,
+			Revision:         a.Revision.N,
+			Epoch:            a.Epoch,
+			IgnoreValidation: ignoreValidation,
+		}
+		if !a.Revision.Unset() {
+			a.Channel = ""
+		}
+		if a.Action == "install" {
+			installNum++
+			instanceKey = fmt.Sprintf("install-%d", installNum)
+			installs[instanceKey] = a
+		} else if a.Action == "download" {
+			downloadNum++
+			instanceKey = fmt.Sprintf("download-%d", downloadNum)
+			downloads[instanceKey] = a
+			if _, key := snap.SplitInstanceName(a.InstanceName); key != "" {
+				return nil, fmt.Errorf("internal error: unsupported download with instance name %q", a.InstanceName)
+			}
+		} else {
+			instanceKey = instanceNameToKey[a.InstanceName]
+			refreshes[instanceKey] = a
+		}
+
+		if a.Action != "refresh" {
+			aJSON.Name = snap.InstanceSnap(a.InstanceName)
+		}
+
+		aJSON.InstanceKey = instanceKey
+
+		actionJSONs[i] = aJSON
+	}
+
+	// build input for the install/refresh endpoint
+	jsonData, err := json.Marshal(snapActionRequest{
+		Context: curSnapJSONs,
+		Actions: actionJSONs,
+		Fields:  snapActionFields,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	reqOptions := &requestOptions{
+		Method:      "POST",
+		URL:         s.endpointURL(snapActionEndpPath, nil),
+		Accept:      jsonContentType,
+		ContentType: jsonContentType,
+		Data:        jsonData,
+		APILevel:    apiV2Endps,
+	}
+
+	if useDeltas() {
+		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormat)
+		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormat)
+	}
+	if opts.RefreshManaged {
+		reqOptions.addHeader("Snap-Refresh-Managed", "true")
+	}
+
+	var results snapActionResultList
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, respToError(resp, "query the store for updates")
+	}
+
+	s.extractSuggestedCurrency(resp)
+
+	refreshErrors := make(map[string]error)
+	installErrors := make(map[string]error)
+	downloadErrors := make(map[string]error)
+	var otherErrors []error
+
+	var snaps []*snap.Info
+	for _, res := range results.Results {
+		if res.Result == "error" {
+			if a := installs[res.InstanceKey]; a != nil {
+				if res.Name != "" {
+					installErrors[a.InstanceName] = translateSnapActionError("install", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
+					continue
+				}
+			} else if a := downloads[res.InstanceKey]; a != nil {
+				if res.Name != "" {
+					downloadErrors[res.Name] = translateSnapActionError("download", a.Channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
+					continue
+				}
+			} else {
+				if cur := curSnaps[res.InstanceKey]; cur != nil {
+					a := refreshes[res.InstanceKey]
+					channel := a.Channel
+					if channel == "" && a.Revision.Unset() {
+						channel = cur.TrackingChannel
+					}
+					refreshErrors[cur.InstanceName] = translateSnapActionError("refresh", channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
+					continue
+				}
+			}
+			otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, res.Error.Message, nil))
+			continue
+		}
+		snapInfo, err := infoFromStoreSnap(&res.Snap)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected invalid install/refresh API result: %v", err)
+		}
+
+		snapInfo.Channel = res.EffectiveChannel
+
+		var instanceName string
+		if res.Result == "refresh" {
+			cur := curSnaps[res.InstanceKey]
+			if cur == nil {
+				return nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected refresh")
+			}
+			rrev := snap.R(res.Snap.Revision)
+			if rrev == cur.Revision || findRev(rrev, cur.Block) {
+				refreshErrors[cur.InstanceName] = ErrNoUpdateAvailable
+				continue
+			}
+			instanceName = cur.InstanceName
+		} else if res.Result == "install" {
+			if action := installs[res.InstanceKey]; action != nil {
+				instanceName = action.InstanceName
+			}
+		}
+
+		if res.Result != "download" && instanceName == "" {
+			return nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected instance-key %q", res.InstanceKey)
+		}
+
+		_, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+
+		snaps = append(snaps, snapInfo)
+	}
+
+	for _, errObj := range results.ErrorList {
+		otherErrors = append(otherErrors, translateSnapActionError("", "", errObj.Code, errObj.Message, nil))
+	}
+
+	if len(refreshErrors)+len(installErrors)+len(downloadErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
+		// normalize empty maps
+		if len(refreshErrors) == 0 {
+			refreshErrors = nil
+		}
+		if len(installErrors) == 0 {
+			installErrors = nil
+		}
+		if len(downloadErrors) == 0 {
+			downloadErrors = nil
+		}
+		return snaps, &SnapActionError{
+			NoResults: len(results.Results) == 0,
+			Refresh:   refreshErrors,
+			Install:   installErrors,
+			Download:  downloadErrors,
+			Other:     otherErrors,
+		}
+	}
+
+	return snaps, nil
+}
+
+// abbreviated info structs just for the download info
+type storeInfoChannelAbbrev struct {
+	Download storeSnapDownload `json:"download"`
+}
+
+type storeInfoAbbrev struct {
+	// discard anything beyond the first entry
+	ChannelMap [1]storeInfoChannelAbbrev `json:"channel-map"`
+}
+
+var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
+
+func (s *Store) snapConnCheck() ([]string, error) {
+	var hosts []string
+	// NOTE: "core" is possibly the only snap that's sure to be in all stores
+	//       when we drop "core" in the move to snapd/core18/etc, change this
+	infoURL := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
+		// we only want the download URL
+		"fields": {"download"},
+		// we only need *one* (but can't filter by channel ... yet)
+		"architecture": {s.architecture},
+	})
+	hosts = append(hosts, infoURL.Host)
+
+	var result storeInfoAbbrev
+	resp, err := httputil.RetryRequest(infoURL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{
+			Method:   "GET",
+			URL:      infoURL,
+			APILevel: apiV2Endps,
+		}, nil)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, &result, nil)
+	}, connCheckStrategy)
+
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	dlURLraw := result.ChannelMap[0].Download.URL
+	dlURL, err := url.ParseRequestURI(dlURLraw)
+	if err != nil {
+		return hosts, err
+	}
+	hosts = append(hosts, dlURL.Host)
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return hosts, err
+	}
+
+	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions.Method = "HEAD" // not actually a download
+
+	// TODO: We need the HEAD here so that we get redirected to the
+	//       right CDN machine. Consider just doing a "net.Dial"
+	//       after the redirect here. Suggested in
+	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
+	resp, err = httputil.RetryRequest(dlURLraw, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}, func(resp *http.Response) error {
+		// account for redirect
+		hosts[len(hosts)-1] = resp.Request.URL.Host
+		return nil
+	}, connCheckStrategy)
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return hosts, errUnexpectedConnCheckResponse
+	}
+
+	return hosts, nil
+}
+
+func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
+	status = make(map[string]bool)
+
+	checkers := []func() ([]string, error){
+		s.snapConnCheck,
+	}
+
+	for _, checker := range checkers {
+		hosts, err := checker()
+		for _, host := range hosts {
+			status[host] = (err == nil)
+		}
+	}
+
+	return status, nil
 }

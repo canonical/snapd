@@ -1,6 +1,6 @@
 summary: Check that undo for snap refresh works
 
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir

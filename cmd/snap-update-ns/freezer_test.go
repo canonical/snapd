@@ -21,13 +21,13 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type freezerSuite struct{}
@@ -59,9 +59,7 @@ func (s *freezerSuite) TestFreezeSnapProcesses(c *C) {
 	c.Assert(update.FreezeSnapProcesses(n), IsNil)
 	_, err = os.Stat(f)
 	c.Assert(err, IsNil)
-	data, err := ioutil.ReadFile(f)
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, []byte(`FROZEN`))
+	c.Assert(f, testutil.FileEquals, `FROZEN`)
 }
 
 func (s *freezerSuite) TestThawSnapProcesses(c *C) {
@@ -89,7 +87,5 @@ func (s *freezerSuite) TestThawSnapProcesses(c *C) {
 	c.Assert(update.ThawSnapProcesses(n), IsNil)
 	_, err = os.Stat(f)
 	c.Assert(err, IsNil)
-	data, err := ioutil.ReadFile(f)
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, []byte(`THAWED`))
+	c.Assert(f, testutil.FileEquals, `THAWED`)
 }

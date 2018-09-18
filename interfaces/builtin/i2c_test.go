@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -35,23 +36,44 @@ type I2cInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
-	testSlot1 *interfaces.Slot
+	testSlot1     *interfaces.ConnectedSlot
+	testSlot1Info *snap.SlotInfo
 
 	// Gadget Snap
-	testUDev1             *interfaces.Slot
-	testUDev2             *interfaces.Slot
-	testUDev3             *interfaces.Slot
-	testUDevBadValue1     *interfaces.Slot
-	testUDevBadValue2     *interfaces.Slot
-	testUDevBadValue3     *interfaces.Slot
-	testUDevBadValue4     *interfaces.Slot
-	testUDevBadValue5     *interfaces.Slot
-	testUDevBadValue6     *interfaces.Slot
-	testUDevBadValue7     *interfaces.Slot
-	testUDevBadInterface1 *interfaces.Slot
+	testUDev1                  *interfaces.ConnectedSlot
+	testUDev1Info              *snap.SlotInfo
+	testUDev2                  *interfaces.ConnectedSlot
+	testUDev2Info              *snap.SlotInfo
+	testUDev3                  *interfaces.ConnectedSlot
+	testUDev3Info              *snap.SlotInfo
+	testSysfsName1             *interfaces.ConnectedSlot
+	testSysfsName1Info         *snap.SlotInfo
+	testUDevBadValue1          *interfaces.ConnectedSlot
+	testUDevBadValue1Info      *snap.SlotInfo
+	testUDevBadValue2          *interfaces.ConnectedSlot
+	testUDevBadValue2Info      *snap.SlotInfo
+	testUDevBadValue3          *interfaces.ConnectedSlot
+	testUDevBadValue3Info      *snap.SlotInfo
+	testUDevBadValue4          *interfaces.ConnectedSlot
+	testUDevBadValue4Info      *snap.SlotInfo
+	testUDevBadValue5          *interfaces.ConnectedSlot
+	testUDevBadValue5Info      *snap.SlotInfo
+	testUDevBadValue6          *interfaces.ConnectedSlot
+	testUDevBadValue6Info      *snap.SlotInfo
+	testUDevBadValue7          *interfaces.ConnectedSlot
+	testUDevBadValue7Info      *snap.SlotInfo
+	testUDevBadInterface1      *interfaces.ConnectedSlot
+	testUDevBadInterface1Info  *snap.SlotInfo
+	testSysfsNameBadValue1     *interfaces.ConnectedSlot
+	testSysfsNameBadValue1Info *snap.SlotInfo
+	testSysfsNameAndPath       *interfaces.ConnectedSlot
+	testSysfsNameAndPathInfo   *snap.SlotInfo
+	testSysfsNameEmpty         *interfaces.ConnectedSlot
+	testSysfsNameEmptyInfo     *snap.SlotInfo
 
 	// Consuming Snap
-	testPlugPort1 *interfaces.Plug
+	testPlugPort1     *interfaces.ConnectedPlug
+	testPlugPort1Info *snap.PlugInfo
 }
 
 var _ = Suite(&I2cInterfaceSuite{
@@ -62,17 +84,19 @@ func (s *I2cInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
   test-port-1:
     interface: i2c
     path: /dev/i2c-0
 `, nil)
-	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
+	s.testSlot1Info = osSnapInfo.Slots["test-port-1"]
 
 	// Mock for Gadget Snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
+version: 0
 type: gadget
 slots:
   test-udev-1:
@@ -84,6 +108,9 @@ slots:
   test-udev-3:
     interface: i2c
     path: /dev/i2c-0
+  test-sysfs-name-1:
+    interface: i2c
+    sysfs-name: 1-0050
   test-udev-bad-value-1:
     interface: i2c
     path: /dev/i2c
@@ -106,22 +133,51 @@ slots:
     interface: i2c
   test-udev-bad-interface-1:
     interface: other-interface
+  test-sysfs-name-bad-value-1:
+    interface: i2c
+    sysfs-name: /slash/not/allowed
+  test-sysfs-name-and-path:
+    interface: i2c
+    path: /dev/i2c-0
+    sysfs-name: 1-0050
+  test-sysfs-name-empty:
+    interface: i2c
+    sysfs-name: ""
 `, nil)
-	s.testUDev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
-	s.testUDev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
-	s.testUDev3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-3"]}
-	s.testUDevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
-	s.testUDevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
-	s.testUDevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
-	s.testUDevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-4"]}
-	s.testUDevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-5"]}
-	s.testUDevBadValue6 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-6"]}
-	s.testUDevBadValue7 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-7"]}
-	s.testUDevBadInterface1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-interface-1"]}
+	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
+	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil)
+	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
+	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil)
+	s.testUDev3Info = gadgetSnapInfo.Slots["test-udev-3"]
+	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil)
+	s.testSysfsName1Info = gadgetSnapInfo.Slots["test-sysfs-name-1"]
+	s.testSysfsName1 = interfaces.NewConnectedSlot(s.testSysfsName1Info, nil)
+	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
+	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil)
+	s.testUDevBadValue2Info = gadgetSnapInfo.Slots["test-udev-bad-value-2"]
+	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil)
+	s.testUDevBadValue3Info = gadgetSnapInfo.Slots["test-udev-bad-value-3"]
+	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil)
+	s.testUDevBadValue4Info = gadgetSnapInfo.Slots["test-udev-bad-value-4"]
+	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, nil)
+	s.testUDevBadValue5Info = gadgetSnapInfo.Slots["test-udev-bad-value-5"]
+	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, nil)
+	s.testUDevBadValue6Info = gadgetSnapInfo.Slots["test-udev-bad-value-6"]
+	s.testUDevBadValue6 = interfaces.NewConnectedSlot(s.testUDevBadValue6Info, nil)
+	s.testUDevBadValue7Info = gadgetSnapInfo.Slots["test-udev-bad-value-7"]
+	s.testUDevBadValue7 = interfaces.NewConnectedSlot(s.testUDevBadValue7Info, nil)
+	s.testUDevBadInterface1Info = gadgetSnapInfo.Slots["test-udev-bad-interface-1"]
+	s.testSysfsNameBadValue1Info = gadgetSnapInfo.Slots["test-sysfs-name-bad-value-1"]
+	s.testSysfsNameBadValue1 = interfaces.NewConnectedSlot(s.testSysfsNameBadValue1Info, nil)
+	s.testSysfsNameAndPathInfo = gadgetSnapInfo.Slots["test-sysfs-name-and-path"]
+	s.testSysfsNameAndPath = interfaces.NewConnectedSlot(s.testSysfsNameAndPathInfo, nil)
+	s.testSysfsNameEmptyInfo = gadgetSnapInfo.Slots["test-sysfs-name-empty"]
+	s.testSysfsNameEmpty = interfaces.NewConnectedSlot(s.testSysfsNameEmptyInfo, nil)
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
+version: 0
 plugs:
   plug-for-port-1:
     interface: i2c
@@ -130,7 +186,8 @@ apps:
     command: foo
     plugs: [i2c]
 `, nil)
-	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
+	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-port-1"]
+	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil)
 }
 
 func (s *I2cInterfaceSuite) TestName(c *C) {
@@ -138,40 +195,61 @@ func (s *I2cInterfaceSuite) TestName(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
-	c.Assert(s.testSlot1.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
-	c.Assert(s.testUDev1.Sanitize(s.iface), IsNil)
-	c.Assert(s.testUDev2.Sanitize(s.iface), IsNil)
-	c.Assert(s.testUDev3.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev3Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsName1Info), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-	c.Assert(s.testUDevBadValue1.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(s.testUDevBadValue2.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(s.testUDevBadValue3.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(s.testUDevBadValue4.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(s.testUDevBadValue5.Sanitize(s.iface), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(s.testUDevBadValue6.Sanitize(s.iface), ErrorMatches, "i2c slot must have a path attribute")
-	c.Assert(s.testUDevBadValue7.Sanitize(s.iface), ErrorMatches, "i2c slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "i2c slot must have a path or sysfs-name attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "i2c slot must have a path or sysfs-name attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsNameBadValue1Info), ErrorMatches, "i2c sysfs-name attribute must be a valid sysfs-name")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsNameAndPathInfo), ErrorMatches, "i2c slot can only use path or sysfs-name")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSysfsNameEmptyInfo), ErrorMatches, "i2c sysfs-name attribute must be a valid sysfs-name")
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
 KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
 }
 
-func (s *I2cInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *I2cInterfaceSuite) TestUDevSpecSysfsName(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSysfsName1), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
+}
+
+func (s *I2cInterfaceSuite) TestAppArmorSpecPath(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-1 rw,`)
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/sys/devices/platform/{*,**.i2c}/i2c-1/** rw,`)
+}
+
+func (s *I2cInterfaceSuite) TestAppArmorSpecSysfsName(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSysfsName1), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), Equals, `
+# Description: Can access I2C sysfs name
+
+/sys/bus/i2c/devices/1-0050/** rw,
+`)
 }
 
 func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {

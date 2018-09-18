@@ -34,7 +34,7 @@ var defaultTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected) {
+###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
@@ -92,8 +92,8 @@ var defaultTemplate = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /bin/bash ixr,
-  /bin/dash ixr,
+  /{,usr/}bin/bash ixr,
+  /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
   /etc/{passwd,group,nsswitch.conf} r,  # very common
   /etc/default/nss r,
@@ -106,6 +106,8 @@ var defaultTemplate = `
   # Common utilities for shell scripts
   /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
+  /{,usr/}bin/base32 ixr,
+  /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
   /{,usr/}bin/bzcat ixr,
@@ -121,10 +123,12 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,
   /{,usr/}bin/dirname ixr,
+  /{,usr/}bin/du ixr,
   /{,usr/}bin/echo ixr,
   /{,usr/}bin/{,e,f,r}grep ixr,
   /{,usr/}bin/env ixr,
@@ -133,6 +137,8 @@ var defaultTemplate = `
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/fold ixr,
+  /{,usr/}bin/getconf ixr,
   /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
@@ -183,6 +189,7 @@ var defaultTemplate = `
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/stty ixr,
+  /{,usr/}bin/sync ixr,
   /{,usr/}bin/systemd-cat ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
@@ -214,6 +221,9 @@ var defaultTemplate = `
 
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
+
+  # For gdb support
+  /usr/lib/snapd/snap-gdb-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
@@ -247,6 +257,7 @@ var defaultTemplate = `
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
+  /usr/lib/snapd/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
@@ -276,6 +287,15 @@ var defaultTemplate = `
   # Per man(5) proc, the kernel enforces that a thread may only modify its comm
   # value or those in its thread group.
   owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
+  # Allow reading and writing to our file descriptors in /proc which, for
+  # example, allow access to /dev/std{in,out,err} which are all symlinks to
+  # /proc/self/fd/{0,1,2} respectively. To support the open(..., O_TMPFILE)
+  # linkat() temporary file technique, allow all fds. Importantly, access to
+  # another's task's fd via this proc interface is mediated via 'ptrace (read)'
+  # (readonly) and 'ptrace (trace)' (read/write) which is denied by default, so
+  # this rule by itself doesn't allow opening another snap's fds via proc.
+  owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,
 
   # Miscellaneous accesses
   /dev/{,u}random w,
@@ -307,6 +327,7 @@ var defaultTemplate = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/random/boot_id r,
@@ -391,6 +412,13 @@ var defaultTemplate = `
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
 
+  # Allow receiving signals from all snaps (and focus on mediating sending of
+  # signals)
+  signal (receive) peer=snap.*,
+
+  # Allow receiving signals from unconfined (eg, systemd)
+  signal (receive) peer=unconfined,
+
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
@@ -454,7 +482,7 @@ var classicTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected) {
+###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,
@@ -487,6 +515,9 @@ var classicJailmodeSnippet = `
   # Read only access to the core snap to load libc from.
   # This is related to LP: #1666897
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
+
+  # For snappy reexec on 4.8+ kernels
+  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
 `
 
 // nfsSnippet contains extra permissions necessary for snaps and snap-confine
@@ -498,4 +529,130 @@ var nfsSnippet = `
   # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1662552
   network inet,
   network inet6,
+`
+
+// overlayRootSnippet contains the extra permissions necessary for snap and
+// snap-confine to operate on systems where '/' is a writable overlay fs.
+// AppArmor requires directory reads for upperdir (but these aren't otherwise
+// visible to the snap). While we filter AppArmor regular expression (AARE)
+// characters elsewhere, we double quote the path in case UPPERDIR has spaces.
+var overlayRootSnippet = `
+  # snapd autogenerated workaround for systems using '/' on overlayfs. For
+  # details see: https://bugs.launchpad.net/apparmor/+bug/1703674
+  "###UPPERDIR###/{,**/}" r,
+`
+
+// updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
+//
+// The per-snap snap-update-ns profiles are composed via a template and
+// snippets for the snap. The template allows:
+// - accesses to libraries, files and /proc entries required to run
+// - using global and per-snap lock files
+// - reading per-snap mount namespaces and mount profiles
+// - managing per-snap freezer state files
+// - per-snap mounting/unmounting fonts from the host
+// - denying mounts to restricted places (eg, /snap/bin and /media)
+var updateNSTemplate = `
+# Description: Allows snap-update-ns to construct the mount namespace specific
+# to a particular snap (see the name below). This specifically includes the
+# precise locations of the layout elements.
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
+  # The next four rules mirror those above. We want to be able to read
+  # and map snap-update-ns into memory but it may come from a variety of places.
+  /usr/lib{,exec,64}/snapd/snap-update-ns mr,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
+  /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+
+  # Allow reading the dynamic linker cache.
+  /etc/ld.so.cache r,
+  # Allow reading, mapping and executing the dynamic linker.
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+  # Allow reading and mapping various parts of the standard library and
+  # dynamically loaded nss modules and what not.
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+
+  # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
+  @{PROC}/@{pid}/cmdline r,
+
+  # Allow reading file descriptor paths
+  @{PROC}/@{pid}/fd/* r,
+
+  # Allow reading the os-release file (possibly a symlink to /usr/lib).
+  /{etc/,usr/lib/}os-release r,
+
+  # Allow creating/grabbing global and per-snap lock files.
+  /run/snapd/lock/###SNAP_NAME###.lock rwk,
+  /run/snapd/lock/.lock rwk,
+
+  # Allow reading stored mount namespaces,
+  /run/snapd/ns/ r,
+  /run/snapd/ns/###SNAP_NAME###.mnt r,
+
+  # Allow reading per-snap desired mount profiles. Those are written by
+  # snapd and represent the desired layout and content connections.
+  /var/lib/snapd/mount/snap.###SNAP_NAME###.fstab r,
+  /var/lib/snapd/mount/snap.###SNAP_NAME###.user-fstab r,
+
+  # Allow reading and writing actual per-snap mount profiles. Note that
+  # the wildcard in the rule to allow an atomic write + rename strategy.
+  # Those files are written by snap-update-ns and represent the actual
+  # mount profile at a given moment.
+  /run/snapd/ns/snap.###SNAP_NAME###.fstab{,.*} rw,
+
+  # NOTE: at this stage the /snap directory is stable as we have called
+  # pivot_root already.
+
+  # Needed to perform mount/unmounts.
+  capability sys_admin,
+  # Needed for mimic construction.
+  capability chown,
+  # Needed for dropping to calling user when processing per-user mounts
+  capability setuid,
+  capability setgid,
+  # Allow snap-update-ns to override file ownership and permission checks.
+  # This is required because writable mimics now preserve the permissions
+  # of the original and hence we may be asked to create a directory when the
+  # parent is a tmpfs without DAC write access.
+  capability dac_override,
+
+  # Allow freezing and thawing the per-snap cgroup freezers
+  /sys/fs/cgroup/freezer/snap.###SNAP_NAME###/freezer.state rw,
+
+  # Allow the content interface to bind fonts from the host filesystem
+  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_NAME###/*/**,
+  umount /snap/###SNAP_NAME###/*/**,
+
+  # set up user mount namespace
+  mount options=(rslave) -> /,
+
+  # Allow traversing from the root directory and several well-known places.
+  # Specific directory permissions are added by snippets below.
+  / r,
+  /etc/ r,
+  /snap/ r,
+  /tmp/ r,
+  /usr/ r,
+  /var/ r,
+  /var/snap/ r,
+
+  # Allow reading timezone data.
+  /usr/share/zoneinfo/** r,
+
+  # Don't allow anyone to touch /snap/bin
+  audit deny mount /snap/bin/** -> /**,
+  audit deny mount /** -> /snap/bin/**,
+
+  # Don't allow bind mounts to /media which has special
+  # sharing and propagates mount events outside of the snap namespace.
+  audit deny mount -> /media,
+
+###SNIPPETS###
+}
 `

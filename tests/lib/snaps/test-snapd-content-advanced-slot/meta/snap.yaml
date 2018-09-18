@@ -3,7 +3,7 @@ summary: A more complex snap for testing content interface
 version: 1.0
 apps:
     sh:
-        command: ../../../bin/sh
+        command: bin/sh
 slots:
     data:
         interface: content

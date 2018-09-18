@@ -45,7 +45,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown}
+    member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown,SetWallMessage}
     peer=(label=unconfined),
 
 # Allow clients to introspect

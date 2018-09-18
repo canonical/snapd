@@ -1,0 +1,4 @@
+name: test-snapd-requires-base-bare
+base: test-snapd-base-bare
+version: 1.0
+summary: A test snap that requires a specific base snap

@@ -1,0 +1,8 @@
+[Unit]
+Description=Failure handling of the snapd snap
+
+[Service]
+Type=oneshot
+ExecStart=@libexecdir@/snapd/snap-failure snapd
+RemainAfterExit=true
+# X-Snapd-Snap: do-not-start

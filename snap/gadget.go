@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -33,6 +34,8 @@ type GadgetInfo struct {
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
+
+	Connections []GadgetConnection `yaml:"connections"`
 }
 
 type GadgetVolume struct {
@@ -47,7 +50,7 @@ type GadgetVolume struct {
 // type when we actually handle these.
 
 type VolumeStructure struct {
-	Label       string          `yaml:"label"`
+	Label       string          `yaml:"filesystem-label"`
 	Offset      string          `yaml:"offset"`
 	OffsetWrite string          `yaml:"offset-write"`
 	Size        string          `yaml:"size"`
@@ -67,6 +70,85 @@ type VolumeContent struct {
 	Size        string `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
+}
+
+// GadgetConnect describes an interface connection requested by the gadget
+// between seeded snaps. The syntax is of a mapping like:
+//
+//  plug: (<plug-snap-id>|system):plug
+//  [slot: (<slot-snap-id>|system):slot]
+//
+// "system" indicates a system plug or slot.
+// Fully omitting the slot part indicates a system slot with the same name
+// as the plug.
+type GadgetConnection struct {
+	Plug GadgetConnectionPlug `yaml:"plug"`
+	Slot GadgetConnectionSlot `yaml:"slot"`
+}
+
+type GadgetConnectionPlug struct {
+	SnapID string
+	Plug   string
+}
+
+func (gcplug *GadgetConnectionPlug) Empty() bool {
+	return gcplug.SnapID == "" && gcplug.Plug == ""
+}
+
+func (gcplug *GadgetConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	snapID, name, err := parseSnapIDColonName(s)
+	if err != nil {
+		return fmt.Errorf("in gadget connection plug: %v", err)
+	}
+	gcplug.SnapID = snapID
+	gcplug.Plug = name
+	return nil
+}
+
+type GadgetConnectionSlot struct {
+	SnapID string
+	Slot   string
+}
+
+func (gcslot *GadgetConnectionSlot) Empty() bool {
+	return gcslot.SnapID == "" && gcslot.Slot == ""
+}
+
+func (gcslot *GadgetConnectionSlot) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	snapID, name, err := parseSnapIDColonName(s)
+	if err != nil {
+		return fmt.Errorf("in gadget connection slot: %v", err)
+	}
+	gcslot.SnapID = snapID
+	gcslot.Slot = name
+	return nil
+}
+
+func parseSnapIDColonName(s string) (snapID, name string, err error) {
+	parts := strings.Split(s, ":")
+	if len(parts) == 2 {
+		snapID = parts[0]
+		name = parts[1]
+	}
+	if snapID == "" || name == "" {
+		return "", "", fmt.Errorf(`expected "(<snap-id>|system):name" not %q`, s)
+	}
+	return snapID, name, nil
+}
+
+func systemOrSnapID(s string) bool {
+	if s != "system" && len(s) != validSnapIDLength {
+		return false
+	}
+	return true
 }
 
 // ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
@@ -96,11 +178,24 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	}
 
 	for k, v := range gi.Defaults {
+		if !systemOrSnapID(k) {
+			return nil, fmt.Errorf(`default stanza not keyed by "system" or snap-id: %s`, k)
+		}
 		dflt, err := normalizeYamlValue(v)
 		if err != nil {
 			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
 		}
 		gi.Defaults[k] = dflt.(map[string]interface{})
+	}
+
+	for i, gconn := range gi.Connections {
+		if gconn.Plug.Empty() {
+			return nil, fmt.Errorf("gadget connection plug cannot be empty")
+		}
+		if gconn.Slot.Empty() {
+			gi.Connections[i].Slot.SnapID = "system"
+			gi.Connections[i].Slot.Slot = gconn.Plug.Plug
+		}
 	}
 
 	if classic && len(gi.Volumes) == 0 {
@@ -110,22 +205,22 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	}
 
 	// basic validation
-	foundBootloader := false
+	var bootloadersFound int
 	for _, v := range gi.Volumes {
-		if foundBootloader {
-			return nil, fmt.Errorf(errorFormat, "bootloader already declared")
-		}
 		switch v.Bootloader {
 		case "":
-			return nil, fmt.Errorf(errorFormat, "bootloader cannot be empty")
+			// pass
 		case "grub", "u-boot", "android-boot":
-			foundBootloader = true
+			bootloadersFound += 1
 		default:
 			return nil, fmt.Errorf(errorFormat, "bootloader must be one of grub, u-boot or android-boot")
 		}
 	}
-	if !foundBootloader {
+	switch {
+	case bootloadersFound == 0:
 		return nil, fmt.Errorf(errorFormat, "bootloader not declared in any volume")
+	case bootloadersFound > 1:
+		return nil, fmt.Errorf(errorFormat, fmt.Sprintf("too many (%d) bootloaders declared", bootloadersFound))
 	}
 
 	return &gi, nil

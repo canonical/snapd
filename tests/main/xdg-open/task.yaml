@@ -1,0 +1,73 @@
+summary: Ensure snap userd allows opening a URL via xdg-open
+
+systems:
+    # Not supposed to work on Ubuntu Core systems as we don't have
+    # a user session environment there
+    - -ubuntu-core-*
+
+environment:
+    DISPLAY: :0
+
+restore: |
+    . "$TESTSLIB/dirs.sh"
+    . "$TESTSLIB/pkgdb.sh"
+    rm -f dbus.env
+    umount -f /usr/bin/xdg-open || true
+    rm /usr/bin/xdg-open
+    if [ -e /usr/bin/xdg-open.orig ]; then
+        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
+    fi
+
+execute: |
+    . "$TESTSLIB/pkgdb.sh"
+    . "$TESTSLIB/dirs.sh"
+
+    dbus-launch > dbus.env
+    export $(cat dbus.env | xargs)
+
+    # wait for session to be ready
+    ping_launcher() {
+        dbus-send --session                                        \
+            --dest=io.snapcraft.Launcher                           \
+            --type=method_call                                     \
+            --print-reply                                          \
+            /                                                      \
+            org.freedesktop.DBus.Peer.Ping
+    }
+    while ! ping_launcher ; do
+        sleep .5
+    done
+
+    # Create a small helper which will tell us if snap passes
+    # the URL correctly to the right handler
+    cat << 'EOF' > /tmp/xdg-open
+    #!/bin/sh
+    echo "$@" > /tmp/xdg-open-output
+    EOF
+    chmod +x /tmp/xdg-open
+    if [ -e /usr/bin/xdg-open ]; then
+        mv /usr/bin/xdg-open /usr/bin/xdg-open.orig
+    fi
+    touch /usr/bin/xdg-open
+    mount --bind /tmp/xdg-open /usr/bin/xdg-open
+
+    ensure_xdg_open_output() {
+        rm -f /tmp/xdg-open-output
+        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+        chroot $SNAP_MOUNT_DIR/core/current /usr/bin/xdg-open $1
+        test -e /tmp/xdg-open-output
+        test "$(cat /tmp/xdg-open-output)" = $1
+    }
+
+    # Ensure http, https and mailto work
+    ensure_xdg_open_output "https://snapcraft.io"
+    ensure_xdg_open_output "http://snapcraft.io"
+    ensure_xdg_open_output "mailto:talk@snapcraft.io"
+    ensure_xdg_open_output "snap://snapcraft"
+
+    # Ensure other schemes are not passed through
+    rm /tmp/xdg-open-output
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
+    test ! -e /tmp/xdg-open-output
+    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
+    test ! -e /tmp/xdg-open-output

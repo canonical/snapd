@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const i2cSummary = `allows access to specific I2C controller`
@@ -41,11 +42,17 @@ const i2cBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const i2cConnectedPlugAppArmor = `
+const i2cConnectedPlugAppArmorPath = `
 # Description: Can access I2C controller
 
 %s rw,
 /sys/devices/platform/{*,**.i2c}/%s/** rw,
+`
+
+const i2cConnectedPlugAppArmorSysfsName = `
+# Description: Can access I2C sysfs name
+
+/sys/bus/i2c/devices/%s/** rw,
 `
 
 // The type for i2c interface
@@ -72,18 +79,31 @@ func (iface *i2cInterface) String() string {
 // identification
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
+// Pattern to match allowed i2c sysfs names.
+var i2cValidSysfsName = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
+
 // Check validity of the defined slot
-func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *i2cInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
+	}
+
+	sysfsName, ok := slot.Attrs["sysfs-name"].(string)
+	if ok {
+		if !i2cValidSysfsName.MatchString(sysfsName) {
+			return fmt.Errorf("%s sysfs-name attribute must be a valid sysfs-name", iface.Name())
+		}
+		if _, ok := slot.Attrs["path"].(string); ok {
+			return fmt.Errorf("%s slot can only use path or sysfs-name", iface.Name())
+		}
+		return nil
 	}
 
 	// Validate the path
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
-		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
+		return fmt.Errorf("%s slot must have a path or sysfs-name attribute", iface.Name())
 	}
-
 	path = filepath.Clean(path)
 
 	if !i2cControlDeviceNodePattern.MatchString(path) {
@@ -93,27 +113,36 @@ func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+
+	// check if sysfsName is set and if so stop after that
+	var sysfsName string
+	if err := slot.Attr("sysfs-name", &sysfsName); err == nil {
+		spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmorSysfsName, sysfsName))
+		return nil
+	}
+
+	// do path if sysfsName is not set (they can't be set both)
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmor, cleanedPath, strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmorPath, cleanedPath, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
-func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
-func (iface *i2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *i2cInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
 }

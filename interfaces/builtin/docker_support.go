@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dockerSupportSummary = `allows operating as the Docker daemon`
@@ -58,6 +59,11 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/docker/**   mrwklix,
 /{,var/}run/runc/       rw,
 /{,var/}run/runc/**     mrwklix,
+
+# Socket for docker-container-shim
+unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
+
+/{,var/}run/mount/utab r,
 
 # Wide read access to /proc, but somewhat limited writes for now
 @{PROC}/ r,
@@ -552,8 +558,9 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var privileged bool
+	_ = plug.Attr("privileged-containers", &privileged)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
@@ -561,8 +568,9 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var privileged bool
+	_ = plug.Attr("privileged-containers", &privileged)
 	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {
 		snippet += dockerSupportPrivilegedSecComp
@@ -571,7 +579,7 @@ func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	return nil
 }
 
-func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *dockerSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if v, ok := plug.Attrs["privileged-containers"]; ok {
 		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
@@ -580,7 +588,7 @@ func (iface *dockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *dockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

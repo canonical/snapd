@@ -2,7 +2,7 @@ summary: |
     Ensure device initialisation registration works with the fallback
     generic/generi-classic model and we have a serial and can acquire
     a session macaroon
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-*]
 execute: |
     echo "Wait for device initialisation to have been done"
     # this was in fact triggered around when core was installed

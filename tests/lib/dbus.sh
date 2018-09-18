@@ -30,6 +30,6 @@ stop_dbus_unit(){
         stop dbus-provider
         rm -f /etc/init/dbus-provider.conf
     else
-        systemctl stop dbus-provider
+        systemctl stop dbus-provider || true
     fi
 }

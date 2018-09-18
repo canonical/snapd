@@ -47,21 +47,46 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
+func canConfigure(st *state.State, snapName string) error {
+	// the "core" snap/pseudonym can always be configured as it
+	// is handled internally
+	if snapName == "core" {
+		return nil
+	}
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if !snapst.IsInstalled() {
+		return &snap.NotInstalledError{Snap: snapName}
+	}
+
+	// the "snapd" snap cannot be configured yet
+	if snapName == "snapd" {
+		return fmt.Errorf(`cannot configure the "snapd" snap, please use "system" instead`)
+	}
+
+	// bases cannot be configured for now
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	if typ == snap.TypeBase {
+		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", snapName)
+	}
+
+	return snapstate.CheckChangeConflict(st, snapName, nil)
+}
+
 // ConfigureInstalled returns a taskset to apply the given
 // configuration patch for an installed snap. It returns
 // snap.NotInstalledError if the snap is not installed.
 func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
-	// core is handled internally and can be configured before
-	// being installed
-	if snapName != "core" {
-		var snapst snapstate.SnapState
-		err := snapstate.Get(st, snapName, &snapst)
-		if err != nil && err != state.ErrNoState {
-			return nil, err
-		}
-		if !snapst.IsInstalled() {
-			return nil, &snap.NotInstalledError{Snap: snapName}
-		}
+	if err := canConfigure(st, snapName); err != nil {
+		return nil, err
 	}
 
 	taskset := Configure(st, snapName, patch, flags)
@@ -94,4 +119,20 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 
 	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
+}
+
+// RemapSnapFromRequest renames a snap as received from an API request
+func RemapSnapFromRequest(snapName string) string {
+	if snapName == "system" {
+		return "core"
+	}
+	return snapName
+}
+
+// RemapSnapToResponse renames a snap as about to be sent from an API response
+func RemapSnapToResponse(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
 }

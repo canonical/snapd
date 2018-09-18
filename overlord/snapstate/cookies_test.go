@@ -45,7 +45,7 @@ func (s *cookiesSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
-	s.snapmgr, _ = Manager(s.st)
+	s.snapmgr, _ = Manager(s.st, state.NewTaskRunner(s.st))
 }
 
 func (s *cookiesSuite) TearDownTest(c *C) {
@@ -67,9 +67,7 @@ func checkCookie(c *C, st *state.State, snapName string) {
 	}
 	c.Assert(found, Equals, 1)
 
-	data, err := ioutil.ReadFile(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), DeepEquals, cookieID)
+	c.Assert(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName), testutil.FileEquals, cookieID)
 	c.Assert(cookieID, HasLen, 44)
 }
 

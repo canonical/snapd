@@ -17,7 +17,7 @@ execute: |
 
     echo "Basic smoke test to ensure no locale causes crashes nor warnings"
     for p in /usr/share/locale/*; do
-        out=$( LANG=$(basename $p) snap 2>&1 >/dev/null )
+        out=$( LANG=$(basename "$p") snap 2>&1 >/dev/null )
         if [ -n "$out" ]; then
             echo "$p"
             echo "$out"

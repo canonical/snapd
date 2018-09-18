@@ -40,8 +40,11 @@ type cmdPrepareImage struct {
 
 func init() {
 	cmd := addCommand("prepare-image",
-		i18n.G("Prepare a snappy image"),
-		i18n.G("Prepare a snappy image"),
+		i18n.G("Prepare a core device image"),
+		i18n.G(`
+The prepare-image command performs some of the steps necessary for creating
+core device images.
+`),
 		func() flags.Commander {
 			return &cmdPrepareImage{}
 		}, map[string]string{

@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -62,7 +63,7 @@ func patch5(st *state.State) error {
 			continue
 		}
 
-		err = wrappers.StopServices(svcs, log)
+		err = wrappers.StopServices(svcs, snap.StopReasonRefresh, log)
 		if err != nil {
 			return err
 		}

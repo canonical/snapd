@@ -20,6 +20,7 @@
 package dirs_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,4 +103,23 @@ func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *
 		dirs.SetRootDir(c.MkDir())
 		c.Check(dirs.SupportsClassicConfinement(), Equals, t.Expected, Commentf("unexpected result for %v", t.ID))
 	}
+}
+
+func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {
+	d := c.MkDir()
+
+	snapYaml := filepath.Join(d, "snap.yaml")
+	restore := dirs.MockMetaSnapPath(snapYaml)
+	defer restore()
+
+	inside, err := dirs.IsInsideBaseSnap()
+	c.Assert(err, IsNil)
+	c.Assert(inside, Equals, false)
+
+	err = ioutil.WriteFile(snapYaml, []byte{}, 0755)
+	c.Assert(err, IsNil)
+
+	inside, err = dirs.IsInsideBaseSnap()
+	c.Assert(err, IsNil)
+	c.Assert(inside, Equals, true)
 }

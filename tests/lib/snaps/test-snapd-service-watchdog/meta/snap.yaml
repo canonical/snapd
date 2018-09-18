@@ -1,0 +1,15 @@
+name: test-snapd-service-watchdog
+version: 1.0
+apps:
+  direct-watchdog-ok:
+    command: bin/direct
+    daemon: simple
+    watchdog-timeout: 1s
+    restart-condition: never
+    plugs: [daemon-notify]
+  direct-watchdog-bad:
+    command: bin/direct --bad
+    daemon: simple
+    watchdog-timeout: 1s
+    restart-condition: never
+    plugs: [daemon-notify]

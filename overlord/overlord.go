@@ -55,6 +55,8 @@ var (
 	pruneMaxChanges = 500
 
 	defaultCachedDownloads = 5
+
+	configstateInit = configstate.Init
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -71,11 +73,11 @@ type Overlord struct {
 	restartHandler func(t state.RestartType)
 	// managers
 	inited    bool
+	runner    *state.TaskRunner
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
 	hookMgr   *hookstate.HookManager
-	configMgr *configstate.ConfigManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 }
@@ -100,44 +102,50 @@ func New() (*Overlord, error) {
 	}
 
 	o.stateEng = NewStateEngine(s)
+	o.runner = state.NewTaskRunner(s)
 
-	hookMgr, err := hookstate.Manager(s)
+	// any unknown task should be ignored and succeed
+	matchAnyUnknownTask := func(_ *state.Task) bool {
+		return true
+	}
+	o.runner.AddOptionalHandler(matchAnyUnknownTask, handleUnknownTask, nil)
+
+	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(hookMgr)
 
-	snapMgr, err := snapstate.Manager(s)
+	snapMgr, err := snapstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(snapMgr)
 
-	assertMgr, err := assertstate.Manager(s)
+	assertMgr, err := assertstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.runner, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(ifaceMgr)
 
-	configMgr, err := configstate.Manager(s, hookMgr)
-	if err != nil {
-		return nil, err
-	}
-	o.addManager(configMgr)
-
-	deviceMgr, err := devicestate.Manager(s, hookMgr)
+	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(deviceMgr)
 
-	o.addManager(cmdstate.Manager(s))
+	o.addManager(cmdstate.Manager(s, o.runner))
+
+	configstateInit(hookMgr)
+
+	// the shared task runner should be added last!
+	o.stateEng.AddManager(o.runner)
 
 	s.Lock()
 	defer s.Unlock()
@@ -169,8 +177,6 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
-	case *configstate.ConfigManager:
-		o.configMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -256,6 +262,7 @@ func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
+			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
@@ -282,12 +289,7 @@ func (o *Overlord) Stop() error {
 	return err1
 }
 
-// Settle runs first a state engine Ensure and then wait for activities to settle.
-// That's done by waiting for all managers activities to settle while
-// making sure no immediate further Ensure is scheduled. Chiefly for
-// tests.  Cannot be used in conjunction with Loop. If timeout is
-// non-zero and settling takes longer than timeout, returns an error.
-func (o *Overlord) Settle(timeout time.Duration) error {
+func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 	func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
@@ -329,6 +331,10 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 		done = o.ensureNext.Equal(next)
 		o.ensureLock.Unlock()
 		if done {
+			if beforeCleanups != nil {
+				beforeCleanups()
+				beforeCleanups = nil
+			}
 			// we should wait also for cleanup handlers
 			st := o.State()
 			st.Lock()
@@ -347,9 +353,43 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 	return nil
 }
 
+// Settle runs first a state engine Ensure and then wait for
+// activities to settle. That's done by waiting for all managers'
+// activities to settle while making sure no immediate further Ensure
+// is scheduled. It then waits similarly for all ready changes to
+// reach the clean state. Chiefly for tests. Cannot be used in
+// conjunction with Loop. If timeout is non-zero and settling takes
+// longer than timeout, returns an error.
+func (o *Overlord) Settle(timeout time.Duration) error {
+	return o.settle(timeout, nil)
+}
+
+// SettleObserveBeforeCleanups runs first a state engine Ensure and
+// then wait for activities to settle. That's done by waiting for all
+// managers' activities to settle while making sure no immediate
+// further Ensure is scheduled. It then waits similarly for all ready
+// changes to reach the clean state, but calls once the provided
+// callback before doing that. Chiefly for tests. Cannot be used in
+// conjunction with Loop. If timeout is non-zero and settling takes
+// longer than timeout, returns an error.
+func (o *Overlord) SettleObserveBeforeCleanups(timeout time.Duration, beforeCleanups func()) error {
+	return o.settle(timeout, beforeCleanups)
+}
+
 // State returns the system state managed by the overlord.
 func (o *Overlord) State() *state.State {
 	return o.stateEng.State()
+}
+
+// StateEngine returns the stage engine used by overlord.
+func (o *Overlord) StateEngine() *StateEngine {
+	return o.stateEng
+}
+
+// TaskRunner returns the shared task runner responsible for running
+// tasks for all managers under the overlord.
+func (o *Overlord) TaskRunner() *state.TaskRunner {
+	return o.runner
 }
 
 // SnapManager returns the snap manager responsible for snaps under
@@ -388,12 +428,6 @@ func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
 }
 
-// ConfigManager returns the manager responsible for doing
-// configuration.
-func (o *Overlord) ConfigManager() *configstate.ConfigManager {
-	return o.configMgr
-}
-
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
@@ -401,7 +435,10 @@ func Mock() *Overlord {
 		loopTomb: new(tomb.Tomb),
 		inited:   false,
 	}
-	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
+	s := state.New(mockBackend{o: o})
+	o.stateEng = NewStateEngine(s)
+	o.runner = state.NewTaskRunner(s)
+
 	return o
 }
 

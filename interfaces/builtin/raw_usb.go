@@ -34,6 +34,9 @@ const rawusbConnectedPlugAppArmor = `
 # This gives privileged access to the system.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
+# Allow access to all ttyUSB devices too
+/dev/ttyUSB[0-9]* rw,
+
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
 /sys/devices/pci**/usb[0-9]** r,
@@ -45,7 +48,10 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 `
 
-var rawusbConnectedPlugUDev = []string{`SUBSYSTEM=="usb"`}
+var rawusbConnectedPlugUDev = []string{
+	`SUBSYSTEM=="usb"`,
+	`SUBSYSTEM=="tty", ENV{ID_BUS}=="usb"`,
+}
 
 func init() {
 	registerIface(&commonInterface{

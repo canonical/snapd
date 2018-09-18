@@ -31,7 +31,7 @@ import (
 
 func (s *SnapSuite) TestAliasesHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] aliases [<snap>]
+  snap.test aliases [<snap>]
 
 The aliases command lists all aliases available in the system and their status.
 
@@ -40,14 +40,8 @@ $ snap aliases <snap>
 Lists only the aliases defined by the specified snap.
 
 An alias noted as undefined means it was explicitly enabled or disabled but is
-not defined in the current revision of the snap; possibly temporarely (e.g
-because of a revert), if not this can be cleared with snap alias --reset.
-
-Application Options:
-      --version     Print the version and exit
-
-Help Options:
-  -h, --help        Show this help message
+not defined in the current revision of the snap, possibly temporarily (e.g.
+because of a revert). This can cleared with 'snap alias --reset'.
 `
 	rest, err := Parser().ParseArgs([]string{"aliases", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -136,10 +130,29 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 	})
 	_, err := Parser().ParseArgs([]string{"aliases"})
 	c.Assert(err, IsNil)
-	expectedStdout := "" +
-		"Command  Alias  Notes\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "No aliases are currently defined.\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
+}
+
+func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/aliases")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": map[string]map[string]client.AliasStatus{
+				"bar": {
+					"bar0": {Command: "foo", Status: "auto", Auto: "foo"},
+				}},
+		})
+	})
+	_, err := Parser().ParseArgs([]string{"aliases", "not-bar"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "No aliases are currently defined for snap \"not-bar\".\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
 }
 
 func (s *SnapSuite) TestAliasesSorting(c *C) {

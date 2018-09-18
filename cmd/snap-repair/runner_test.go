@@ -43,8 +43,10 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type baseRunnerSuite struct {
@@ -162,6 +164,17 @@ func (s *baseRunnerSuite) freshState(c *C) {
 
 type runnerSuite struct {
 	baseRunnerSuite
+
+	restore func()
+}
+
+func (s *runnerSuite) SetUpSuite(c *C) {
+	s.baseRunnerSuite.SetUpSuite(c)
+	s.restore = httputil.SetUserAgentFromVersion("1", "snap-repair")
+}
+
+func (s *runnerSuite) TearDownSuite(c *C) {
+	s.restore()
 }
 
 var _ = Suite(&runnerSuite{})
@@ -230,6 +243,8 @@ func (s *runnerSuite) checkBrokenTimeNowMitigated(c *C, runner *repair.Runner) {
 
 func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
 		io.WriteString(w, testRepair)
@@ -477,6 +492,8 @@ func (s *runnerSuite) TestFetchRepairPlusKey(c *C) {
 
 func (s *runnerSuite) TestPeek(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
 		c.Check(r.Header.Get("Accept"), Equals, "application/json")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
 		io.WriteString(w, testHeadersResp)
@@ -747,9 +764,7 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	err = runner.SaveState()
 	c.Assert(err, IsNil)
 
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
+	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
 }
 
 func (s *runnerSuite) TestApplicable(c *C) {
@@ -875,6 +890,9 @@ AXNpZw==
 func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Server {
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
+
 		urlPath := r.URL.Path
 		if redirectFirst && r.Header.Get("Accept") == asserts.MediaType {
 			if !strings.HasPrefix(urlPath, "/final/") {
@@ -1002,9 +1020,7 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, 3)
-	strm, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"))
-	c.Assert(err, IsNil)
-	c.Check(string(strm), Equals, seqRepairs[2])
+	c.Check(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "3", "r2.repair"), testutil.FileEquals, seqRepairs[2])
 
 	// no more
 	rpr, err = runner.Next("canonical")
@@ -1221,20 +1237,16 @@ func (s *runnerSuite) TestNextNotFound(c *C) {
 	runner.LoadState()
 
 	// sanity
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, freshStateJSON)
+	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, freshStateJSON)
 
-	_, err = runner.Next("canonical")
+	_, err := runner.Next("canonical")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 
 	// we saved new time lower bound
 	t1 := runner.TimeLowerBound()
 	expected := strings.Replace(freshStateJSON, "2017-08-11T15:49:49Z", t1.Format(time.RFC3339), 1)
 	c.Check(expected, Not(Equals), freshStateJSON)
-	data, err = ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, expected)
+	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, expected)
 }
 
 func (s *runnerSuite) TestNextSaveStateError(c *C) {
@@ -1449,9 +1461,7 @@ AXNpZw==`}
 	c.Assert(err, IsNil)
 
 	rpr.Run()
-	scrpt, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"))
-	c.Assert(err, IsNil)
-	c.Check(string(scrpt), Equals, "exit 0\n")
+	c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, "exit 0\n")
 }
 
 func makeMockRepair(script string) string {
@@ -1472,9 +1482,7 @@ AXNpZw==`, len(script), script)
 }
 
 func verifyRepairStatus(c *C, status repair.RepairStatus) {
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(data), Matches, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":\[{"sequence":1,"revision":0,"status":%d}.*`, status))
+	c.Check(dirs.SnapRepairStateFile, testutil.FileContains, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":%d}`, status))
 }
 
 // tests related to correct execution of script
@@ -1543,9 +1551,7 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
 	err = rpr.Run()
 	c.Assert(err, IsNil)
 
-	scrpt, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.script"))
-	c.Assert(err, IsNil)
-	c.Check(string(scrpt), Equals, mockScript)
+	c.Check(filepath.Join(s.runDir, "r0.script"), testutil.FileEquals, mockScript)
 
 	return rpr
 }
@@ -1566,9 +1572,7 @@ func (m byMtime) Less(i, j int) bool { return m[i].ModTime().Before(m[j].ModTime
 func (m byMtime) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 
 func (s *runScriptSuite) verifyOutput(c *C, name, expectedOutput string) {
-	output, err := ioutil.ReadFile(filepath.Join(s.runDir, name))
-	c.Assert(err, IsNil)
-	c.Check(string(output), Equals, expectedOutput)
+	c.Check(filepath.Join(s.runDir, name), testutil.FileEquals, expectedOutput)
 	// ensure correct permissions
 	fi, err := os.Stat(filepath.Join(s.runDir, name))
 	c.Assert(err, IsNil)
@@ -1764,10 +1768,8 @@ ls -l ${PATH##*:}/repair
 	err = rpr.Run()
 	c.Assert(err, IsNil)
 
-	output, err := ioutil.ReadFile(filepath.Join(s.runDir, "r0.retry"))
-	c.Assert(err, IsNil)
-	c.Check(string(output), Matches, fmt.Sprintf(`(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`))
-	c.Check(string(output), Matches, `(?ms).*/repair -> /usr/lib/snapd/snap-repair`)
+	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileMatches, fmt.Sprintf(`(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`))
+	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileContains, `/repair -> /usr/lib/snapd/snap-repair`)
 
 	// run again and ensure no error happens
 	err = rpr.Run()

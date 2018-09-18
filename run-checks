@@ -10,12 +10,22 @@ export LANG=C.UTF-8
 export LANGUAGE=en
 set -eu
 
-if which goctest >/dev/null; then
+if command -v goctest >/dev/null; then
     goctest="goctest"
 else
     goctest="go test"
 fi
 COVERMODE=${COVERMODE:-atomic}
+
+# add workaround for https://github.com/golang/go/issues/24449
+if [ "$(uname -m)" = "s390x" ]; then
+    if go version | grep -q go1.10; then
+        echo "covermode 'atomic' crashes on s390x with go1.10, reseting "
+        echo "to 'set'. see https://github.com/golang/go/issues/24449"
+        COVERMODE="set"
+    fi
+fi
+
 export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
 export PATH="$PATH:${GOPATH%%:*}/bin"
 
@@ -79,7 +89,7 @@ addtrap endmsg
 append_coverage() (
     profile="$1"
     if [ -f "$profile" ]; then
-        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out
+        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out || true
         rm "$profile"
     fi
 )
@@ -89,7 +99,7 @@ missing_interface_spread_test() {
     core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
     classic_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-classic/meta/snap.yaml"
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
-        search="plugs: \[ $iface \]"
+        search="plugs: \\[ $iface \\]"
         case "$iface" in
             bool-file|gpio|hidraw|i2c|iio|serial-port|spi)
                 # skip gadget provided interfaces for now
@@ -99,7 +109,7 @@ missing_interface_spread_test() {
                 search="interface: $iface"
                 ;;
             autopilot)
-                search="plugs: \[ autopilot-introspection \]"
+                search='plugs: \[ autopilot-introspection \]'
                 ;;
         esac
         if ! grep -q "$search" "$snap_yaml" ; then
@@ -125,7 +135,7 @@ if [ "$STATIC" = 1 ]; then
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
         s="$(gofmt -s -l "$dir")"
         if [ -n "$s" ]; then
-            fmt="$s\n$fmt"
+            fmt="$s\\n$fmt"
         fi
     done
 
@@ -144,7 +154,7 @@ if [ "$STATIC" = 1 ]; then
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
         s="$(grep -nP 'http\.Status(?!Text)' "$dir"/*.go || true)"
         if [ -n "$s" ]; then
-            got="$s\n$got"
+            got="$s\\n$got"
         fi
     done
 
@@ -154,7 +164,7 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
-    if which shellcheck >/dev/null; then
+    if command -v shellcheck >/dev/null; then
         echo Checking shell scripts...
         ( git ls-files -z 2>/dev/null ||
                 find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
@@ -171,7 +181,7 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     echo Checking spelling errors
-    if ! which misspell >/dev/null; then
+    if ! command -v misspell >/dev/null; then
         go get -u github.com/client9/misspell/cmd/misspell
     fi
     for file in *; do
@@ -182,17 +192,17 @@ if [ "$STATIC" = 1 ]; then
     done
 
     echo Checking for ineffective assignments
-    if ! which ineffassign >/dev/null; then
+    if ! command -v ineffassign >/dev/null; then
         go get -u github.com/gordonklaus/ineffassign
     fi
     # ineffassign knows about ignoring vendor/ \o/
     ineffassign .
 
     echo Checking for naked returns
-    if ! which nakedret >/dev/null; then
+    if ! command -v nakedret >/dev/null; then
         go get -u github.com/alexkohler/nakedret
     fi
-    got=$(nakedret ./... 2>&1)
+    got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
         echo "$got"
         exit 1
@@ -215,11 +225,16 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo Running tests from "$PWD"
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        go test -i "$pkg"
-        $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-        append_coverage .coverage/profile.out
-    done
+    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+        # shellcheck disable=SC2046
+        $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+    else
+        for pkg in $(go list ./... | grep -v '/vendor/' ); do
+            go test -i "$pkg"
+            $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+            append_coverage .coverage/profile.out
+        done
+    fi
 
     # upload to codecov.io if on travis
     if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
@@ -234,7 +249,7 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread -v linode:
+    spread google: linode:
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
@@ -246,7 +261,8 @@ if [ "$DEPRECATED" = 1 ]; then
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
-if [ -n "$UNCLEAN" ]; then
+SKIP_UNCLEAN=${SKIP_UNCLEAN=}
+if [ -n "$UNCLEAN" ] && [ -z "$SKIP_UNCLEAN" ]; then
     cat <<EOF
 
 There are files left in the git tree after the tests:

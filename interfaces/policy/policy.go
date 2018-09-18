@@ -24,9 +24,9 @@ package policy
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -116,55 +116,37 @@ func (ic *InstallCandidate) Check() error {
 
 // ConnectCandidate represents a candidate connection.
 type ConnectCandidate struct {
-	// TODO: later we need to carry dynamic attributes once we have those
-	Plug                *snap.PlugInfo
+	Plug                *interfaces.ConnectedPlug
 	PlugSnapDeclaration *asserts.SnapDeclaration
 
-	Slot                *snap.SlotInfo
+	Slot                *interfaces.ConnectedSlot
 	SlotSnapDeclaration *asserts.SnapDeclaration
 
 	BaseDeclaration *asserts.BaseDeclaration
 }
 
-func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	return connc.Plug.Attrs
-}
-
-func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	return connc.Slot.Attrs
-}
-
-func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
-	notFound := fmt.Errorf("%s attribute %q not found", which, path)
-	comps := strings.Split(path, ".")
-	var v interface{} = attrs
-	for _, comp := range comps {
-		m, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, notFound
-		}
-		v, ok = m[comp]
-		if !ok {
-			return nil, notFound
-		}
+func nestedGet(which string, attrs interfaces.Attrer, path string) (interface{}, error) {
+	val, ok := attrs.Lookup(path)
+	if !ok {
+		return nil, fmt.Errorf("%s attribute %q not found", which, path)
 	}
-	return v, nil
+	return val, nil
 }
 
 func (connc *ConnectCandidate) PlugAttr(arg string) (interface{}, error) {
-	return nestedGet("plug", connc.Plug.Attrs, arg)
+	return nestedGet("plug", connc.Plug, arg)
 }
 
 func (connc *ConnectCandidate) SlotAttr(arg string) (interface{}, error) {
-	return nestedGet("slot", connc.Slot.Attrs, arg)
+	return nestedGet("slot", connc.Slot, arg)
 }
 
 func (connc *ConnectCandidate) plugSnapType() snap.Type {
-	return connc.Plug.Snap.Type
+	return connc.Plug.Snap().Type
 }
 
 func (connc *ConnectCandidate) slotSnapType() snap.Type {
-	return connc.Slot.Snap.Type
+	return connc.Slot.Snap().Type
 }
 
 func (connc *ConnectCandidate) plugSnapID() string {
@@ -207,10 +189,10 @@ func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule
 		allowConst = rule.AllowAutoConnection
 	}
 	if checkPlugConnectionConstraints(connc, denyConst) == nil {
-		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	if checkPlugConnectionConstraints(connc, allowConst) != nil {
-		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	return nil
 }
@@ -227,10 +209,10 @@ func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule
 		allowConst = rule.AllowAutoConnection
 	}
 	if checkSlotConnectionConstraints(connc, denyConst) == nil {
-		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	if checkSlotConnectionConstraints(connc, allowConst) != nil {
-		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	return nil
 }
@@ -241,10 +223,10 @@ func (connc *ConnectCandidate) check(kind string) error {
 		return fmt.Errorf("internal error: improperly initialized ConnectCandidate")
 	}
 
-	iface := connc.Plug.Interface
+	iface := connc.Plug.Interface()
 
-	if connc.Slot.Interface != iface {
-		return fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface)
+	if connc.Slot.Interface() != iface {
+		return fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface())
 	}
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {

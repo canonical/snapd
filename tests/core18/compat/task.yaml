@@ -1,0 +1,11 @@
+summary: Ensure that core(16) compatibility is there
+
+execute: |
+    echo "Install test-snapd-tools (which uses the core snap)"
+    snap install test-snapd-tools
+
+    echo "Ensure that this pulled in core"
+    snap list | MATCH "^core +"
+
+    echo "Check test-snapd-tools see the core16 environment"
+    test-snapd-tools.cat /etc/os-release | MATCH "Ubuntu Core 16"

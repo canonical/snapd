@@ -1,7 +1,7 @@
 summary: test chattr
 # ubuntu-core doesn't have go :-)
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2503
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 prepare: |
   go build -o toggle ./toggle.go
 execute: |

@@ -63,3 +63,28 @@ func (s *utilSuite) TestDecodeSuccess(c *C) {
 		"d": nil,
 	})
 }
+
+func (utilSuite) TestStructFields(c *C) {
+	type aStruct struct {
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
+	}
+	c.Assert(jsonutil.StructFields((*aStruct)(nil)), DeepEquals, []string{"hello", "potato"})
+}
+
+func (utilSuite) TestStructFieldsExcept(c *C) {
+	type aStruct struct {
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
+	}
+	c.Assert(jsonutil.StructFields((*aStruct)(nil), "potato"), DeepEquals, []string{"hello"})
+	c.Assert(jsonutil.StructFields((*aStruct)(nil), "hello"), DeepEquals, []string{"potato"})
+}
+
+func (utilSuite) TestStructFieldsSurvivesNoTag(c *C) {
+	type aStruct struct {
+		Foo int `json:"hello"`
+		Bar int
+	}
+	c.Assert(jsonutil.StructFields((*aStruct)(nil)), DeepEquals, []string{"hello"})
+}

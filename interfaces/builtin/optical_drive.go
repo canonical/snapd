@@ -19,13 +19,27 @@
 
 package builtin
 
-const opticalDriveSummary = `allows read access to optical drives`
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
+)
+
+const opticalDriveSummary = `allows access to optical drives`
 
 const opticalDriveBaseDeclarationSlots = `
   optical-drive:
     allow-installation:
       slot-snap-type:
         - core
+    deny-connection:
+      plug-attributes:
+        write: true
+    deny-auto-connection:
+      plug-attributes:
+        write: true
 `
 
 const opticalDriveConnectedPlugAppArmor = `
@@ -41,14 +55,50 @@ var opticalDriveConnectedPlugUDev = []string{
 	`KERNEL=="scd[0-9]*"`,
 }
 
+// opticalDriveInterface is the type for optical drive interfaces.
+type opticalDriveInterface struct {
+	commonInterface
+}
+
+// BeforePrepareSlot checks and possibly modifies a slot.
+// Valid "optical-drive" slots may contain the attribute "write".
+// If defined, the attribute "write" must be either "true" or "false".
+func (iface *opticalDriveInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// It's fine if 'write' isn't specified, but if it is, it needs to be bool
+	if w, ok := plug.Attrs["write"]; ok {
+		_, ok = w.(bool)
+		if !ok {
+			return fmt.Errorf(`optical-drive "write" attribute must be a boolean`)
+		}
+	}
+
+	return nil
+}
+
+func (iface *opticalDriveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var write bool
+	_ = plug.Attr("write", &write)
+
+	// Add the common readonly policy
+	spec.AddSnippet(opticalDriveConnectedPlugAppArmor)
+
+	// 'write: true' grants write access to the devices
+	if write {
+		spec.AddSnippet("# Allow write access to optical drives")
+		spec.AddSnippet("/dev/sr[0-9]* w,")
+		spec.AddSnippet("/dev/scd[0-9]* w,")
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "optical-drive",
-		summary:               opticalDriveSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  opticalDriveBaseDeclarationSlots,
-		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
-		connectedPlugUDev:     opticalDriveConnectedPlugUDev,
-		reservedForOS:         true,
-	})
+	registerIface(&opticalDriveInterface{commonInterface: commonInterface{
+		name:                 "optical-drive",
+		summary:              opticalDriveSummary,
+		implicitOnCore:       false,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: opticalDriveBaseDeclarationSlots,
+		connectedPlugUDev:    opticalDriveConnectedPlugUDev,
+		reservedForOS:        true,
+	}})
 }

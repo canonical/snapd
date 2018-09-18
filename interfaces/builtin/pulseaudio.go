@@ -41,6 +41,8 @@ const pulseaudioBaseDeclarationSlots = `
 `
 
 const pulseaudioConnectedPlugAppArmor = `
+# Allow communicating with pulseaudio service for playback and, on some
+# distributions, recording.
 /{run,dev}/shm/pulse-shm-* mrwk,
 
 owner /{,var/}run/pulse/ r,
@@ -142,7 +144,7 @@ func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
@@ -162,7 +164,7 @@ func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
 	return nil
 }
@@ -172,7 +174,7 @@ func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specificati
 	return nil
 }
 
-func (iface *pulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *pulseAudioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 

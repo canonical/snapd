@@ -345,6 +345,12 @@ func (t *Task) Get(key string, value interface{}) error {
 	return t.data.get(key, value)
 }
 
+// Has returns whether the provided key has an associated value.
+func (t *Task) Has(key string) bool {
+	t.state.reading()
+	return t.data.has(key)
+}
+
 // Clear disassociates the value from key.
 func (t *Task) Clear(key string) {
 	t.state.writing()

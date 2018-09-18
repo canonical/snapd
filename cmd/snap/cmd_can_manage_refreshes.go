@@ -33,7 +33,7 @@ func init() {
 		"(internal) return if refresh.schedule=managed can be used",
 		func() flags.Commander {
 			return &cmdCanManageRefreshes{}
-		})
+		}, nil, nil)
 	cmd.hidden = true
 }
 

@@ -212,7 +212,7 @@ func (iface *ubuntuDownloadManagerInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(downloadConnectedPlugAppArmor, old, new, -1)
@@ -225,18 +225,19 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmo
 	return nil
 }
 
-func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(downloadConnectedSlotAppArmor, old, new, -1)
 	old = "###PLUG_NAME###"
-	new = plug.Snap.Name()
+	// TODO parallel-install: use of proper instance/store name
+	new = plug.Snap().InstanceName()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *ubuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *ubuntuDownloadManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

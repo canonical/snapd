@@ -1,0 +1,64 @@
+summary: Check that timezone interface works
+
+details: |
+    This test makes sure that a snap using the timezone-control interface
+    can access timezone information and update it.
+
+# FIXME:
+# core18 lacks support in systemd for the /etc/writable/timezone, once
+# https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1778936 is fixed
+# we need to re-enable it.
+systems: [-ubuntu-core-18-*]
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+
+    # Install a snap declaring a plug on timezone-control
+    install_local test-snapd-timedate-control-consumer
+
+restore: |
+    # Restore the initial timezone
+    if [ -f timezone.txt ]; then
+        timedatectl set-timezone "$(cat timezone.txt)" || true
+        rm -f timezone.txt
+    fi
+    rm -f call.error
+
+execute: |
+    echo "The interface is disconnected by default"
+    snap interfaces -i timezone-control | MATCH "\- +test-snapd-timedate-control-consumer:timezone-control"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-timedate-control-consumer:timezone-control
+
+    # Read timezones information should be allowed
+    timezone1=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 1p)
+    timezone2=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 2p)
+
+    # Save the default timezone to be restored at the end
+    # The file /etc/timezone is checked to workaround issue on ubuntu core lp: #1733881
+    if [ -f /etc/timezone ]; then
+        cp /etc/timezone timezone.txt
+    else
+        test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()' > timezone.txt
+    fi
+
+    # Set the timezone1 as timezone and check the status
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone $timezone1
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1" ]
+
+    # Set the timezone2 as timezone and check the status
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone $timezone2
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2" ]
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    # Disconnect the interface and check access to timedatectl status
+    snap disconnect test-snapd-timedate-control-consumer:timezone-control
+    if test-snapd-timedate-control-consumer.timedatectl-timezone status 2>${PWD}/call.error; then
+        echo "Expected permission error calling timedatectl status with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

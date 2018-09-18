@@ -69,7 +69,7 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 
 var servicestateControl = servicestate.Control
 
-func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
+func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 	hookTask, ok := context.Task()
 	if !ok {
 		return fmt.Errorf("attempted to queue command with ephemeral context")
@@ -90,10 +90,15 @@ func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
 		hookTaskLanes = nil
 	}
 	for _, l := range hookTaskLanes {
-		ts.JoinLane(l)
+		for _, ts := range tts {
+			ts.JoinLane(l)
+		}
 	}
-	ts.WaitAll(state.NewTaskSet(tasks...))
-	change.AddAll(ts)
+
+	for _, ts := range tts {
+		ts.WaitAll(state.NewTaskSet(tasks...))
+		change.AddAll(ts)
+	}
 	// As this can be run from what was originally the last task of a change,
 	// make sure the tasks added to the change are considered immediately.
 	st.EnsureBefore(0)
@@ -113,18 +118,20 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	// passing context so we can ignore self-conflicts with the current change
-	ts, err := servicestateControl(st, appInfos, inst, context)
+	tts, err := servicestateControl(st, appInfos, inst, context)
 	if err != nil {
 		return err
 	}
 
 	if !context.IsEphemeral() && context.HookName() == "configure" {
-		return queueCommand(context, ts)
+		return queueCommand(context, tts)
 	}
 
 	st.Lock()
 	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.SnapName()))
-	chg.AddAll(ts)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
 	st.EnsureBefore(0)
 	st.Unlock()
 

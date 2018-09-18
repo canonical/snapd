@@ -20,12 +20,87 @@
 package testutil
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"gopkg.in/check.v1"
 )
+
+type fileContentChecker struct {
+	*check.CheckerInfo
+	exact bool
+}
+
+// FileEquals verifies that the given file's content is equal
+// to the string (or fmt.Stringer) or []byte provided.
+var FileEquals check.Checker = &fileContentChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileEquals", Params: []string{"filename", "contents"}},
+	exact:       true,
+}
+
+// FileContains verifies that the given file's content contains
+// the string (or fmt.Stringer) or []byte provided.
+var FileContains check.Checker = &fileContentChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileContains", Params: []string{"filename", "contents"}},
+}
+
+// FileMatches verifies that the given file's content matches
+// the string provided.
+var FileMatches check.Checker = &fileContentChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileMatches", Params: []string{"filename", "regex"}},
+}
+
+func (c *fileContentChecker) Check(params []interface{}, names []string) (result bool, error string) {
+	filename, ok := params[0].(string)
+	if !ok {
+		return false, "Filename must be a string"
+	}
+	if names[1] == "regex" {
+		regexpr, ok := params[1].(string)
+		if !ok {
+			return false, "Regex must be a string"
+		}
+		rx, err := regexp.Compile(regexpr)
+		if err != nil {
+			return false, fmt.Sprintf("Can't compile regexp %q: %v", regexpr, err)
+		}
+		params[1] = rx
+	}
+	return fileContentCheck(filename, params[1], c.exact)
+}
+
+func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
+	buf, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
+	}
+	if exact {
+		switch content := content.(type) {
+		case string:
+			return string(buf) == content, ""
+		case []byte:
+			return bytes.Equal(buf, content), ""
+		case fmt.Stringer:
+			return string(buf) == content.String(), ""
+		}
+	} else {
+		switch content := content.(type) {
+		case string:
+			return strings.Contains(string(buf), content), ""
+		case []byte:
+			return bytes.Contains(buf, content), ""
+		case *regexp.Regexp:
+			return content.Match(buf), ""
+		case fmt.Stringer:
+			return strings.Contains(string(buf), content.String()), ""
+		}
+	}
+	return false, fmt.Sprintf("Can't compare file contents with something of type %T", content)
+}
 
 type containsChecker struct {
 	*check.CheckerInfo
@@ -149,4 +224,66 @@ func (c *deepContainsChecker) Check(params []interface{}, names []string) (resul
 	default:
 		return false, fmt.Sprintf("%T is not a supported container", container)
 	}
+}
+
+type syscallsEqualChecker struct {
+	*check.CheckerInfo
+}
+
+// SyscallsEqual checks that one sequence of system calls is equal to another.
+var SyscallsEqual check.Checker = &syscallsEqualChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "SyscallsEqual", Params: []string{"actualList", "expectedList"}},
+}
+
+func (c *syscallsEqualChecker) Check(params []interface{}, names []string) (result bool, error string) {
+	actualList, ok := params[0].([]CallResultError)
+	if !ok {
+		return false, "left-hand-side argument must be of type []CallResultError"
+	}
+	expectedList, ok := params[1].([]CallResultError)
+	if !ok {
+		return false, "right-hand-side argument must be of type []CallResultError"
+	}
+
+	for i, actual := range actualList {
+		if i >= len(expectedList) {
+			return false, fmt.Sprintf("system call #%d %#q unexpectedly present, got %d system call(s) but expected only %d",
+				i, actual.C, len(actualList), len(expectedList))
+		}
+		expected := expectedList[i]
+		if actual.C != expected.C {
+			return false, fmt.Sprintf("system call #%d differs in operation, actual %#q, expected %#q", i, actual.C, expected.C)
+		}
+		if !reflect.DeepEqual(actual, expected) {
+			switch {
+			case actual.E == nil && expected.E == nil && !reflect.DeepEqual(actual.R, expected.R):
+				// The call succeeded but not like we expected.
+				return false, fmt.Sprintf("system call #%d %#q differs in result, actual: %#v, expected: %#v",
+					i, actual.C, actual.R, expected.R)
+			case actual.E != nil && expected.E != nil && !reflect.DeepEqual(actual.E, expected.E):
+				// The call failed but not like we expected.
+				return false, fmt.Sprintf("system call #%d %#q differs in error, actual: %s, expected: %s",
+					i, actual.C, actual.E, expected.E)
+			case actual.E != nil && expected.E == nil && expected.R == nil:
+				// The call failed but we expected it to succeed.
+				return false, fmt.Sprintf("system call #%d %#q unexpectedly failed, actual error: %s", i, actual.C, actual.E)
+			case actual.E != nil && expected.E == nil && expected.R != nil:
+				// The call failed but we expected it to succeed with some result.
+				return false, fmt.Sprintf("system call #%d %#q unexpectedly failed, actual error: %s, expected result: %#v", i, actual.C, actual.E, expected.R)
+			case actual.E == nil && expected.E != nil && actual.R == nil:
+				// The call succeeded with some result but we expected it to fail.
+				return false, fmt.Sprintf("system call #%d %#q unexpectedly succeeded, expected error: %s", i, actual.C, expected.E)
+			case actual.E == nil && expected.E != nil && actual.R != nil:
+				// The call succeeded but we expected it to fail.
+				return false, fmt.Sprintf("system call #%d %#q unexpectedly succeeded, actual result: %#v, expected error: %s", i, actual.C, actual.R, expected.E)
+			default:
+				panic("unexpected call-result-error case")
+			}
+		}
+	}
+	if len(actualList) < len(expectedList) && len(expectedList) > 0 {
+		return false, fmt.Sprintf("system call #%d %#q unexpectedly absent, got only %d system call(s) but expected %d",
+			len(actualList), expectedList[len(actualList)].C, len(actualList), len(expectedList))
+	}
+	return true, ""
 }

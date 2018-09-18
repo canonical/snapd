@@ -31,9 +31,11 @@ import (
 )
 
 type PhysicalMemoryControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
@@ -41,20 +43,22 @@ var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
 })
 
 const physicalMemoryControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [physical-memory-control]
 `
 
 const physicalMemoryControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   physical-memory-control:
 `
 
 func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, physicalMemoryControlConsumerYaml, nil, "physical-memory-control")
-	s.slot = MockSlot(c, physicalMemoryControlCoreYaml, nil, "physical-memory-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, physicalMemoryControlConsumerYaml, nil, "physical-memory-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, physicalMemoryControlCoreYaml, nil, "physical-memory-control")
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {
@@ -62,34 +66,34 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "physical-memory-control",
 		Interface: "physical-memory-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"physical-memory-control slots are reserved for the core snap")
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mem rw,`)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# physical-memory-control
 KERNEL=="mem", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestStaticInfo(c *C) {
@@ -101,7 +105,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestInterfaces(c *C) {

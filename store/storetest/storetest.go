@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,12 +49,8 @@ func (Store) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
 	panic("Store.Find not expected")
 }
 
-func (Store) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
-	panic("Store.LookupRefresh not expected")
-}
-
-func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
-	panic("Store.ListRefresh not expected")
+func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
+	panic("Store.SnapAction not expected")
 }
 
 func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
@@ -73,7 +69,7 @@ func (Store) ReadyToBuy(*auth.UserState) error {
 	panic("Store.ReadyToBuy not expected")
 }
 
-func (Store) Sections(*auth.UserState) ([]string, error) {
+func (Store) Sections(context.Context, *auth.UserState) ([]string, error) {
 	panic("Store.Sections not expected")
 }
 
@@ -81,6 +77,10 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 	panic("Store.Assertion not expected")
 }
 
-func (Store) WriteCatalogs(io.Writer) error {
+func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 	panic("fakeStore.WriteCatalogs not expected")
+}
+
+func (Store) ConnectivityCheck() (map[string]bool, error) {
+	panic("ConnectivityCheck not expected")
 }

@@ -542,15 +542,16 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
-	manualAlias := st.NewTask("alias", fmt.Sprintf(i18n.G("Setup manual alias %q => %q for snap %q"), alias, app, snapsup.Name()))
+	manualAlias := st.NewTask("alias", fmt.Sprintf(i18n.G("Setup manual alias %q => %q for snap %q"), alias, app, snapsup.InstanceName()))
 	manualAlias.Set("alias", alias)
 	manualAlias.Set("target", app)
 	manualAlias.Set("snap-setup", &snapsup)
@@ -568,7 +569,7 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 		} else {
 			reason = fmt.Sprintf("target application %q is a daemon", target)
 		}
-		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.Name(), reason)
+		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.InstanceName(), reason)
 	}
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
@@ -598,11 +599,12 @@ func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error)
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: snapName},
 	}
 
@@ -619,7 +621,7 @@ func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, snapNa
 		return nil, "", err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, "", err
 	}
 
@@ -681,11 +683,12 @@ func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
+		// TODO parallel-install: verify use of instance name
 		SideInfo: &snap.SideInfo{RealName: name},
 	}
 

@@ -313,7 +313,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	ts := time.Now().Format(time.RFC3339)
 	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
 		"account-id": authorityID,
-		"validation": "certified",
+		"validation": "verified",
 		"timestamp":  ts,
 	}, "")
 	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
@@ -324,7 +324,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 
 	genericAcct := NewAccount(rootSigning, "generic", map[string]interface{}{
 		"account-id": "generic",
-		"validation": "certified",
+		"validation": "verified",
 		"timestamp":  ts,
 	}, "")
 

@@ -58,18 +58,27 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreRoot := snapInfo.MountDir()
-	dst := "/usr/share/dbus-1/services/io.snapcraft.Launcher.service"
-	if osutil.FileExists(dst) {
-		return nil
+
+	for _, srv := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
+		src := filepath.Join(coreRoot, dst)
+		if !osutil.FilesAreEqual(src, dst) {
+			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
+				return err
+			}
+		}
 	}
-	return osutil.CopyFile(filepath.Join(coreRoot, dst), dst, osutil.CopyFlagPreserveAll)
+	return nil
 }
 
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -77,6 +86,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// core on classic is special
+	//
+	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && release.OnClassic {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
@@ -158,4 +169,9 @@ func addContent(securityTag string, snippet string, content map[string]*osutil.F
 
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns list of features supported by snapd for dbus communication.
+func (b *Backend) SandboxFeatures() []string {
+	return []string{"mediated-bus-access"}
 }

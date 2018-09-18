@@ -1,0 +1,48 @@
+summary: Check that auto-connections are not re-connected if disabled by the user
+
+details: |
+    This test ensures that auto-connections are not restored if manually disconnected
+    by the user.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    snap pack "$TESTSLIB"/snaps/config-versions
+    snap pack "$TESTSLIB"/snaps/config-versions-v2
+
+restore: |
+    rm -f config-versions_1.0_all.snap
+    rm -f config-versions_2.0_all.snap
+
+execute: |
+    CONNECTED_PATTERN=':home .* config-versions'
+    DISCONNECTED_PATTERN='\- .* config-versions:home'
+
+    echo "Install test snap"
+    snap install --dangerous config-versions_1.0_all.snap
+
+    echo "Expecting home interface to be automatically connected"
+    snap interfaces|MATCH "$CONNECTED_PATTERN"
+
+    echo "Manually disconnect home interface"
+    snap disconnect config-versions:home
+    snap interfaces|MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Install a new version of the snap, expect home interface to remain disconnected"
+    snap install --dangerous config-versions_2.0_all.snap
+    snap interfaces|MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Revert to the rev 1, expect home interface to remain disconnected"
+    snap revert config-versions
+    snap interfaces|MATCH "$DISCONNECTED_PATTERN"
+
+    systemctl stop snapd.{service,socket}
+    systemctl start snapd.{service,socket}
+
+    echo "Manually connect home interface"
+    snap connect config-versions:home
+    snap interfaces|MATCH "$CONNECTED_PATTERN"
+
+    echo "Revert to the rev 2, expect home interface to remain connected"
+    snap revert --revision=x2 config-versions
+    snap interfaces|MATCH "$CONNECTED_PATTERN"

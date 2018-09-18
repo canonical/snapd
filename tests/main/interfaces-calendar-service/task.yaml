@@ -1,0 +1,81 @@
+summary: Ensure that the calendar-service interface works
+
+# Only test on classic systems.  Don't test on Ubuntu 14.04, which
+# does not ship a new enough evolution-data-server. Don't test on AMZN2.
+systems:
+    - -ubuntu-core-*
+    - -ubuntu-14.04-*
+    - -amazon-*
+
+# fails in the autopkgtest env with:
+# [Wed Aug 15 16:34:12 2018] audit: type=1400
+# audit(1534350852.923:58499): apparmor="DENIED" operation="connect"
+# profile="snap.test-snapd-eds.calendar" pid=19219 comm="calendar"
+# family="unix" sock_type="stream" protocol=0 requested_mask="send
+# receive connect" denied_mask="send connect" addr=none
+# peer_addr="@/tmp/dbus-5FUilMiW8U" peer="unconfined"
+backends: [-autopkgtest]
+
+environment:
+    XDG: $(pwd)/xdg
+    XDG_CONFIG_HOME: $XDG/config
+    XDG_DATA_HOME: $XDG/share
+    XDG_CACHE_HOME: $XDG/cache
+
+prepare: |
+    snap install --edge test-snapd-eds
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+
+restore: |
+    kill "$(cat dbus-launch.pid)"
+    rm -f dbus-launch.pid
+
+    # In case the process gvfsd-metadata does not finish by itself, it is manually stopped
+    # The reason is that gvfsd-metadata locks the xdg/share/gvfs-metadata directory content
+    # producing an error when the xdg directory is removed.
+    if pid="$(pidof gvfsd-metadata)"; then
+        kill -9 "$pid" || true
+    fi
+    rm -rf "$XDG"
+
+execute: |
+    echo "Setting up D-Bus session bus"
+    eval "$(dbus-launch --sh-syntax)"
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+
+    echo "The interface is initially disconnected"
+    snap interfaces -i calendar-service | MATCH -- '- +test-snapd-eds:calendar-service'
+    if [ "$(snap debug confinement)" = strict ]; then
+      ! test-snapd-eds.calendar list test-calendar
+    fi
+
+    echo "When the plug is connected, we can add events to calendars"
+    snap connect test-snapd-eds:calendar-service
+    test-snapd-eds.calendar load test-calendar << EOF
+    BEGIN:VEVENT
+    UID:19970610T172345Z-AF23B2@example.com
+    DTSTAMP:19970610T172345Z
+    DTSTART:19970714T170000Z
+    DTEND:19970715T040000Z
+    SUMMARY:Bastille Day Party
+    END:VEVENT
+    EOF
+
+    echo "We can also retrieve those contacts"
+    # Filter out creation/modification date fields, which are unpredictable
+    test-snapd-eds.calendar list test-calendar | sed -E 's/^(CREATED|LAST-MODIFIED):.*/\1:.../' > /tmp/calendar.ics
+    diff -uw - /tmp/calendar.ics << EOF
+    BEGIN:VEVENT
+    UID:19970610T172345Z-AF23B2@example.com
+    DTSTAMP:19970610T172345Z
+    DTSTART:19970714T170000Z
+    DTEND:19970715T040000Z
+    SUMMARY:Bastille Day Party
+    CREATED:...
+    LAST-MODIFIED:...
+    END:VEVENT
+
+    EOF
+
+    echo "Finally, remove the calendar we created"
+    test-snapd-eds.calendar remove test-calendar

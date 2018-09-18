@@ -67,7 +67,9 @@ capability sys_admin,
 
 # For {mbim,qmi}-proxy
 unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
-/sys/devices/**/usb**/descriptors r,
+/sys/devices/**/usb**/{descriptors,manufacturer,product} r,
+# See https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net-qmi
+/sys/devices/**/net/*/qmi/* rw,
 
 include <abstractions/nameservice>
 /run/systemd/resolve/stub-resolv.conf r,
@@ -116,6 +118,20 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+
+# Allow accessing logind services to properly shutdown devices on suspend
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={PrepareForSleep,SessionNew,SessionRemoved}
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Inhibit
     peer=(label=unconfined),
 `
 
@@ -179,7 +195,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
@@ -746,6 +761,9 @@ ACTION!="add|change|move", GOTO="mm_usb_device_blacklist_end"
 SUBSYSTEM!="usb", GOTO="mm_usb_device_blacklist_end"
 ENV{DEVTYPE}!="usb_device",  GOTO="mm_usb_device_blacklist_end"
 
+# Telegesis zigbee dongle
+ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="0003", ENV{ID_MM_DEVICE_IGNORE}="1"
+
 # APC UPS devices
 ATTRS{idVendor}=="051d", ENV{ID_MM_DEVICE_IGNORE}="1"
 
@@ -1203,7 +1221,7 @@ func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
@@ -1214,7 +1232,7 @@ func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(modemManagerConnectedPlugDBus)
 	return nil
 }
@@ -1231,11 +1249,11 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotUDev)
-	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	return nil
 }
 
-func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
@@ -1248,7 +1266,7 @@ func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specifica
 	return nil
 }
 
-func (iface *modemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *modemManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

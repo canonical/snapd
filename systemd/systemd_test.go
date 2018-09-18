@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -113,11 +115,11 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 	return out, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string, n string, follow bool) (io.ReadCloser, error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	var err error
 	var out []byte
 
-	s.jns = append(s.jns, n)
+	s.jns = append(s.jns, strconv.Itoa(n))
 	s.jsvcs = append(s.jsvcs, svcs)
 	s.jfollows = append(s.jfollows, follow)
 
@@ -146,6 +148,12 @@ func (s *SystemdTestSuite) TestStart(c *C) {
 	err := New("", s.rep).Start("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestStartMany(c *C) {
+	err := New("", s.rep).Start("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
 }
 
 func (s *SystemdTestSuite) TestStop(c *C) {
@@ -381,8 +389,8 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
-	c.Assert(New("", s.rep).Kill("foo", "HUP"), IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP"}})
+	c.Assert(New("", s.rep).Kill("foo", "HUP", ""), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {
@@ -393,7 +401,7 @@ func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{&Timeout{}}
 
-	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, NotNil)
 	c.Check(reader, IsNil)
 	c.Check(s.jns, DeepEquals, []string{"24"})
@@ -408,7 +416,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 `
 	s.jouts = [][]byte{[]byte(expected)}
 
-	reader, err := New("", s.rep).LogReader([]string{"foo"}, "24", false)
+	reader, err := New("", s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, IsNil)
 	logs, err := ioutil.ReadAll(reader)
 	c.Assert(err, IsNil)
@@ -451,55 +459,59 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", snapDir, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foodir
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foodir, revision x1
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/x1
 Type=none
 Options=nodev,ro,x-gdu.hide,bind
 
 [Install]
 WantedBy=multi-user.target
-`, snapDir))
+`[1:], snapDir))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
@@ -524,25 +536,24 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision x1
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=fuse.squashfuse
 Options=nodev,ro,x-gdu.hide,allow_other
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestFuseOutsideContainer(c *C) {
@@ -563,40 +574,42 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
-Description=Mount unit for foo
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision x1
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestJctl(c *C) {
 	var args []string
 	var err error
 	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
-		c.Check(cap(myargs) <= len(myargs)+1, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		c.Check(cap(myargs) <= len(myargs)+2, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
 		args = myargs
 		return nil, nil
 	})
 
-	_, err = Jctl([]string{"foo", "bar"}, "10", false)
+	_, err = Jctl([]string{"foo", "bar"}, 10, false)
 	c.Assert(err, IsNil)
-	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "10", "--no-pager", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar", "baz"}, "99", true)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "10", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true)
 	c.Assert(err, IsNil)
-	c.Check(args, DeepEquals, []string{"-o", "json", "-n", "99", "--no-pager", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "99", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
+	_, err = Jctl([]string{"foo", "bar"}, -1, false)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
 }

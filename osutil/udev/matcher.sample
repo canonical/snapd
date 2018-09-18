@@ -1,0 +1,21 @@
+{
+	"rules": [
+		{
+			"action": "^ad+$", 
+			"env": {
+				"SUBSYSTEM": "^usb.*"
+			}
+		},
+		{
+			"action": "remove", 
+			"env": {
+				"SUBSYSTEM": "^usb.*"
+			}
+		},
+		{
+			"env": {
+				"DEVTYPE": "usb_interface"
+			}
+		}
+	]
+}

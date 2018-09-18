@@ -26,6 +26,7 @@ import (
 )
 
 type cmdUnalias struct {
+	waitMixin
 	Positionals struct {
 		AliasOrSnap aliasOrSnap `required:"yes"`
 	} `positional-args:"true"`
@@ -33,13 +34,15 @@ type cmdUnalias struct {
 
 var shortUnaliasHelp = i18n.G("Unalias a manual alias or an entire snap")
 var longUnaliasHelp = i18n.G(`
-The unalias command tears down a manual alias when given one or disables all aliases of a snap, removing also all manual ones, when given a snap name.
+The unalias command removes a single alias if the provided argument is a manual
+alias, or disables all aliases of a snap, including manual ones, if the
+argument is a snap name.
 `)
 
 func init() {
 	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
 		return &cmdUnalias{}
-	}, nil, []argDesc{
+	}, waitDescs.also(nil), []argDesc{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<alias-or-snap>")},
 	})
@@ -55,14 +58,13 @@ func (x *cmdUnalias) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	chg, err := wait(cli, id)
+	chg, err := x.wait(cli, id)
 	if err != nil {
-		return err
-	}
-	if err := showAliasChanges(chg); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
-	return nil
+	return showAliasChanges(chg)
 }

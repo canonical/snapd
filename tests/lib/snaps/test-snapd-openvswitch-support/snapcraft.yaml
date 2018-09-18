@@ -1,0 +1,17 @@
+name: test-snapd-openvswitch-support
+version: 1.0
+summary: Basic openvsiwtch support snap
+description: A basic snap used to get random uuids through /run/uuidd/request
+confinement: strict
+grade: stable
+
+apps:
+    random-uuid:
+        command: random-uuid
+        plugs: [openvswitch-support]
+
+parts:
+    copy:
+        plugin: dump
+        source: .
+        stage-packages: [uuid-runtime]

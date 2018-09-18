@@ -123,15 +123,19 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 		goto out;
 	}
 	bool got_letter = false;
+	int n = 0, m;
 	for (; *p != '\0';) {
-		if (skip_lowercase_letters(&p) > 0) {
+		if ((m = skip_lowercase_letters(&p)) > 0) {
+			n += m;
 			got_letter = true;
 			continue;
 		}
-		if (skip_digits(&p) > 0) {
+		if ((m = skip_digits(&p)) > 0) {
+			n += m;
 			continue;
 		}
 		if (skip_one_char(&p, '-') > 0) {
+			n++;
 			if (*p == '\0') {
 				err =
 				    sc_error_init(SC_SNAP_DOMAIN,
@@ -156,7 +160,59 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
 				    "snap name must contain at least one letter");
 	}
+	if (n > 40) {
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "snap name must be shorter than 40 characters");
+	}
 
  out:
 	sc_error_forward(errorp, err);
+}
+
+void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
+			       size_t snap_name_size)
+{
+	sc_snap_split_instance_name(instance_name, snap_name, snap_name_size,
+				    NULL, 0);
+}
+
+void sc_snap_split_instance_name(const char *instance_name, char *snap_name,
+				 size_t snap_name_size, char *instance_key,
+				 size_t instance_key_size)
+{
+	if (instance_name == NULL) {
+		die("internal error: cannot split instance name when it is unset");
+	}
+	if (snap_name == NULL && instance_key == NULL) {
+		die("internal error: cannot split instance name when both snap name and instance key are unset");
+	}
+
+	const char *pos = strchr(instance_name, '_');
+	const char *instance_key_start = "";
+	size_t snap_name_len = 0;
+	size_t instance_key_len = 0;
+	if (pos == NULL) {
+		snap_name_len = strlen(instance_name);
+	} else {
+		snap_name_len = pos - instance_name;
+		instance_key_start = pos + 1;
+		instance_key_len = strlen(instance_key_start);
+	}
+
+	if (snap_name != NULL) {
+		if (snap_name_len >= snap_name_size) {
+			die("snap name buffer too small");
+		}
+
+		memcpy(snap_name, instance_name, snap_name_len);
+		snap_name[snap_name_len] = '\0';
+	}
+
+	if (instance_key != NULL) {
+		if (instance_key_len >= instance_key_size) {
+			die("instance key buffer too small");
+		}
+		memcpy(instance_key, instance_key_start, instance_key_len);
+		instance_key[instance_key_len] = '\0';
+	}
 }

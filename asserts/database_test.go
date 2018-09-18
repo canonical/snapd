@@ -60,7 +60,7 @@ func (opens *openSuite) TestOpenDatabaseTrustedAccount(c *C) {
 		"authority-id": "canonical",
 		"account-id":   "trusted",
 		"display-name": "Trusted",
-		"validation":   "certified",
+		"validation":   "verified",
 		"timestamp":    "2015-01-01T14:00:00Z",
 	}
 	acct, err := asserts.AssembleAndSignInTest(asserts.AccountType, headers, nil, testPrivKey0)
@@ -339,7 +339,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 		"type":         "account",
 		"authority-id": "canonical",
 		"account-id":   "predefined",
-		"validation":   "certified",
+		"validation":   "verified",
 		"display-name": "Predef",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
@@ -931,7 +931,7 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 		"type":         "account",
 		"authority-id": "canonical",
 		"account-id":   "predefined",
-		"validation":   "certified",
+		"validation":   "verified",
 		"display-name": "Predef",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
@@ -1046,7 +1046,7 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithPred
 		"type":         "account",
 		"authority-id": "canonical",
 		"account-id":   "predefined",
-		"validation":   "certified",
+		"validation":   "verified",
 		"display-name": "Predef",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}

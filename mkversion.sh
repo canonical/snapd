@@ -34,8 +34,10 @@ fi
 
 if [ -z "$v" ]; then
     # Let's try to derive the version from git..
-    if which git >/dev/null; then
-        v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
+    if command -v git >/dev/null; then
+        # not using "--dirty" here until the following bug is fixed:
+        # https://bugs.launchpad.net/snapcraft/+bug/1662388
+        v="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
         o=git
     fi
 fi

@@ -40,7 +40,8 @@ const UsbMaxInterfaces = 32
 // - "snap.$snap.*" if all apps are bound to the slot
 func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `"snap.%s.`, snap.Name())
+	// TODO parallel-install: use of proper instance/store name
+	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
 	if len(apps) == 1 {
 		for appName := range apps {
 			buf.WriteString(appName)
@@ -65,16 +66,16 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) string {
-	return appLabelExpr(slot.Apps, slot.Snap)
+func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
+	return appLabelExpr(slot.Apps(), slot.Snap())
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) string {
-	return appLabelExpr(plug.Apps, plug.Snap)
+func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
+	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
 // sanitizeSlotReservedForOS checks if slot is of type os.
-func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.Slot) error {
+func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.Snap.Type != snap.TypeOS {
 		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
 	}
@@ -82,7 +83,7 @@ func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.Slot
 }
 
 // sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
-func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *interfaces.Slot) error {
+func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget {
 		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
 	}
@@ -90,7 +91,7 @@ func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *interfa
 }
 
 // sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
-func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *interfaces.Slot) error {
+func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
 		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
 	}

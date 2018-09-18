@@ -152,7 +152,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 				continue
 			}
 			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
-				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.Name(), err)
+				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
 			}
 		}
 		return nil
@@ -251,7 +251,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		}
 		err := doFetch(s, userID, fetching)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.Name(), candInfo.Revision, err))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
 			continue
 		}
 
@@ -267,7 +267,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			}
 		}
 		if revoked != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.InstanceName(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
 			continue
 		}
 
@@ -346,7 +346,7 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	decl, err := SnapDeclaration(s, info.SnapID)
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
+		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.InstanceName(), err)
 	}
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {

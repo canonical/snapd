@@ -125,7 +125,7 @@ func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInf
 	}
 }
 
-func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := storageFrameworkServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -139,7 +139,7 @@ func (iface *storageFrameworkServiceInterface) AppArmorPermanentSlot(spec *appar
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := storageFrameworkServiceConnectedSlotAppArmor
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
@@ -153,7 +153,7 @@ func (iface *storageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccom
 	return nil
 }
 
-func (iface *storageFrameworkServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *storageFrameworkServiceInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return true
 }
 

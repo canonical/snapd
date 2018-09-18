@@ -6,6 +6,7 @@ DefaultDependencies=false
 ConditionKernelCommandLine=snap_core
 # don't run if system-shutdown isn't there
 ConditionPathExists=@libexecdir@/snapd/system-shutdown
+# X-Snapd-Snap: do-not-start
 
 [Service]
 Type=oneshot

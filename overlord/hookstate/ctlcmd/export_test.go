@@ -29,7 +29,7 @@ import (
 
 var AttributesTask = attributesTask
 
-func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *hookstate.Context) (*state.TaskSet, error)) (restore func()) {
+func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
 	old := servicestateControl
 	servicestateControl = f
 	return func() { servicestateControl = old }

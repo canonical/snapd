@@ -1,0 +1,21 @@
+# This systemd unit is needed on distributions that use apparmor but don't have
+# special support for loading snapd apparmor profiles. Until upstream apparmor
+# user-space release contains a systemd unit that is actually shipped by
+# distributors and that contains the necessary extension points for snapd the
+# apparmor profiles for snap applications need to be loaded separately from
+# other applications.
+[Unit]
+Description=Load AppArmor profiles managed internally by snapd
+DefaultDependencies=no
+Before=sysinit.target
+# This dependency is meant to ensure that apparmor initialization (whatever that might entail) is complete.
+After=apparmor.service
+ConditionSecurity=apparmor
+
+[Service]
+Type=oneshot
+ExecStart=@libexecdir@/snapd/snapd-apparmor start
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

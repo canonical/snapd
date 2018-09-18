@@ -1,0 +1,83 @@
+summary: Ensure that snap layouts are applied
+details: |
+    This test installs a test snap that uses layout declarations.
+    The layout changes which directories and files exist in the filesystem
+    in the area beyond the $SNAP directory. In addition all applications and
+    hooks get permissions to access those areas.
+prepare: |
+    echo "Ensure feature flag is enabled"
+    snap set core experimental.layouts=true
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-layout
+debug: |
+    ls -ld /etc || :
+    ls -ld /etc/demo || :
+    ls -ld /etc/demo.conf || :
+    ls -ld /etc/demo.cfg || :
+execute: |
+    . $TESTSLIB/snaps.sh
+    for i in $(seq 2); do
+        if [ "$i" -eq 2 ]; then
+            echo "The snap works across refreshes"
+            install_local test-snapd-layout
+        fi
+
+        echo "snap declaring layouts doesn't explode on startup"
+        test-snapd-layout.sh -c "true"
+
+        echo "layout declarations are honored"
+
+        test-snapd-layout.sh -c "test -d /etc/demo"
+        test-snapd-layout.sh -c "test -f /etc/demo.conf"
+        test-snapd-layout.sh -c "test -h /etc/demo.cfg"
+        test "$(test-snapd-layout.sh -c "readlink /etc/demo.cfg")" = "$(test-snapd-layout.sh -c 'echo $SNAP_COMMON/etc/demo.conf')"
+        test-snapd-layout.sh -c "test -d /usr/share/demo"
+        test-snapd-layout.sh -c "test -d /var/lib/demo"
+        test-snapd-layout.sh -c "test -d /var/cache/demo"
+        test-snapd-layout.sh -c "test -d /opt/demo"
+        test-snapd-layout.sh -c "test -d /bin/very-weird-place"
+        # Ideally we'd perform this test but the rsyslog directory has mode 700 and user mode 108:4
+        # test-snapd-layout.sh -c "test -d /var/spool/rsyslog/demo"
+
+        echo "layout constructed a mimic using tmpfs as aid (/opt)"
+        [ "$(test-snapd-layout.sh -c "stat -f /opt -c '%T'")" = "tmpfs" ]
+        echo "and the tmpfs was mounted with 0755 and root/root user/group to mimic /opt in core"
+        [ "$(test-snapd-layout.sh -c "stat /opt -c '%a'")" = "755" ]
+        [ "$(test-snapd-layout.sh -c "stat /opt -c '%u'")" = "0" ]
+        [ "$(test-snapd-layout.sh -c "stat /opt -c '%g'")" = "0" ]
+
+        echo "layout constructed a mimic using tmpfs as aid (/var/spool/rsyslog)"
+        [ "$(test-snapd-layout.sh -c "stat -f /var/spool/rsyslog -c '%T'")" = "tmpfs" ]
+        echo "and the tmpfs was mounted with 0700 and syslog/adm user/group to mimic /var/spool/rsyslog in core"
+        [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%a'")" = "700" ]
+        [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%u'")" = "108" ]
+        [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%g'")" = "4" ]
+
+        echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
+        echo "and the writes go to the right place in the backing store"
+
+        test-snapd-layout.sh -c "echo foo-1 > /etc/demo/writable"
+        test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo/writable')" = "foo-1"
+
+        test-snapd-layout.sh -c "echo foo-2 > /etc/demo.conf"
+        test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo.conf')" = "foo-2"
+
+        # NOTE: this is a symlink to demo.conf, effectively
+        test-snapd-layout.sh -c "echo foo-3 > /etc/demo.cfg"
+        test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo.conf')" = "foo-3"
+
+        test-snapd-layout.sh -c "echo foo-4 > /var/lib/demo/writable"
+        test "$(test-snapd-layout.sh -c 'cat $SNAP_DATA/var/lib/demo/writable')" = "foo-4"
+
+        test-snapd-layout.sh -c "echo foo-5 > /var/cache/demo/writable"
+        test "$(test-snapd-layout.sh -c 'cat $SNAP_DATA/var/cache/demo/writable')" = "foo-5"
+
+        echo "layout locations pointing to SNAP are readable"
+
+        test-snapd-layout.sh -c "test -r /usr/share/demo/file"
+        test-snapd-layout.sh -c "test -r /opt/demo/file"
+
+        echo "layout locations in dynamically created SNAP directories are writable"
+        test-snapd-layout.sh -c 'test -w $SNAP/bin-very-weird-place'
+        test-snapd-layout.sh -c 'test -w /bin/very-weird-place'
+    done

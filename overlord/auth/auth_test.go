@@ -26,12 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -272,7 +275,7 @@ func (as *authSuite) TestUserForNoAuthInState(c *C) {
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
 	as.state.Unlock()
-	c.Check(err, NotNil)
+	c.Check(err, Equals, auth.ErrInvalidUser)
 	c.Check(userFromState, IsNil)
 }
 
@@ -284,6 +287,7 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
+	c.Check(err, Equals, auth.ErrInvalidUser)
 	c.Check(err, ErrorMatches, "invalid user")
 	c.Check(userFromState, IsNil)
 }
@@ -299,6 +303,27 @@ func (as *authSuite) TestUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
+
+	c.Check(user.HasStoreAuth(), Equals, true)
+}
+
+func (as *authSuite) TestUserHasStoreAuth(c *C) {
+	var user0 *auth.UserState
+	// nil user
+	c.Check(user0.HasStoreAuth(), Equals, false)
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasStoreAuth(), Equals, true)
+
+	// no store auth
+	as.state.Lock()
+	user, err = auth.NewUser(as.state, "username", "email@test.com", "", nil)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasStoreAuth(), Equals, false)
 }
 
 func (as *authSuite) TestUpdateUser(c *C) {
@@ -335,7 +360,7 @@ func (as *authSuite) TestUpdateUserInvalid(c *C) {
 	as.state.Lock()
 	err := auth.UpdateUser(as.state, user)
 	as.state.Unlock()
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestRemove(c *C) {
@@ -357,12 +382,12 @@ func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
 	_, err = auth.User(as.state, user.ID)
 	as.state.Unlock()
-	c.Check(err, ErrorMatches, "invalid user")
+	c.Check(err, Equals, auth.ErrInvalidUser)
 
 	as.state.Lock()
 	err = auth.RemoveUser(as.state, user.ID)
 	as.state.Unlock()
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestSetDevice(c *C) {
@@ -447,7 +472,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 
 	authContext := auth.NewAuthContext(as.state, nil)
 	_, err := authContext.UpdateUserAuth(user, nil)
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestAuthContextDeviceForNonExistent(c *C) {
@@ -546,6 +571,31 @@ func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertion
 
 	_, err := authContext.DeviceSessionRequestParams("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
+}
+
+func (as *authSuite) TestAuthContextCloudInfo(c *C) {
+	authContext := auth.NewAuthContext(as.state, nil)
+
+	cloud, err := authContext.CloudInfo()
+	c.Assert(err, IsNil)
+	c.Check(cloud, IsNil)
+
+	cloudInfo := &auth.CloudInfo{
+		Name:             "aws",
+		Region:           "us-east-1",
+		AvailabilityZone: "us-east-1a",
+	}
+	as.state.Lock()
+	defer as.state.Unlock()
+	tr := config.NewTransaction(as.state)
+	tr.Set("core", "cloud", cloudInfo)
+	tr.Commit()
+
+	as.state.Unlock()
+	cloud, err = authContext.CloudInfo()
+	as.state.Lock()
+	c.Assert(err, IsNil)
+	c.Check(cloud, DeepEquals, cloudInfo)
 }
 
 const (
@@ -771,4 +821,16 @@ func (as *authSuite) TestUsers(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(users, DeepEquals, []*auth.UserState{user1, user2})
+}
+
+func (as *authSuite) TestEnsureContexts(c *C) {
+	ctx1 := auth.EnsureContextTODO()
+	ctx2 := auth.EnsureContextTODO()
+
+	c.Check(ctx1, Not(Equals), ctx2)
+
+	c.Check(auth.IsEnsureContext(ctx1), Equals, true)
+	c.Check(auth.IsEnsureContext(ctx2), Equals, true)
+
+	c.Check(auth.IsEnsureContext(context.TODO()), Equals, false)
 }

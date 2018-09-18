@@ -1,0 +1,31 @@
+name: snapd
+summary: Daemon and tooling that enable snap packages
+description: |
+ Install, configure, refresh and remove snap packages. Snaps are
+ 'universal' packages that work across many different Linux systems,
+ enabling secure distribution of the latest apps and utilities for
+ cloud, servers, desktops and the internet of things.
+ 
+ Start with 'snap list' to see installed snaps.
+version: set-by-version-script-thxbye
+version-script: |
+  # extract the version from the debian/changelog
+  dpkg-parsechangelog -Sversion
+grade: devel
+
+parts:
+  snapd:
+    # FIXME: this should probably go upstream
+    plugin: x-builddeb
+    source: .
+
+# Note that this snap is unusual in that it has no "apps" section.
+#
+# It is started via re-exec on classic systems and via special
+# handling in the core18 snap on Ubuntu Core Systems.
+#
+# Because snapd itself manages snaps it must currently run totally
+# unconfined (even devmode is not enough).
+#
+# See the comments from jdstrand in
+# https://forum.snapcraft.io/t/5547/10

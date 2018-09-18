@@ -1,0 +1,26 @@
+name: test-snapd-network-status-provider
+version: 1.0
+summary: Basic network status provider snap
+description: A basic snap declaring an network status slot
+confinement: strict
+grade: stable
+
+apps:
+    provider:
+        command: wrapper
+        slots: [network-status-test]
+    consumer:
+        command: consumer
+        plugs: [network-status]
+
+slots:
+    network-status-test:
+      interface: network-status
+
+parts:
+    deps:
+        plugin: python
+        stage-packages: [python3-gi, python3-dbus, gir1.2-glib-2.0]
+    copy:
+        plugin: dump
+        source: .

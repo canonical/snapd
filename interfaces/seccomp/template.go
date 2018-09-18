@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -396,6 +396,7 @@ shmat
 shmctl
 shmdt
 shmget
+shutdown
 signal
 sigaction
 signalfd
@@ -450,6 +451,11 @@ socket AF_NFC
 socket AF_VSOCK
 socket AF_MPLS
 socket AF_IB
+
+# For usrsctp, AppArmor doesn't support 'network conn,' since AF_CONN is
+# userspace and encapsulated in other domains that are mediated. As such, do
+# not allow AF_CONN by default here.
+# socket AF_CONN
 
 # For AF_NETLINK, we'll use a combination of AppArmor coarse mediation and
 # seccomp arg filtering of netlink families.
@@ -544,11 +550,6 @@ writev
 pwrite
 pwrite64
 pwritev
-
-# FIXME: remove this after LP: #1446748 is implemented
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually.
-socketcall
 `)
 
 // Go's net package attempts to bind early to check whether IPv6 is available or not.
@@ -564,4 +565,13 @@ const bindSyscallWorkaround = `
 # Add bind() for systems with only Seccomp enabled to workaround
 # LP #1644573
 bind
+`
+
+// socketcall is an older interface and single entry point that can be used
+// instead of socket(), bind(), connect(), etc individually. It isn't needed
+// by most architectures with new enough kernels and glibc, so we leave it out
+// of the default policy and add only when needed.
+const socketcallSyscallDeprecated = `
+# Add socketcall() for system and/or base that requires it. LP: #1446748
+socketcall
 `

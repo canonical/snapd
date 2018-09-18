@@ -1,6 +1,6 @@
 summary: Ensure all services on Core are active
 
-systems: [ubuntu-core-*]
+systems: [ubuntu-core-16-*]
 
 execute: |
     echo "Ensure one-shot services are working"
@@ -12,6 +12,6 @@ execute: |
     systemctl status snapd.service |MATCH active
     
     echo "Ensure timers are working"
-    for timer in snapd.refresh.timer snapd.snap-repair.timer; do
+    for timer in snapd.snap-repair.timer; do
         systemctl is-active $timer
     done

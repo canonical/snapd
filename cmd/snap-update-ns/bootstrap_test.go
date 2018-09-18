@@ -45,34 +45,37 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		cmdline     []string
 		snapName    string
 		shouldSetNs bool
+		userFstab   bool
 		errPattern  string
 	}{
 		// Corrupted buffer is dealt with.
-		{[]string{}, "", false, "argv0 is corrupted"},
+		{[]string{}, "", false, false, "argv0 is corrupted"},
 		// When testing real bootstrap is identified and disabled.
-		{[]string{"argv0.test"}, "", false, "bootstrap is not enabled while testing"},
+		{[]string{"argv0.test"}, "", false, false, "bootstrap is not enabled while testing"},
 		// Snap name is mandatory.
-		{[]string{"argv0"}, "", false, "snap name not provided"},
+		{[]string{"argv0"}, "", false, false, "snap name not provided"},
 		// Snap name is parsed correctly.
-		{[]string{"argv0", "snapname"}, "snapname", true, ""},
+		{[]string{"argv0", "snapname"}, "snapname", true, false, ""},
 		// Onlye one snap name is allowed.
-		{[]string{"argv0", "snapone", "snaptwo"}, "", false, "too many positional arguments"},
+		{[]string{"argv0", "snapone", "snaptwo"}, "", false, false, "too many positional arguments"},
 		// Snap name is validated correctly.
-		{[]string{"argv0", ""}, "", false, "snap name must contain at least one letter"},
-		{[]string{"argv0", "in--valid"}, "", false, "snap name cannot contain two consecutive dashes"},
-		{[]string{"argv0", "invalid-"}, "", false, "snap name cannot end with a dash"},
-		{[]string{"argv0", "@invalid"}, "", false, "snap name must use lower case letters, digits or dashes"},
-		{[]string{"argv0", "INVALID"}, "", false, "snap name must use lower case letters, digits or dashes"},
+		{[]string{"argv0", ""}, "", false, false, "snap name must contain at least one letter"},
+		{[]string{"argv0", "in--valid"}, "", false, false, "snap name cannot contain two consecutive dashes"},
+		{[]string{"argv0", "invalid-"}, "", false, false, "snap name cannot end with a dash"},
+		{[]string{"argv0", "@invalid"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
+		{[]string{"argv0", "INVALID"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
 		// The option --from-snap-confine disables setns.
-		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, ""},
-		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, ""},
+		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, ""},
+		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, ""},
+		// The option --user-mounts switches to the real uid
+		{[]string{"argv0", "--user-mounts", "snapname"}, "snapname", false, true, ""},
 		// Unknown options are reported.
-		{[]string{"argv0", "-invalid"}, "", false, "unsupported option"},
-		{[]string{"argv0", "--option"}, "", false, "unsupported option"},
-		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, "unsupported option"},
+		{[]string{"argv0", "-invalid"}, "", false, false, "unsupported option"},
+		{[]string{"argv0", "--option"}, "", false, false, "unsupported option"},
+		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, false, "unsupported option"},
 	}
 	for _, tc := range cases {
-		snapName, shouldSetNs := update.ProcessArguments(tc.cmdline)
+		snapName, shouldSetNs, userFstab := update.ProcessArguments(tc.cmdline)
 		err := update.BootstrapError()
 		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",
 			tc.cmdline, tc.errPattern, err)
@@ -81,7 +84,8 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		} else {
 			c.Assert(err, IsNil, comment)
 		}
-		c.Check(snapName, Equals, tc.snapName)
-		c.Check(shouldSetNs, Equals, tc.shouldSetNs)
+		c.Check(snapName, Equals, tc.snapName, comment)
+		c.Check(shouldSetNs, Equals, tc.shouldSetNs, comment)
+		c.Check(userFstab, Equals, tc.userFstab, comment)
 	}
 }

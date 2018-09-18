@@ -4,6 +4,8 @@ systems:
     - -debian-*
     - -fedora-*
     - -opensuse-*
+    - -arch-*
+    - -amazon-*
 execute: |
     snap_confine=/usr/lib/snapd/snap-confine
     echo "Seeing that snap-confine is in $snap_confine"

@@ -51,6 +51,15 @@ func (s installedSnapName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+func installedSnapNames(snaps []installedSnapName) []string {
+	names := make([]string, len(snaps))
+	for i, name := range snaps {
+		names[i] = string(name)
+	}
+
+	return names
+}
+
 func completeFromSortedFile(filename, match string) ([]flags.Completion, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -106,6 +115,15 @@ func (s remoteSnapName) Complete(match string) []flags.Completion {
 		ret[i] = flags.Completion{Item: snap.Name}
 	}
 	return ret
+}
+
+func remoteSnapNames(snaps []remoteSnapName) []string {
+	names := make([]string, len(snaps))
+	for i, name := range snaps {
+		names[i] = string(name)
+	}
+
+	return names
 }
 
 type anySnapName string

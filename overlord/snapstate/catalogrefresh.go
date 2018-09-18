@@ -26,9 +26,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -68,8 +70,16 @@ func (r *catalogRefresh) Ensure() error {
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	return refreshCatalogs(r.state, theStore)
+	err := refreshCatalogs(r.state, theStore)
+	if err == nil {
+		logger.Debugf("Catalog refresh succeeded.")
+	} else {
+		logger.Debugf("Catalog refresh failed: %v.", err)
+	}
+	return err
 }
+
+var newCmdDB = advisor.Create
 
 func refreshCatalogs(st *state.State, theStore StoreService) error {
 	st.Unlock()
@@ -79,7 +89,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}
 
-	sections, err := theStore.Sections(nil)
+	sections, err := theStore.Sections(auth.EnsureContextTODO(), nil)
 	if err != nil {
 		return err
 	}
@@ -89,14 +99,30 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return err
 	}
 
-	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
+	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}
 	defer namesFile.Cancel()
-	if err := theStore.WriteCatalogs(namesFile); err != nil {
+
+	cmdDB, err := newCmdDB()
+	if err != nil {
 		return err
 	}
 
-	return namesFile.Commit()
+	// if all goes well we'll Commit() making this a NOP:
+	defer cmdDB.Rollback()
+
+	if err := theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB); err != nil {
+		return err
+	}
+
+	err1 := namesFile.Commit()
+	err2 := cmdDB.Commit()
+
+	if err2 != nil {
+		return err2
+	}
+
+	return err1
 }

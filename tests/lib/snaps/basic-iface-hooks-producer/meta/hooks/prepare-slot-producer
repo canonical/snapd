@@ -1,0 +1,35 @@
+#!/bin/sh
+
+set -ue
+
+echo "Getting and setting attribute value from prepare-slot-producer hook"
+
+# Set own (slot's) attribute
+if ! snapctl set :producer before-connect=producer-value; then
+    echo "Expected prepare-slot-producer hook to be able to set the value of 'before-connect' attribute"
+    exit 1
+fi
+
+# Read own 'before-connect' attribute
+if ! output=$(snapctl get :producer before-connect); then
+    echo "Expected prepare-slot-producer hook to be able to read the value of own 'before-connect' attribute"
+    exit 1
+fi
+expected_output="producer-value"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Read attribute of the plug set by prepare-plug- hook
+if ! output=$(snapctl get --plug :producer before-connect); then
+    echo "Expected prepare-slot-producer hook to be able to read the value of 'before-connect' attribute of the plug"
+    exit 1
+fi
+expected_output="consumer-value"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+touch "$SNAP_COMMON/prepare-slot-producer-done"

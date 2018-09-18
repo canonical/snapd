@@ -3,7 +3,6 @@ Description=Automatically repair incorrect owner/permissions on core devices
 Before=snapd.service
 # don't run on classic
 ConditionKernelCommandLine=snap_core
-ConditionPathExists=!/var/lib/snapd/device/ownership-change.after
 Documentation=man:snap(1)
 
 [Service]

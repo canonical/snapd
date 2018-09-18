@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (c) 2016-2017 Canonical Ltd
+ * Copyright (c) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -47,8 +47,15 @@ const mirPermanentSlotAppArmor = `
 capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
-/{dev,run}/shm/\#* mrw,
+# mir uses open("/dev/shm", O_TMPFILE...) which shows up in AppArmor
+# as /dev/shm/#NUMBER. This is then fed to mmap with MAP_SHARED
+# for communication with the client (note that the file doesn't actually
+# exist and isn't accessible by other processes). Also see:
+# https://www.kernel.org/doc/gorman/html/understand/understand015.html
+/{dev,run}/shm/\#[0-9]* mrw,
+
 /run/mir_socket rw,
+/run/user/[0-9]*/mir_socket rw,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
 capability sys_admin,
@@ -87,6 +94,9 @@ const mirConnectedPlugAppArmor = `
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
+
+# Mir uses /dev/shm for sharing memory with clients
+/{dev,run}/shm/\#[0-9]* mrw,
 `
 
 type mirInterface struct{}
@@ -102,7 +112,7 @@ func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
@@ -110,7 +120,7 @@ func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)
@@ -129,6 +139,7 @@ func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slo
 }
 
 func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.TriggerSubsystem("input")
 	spec.TagDevice(`KERNEL=="tty[0-9]*"`)
 	spec.TagDevice(`KERNEL=="mice"`)
 	spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
@@ -137,7 +148,7 @@ func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 	return nil
 }
 
-func (iface *mirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mirInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 

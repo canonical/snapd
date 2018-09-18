@@ -35,6 +35,12 @@ static void sc_set_ns_dir(const char *dir)
 	sc_ns_dir = dir;
 }
 
+// A variant of unsetenv that is compatible with GDestroyNotify
+static void my_unsetenv(const char *k)
+{
+	unsetenv(k);
+}
+
 // Use temporary directory for namespace groups.
 //
 // The directory is automatically reset to the real value at the end of the
@@ -53,7 +59,7 @@ static const char *sc_test_use_fake_ns_dir(void)
 		g_test_queue_free(ns_dir);
 		g_assert_cmpint(setenv("SNAP_CONFINE_NS_DIR", ns_dir, 0), ==,
 				0);
-		g_test_queue_destroy((GDestroyNotify) unsetenv,
+		g_test_queue_destroy((GDestroyNotify) my_unsetenv,
 				     "SNAP_CONFINE_NS_DIR");
 		g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, ns_dir);
 	}

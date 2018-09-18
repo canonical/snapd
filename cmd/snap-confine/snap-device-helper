@@ -1,0 +1,57 @@
+#!/bin/sh
+# udev callout to allow a snap to access a device node
+set -e
+# debugging
+#exec >>/tmp/snap-device-helper.log
+#exec 2>&1
+#set -x
+# end debugging
+
+ACTION="$1"
+APPNAME="$2"
+DEVPATH="$3"
+MAJMIN="$4"
+[ -n "$APPNAME" ] || { echo "no app name given" >&2; exit 1; }
+[ -n "$DEVPATH" ] || { echo "no devpath given" >&2; exit 1; }
+[ -n "$MAJMIN" ] || { echo "no major/minor given" >&2; exit 0; }
+
+NOSNAP="${APPNAME#snap_}"
+[ "$NOSNAP" != "$APPNAME" ] || { echo "malformed appname $APPNAME" >&2; exit 1; }
+
+if [ "${NOSNAP#*_*_}" = "${NOSNAP}" ]; then
+    # snap_<snap>_<app> -> snap.<snap>.<app>
+    SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_}"
+else
+    # snap_<snap>_<instance>_<app> -> snap.<snap>_<instance>.<app>
+    SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_*_}"
+fi
+
+DEVICES_CGROUP=${DEVICES_CGROUP:="/sys/fs/cgroup/devices"}
+app_dev_cgroup="$DEVICES_CGROUP/$SNAPAPP"
+
+# The cgroup is only present after snap start so ignore any cgroup changes
+# (eg, 'add' on boot, hotplug, hotunplug) when the cgroup doesn't exist
+# yet. LP: #1762182.
+if [ ! -e "$app_dev_cgroup" ]; then
+    exit 0
+fi
+
+# check if it's a block or char dev
+if [ "${DEVPATH#*/block/}" != "$DEVPATH" ]; then
+    type="b"
+else
+    type="c"
+fi
+
+acl="$type $MAJMIN rwm"
+case "$ACTION" in
+    add|change)
+        echo "$acl" > "$app_dev_cgroup/devices.allow"
+        ;;
+    remove)
+        echo "$acl" > "$app_dev_cgroup/devices.deny"
+        ;;
+    *)
+        echo "ERROR: unknown action $ACTION" >&2
+        exit 1 ;;
+esac

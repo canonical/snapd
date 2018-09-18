@@ -1,1 +1,1 @@
-### Moved to https://github.com/snapcore/snapd/wiki
+### Moved to https://forum.snapcraft.io/t/documentation-outline/3781

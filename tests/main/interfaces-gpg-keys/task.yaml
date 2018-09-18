@@ -1,0 +1,74 @@
+summary: Ensure that the gpg-keys interface works.
+
+# core18 has no gpg
+systems: [-ubuntu-core-18-*]
+
+details: |
+    The gpg-keys interface allows to access gpg binary and keys.
+
+environment:
+    KEYSDIR: "$HOME/.gnupg"
+    TRUSTDB: "$HOME/.gnupg/trustdb.gpg"
+    TESTKEY: "$HOME/.gnupg/testkey"
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-gpg-keys
+
+    if [ -d "$KEYSDIR" ]; then
+        cp -rf "$KEYSDIR" "$KEYSDIR".old
+    else
+        mkdir "$KEYSDIR"
+    fi
+
+    if ! [ -f "$TRUSTDB" ]; then
+        echo "trustdb" > "$TRUSTDB"
+    fi
+
+    echo "testkey" > "$TESTKEY"
+
+restore: |
+    rm -f call.error
+    rm -rf "$KEYSDIR"
+    if [ -d "$KEYSDIR".old ]; then
+        mv "$KEYSDIR".old "$KEYSDIR"
+    fi
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i gpg-keys | MATCH '^- +test-snapd-gpg-keys:gpg-keys'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-gpg-keys:gpg-keys
+
+    echo "Then the snap is able to run gpg"
+    test-snapd-gpg-keys.sh -c "gpg --list-keys"
+
+    echo "And the snap is able to access to config files"
+    test-snapd-gpg-keys.sh -c "cat /usr/share/gnupg/options.skel"
+
+    echo "And the snap is able to read gpg keys and db"
+    test-snapd-gpg-keys.sh -c "cat $TESTKEY"
+    test-snapd-gpg-keys.sh -c "cat $TRUSTDB"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "And then the snap is not able to write the trust.db file"
+    if test-snapd-gpg-keys.sh -c "sed -i 's/ / /g' $TRUSTDB" 2> call.error; then
+        echo "Expected permission error accessing to trust db"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-gpg-keys:gpg-keys
+
+    echo "Then the snap is not able to read gpg keys"
+    if test-snapd-gpg-keys.sh -c "cat $TESTKEY" 2> call.error; then
+        echo "Expected permission error accessing to gpg keys"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

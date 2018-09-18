@@ -25,37 +25,64 @@ prepare: |
     snap install test-snapd-fuse-consumer
 
     echo "And a user writable mount point is created"
-    mkdir -p $MOUNT_POINT
+    mkdir -p "$MOUNT_POINT"
 
 restore: |
-    umount $MOUNT_POINT || true
-    rm -rf $MOUNT_POINT fuse.error
+    # remove the mount point
+    mounts=$(nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt cat /proc/mounts | \
+             grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
+    for m in $mounts; do
+        nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt umount "$m"
+    done
+    rm -rf "$MOUNT_POINT" fuse.error
 
 execute: |
-    CONNECTED_PATTERN=":fuse-support +test-snapd-fuse-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-fuse-consumer:fuse-support"
-
-    echo "Then the fuse plug is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    echo "The interface is disconnected by default"
+    snap interfaces -i fuse-support | MATCH '^- +test-snapd-fuse-consumer:fuse-support'
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
-        if test-snapd-fuse-consumer.create $MOUNT_POINT 2>${PWD}/fuse.error; then
+        if test-snapd-fuse-consumer.create -f "$MOUNT_POINT" 2> fuse.error; then
             echo "Expected permission error creating fuse filesystem with disconnected plug"
             exit 1
         fi
-        MATCH "Permission denied" fuse.error
-
-        echo "==================================="
+        MATCH "Permission denied" < fuse.error
     fi
 
     echo "When the plug is connected"
     snap connect test-snapd-fuse-consumer:fuse-support
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create a fuse filesystem"
-    test-snapd-fuse-consumer.create $MOUNT_POINT
-    # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
-    PID=$(ps aux | awk '/[t]est-snapd.*create/{print $2}')
-    MATCH "Hello World!" < /proc/${PID}/root/$MOUNT_POINT/hello
-    kill -9 ${PID}
+    # start fuse consumer in foreground and make it a background job
+    test-snapd-fuse-consumer.create -f "$MOUNT_POINT" &
+    createpid=$!
+    # cleanup the background job on exit
+    trap 'kill $createpid; wait $createpid' EXIT
+
+    # it may take a while for hello file to appear
+    for _ in $(seq 100); do
+        if test -r "/proc/${createpid}/root/${MOUNT_POINT}/hello"; then
+            break
+        fi
+        sleep .1
+    done
+    test -r "/proc/${createpid}/root/${MOUNT_POINT}/hello"
+    # prefer cat ... | MATCH so that we can see which PID is used
+    #shellcheck disable=SC2002
+    cat "/proc/${createpid}/root/${MOUNT_POINT}/hello" | MATCH "Hello World!"
+
+    # SIGTERM triggers a clean exit
+    kill $createpid
+    trap - EXIT
+
+    # the create app will try to unmount the fuse filesystem while exiting,
+    # it will fail, as seccomp rules are blocking umount2
+    echo "The snap exited with an error"
+    # SIGSYS - 31 on x86, wait exit status if killed by signal = 128 + <signal-number>
+    wait $createpid || test "$?" = "159"
+
+    # verify that the mount_point was not removed from mount namespace of the snap
+    mountpath=$(nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt cat /proc/mounts | \
+                grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
+    test -n "$mountpath"
+

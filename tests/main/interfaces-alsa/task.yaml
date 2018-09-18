@@ -1,7 +1,7 @@
 summary: Ensure that the alsa interface works.
 
-# Spread system for Fedora, openSUSE doesn't seem to provide any /dev/snd entries
-systems: [-fedora-*, -opensuse-*]
+# Spread system for Fedora, openSUSE and AMZN2 don't seem to provide any /dev/snd entries
+systems: [-fedora-*, -opensuse-*, -amazon-*]
 
 details: |
     The alsa interface allows connected plugs to access raw ALSA devices.
@@ -18,26 +18,24 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a plug on the alsa interface is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_generic_consumer alsa
 
 restore: |
-    rm -f *.error /dev/snd/mysnd-dev
+    rm -f ./*.error /dev/snd/mysnd-dev
 
 execute: |
-    CONNECTED_PATTERN=":alsa +generic-consumer"
-    DISCONNECTED_PATTERN="\- +generic-consumer:alsa"
-
-    echo "The plug is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
-
     echo "When the plug is connected"
     snap connect generic-consumer:alsa
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    if ! [ -d /dev/snd/ ]; then
+        echo "No sound devices available in the system"
+        exit 0
+    fi
 
     echo "Then the snap is able to access snd devices"
+    mkdir -p /dev/snd
     generic-consumer.cmd touch /dev/snd/mysnd-dev
     echo "mysnd-dev-content" | tee /dev/snd/mysnd-dev
     generic-consumer.cmd cat /dev/snd/mysnd-dev | MATCH mysnd-dev-content
@@ -59,11 +57,8 @@ execute: |
         exit 0
     fi
 
-    echo "==================================="
-
     echo "When the plug is disconnected"
     snap disconnect generic-consumer:alsa
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "The snap is not able to access snd devices"
     if generic-consumer.cmd touch /dev/snd/mysnd-dev 2>snd-create.error; then

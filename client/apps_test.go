@@ -87,6 +87,22 @@ func (cs *clientSuite) TestClientServiceGetSad(c *check.C) {
 	}
 }
 
+func (cs *clientSuite) TestClientAppCommonID(c *check.C) {
+	expected := []*client.AppInfo{{
+		Snap:     "foo",
+		Name:     "foo",
+		CommonID: "org.foo",
+	}}
+	buf, err := json.Marshal(expected)
+	c.Assert(err, check.IsNil)
+	cs.rsp = fmt.Sprintf(`{"type": "sync", "result": %s}`, buf)
+	for _, chkr := range appcheckers {
+		actual, err := chkr(cs, c)
+		c.Assert(err, check.IsNil)
+		c.Check(actual, check.DeepEquals, expected)
+	}
+}
+
 func testClientLogs(cs *clientSuite, c *check.C) ([]client.Log, error) {
 	ch, err := cs.cli.Logs([]string{"foo", "bar"}, client.LogOptions{N: -1, Follow: false})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logs")

@@ -32,6 +32,12 @@ static void sc_set_lock_dir(const char *dir)
 	sc_lock_dir = dir;
 }
 
+// A variant of unsetenv that is compatible with GDestroyNotify
+static void my_unsetenv(const char *k)
+{
+	unsetenv(k);
+}
+
 // Use temporary directory for locking.
 //
 // The directory is automatically reset to the real value at the end of the
@@ -50,7 +56,7 @@ static const char *sc_test_use_fake_lock_dir(void)
 		g_test_queue_free(lock_dir);
 		g_assert_cmpint(setenv("SNAP_CONFINE_LOCK_DIR", lock_dir, 0),
 				==, 0);
-		g_test_queue_destroy((GDestroyNotify) unsetenv,
+		g_test_queue_destroy((GDestroyNotify) my_unsetenv,
 				     "SNAP_CONFINE_LOCK_DIR");
 		g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, lock_dir);
 	}
@@ -63,10 +69,10 @@ static const char *sc_test_use_fake_lock_dir(void)
 static void test_sc_lock_unlock(void)
 {
 	const char *lock_dir = sc_test_use_fake_lock_dir();
-	int fd = sc_lock("foo");
+	int fd = sc_lock_generic("foo", 123);
 	// Construct the name of the lock file
 	char *lock_file SC_CLEANUP(sc_cleanup_string) = NULL;
-	lock_file = g_strdup_printf("%s/foo.lock", lock_dir);
+	lock_file = g_strdup_printf("%s/foo.123.lock", lock_dir);
 	// Open the lock file again to obtain a separate file descriptor.
 	// According to flock(2) locks are associated with an open file table entry
 	// so this descriptor will be separate and can compete for the same lock.
@@ -80,7 +86,7 @@ static void test_sc_lock_unlock(void)
 	g_assert_cmpint(err, ==, -1);
 	g_assert_cmpint(saved_errno, ==, EWOULDBLOCK);
 	// Unlock the lock.
-	sc_unlock("foo", fd);
+	sc_unlock(fd);
 	// Re-attempt the locking operation. This time it should succeed.
 	err = flock(lock_fd, LOCK_EX | LOCK_NB);
 	g_assert_cmpint(err, ==, 0);

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -39,7 +40,7 @@ type cmdInterface struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfaceHelp = i18n.G("Lists snap interfaces")
+var shortInterfaceHelp = i18n.G("List snap interfaces")
 var longInterfaceHelp = i18n.G(`
 The interface command shows details of snap interfaces.
 
@@ -179,7 +180,7 @@ func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]interface{}, inde
 	for _, name := range names {
 		value := attrs[name]
 		switch value.(type) {
-		case string, int, bool:
+		case string, bool, json.Number:
 			fmt.Fprintf(w, "%s  %s:\t%v\n", indent, name, value)
 		}
 	}

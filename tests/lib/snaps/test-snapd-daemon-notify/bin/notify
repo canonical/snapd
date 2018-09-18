@@ -1,0 +1,3 @@
+#!/bin/bash
+
+systemd-notify --ready --status="Test service ready"

@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -33,6 +34,7 @@ import (
 
 var opts struct {
 	FromSnapConfine bool `long:"from-snap-confine"`
+	UserMounts      bool `long:"user-mounts"`
 	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
@@ -80,8 +82,13 @@ func run() error {
 		return err
 	}
 
-	snapName := opts.Positionals.SnapName
+	if opts.UserMounts {
+		return applyUserFstab(opts.Positionals.SnapName)
+	}
+	return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
+}
 
+func applyFstab(snapName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
 	lock, err := mount.OpenLock(snapName)
@@ -94,7 +101,7 @@ func run() error {
 	}()
 
 	logger.Debugf("locking mount namespace of snap %q", snapName)
-	if opts.FromSnapConfine {
+	if fromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
@@ -121,62 +128,34 @@ func run() error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
-	return computeAndSaveChanges(snapName)
+	// TODO: configure the secure helper and inform it about directories that
+	// can be created without trespassing.
+	sec := &Secure{}
+	return computeAndSaveChanges(snapName, sec)
 }
 
-func computeAndSaveChanges(snapName string) error {
+func computeAndSaveChanges(snapName string, sec *Secure) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
-	desired, err := mount.LoadProfile(desiredProfilePath)
+	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(desired, "desired mount profile")
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
-	currentBefore, err := mount.LoadProfile(currentProfilePath)
+	currentBefore, err := osutil.LoadMountProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
-	// Compute the needed changes and perform each change if needed, collecting
-	// those that we managed to perform or that were performed already.
-	changesNeeded := NeededChanges(currentBefore, desired)
-	debugShowChanges(changesNeeded, "mount changes needed")
-
-	logger.Debugf("performing mount changes:")
-	var changesMade []*Change
-	for _, change := range changesNeeded {
-		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change)
-		// NOTE: we may have done something even if Perform itself has failed.
-		// We need to collect synthesized changes and store them.
-		changesMade = append(changesMade, synthesised...)
-		if len(synthesised) > 0 {
-			logger.Debugf("\tsynthesised additional mount changes:")
-			for _, synth := range synthesised {
-				logger.Debugf(" * \t\t%s", synth)
-			}
-		}
-		if err != nil {
-			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
-			continue
-		}
-		changesMade = append(changesMade, change)
+	currentAfter, err := applyProfile(snapName, currentBefore, desired, sec)
+	if err != nil {
+		return err
 	}
-
-	// Compute the new current profile so that it contains only changes that were made
-	// and save it back for next runs.
-	var currentAfter mount.Profile
-	for _, change := range changesMade {
-		if change.Action == Mount || change.Action == Keep {
-			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
-		}
-	}
-	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
 
 	logger.Debugf("saving current mount profile of snap %q", snapName)
 	if err := currentAfter.Save(currentProfilePath); err != nil {
@@ -185,7 +164,52 @@ func computeAndSaveChanges(snapName string) error {
 	return nil
 }
 
-func debugShowProfile(profile *mount.Profile, header string) {
+func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, sec *Secure) (*osutil.MountProfile, error) {
+	// Compute the needed changes and perform each change if
+	// needed, collecting those that we managed to perform or that
+	// were performed already.
+	changesNeeded := NeededChanges(currentBefore, desired)
+	debugShowChanges(changesNeeded, "mount changes needed")
+
+	logger.Debugf("performing mount changes:")
+	var changesMade []*Change
+	for _, change := range changesNeeded {
+		logger.Debugf("\t * %s", change)
+		synthesised, err := changePerform(change, sec)
+		changesMade = append(changesMade, synthesised...)
+		if len(synthesised) > 0 {
+			logger.Debugf("\tsynthesised additional mount changes:")
+			for _, synth := range synthesised {
+				logger.Debugf(" * \t\t%s", synth)
+			}
+		}
+		if err != nil {
+			// NOTE: we may have done something even if Perform itself has failed.
+			// We need to collect synthesized changes and store them.
+			if change.Entry.XSnapdOrigin() == "layout" {
+				return nil, err
+			} else if err != ErrIgnoredMissingMount {
+				logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+			}
+			continue
+		}
+
+		changesMade = append(changesMade, change)
+	}
+
+	// Compute the new current profile so that it contains only changes that were made
+	// and save it back for next runs.
+	var currentAfter osutil.MountProfile
+	for _, change := range changesMade {
+		if change.Action == Mount || change.Action == Keep {
+			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
+		}
+	}
+	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
+	return &currentAfter, nil
+}
+
+func debugShowProfile(profile *osutil.MountProfile, header string) {
 	if len(profile.Entries) > 0 {
 		logger.Debugf("%s:", header)
 		for _, entry := range profile.Entries {
@@ -205,4 +229,31 @@ func debugShowChanges(changes []*Change, header string) {
 	} else {
 		logger.Debugf("%s: (none)", header)
 	}
+}
+
+func applyUserFstab(snapName string) error {
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	desired, err := osutil.LoadMountProfile(desiredProfilePath)
+	if err != nil {
+		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
+	}
+
+	// Replace XDG_RUNTIME_DIR in mount profile
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+	for i := range desired.Entries {
+		if strings.HasPrefix(desired.Entries[i].Name, "$XDG_RUNTIME_DIR/") {
+			desired.Entries[i].Name = strings.Replace(desired.Entries[i].Name, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)
+		}
+		if strings.HasPrefix(desired.Entries[i].Dir, "$XDG_RUNTIME_DIR/") {
+			desired.Entries[i].Dir = strings.Replace(desired.Entries[i].Dir, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)
+		}
+	}
+
+	debugShowProfile(desired, "desired mount profile")
+
+	// TODO: configure the secure helper and inform it about directories that
+	// can be created without trespassing.
+	sec := &Secure{}
+	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, sec)
+	return err
 }

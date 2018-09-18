@@ -1,5 +1,12 @@
 summary: Ensure that the snapd-control "refresh-schedule" attribute works.
 
+# FIXME: core18 right now does not have a canonical model. This means that it
+# will not get a serial. We have code in devicestate.go that will only try to
+# auto-refresh after the system has tried at least 3 times to get a serial.
+# But this means this test will timeout because the first retry for the serial
+# happens after 5min, then 10min, then 20min.
+systems: [-ubuntu-core-18-*]
+
 environment:
   BLOB_DIR: $(pwd)/fake-store-blobdir
 
@@ -11,7 +18,7 @@ prepare: |
 
     echo "Ensure jq is installed"
     if ! which jq; then
-        snap install jq
+        snap install --devmode jq
     fi
 
     snap debug can-manage-refreshes | MATCH false
@@ -49,15 +56,23 @@ restore: |
     fi
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
-    
+
+debug: |
+    jq .data.auth.device /var/lib/snapd/state.json
+
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
 
     snap install test-snapd-control-consumer
-    snap interfaces
+
+    echo "The interface is connected by default"
+    snap interfaces -i snapd-control | MATCH ":snapd-control .*test-snapd-control-consumer:snapd-control-with-manage"
 
     echo "When the snapd-control-with-manage plug is connected"
     snap connect test-snapd-control-consumer:snapd-control-with-manage
@@ -67,19 +82,42 @@ execute: |
 
     echo "Then the core refresh.schedule can be set to 'managed'"
     snap set core refresh.schedule=managed
-    if journalctl -u snapd |grep 'cannot parse "managed"'; then
-        echo "refresh.schedule=managed was not rejected as it should be"
+    if get_journalctl_log -u snapd |grep 'cannot parse "managed"'; then
+        echo "refresh.schedule=managed was not accepted as it should be"
         exit 1
     fi
     snap refresh --time | MATCH 'schedule: managed'
 
-    echo "Check that the snapd.refresh.service is disabled as well"
-    systemctl start snapd.refresh.service
-    if snap changes | MATCH "Refresh all snaps"; then
-        echo "snapd.refresh.service did refresh, this should not happen"
+    echo "Reset refresh.schedule"
+    snap set core refresh.schedule=
+    if snap refresh --time | grep -q -E 'schedule: managed'; then
+        echo "Refresh schedule not reset, test broken"
         exit 1
     fi
+    echo "Then the core refresh.timer can be set to 'managed'"
+    snap set core refresh.timer=managed
+    snap refresh --time | MATCH 'timer: managed'
 
+    # make sure we trigger a refresh for hints at least once
+    systemctl stop snapd.socket snapd.service
+    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd.service
+
+    echo "Ensure that last-refresh-hit happens"
+    for i in $(seq 120); do
+        if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep $(date +%Y); then
+            break
+        fi
+        sleep 1
+    done
+    jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep $(date +%Y)
+
+    # prevent refreshes again
+    systemctl stop snapd.socket snapd.service
+    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd.service
 
     echo "When the snapd-control-with-manage plug is disconnected"
     snap disconnect test-snapd-control-consumer:snapd-control-with-manage
@@ -89,6 +127,8 @@ execute: |
        echo "refresh.schedule=managed was not rejected as it should be"
        exit 1
     fi
-
-    echo "Ensure that last-refresh-hit happens regardless of managed setting"
-    cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y)
+    echo "Then the snap refresh timer cannot be set to managed"
+    if snap set core refresh.timer=managed; then
+       echo "refresh.timer=managed was not rejected as it should be"
+       exit 1
+    fi

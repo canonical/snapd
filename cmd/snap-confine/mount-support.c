@@ -43,6 +43,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
+#include "apparmor-support.h"
 #include "quirks.h"
 
 #define MAX_BUF 1000
@@ -146,7 +147,8 @@ static void setup_private_pts(void)
  * not as powerful), to a copy of snap-update-ns. The program is opened before
  * the root filesystem is pivoted so that it is easier to pick the right copy.
  **/
-static void sc_setup_mount_profiles(int snap_update_ns_fd,
+static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
+				    int snap_update_ns_fd,
 				    const char *snap_name)
 {
 	debug("calling snap-update-ns to initialize mount namespace");
@@ -155,7 +157,13 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 		die("cannot fork to run snap-update-ns");
 	}
 	if (child == 0) {
-		// We are the child, execute snap-update-ns
+		// We are the child, execute snap-update-ns under a dedicated profile.
+		char profile[PATH_MAX] = { 0 };
+		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
+				 snap_name);
+		debug("launching snap-update-ns under per-snap profile %s",
+		      profile);
+		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
@@ -191,14 +199,21 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 struct sc_mount {
 	const char *path;
 	bool is_bidirectional;
+	// Alternate path defines the rbind mount "alternative" of path.
+	// It exists so that we can make /media on systems that use /run/media.
+	const char *altpath;
+	// Optional mount points are not processed unless the source and
+	// destination both exist.
+	bool is_optional;
 };
 
 struct sc_mount_config {
 	const char *rootfs_dir;
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
-	bool on_classic_distro;
-	bool uses_base_snap;
+	sc_distro distro;
+	bool normal_mode;
+	const char *base_snap_name;
 };
 
 /**
@@ -289,15 +304,43 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
-		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
+		if (mnt->is_optional) {
+			bool ok = sc_do_optional_mount(mnt->path, dst, NULL,
+						       MS_REC | MS_BIND, NULL);
+			if (!ok) {
+				// If we cannot mount it, just continue.
+				continue;
+			}
+		} else {
+			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
+				    NULL);
+		}
 		if (!mnt->is_bidirectional) {
 			// Mount events will only propagate inwards to the namespace. This
 			// way the running application cannot alter any global state apart
 			// from that of its own snap.
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
+		if (mnt->altpath == NULL) {
+			continue;
+		}
+		// An alternate path of mnt->path is provided at another location.
+		// It should behave exactly the same as the original.
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->altpath);
+		struct stat stat_buf;
+		if (lstat(dst, &stat_buf) < 0) {
+			die("cannot lstat %s", dst);
+		}
+		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
+			die("cannot bind mount alternate path over a symlink: %s", dst);
+		}
+		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
+		if (!mnt->is_bidirectional) {
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		}
 	}
-	if (config->on_classic_distro) {
+	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
 		// we may need to put certain directories from the desired root filesystem
 		// (e.g. the core snap) back. This way the behavior of running snaps is not
@@ -328,7 +371,15 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			}
 		}
 	}
-	if (config->uses_base_snap) {
+	// The "core" base snap is special as it contains snapd and friends.
+	// Other base snaps do not, so whenever a base snap other than core is
+	// in use we need extra provisions for setting up internal tooling to
+	// be available.
+	//
+	// However on a core18 (and similar) system the core snap is not
+	// a special base anymore and we should map our own tooling in.
+	if (config->distro == SC_DISTRO_CORE_OTHER
+	    || !sc_streq(config->base_snap_name, "core")) {
 		// when bases are used we need to bind-mount the libexecdir
 		// (that contains snap-exec) into /usr/lib/snapd of the
 		// base snap so that snap-exec is available for the snaps
@@ -340,7 +391,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 				 scratch_dir);
 
 		// bind mount the current $ROOT/usr/lib/snapd path,
-		// where $ROOT is either "/" or the "/snap/core/current"
+		// where $ROOT is either "/" or the "/snap/{core,snapd}/current"
 		// that we are re-execing from
 		char *src = NULL;
 		char self[PATH_MAX + 1] = { 0 };
@@ -416,7 +467,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// uniform way after pivot_root but this is good enough and requires less
 	// code changes the nvidia code assumes it has access to the existing
 	// pre-pivot filesystem.
-	if (config->on_classic_distro) {
+	if (config->distro == SC_DISTRO_CLASSIC) {
 		sc_mount_nvidia_driver(scratch_dir);
 	}
 	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -535,7 +586,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-static int sc_open_snap_update_ns(void)
+int sc_open_snap_update_ns(void)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
@@ -563,7 +614,8 @@ static int sc_open_snap_update_ns(void)
 	return fd;
 }
 
-void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
+void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -573,15 +625,11 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Find and open snap-update-ns from the same path as where we
-	// (snap-confine) were called.
-	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	snap_update_ns_fd = sc_open_snap_update_ns();
-
-	bool on_classic_distro = is_running_on_classic_distribution();
-	// on classic or with alternative base snaps we need to setup
-	// a different confinement
-	if (on_classic_distro || !sc_streq(base_snap_name, "core")) {
+	// Classify the current distribution, as claimed by /etc/os-release.
+	sc_distro distro = sc_classify_distro();
+	// Check which mode we should run in, normal or legacy.
+	if (sc_should_use_normal_mode(distro, base_snap_name)) {
+		// In normal mode we use the base snap as / and set up several bind mounts.
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -598,11 +646,16 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
 			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
-			{"/run/media", true},	// access to the users removable devices
+			{"/run/media", true, "/media"},	// access to the users removable devices
 #else
 			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR
 			{"/run/netns", true},	// access to the 'ip netns' network namespaces
+			// The /mnt directory is optional in base snaps to ensure backwards
+			// compatibility with the first version of base snaps that was
+			// released.
+			{"/mnt",.is_optional = true},	// to support the removable-media interface
+			{"/var/lib/extrausers",.is_optional = true},	// access to UID/GID of extrausers (if available)
 			{},
 		};
 		char rootfs_dir[PATH_MAX] = { 0 };
@@ -626,30 +679,30 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 			}
 			die("cannot locate the base snap: %s", base_snap_name);
 		}
-		struct sc_mount_config classic_config = {
+		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
-			.on_classic_distro = true,
-			.uses_base_snap = !sc_streq(base_snap_name, "core"),
+			.distro = distro,
+			.normal_mode = true,
+			.base_snap_name = base_snap_name,
 		};
-		sc_bootstrap_mount_namespace(&classic_config);
+		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
-		// This is what happens on an all-snap system. The rootfs we start with
-		// is the real outer rootfs.  There are no unidirectional bind mounts
-		// needed because everything is already OK. We still keep the
-		// bidirectional /media mount point so that snaps designed for mounting
-		// filesystems can use that space for whatever they need.
+		// In legacy mode we don't pivot and instead just arrange bi-
+		// directional mount propagation for two directories.
 		const struct sc_mount mounts[] = {
 			{"/media", true},
 			{"/run/netns", true},
 			{},
 		};
-		struct sc_mount_config all_snap_config = {
+		struct sc_mount_config legacy_config = {
 			.rootfs_dir = "/",
 			.mounts = mounts,
-			.uses_base_snap = !sc_streq(base_snap_name, "core"),
+			.distro = distro,
+			.normal_mode = false,
+			.base_snap_name = base_snap_name,
 		};
-		sc_bootstrap_mount_namespace(&all_snap_config);
+		sc_bootstrap_mount_namespace(&legacy_config);
 	}
 
 	// set up private mounts
@@ -661,11 +714,11 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	setup_private_pts();
 
 	// setup quirks for specific snaps
-	if (on_classic_distro) {
+	if (distro == SC_DISTRO_CLASSIC) {
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(snap_update_ns_fd, snap_name);
+	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
@@ -707,9 +760,97 @@ void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
 	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
+		// TODO: We could be more aggressive and refuse to function but since
+		// we have no data on actual environments that happen to limp along in
+		// this configuration let's not do that yet.  This code should be
+		// removed once we have a measurement and feedback mechanism that lets
+		// us decide based on measurable data.
 		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
 			    MS_BIND | MS_REC, 0);
 		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,
 			    NULL);
 	}
+}
+
+static void sc_make_slave_mount_ns(void)
+{
+	if (unshare(CLONE_NEWNS) < 0) {
+		die("can not unshare mount namespace");
+	}
+	// In our new mount namespace, recursively change all mounts
+	// to slave mode, so we see changes from the parent namespace
+	// but don't propagate our own changes.
+	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
+}
+
+void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *snap_name)
+{
+	debug("%s: %s", __FUNCTION__, snap_name);
+
+	char profile_path[PATH_MAX];
+	struct stat st;
+
+	sc_must_snprintf(profile_path, sizeof(profile_path),
+			 "/var/lib/snapd/mount/snap.%s.user-fstab", snap_name);
+	if (stat(profile_path, &st) != 0) {
+		// It is ok for the user fstab to not exist.
+		return;
+	}
+
+	sc_make_slave_mount_ns();
+
+	debug("calling snap-update-ns to initialize user mounts");
+	pid_t child = fork();
+	if (child < 0) {
+		die("cannot fork to run snap-update-ns");
+	}
+	if (child == 0) {
+		// We are the child, execute snap-update-ns under a dedicated profile.
+		char profile[PATH_MAX] = { 0 };
+		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
+				 snap_name);
+		debug("launching snap-update-ns under per-snap profile %s",
+		      profile);
+		sc_maybe_aa_change_onexec(apparmor, profile);
+		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+		snap_name_copy = strdup(snap_name);
+		if (snap_name_copy == NULL) {
+			die("cannot allocate memory for snap name");
+		}
+		char *argv[] = {
+			"snap-update-ns", "--user-mounts", snap_name_copy,
+			NULL
+		};
+		char *envp[3] = { NULL };
+		int last_env = 0;
+		if (sc_is_debug_enabled()) {
+			envp[last_env++] = "SNAPD_DEBUG=1";
+		}
+		const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+		char xdg_runtime_dir_env[PATH_MAX];
+		if (xdg_runtime_dir != NULL) {
+			sc_must_snprintf(xdg_runtime_dir_env,
+					 sizeof(xdg_runtime_dir_env),
+					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
+			envp[last_env++] = xdg_runtime_dir_env;
+		}
+
+		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
+		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
+		fexecve(snap_update_ns_fd, argv, envp);
+		die("cannot execute snap-update-ns");
+	}
+	// We are the parent, so wait for snap-update-ns to finish.
+	int status = 0;
+	debug("waiting for snap-update-ns to finish...");
+	if (waitpid(child, &status, 0) < 0) {
+		die("waitpid() failed for snap-update-ns process");
+	}
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
+	} else if (WIFSIGNALED(status)) {
+		die("snap-update-ns killed by signal %i", WTERMSIG(status));
+	}
+	debug("snap-update-ns finished successfully");
 }

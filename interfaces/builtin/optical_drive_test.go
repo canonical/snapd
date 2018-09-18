@@ -27,13 +27,22 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type OpticalDriveInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+
+	// Consuming Snap
+	testPlugReadonly     *interfaces.ConnectedPlug
+	testPlugReadonlyInfo *snap.PlugInfo
+	testPlugWritable     *interfaces.ConnectedPlug
+	testPlugWritableInfo *snap.PlugInfo
+	testPlugDefault      *interfaces.ConnectedPlug
+	testPlugDefaultInfo  *snap.PlugInfo
 }
 
 var _ = Suite(&OpticalDriveInterfaceSuite{
@@ -41,20 +50,41 @@ var _ = Suite(&OpticalDriveInterfaceSuite{
 })
 
 const opticalDriveConsumerYaml = `name: consumer
+version: 0
+plugs:
+ plug-for-readonly:
+  interface: optical-drive
+  write: false
+ plug-for-writable:
+  interface: optical-drive
+  write: true
 apps:
  app:
   plugs: [optical-drive]
+ app-readonly:
+  plugs: [plug-for-readonly]
+ app-writable:
+  plugs: [plug-for-writable]
 `
 
 const opticalDriveCoreYaml = `name: core
+version: 0
 type: os
 slots:
   optical-drive:
 `
 
 func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, opticalDriveConsumerYaml, nil, "optical-drive")
-	s.slot = MockSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
+	consumingSnapInfo := snaptest.MockInfo(c, opticalDriveConsumerYaml, nil)
+
+	s.testPlugDefaultInfo = consumingSnapInfo.Plugs["optical-drive"]
+	s.testPlugDefault = interfaces.NewConnectedPlug(s.testPlugDefaultInfo, nil)
+	s.testPlugReadonlyInfo = consumingSnapInfo.Plugs["plug-for-readonly"]
+	s.testPlugReadonly = interfaces.NewConnectedPlug(s.testPlugReadonlyInfo, nil)
+	s.testPlugWritableInfo = consumingSnapInfo.Plugs["plug-for-writable"]
+	s.testPlugWritable = interfaces.NewConnectedPlug(s.testPlugWritableInfo, nil)
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }
 
 func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
@@ -62,46 +92,78 @@ func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "optical-drive",
 		Interface: "optical-drive",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"optical-drive slots are reserved for the core snap")
 }
 
 func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPlugDefaultInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPlugReadonlyInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPlugWritableInfo), IsNil)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sr[0-9]* r,`)
+	type options struct {
+		appName         string
+		includeSnippets []string
+		excludeSnippets []string
+	}
+	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, opts *options) {
+		apparmorSpec := &apparmor.Specification{}
+		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		c.Assert(err, IsNil)
+		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{opts.appName})
+		for _, expectedSnippet := range opts.includeSnippets {
+			c.Assert(apparmorSpec.SnippetForTag(opts.appName), testutil.Contains, expectedSnippet)
+		}
+		for _, unexpectedSnippet := range opts.excludeSnippets {
+			c.Assert(apparmorSpec.SnippetForTag(opts.appName), Not(testutil.Contains), unexpectedSnippet)
+		}
+	}
+
+	expectedSnippet1 := `/dev/scd[0-9]* r,`
+	expectedSnippet2 := `/dev/scd[0-9]* w,`
+
+	checkConnectedPlugSnippet(s.testPlugDefault, s.slot, &options{
+		appName:         "snap.consumer.app",
+		includeSnippets: []string{expectedSnippet1},
+		excludeSnippets: []string{expectedSnippet2},
+	})
+	checkConnectedPlugSnippet(s.testPlugReadonly, s.slot, &options{
+		appName:         "snap.consumer.app-readonly",
+		includeSnippets: []string{expectedSnippet1},
+		excludeSnippets: []string{expectedSnippet2},
+	})
+	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, &options{
+		appName:         "snap.consumer.app-writable",
+		includeSnippets: []string{expectedSnippet1, expectedSnippet2},
+		excludeSnippets: []string{},
+	})
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 3)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugDefault, s.slot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugReadonly, s.slot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugWritable, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 9) // three rules multiplied by three apps
 	c.Assert(spec.Snippets(), testutil.Contains, `# optical-drive
 KERNEL=="sr[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows read access to optical drives`)
+	c.Assert(si.Summary, Equals, `allows access to optical drives`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "optical-drive")
-}
-
-func (s *OpticalDriveInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestInterfaces(c *C) {

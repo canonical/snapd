@@ -22,6 +22,22 @@ set -o pipefail
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
+# shellcheck source=tests/lib/random.sh
+. "$TESTSLIB/random.sh"
+
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
+
+# shellcheck source=tests/lib/journalctl.sh
+. "$TESTSLIB/journalctl.sh"
+
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
+
+
 ###
 ### Utility functions reused below.
 ###
@@ -38,7 +54,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*)
+            debian-*|fedora-*|opensuse-*|arch-*|amazon-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -72,6 +88,10 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        distro=amzn
+        release=2
+    fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
@@ -82,8 +102,8 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
 
     case "$SPREAD_SYSTEM" in
-        fedora-*)
-            extra_tar_args="$extra_tar_args --exclude=vendor/"
+        fedora-*|amazon-*)
+            extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -101,7 +121,11 @@ build_rpm() {
     cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
+    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+        # need to build the vendor tree
+        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+    fi
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -112,14 +136,12 @@ build_rpm() {
 
     # .. and we need all necessary build dependencies available
     deps=()
-    n=0
     IFS=$'\n'
     for dep in $(rpm -qpR "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm); do
       if [[ "$dep" = rpmlib* ]]; then
          continue
       fi
-      deps[$n]=$dep
-      n=$((n+1))
+      deps+=("$dep")
     done
     distro_install_package "${deps[@]}"
 
@@ -135,6 +157,48 @@ build_rpm() {
         # On Fedora we have an additional package for SELinux
         cp "$rpm_dir"/RPMS/noarch/snap*.rpm "$GOPATH"
     fi
+}
+
+build_arch_pkg() {
+    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    version="1337.$base_version"
+    packaging_path=packaging/arch
+    archive_name=snapd-$version.tar
+
+    rm -rf /tmp/pkg
+    mkdir -p /tmp/pkg/sources/snapd
+    cp -ra -- * /tmp/pkg/sources/snapd/
+
+    # shellcheck disable=SC2086
+    tar -C /tmp/pkg/sources -cf "/tmp/pkg/$archive_name" "snapd"
+    cp "$packaging_path"/* "/tmp/pkg"
+
+    # fixup PKGBUILD which builds a package named snapd-git with dynamic version
+    #  - update pkgname to use snapd
+    #  - kill dynamic version
+    #  - packaging functions are named package_<pkgname>(), update it to package_snapd()
+    #  - update source path to point to local archive instead of git
+    #  - fix package version to $version
+    sed -i \
+        -e "s/^source=.*/source=(\"$archive_name\")/" \
+        -e "s/pkgname=snapd.*/pkgname=snapd/" \
+        -e "s/pkgver=.*/pkgver=$version/" \
+        -e "s/package_snapd-git()/package_snapd()/" \
+        /tmp/pkg/PKGBUILD
+    # comment out automatic package version update block `pkgver() { ... }` as
+    # it's only useful when building the package manually
+    awk '
+    /BEGIN/ { strip = 0; last = 0 }
+    /pkgver\(\)/ { strip = 1 }
+    /^}/ { if (strip) last = 1 }
+    // { if (strip) { print "#" $0; if (last) { last = 0; strip = 0}} else { print $0}}
+    ' < /tmp/pkg/PKGBUILD > /tmp/pkg/PKGBUILD.tmp
+    mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
+
+    chown -R test:test /tmp/pkg
+    su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
+
+    cp /tmp/pkg/snapd*.pkg.tar.xz "$GOPATH"
 }
 
 download_from_published(){
@@ -182,6 +246,9 @@ prepare_project() {
         exit 1
     fi
 
+    # Prepare the state directories for execution
+    prepare_state
+
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
@@ -212,6 +279,34 @@ prepare_project() {
     create_test_user
 
     distro_update_package_db
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # perform system upgrade on Arch so that we run with most recent kernel
+        # and userspace
+        if [[ "$SPREAD_REBOOT" == 0 ]]; then
+            if distro_upgrade | MATCH "reboot"; then
+                echo "system upgraded, reboot required"
+                REBOOT
+            fi
+            # arch uses a single kernel package which could have gotten updated
+            # just now, reboot in case we're still on the old kernel
+            if [ ! -d "/lib/modules/$(uname -r)" ]; then
+                echo "rebooting to new kernel"
+                REBOOT
+            fi
+        fi
+        # double check we are running the installed kernel
+        # NOTE: LOCALVERSION is set by scripts/setlocalversion and loos like
+        # 4.17.11-arch1, since this may not match pacman -Qi output, we'll list
+        # the files within the package instead
+        # pacman -Ql linux output:
+        # ...
+        # linux /usr/lib/modules/4.17.11-arch1/modules.alias
+        if [[ "$(pacman -Ql linux | cut -f2 -d' ' |grep '/usr/lib/modules/.*/modules'|cut -f5 -d/ | uniq)" != "$(uname -r)" ]]; then
+            echo "running unexpected kernel version $(uname -r)"
+            exit 1
+        fi
+    fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
@@ -246,19 +341,24 @@ prepare_project() {
     esac
 
     # update vendoring
-    if [ -z "$(which govendor)" ]; then
+    if [ -z "$(command -v govendor)" ]; then
         rm -rf "$GOPATH/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
     quiet govendor sync
+    # govendor runs as root and will leave strange permissions
+    chown test.test -R "$SPREAD_PATH"
 
     if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
                 ;;
-            fedora-*|opensuse-*)
+            fedora-*|opensuse-*|amazon-*)
                 build_rpm
+                ;;
+            arch-*)
+                build_arch_pkg
                 ;;
             *)
                 echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
@@ -282,42 +382,75 @@ prepare_project() {
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
+
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitInterval=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
 }
 
 prepare_project_each() {
-    # We want to rotate the logs so that when inspecting or dumping them we
-    # will just see logs since the test has started.
-
-    # Clear the systemd journal. Unfortunately the deputy-systemd on Ubuntu
-    # 14.04 does not know about --rotate or --vacuum-time so we need to remove
-    # the journal the hard way.
-    case "$SPREAD_SYSTEM" in
-        ubuntu-14.04-*)
-            # Force a log rotation with small size
-            sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-            # Restore the initial configuration and rotate logs
-            mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-            # Remove rotated journal logs
-            systemctl stop systemd-journald.service
-            find /run/log/journal/ -name "*@*.journal" -delete
-            systemctl start systemd-journald.service
-            ;;
-        *)
-            journalctl --rotate
-            sleep .1
-            journalctl --vacuum-time=1ms
-            ;;
-    esac
-
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
+
+    fixup_dev_random
+}
+
+prepare_suite() {
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if is_core_system; then
+        prepare_ubuntu_core
+    else
+        prepare_classic
+    fi
+}
+
+prepare_suite_each() {
+    # save the job which is going to be exeuted in the system
+    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+    # Reset systemd journal cursor.
+    start_new_journalctl_log
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if is_classic_system; then
+        prepare_each_classic
+    fi
+    # Check if journalctl is ready to run the test
+    check_journalctl_ready
+}
+
+restore_suite_each() {
+    true
+}
+
+restore_suite() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --store
+    if is_classic_system; then
+        # shellcheck source=tests/lib/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
+        distro_purge_package snapd
+        if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
+            # A snap-confine package never existed on openSUSE or Arch
+            distro_purge_package snap-confine
+        fi
+    fi
 }
 
 restore_project_each() {
+    restore_dev_random
+
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
     # message. As a last resort from lack of a better mechanism we can try to
@@ -326,13 +459,40 @@ restore_project_each() {
         echo "Invalid udev file detected, test most likely broke it"
         exit 1
     fi
+
+    # Check if the OOM killer got invoked - if that is the case our tests
+    # will most likely not function correctly anymore. It looks like this
+    # happens with: https://forum.snapcraft.io/t/4101 and is a source of
+    # failure in the autopkgtest environment.
+    if dmesg|grep "oom-killer"; then
+        echo "oom-killer got invoked during the tests, this should not happen."
+        echo "Dmesg debug output:"
+        dmesg
+        echo "Meminfo debug output:"
+        cat /proc/meminfo
+        exit 1
+    fi
+
+    # check if there is a shutdown pending, no test should trigger this
+    # and it leads to very confusing test failures
+    if [ -e /run/systemd/shutdown/scheduled ]; then
+        echo "Test triggered a shutdown, this should not happen"
+        snap changes
+        exit 1
+    fi
+
+    # Check for kernel oops during the tests
+    if dmesg|grep "Oops: "; then
+        echo "A kernel oops happened during the tests, test results will be unreliable"
+        echo "Dmesg debug output:"
+        dmesg
+        exit 1
+    fi
 }
 
 restore_project() {
-    # We use a trick to accelerate prepare/restore code in certain suites. That
-    # code uses a tarball to store the vanilla state. Here we just remove this
-    # tarball.
-    rm -f "$SPREAD_PATH/snapd-state.tar.gz"
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little
@@ -340,6 +500,9 @@ restore_project() {
     if [ -n "$GOPATH" ]; then
         rm -rf "${GOPATH%%:*}"
     fi
+
+    rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
+    rmdir /etc/systemd/journald.conf.d || true
 }
 
 case "$1" in
@@ -349,6 +512,18 @@ case "$1" in
     --prepare-project-each)
         prepare_project_each
         ;;
+    --prepare-suite)
+        prepare_suite
+        ;;
+    --prepare-suite-each)
+        prepare_suite_each
+        ;;
+    --restore-suite-each)
+        restore_suite_each
+        ;;
+    --restore-suite)
+        restore_suite
+        ;;
     --restore-project-each)
         restore_project_each
         ;;
@@ -357,7 +532,7 @@ case "$1" in
         ;;
     *)
         echo "unsupported argument: $1"
-        echo "try one of --{prepare,restore}-project{,-each}"
+        echo "try one of --{prepare,restore}-{project,suite}{,-each}"
         exit 1
         ;;
 esac

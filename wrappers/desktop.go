@@ -110,6 +110,12 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	for _, app := range s.Apps {
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
+		if s.InstanceKey != "" {
+			// wrapper uses s.InstanceName(), with the instance key
+			// set the command will be 'snap_foo.app' instead of
+			// 'snap.app', need to account for that
+			validCmd = snap.JoinSnapApp(s.SnapName(), app.Name)
+		}
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
@@ -120,7 +126,7 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 		}
 	}
 
-	logger.Noticef("cannot use line %q for desktop file %q (snap %s)", line, desktopFile, s.Name())
+	logger.Noticef("cannot use line %q for desktop file %q (snap %s)", line, desktopFile, s.InstanceName())
 	// The Exec= line in the desktop file is invalid. Instead of failing
 	// hard we rewrite the Exec= line. The convention is that the desktop
 	// file has the same name as the application we can use this fact here.
@@ -214,7 +220,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 			return err
 		}
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.InstanceName(), filepath.Base(df)))
 		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
@@ -232,13 +238,16 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
-	activeDesktopFiles, err := filepath.Glob(glob)
-	if err != nil {
-		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)
-	}
-	for _, f := range activeDesktopFiles {
-		os.Remove(f)
+	activeDesktopFiles := make([]string, 0, len(s.Apps))
+	for _, app := range s.Apps {
+		df := app.DesktopFile()
+		if err := os.Remove(df); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			activeDesktopFiles = append(activeDesktopFiles, df)
+		}
 	}
 
 	// updates mime info etc

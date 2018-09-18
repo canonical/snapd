@@ -1,0 +1,25 @@
+name: test-snapd-accounts-service
+version: '0.1'
+summary: Test for accounts-service interface
+description: |
+  A test program that lists the accounts registered with
+  gnome-online-accounts.
+grade: stable
+confinement: strict
+
+apps:
+  list-accounts:
+    command: list-accounts
+    plugs:
+      - accounts-service
+
+parts:
+  list-accounts:
+    plugin: nil
+    source: .
+    install: |
+      gcc -o $SNAPCRAFT_PART_INSTALL/list-accounts -O2 -Wall list-accounts.c `pkg-config --cflags --libs goa-1.0`
+    build-packages:
+      - gcc
+      - libgoa-1.0-dev
+      - pkg-config

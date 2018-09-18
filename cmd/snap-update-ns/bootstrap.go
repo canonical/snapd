@@ -101,17 +101,19 @@ func validateSnapName(snapName string) int {
 // processArguments parses commnad line arguments.
 // The argument cmdline is a string with embedded
 // NUL bytes, separating particular arguments.
-func processArguments(args []string) (snapName string, shouldSetNs bool) {
+func processArguments(args []string) (snapName string, shouldSetNs bool, processUserFstab bool) {
 	argv := makeArgv(args)
 	defer freeArgv(argv)
 
 	var snapNameOut *C.char
 	var shouldSetNsOut C.bool
-	C.process_arguments(C.int(len(args)), &argv[0], &snapNameOut, &shouldSetNsOut)
+	var processUserFstabOut C.bool
+	C.process_arguments(C.int(len(args)), &argv[0], &snapNameOut, &shouldSetNsOut, &processUserFstabOut)
 	if snapNameOut != nil {
 		snapName = C.GoString(snapNameOut)
 	}
 	shouldSetNs = bool(shouldSetNsOut)
+	processUserFstab = bool(processUserFstabOut)
 
-	return snapName, shouldSetNs
+	return snapName, shouldSetNs, processUserFstab
 }

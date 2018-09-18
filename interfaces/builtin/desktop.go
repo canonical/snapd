@@ -20,12 +20,16 @@
 package builtin
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -43,6 +47,14 @@ const desktopConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
+
+# Allow finding the DBus session bus id (eg, via dbus_bus_get_id())
+dbus (send)
+     bus=session
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member=GetId
+     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 #include <abstractions/fonts>
 owner @{HOME}/.local/share/fonts/{,**} r,
@@ -89,7 +101,7 @@ dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member="{GetCapabilities,GetServerInformation,Notify}"
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
     peer=(label=unconfined),
 
 dbus (receive)
@@ -97,6 +109,14 @@ dbus (receive)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member={ActionInvoked,NotificationClosed}
+    peer=(label=unconfined),
+
+# DesktopAppInfo Launched
+dbus (send)
+    bus=session
+    path=/org/gtk/gio/DesktopAppInfo
+    interface=org.gtk.gio.DesktopAppInfo
+    member=Launched
     peer=(label=unconfined),
 
 # Allow requesting interest in receiving media key events. This tells Gnome
@@ -117,7 +137,6 @@ dbus (send)
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
-/usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
     path=/
@@ -130,7 +149,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
-    member=OpenURL
+    member={OpenURL,OpenFile}
     peer=(label=unconfined),
 
 # Allow checking status, activating and locking the screensaver
@@ -148,6 +167,40 @@ dbus (receive)
     interface="org.{freedesktop,gnome}.ScreenSaver"
     member=ActiveChanged
     peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+# Allow use of snapd's internal 'xdg-settings'
+/usr/bin/xdg-settings ixr,
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Settings
+    interface=io.snapcraft.Settings
+    member={Check,Get,Set}
+    peer=(label=unconfined),
+
+## Allow access to xdg-document-portal file system.  Access control is
+## handled by bind mounting a snap-specific sub-tree to this location.
+owner /run/user/[0-9]*/doc/ r,
+owner /run/user/[0-9]*/doc/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}
@@ -164,42 +217,78 @@ func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *desktopInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *desktopInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
 
-func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(desktopConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	if !release.OnClassic {
-		// There is nothing to expose on an all-snaps system
-		return nil
-	}
-
-	fontconfigDirs := []string{
+func (iface *desktopInterface) fontconfigDirs() []string {
+	return []string{
 		dirs.SystemFontsDir,
 		dirs.SystemLocalFontsDir,
 		dirs.SystemFontconfigCacheDir,
 	}
+}
 
-	for _, dir := range fontconfigDirs {
+func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(desktopConnectedPlugAppArmor)
+
+	// Allow mounting document portal
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "  # Mount the document portal\n")
+	// TODO parallel-install: use of proper instance/store name
+	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
+	fmt.Fprintf(&buf, "  umount /run/user/[0-9]*/doc/,\n\n")
+	spec.AddUpdateNS(buf.String())
+
+	if !release.OnClassic {
+		// We only need the font mount rules on classic systems
+		return nil
+	}
+
+	// Allow mounting fonts
+	for _, dir := range iface.fontconfigDirs() {
+		var buf bytes.Buffer
+		source := "/var/lib/snapd/hostfs" + dir
+		target := dirs.StripRootDir(dir)
+		fmt.Fprintf(&buf, "  # Read-only access to %s\n", target)
+		fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+		fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
+		fmt.Fprintf(&buf, "  umount %s/,\n\n", target)
+		spec.AddUpdateNS(buf.String())
+	}
+
+	return nil
+}
+
+func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	appId := "snap." + plug.Snap().InstanceName()
+	spec.AddUserMountEntry(osutil.MountEntry{
+		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+		Dir:     "$XDG_RUNTIME_DIR/doc",
+		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
+	})
+
+	if !release.OnClassic {
+		// We only need the font mount rules on classic systems
+		return nil
+	}
+
+	for _, dir := range iface.fontconfigDirs() {
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
-		spec.AddMountEntry(mount.Entry{
+		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
 			Dir:     dirs.StripRootDir(dir),
 			Options: []string{"bind", "ro"},
 		})
 	}
+
 	return nil
 }
 

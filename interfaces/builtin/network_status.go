@@ -81,7 +81,7 @@ const networkStatusConnectedPlugAppArmor = `
 # Allow all access to NetworkingStatus service
 dbus (send)
     bus=system
-    interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}
+    interface=com.ubuntu.connectivity1.NetworkingStatus{,*}
     path=/com/ubuntu/connectivity1/NetworkingStatus
     peer=(label=###SLOT_SECURITY_TAGS###),
 
@@ -120,14 +120,14 @@ func (iface *networkStatusInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *networkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	const old = "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *networkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *networkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	const old = "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(networkStatusConnectedSlotAppArmor, old, new, -1))
@@ -144,7 +144,7 @@ func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification,
 	return nil
 }
 
-func (iface *networkStatusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *networkStatusInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

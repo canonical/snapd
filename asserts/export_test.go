@@ -55,7 +55,7 @@ func BootstrapAccountForTest(authorityID string) *Account {
 				"type":         "account",
 				"authority-id": authorityID,
 				"account-id":   authorityID,
-				"validation":   "certified",
+				"validation":   "verified",
 			},
 		},
 		timestamp: time.Now().UTC(),

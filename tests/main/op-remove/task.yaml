@@ -30,3 +30,14 @@ execute: |
     snap remove basic 2> stderr.out
     cat stderr.out | MATCH 'snap "basic" is not installed'
 
+
+    echo "Install a snap that uses a base"
+    # test-snapd-busybox-static uses test-snapd-base-bare
+    snap install test-snapd-busybox-static
+    snap list | MATCH test-snapd-base-bare
+    if snap remove test-snapd-base-bare; then
+        echo "test-snapd-base-bare should not be removable because test-snapd-busybox-static needs it"
+        exit 1
+    fi
+    snap remove test-snapd-busybox-static
+    snap remove test-snapd-base-bare

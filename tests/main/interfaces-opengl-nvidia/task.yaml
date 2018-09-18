@@ -1,0 +1,119 @@
+summary: Ensure that basic opengl works with faked nvidia
+
+systems: [ubuntu-14.04-*, ubuntu-16.04-*, ubuntu-18.04-*]
+
+prepare: |
+    # mock nvidia driver
+    mount -t tmpfs tmp /sys/module
+    mkdir -p /sys/module/nvidia
+    echo "123.456" > /sys/module/nvidia/version
+
+    # mock nvidia icd file
+    test ! -d /usr/share/vulkan
+    echo "Test vulkan files access"
+    mkdir -p /usr/share/vulkan/icd.d
+    echo "canary-vulkan" > /usr/share/vulkan/icd.d/nvidia_icd.json
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        # mock GLVND EGL vendor file
+        echo "Test GLVND EGL vendor files access"
+        mkdir -p /usr/share/glvnd/egl_vendor.d
+        echo "canary-egl" > /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    fi
+
+    # mock nvidia libraries
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so.123.456
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so.123.456
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so.123.456
+        if [[ "$(uname -m)" == x86_64 ]]; then
+            mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so.123.456
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so.123.456
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so.123.456
+        fi
+    fi
+    mkdir -p /usr/lib/nvidia-123/tls
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX.so.0.0.1
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX_nvidia.so.0.0.1
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-glcore.so.123.456
+    echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so.123.456
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-tls.so.123.456
+    if [[ "$(uname -m)" == x86_64 ]]; then
+        mkdir -p /usr/lib32/nvidia-123/tls
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX.so.0.0.1
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX_nvidia.so.0.0.1
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-glcore.so.123.456
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/tls/libnvidia-tls.so.123.456
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-tls.so.123.456
+    fi
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    install_local test-snapd-policy-app-consumer
+
+    echo "When the interface is connected"
+    snap connect test-snapd-policy-app-consumer:opengl core:opengl
+
+    echo "App can access nvidia library files"
+    expected="canary-legacy"
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        expected="canary-triplet"
+    fi
+    files="libGLX.so.0.0.1 libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.123.456 tls/libnvidia-tls.so.123.456 libnvidia-tls.so.123.456"
+    for f in $files; do
+       snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl/$f" | MATCH "$expected"
+    done
+
+    if [[ "$(uname -m)" == x86_64 ]]; then
+        expected32="canary-32-legacy"
+        if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+            expected32="canary-32-triplet"
+        fi
+        for f in $files; do
+            snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl32/$f" | MATCH "$expected32"
+        done
+    fi
+
+    echo "And vulkan ICD file"
+    snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json" | MATCH canary-vulkan
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        echo "And GLVND EGL vendor file"
+        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json" | MATCH canary-egl
+    fi
+
+restore: |
+    umount -t tmpfs /sys/module
+    rm -rf /usr/share/vulkan
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so.123.456
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so.123.456
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so.123.456
+        if [[ "$(uname -m)" == x86_64 ]]; then
+            rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so.123.456
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so.123.456
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so.123.456
+        fi
+    fi
+    rm -rf /usr/lib/nvidia-123
+    rm -rf /usr/lib32/nvidia-123

@@ -23,10 +23,6 @@ import (
 	"io"
 )
 
-var FormatAmount = formatAmount
-var FormatBPS = formatBPS
-var FormatDuration = formatDuration
-
 var (
 	ClrEOL            = clrEOL
 	CursorInvisible   = cursorInvisible
@@ -100,4 +96,7 @@ func MockStdout(w io.Writer) func() {
 	}
 }
 
-var Norm = norm
+var (
+	Norm    = norm
+	Spinner = spinner
+)

@@ -63,23 +63,23 @@ func (spec *Specification) Services() map[string]*Service {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records systemd-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		SystemdConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		SystemdConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.SystemdConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.SystemdConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records systemd-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		SystemdConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		SystemdConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.SystemdConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.SystemdConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }

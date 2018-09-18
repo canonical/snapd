@@ -66,7 +66,7 @@ var getTests = []getCmdArgs{{
 	stdout: "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
 }, {
 	args:   "get snapname document",
-	stderr: `WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`,
+	stderr: `WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`,
 	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
 }, {
 	isTerminal: true,
@@ -98,7 +98,7 @@ var getTests = []getCmdArgs{{
 	isTerminal: false,
 	args:       "get snapname  test-key1 test-key2",
 	stdout:     "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
-	stderr:     `WARNING: The output of "snap get" will become a list with columns - use -d or -l to force the output format.\n`,
+	stderr:     `WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`,
 },
 }
 

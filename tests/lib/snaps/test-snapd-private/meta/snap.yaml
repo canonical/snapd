@@ -1,4 +1,6 @@
-name: test-snapd-private
+name: test-snapd-private2
 version: 1.0
+architectures:
+    - all
 summary: Basic snap to be published as private
 description: A basic buildable snap that is expected to be published in private mode

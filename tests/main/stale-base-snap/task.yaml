@@ -1,0 +1,67 @@
+summary: when the base snap changes revision apps are not stuck on the stale one
+details: |
+    When a snap application starts running the mount namespace it inhabits is
+    preserved and cached across all the applications belonging to a given snap.
+    This gives the system the feeling of integrity as all processes belonging
+    to that snap have the same filesystem view. When the base snap revision
+    changes (potentially bringing in important bug and security fixes) the
+    mount namespace is not immediately re-created. As long as application
+    process inhabit the old mount namespace it will stay as is. When the last
+    process dies the subsequently started process will detect those two facts
+    (stale and unused mount namespace) and discard it.
+
+# This test doesn't run on core because there snapd will reboot the machine as
+# soon as the new core snap is installed. A variant of this using a non-core
+# base snap is possible but that is a separate test.
+systems: [-ubuntu-core-*]
+prepare: |
+    # We will need the Swiss-army-knife shell snap. We want to use it in
+    # devmode so that we can look at /customized file which is non-standard.
+    . $TESTSLIB/snaps.sh
+    install_local_devmode test-snapd-sh
+
+    # We will also need to prepare a hacked core snap that just differs from
+    # our own in some detail that we can measure.
+    unsquashfs -no-progress $(ls /var/lib/snapd/snaps/core_*.snap | sort -r -n | head -n 1)
+    touch squashfs-root/customized
+    sed -i -e 's/version: .*/version: customized/' squashfs-root/meta/snap.yaml
+
+    mksnap_fast squashfs-root core-customized.snap
+execute: |
+    # Start a "sleep" process in the background
+    test-snapd-sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
+    pid=$!
+
+    # Ensure that snap-confine has finished its task and that the snap process
+    # is active. Note that we don't want to wait forever either.
+    for i in $(seq 30); do
+        test -e /var/snap/test-snapd-sh/current/stamp && break
+        sleep 0.1
+    done
+
+    # Create another stamp file in /tmp (which is private to the snap). We'll
+    # need it in a moment.
+    test-snapd-sh -c "touch /tmp/stamp"
+
+    # Now, refresh core to our customized core snap.
+    snap install --dangerous ./core-customized.snap
+    snap list | MATCH customized
+
+    # Now we are in a situation where the core snap is stale but our sleeper
+    # application is still alive so we cannot use it. We can ensure that this
+    # is the case by looking at our stamp file and seeing it being there.
+    test-snapd-sh -c "test -e /tmp/stamp"
+    test-snapd-sh -c "test ! -e /customized"
+
+    # Kill our helper process.
+    kill "$pid" || true
+    wait -n || true
+
+    # Now when the process terminates, we no longer need to hold back.
+    # The next process will use a fresh namespace and will no longer see
+    # the stamp file in /tmp because /tmp is now empty.
+    test-snapd-sh -c "test ! -e /tmp/stamp"
+    test-snapd-sh -c "test -e /customized"
+restore: |
+    rm -rf squashfs-root
+    rm -f core-customized.snap

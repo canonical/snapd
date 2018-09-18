@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type entry struct {
@@ -41,7 +42,8 @@ type Specification struct {
 	entries  []entry
 	iface    string
 
-	securityTags []string
+	securityTags             []string
+	udevadmSubsystemTriggers []string
 }
 
 func (spec *Specification) addEntry(snippet, tag string) {
@@ -74,7 +76,7 @@ func (spec *Specification) TagDevice(snippet string) {
 	for _, securityTag := range spec.securityTags {
 		tag := udevTag(securityTag)
 		spec.addEntry(fmt.Sprintf("# %s\n%s, TAG+=\"%s\"", spec.iface, snippet, tag), tag)
-		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/lib/udev/snappy-app-dev $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/usr/lib/snapd/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
 	}
 }
 
@@ -105,31 +107,31 @@ func (spec *Specification) Snippets() (result []string) {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records udev-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		UDevConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		UDevConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
-		return iface.UDevConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.UDevConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		UDevConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		UDevConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
-		return iface.UDevConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.UDevConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
@@ -162,4 +164,28 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		return iface.UDevPermanentSlot(spec, slot)
 	}
 	return nil
+}
+
+// Informs ReloadRules() to also do 'udevadm trigger <subsystem specific>'.
+// IMPORTANT: because there is currently no way to call TriggerSubsystem during
+// interface disconnect, TriggerSubsystem() should typically only by used in
+// UDevPermanentSlot since the rules are permanent until the snap is removed.
+func (spec *Specification) TriggerSubsystem(subsystem string) {
+	if subsystem == "" {
+		return
+	}
+
+	if strutil.ListContains(spec.udevadmSubsystemTriggers, subsystem) {
+		return
+	}
+	spec.udevadmSubsystemTriggers = append(spec.udevadmSubsystemTriggers, subsystem)
+}
+
+func (spec *Specification) TriggeredSubsystems() []string {
+	if len(spec.udevadmSubsystemTriggers) == 0 {
+		return nil
+	}
+	c := make([]string, len(spec.udevadmSubsystemTriggers))
+	copy(c, spec.udevadmSubsystemTriggers)
+	return c
 }

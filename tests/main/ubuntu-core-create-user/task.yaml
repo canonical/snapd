@@ -36,3 +36,12 @@ execute: |
 
     echo "Ensure the user is a sudo user"
     sudo -u mvo sudo true
+
+    echo "ensure the user's home directory exists"
+    test -d /home/mvo
+
+    echo "ensure ~/.snap/auth.json was created"
+    test -f /home/mvo/.snap/auth.json
+
+    echo "ensure user's email was stored in ~/.snap/auth.json"
+    MATCH '"email":"mvo@ubuntu.com"' < /home/mvo/.snap/auth.json

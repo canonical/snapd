@@ -35,7 +35,7 @@ const (
 	ucrednetNobody    = uint32((1 << 32) - 1)
 )
 
-func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, err error) {
+func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, socket string, err error) {
 	pid = ucrednetNoProcess
 	uid = ucrednetNobody
 	for _, token := range strings.Split(remoteAddr, ";") {
@@ -53,32 +53,38 @@ func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, err error) {
 				break
 			}
 		}
+		if strings.HasPrefix(token, "socket=") {
+			socket = token[7:]
+		}
+
 	}
 	if pid == ucrednetNoProcess || uid == ucrednetNobody {
 		err = errNoID
 	}
 
-	return pid, uid, err
+	return pid, uid, socket, err
 }
 
 type ucrednetAddr struct {
 	net.Addr
-	pid string
-	uid string
+	pid    string
+	uid    string
+	socket string
 }
 
 func (wa *ucrednetAddr) String() string {
-	return fmt.Sprintf("pid=%s;uid=%s;%s", wa.pid, wa.uid, wa.Addr)
+	return fmt.Sprintf("pid=%s;uid=%s;socket=%s;%s", wa.pid, wa.uid, wa.socket, wa.Addr)
 }
 
 type ucrednetConn struct {
 	net.Conn
-	pid string
-	uid string
+	pid    string
+	uid    string
+	socket string
 }
 
 func (wc *ucrednetConn) RemoteAddr() net.Addr {
-	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.pid, wc.uid}
+	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.pid, wc.uid, wc.socket}
 }
 
 type ucrednetListener struct{ net.Listener }
@@ -91,7 +97,7 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	var pid, uid string
+	var pid, uid, socket string
 	if ucon, ok := con.(*net.UnixConn); ok {
 		f, err := ucon.File()
 		if err != nil {
@@ -107,7 +113,8 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 
 		pid = strconv.FormatUint(uint64(ucred.Pid), 10)
 		uid = strconv.FormatUint(uint64(ucred.Uid), 10)
+		socket = ucon.LocalAddr().String()
 	}
 
-	return &ucrednetConn{con, pid, uid}, err
+	return &ucrednetConn{con, pid, uid, socket}, err
 }

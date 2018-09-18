@@ -50,10 +50,10 @@ var _ = Suite(&AllSuite{})
 // essentially, the only valid methods that a snapd interface can have, apart
 // from what is defined in the Interface golang interface.
 type apparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type apparmorDefiner2 interface {
-	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type apparmorDefiner3 interface {
 	AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error
@@ -63,23 +63,23 @@ type apparmorDefiner4 interface {
 }
 
 type dbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type dbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type dbusDefiner3 interface {
-	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.Plug) error
+	DBusPermanentPlug(spec *dbus.Specification, plug *snap.PlugInfo) error
 }
 type dbusDefiner4 interface {
 	DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error
 }
 
 type kmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type kmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type kmodDefiner3 interface {
 	KModPermanentPlug(spec *kmod.Specification, plug *snap.PlugInfo) error
@@ -89,10 +89,10 @@ type kmodDefiner4 interface {
 }
 
 type mountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type mountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	MountConnectedSlot(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type mountDefiner3 interface {
 	MountPermanentPlug(spec *mount.Specification, plug *snap.PlugInfo) error
@@ -102,10 +102,10 @@ type mountDefiner4 interface {
 }
 
 type seccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type seccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type seccompDefiner3 interface {
 	SecCompPermanentPlug(spec *seccomp.Specification, plug *snap.PlugInfo) error
@@ -115,10 +115,10 @@ type seccompDefiner4 interface {
 }
 
 type systemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type systemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type systemdDefiner3 interface {
 	SystemdPermanentPlug(spec *systemd.Specification, plug *snap.PlugInfo) error
@@ -128,10 +128,10 @@ type systemdDefiner4 interface {
 }
 
 type udevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type udevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type udevDefiner3 interface {
 	UDevPermanentPlug(spec *udev.Specification, plug *snap.PlugInfo) error
@@ -196,15 +196,9 @@ func (s *AllSuite) TestEachInterfaceImplementsSomeBackendMethods(c *C) {
 
 // pre-specification snippet functions
 type snippetDefiner1 interface {
-	ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, sec interfaces.SecuritySystem) error
-}
-type snippetDefiner2 interface {
-	ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, sec interfaces.SecuritySystem) error
-}
-type snippetDefiner3 interface {
 	PermanentPlugSnippet(plug *snap.PlugInfo, sec interfaces.SecuritySystem) error
 }
-type snippetDefiner4 interface {
+type snippetDefiner2 interface {
 	PermanentSlotSnippet(slot *snap.SlotInfo, sec interfaces.SecuritySystem) error
 }
 
@@ -213,54 +207,11 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
-// specification definers before the introduction of connection attributes
-type oldApparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+type oldSanitizePlug1 interface {
+	SanitizePlug(plug *snap.PlugInfo) error
 }
-type oldApparmorDefiner2 interface {
-	AppArmorConnestedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-
-type oldDbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldDbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-
-type oldKmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldKmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-
-type oldMountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldMountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-
-type oldSeccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldSeccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-
-type oldSystemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldSystemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-
-type oldUdevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldUdevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+type oldSanitizeSlot1 interface {
+	SanitizeSlot(slot *snap.SlotInfo) error
 }
 
 // allBadDefiners contains all old/unused specification definers for all known backends.
@@ -268,25 +219,11 @@ var allBadDefiners = []reflect.Type{
 	// pre-specification snippet methods
 	reflect.TypeOf((*snippetDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*snippetDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*snippetDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
-	// pre-attribute definers
-	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner2)(nil)).Elem(),
+	// old sanitize methods
+	reflect.TypeOf((*oldSanitizePlug1)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizeSlot1)(nil)).Elem(),
 }
 
 // Check that no interface defines older definer methods.
@@ -314,6 +251,7 @@ func (s *AllSuite) TestRegisterIface(c *C) {
 
 const testConsumerInvalidSlotNameYaml = `
 name: consumer
+version: 0
 slots:
  ttyS5:
   interface: iface
@@ -324,6 +262,7 @@ apps:
 
 const testConsumerInvalidPlugNameYaml = `
 name: consumer
+version: 0
 plugs:
  ttyS3:
   interface: iface
@@ -334,6 +273,7 @@ apps:
 
 const testInvalidSlotInterfaceYaml = `
 name: testsnap
+version: 0
 slots:
  iface:
   interface: iface
@@ -347,6 +287,7 @@ hooks:
 
 const testInvalidPlugInterfaceYaml = `
 name: testsnap
+version: 0
 plugs:
  iface:
   interface: iface
@@ -367,7 +308,7 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidSlotNameYaml, nil)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid slot name: "ttyS5"\)`)
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
@@ -379,15 +320,12 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidPlugNameYaml, nil)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid plug name: "ttyS3"\)`)
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
-	snapInfo := snaptest.MockInfo(c, testInvalidSlotInterfaceYaml, nil)
-	c.Check(snapInfo.Apps["app"].Slots, HasLen, 1)
-	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 1)
-	c.Check(snapInfo.Slots, HasLen, 1)
-	snap.SanitizePlugsSlots(snapInfo)
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(testInvalidSlotInterfaceYaml))
+	c.Assert(err, IsNil)
 	c.Check(snapInfo.Apps["app"].Slots, HasLen, 0)
 	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
@@ -439,20 +377,16 @@ func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
 			name: fmt.Sprintf("%sConnectedPlug", backend),
 			in: []string{
 				fmt.Sprintf("*%s.Specification", backendLower),
-				"*interfaces.Plug",
-				"map[string]interface {}",
-				"*interfaces.Slot",
-				"map[string]interface {}",
+				"*interfaces.ConnectedPlug",
+				"*interfaces.ConnectedSlot",
 			},
 			out: []string{"error"},
 		}, {
 			name: fmt.Sprintf("%sConnectedSlot", backend),
 			in: []string{
 				fmt.Sprintf("*%s.Specification", backendLower),
-				"*interfaces.Plug",
-				"map[string]interface {}",
-				"*interfaces.Slot",
-				"map[string]interface {}",
+				"*interfaces.ConnectedPlug",
+				"*interfaces.ConnectedSlot",
 			},
 			out: []string{"error"},
 		}}...)
@@ -463,7 +397,7 @@ func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
 		for _, sig := range sigs {
 			meth, ok := ifaceType.MethodByName(sig.name)
 			if !ok {
-				// all specificiation methods are optional.
+				// all specification methods are optional.
 				continue
 			}
 			methType := meth.Type

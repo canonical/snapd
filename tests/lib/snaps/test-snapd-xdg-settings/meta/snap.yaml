@@ -1,0 +1,9 @@
+name: test-snapd-xdg-settings
+version: 1.0
+apps:
+  set-default-web-browser:
+    command: bin/set-default-web-browser
+    plugs: [ desktop ]
+  browser:
+    command: bin/browser
+    plugs: [ desktop ]

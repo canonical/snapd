@@ -37,12 +37,22 @@ type MockCmd struct {
 	logFile string
 }
 
-var scriptTpl = `#!/bin/sh
-echo "$(basename "$0")" >> %[1]q
+// The top of the script generate the output to capture the
+// command that was run and the arguments used. To support
+// mocking commands that need "\n" in their args (like zenity)
+// we use the following convention:
+// - generate \0 to separate args
+// - generate \0\0 to separate commands
+var scriptTpl = `#!/bin/bash
+printf "%%s" "$(basename "$0")" >> %[1]q
+printf "\0" >> %[1]q
+
 for arg in "$@"; do
-    echo "$arg" >> %[1]q
+     printf "%%s" "$arg" >> %[1]q
+     printf "\0"  >> %[1]q
 done
-echo >> %[1]q
+
+printf "\0" >> %[1]q
 %s
 `
 
@@ -74,7 +84,7 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }
 
-// Also mock this command, using the same bindir and log
+// Also mock this command, using the same bindir and log.
 // Useful when you want to check the ordering of things.
 func (cmd *MockCmd) Also(basename, script string) *MockCmd {
 	exeFile := path.Join(cmd.binDir, basename)
@@ -111,13 +121,13 @@ func (cmd *MockCmd) Calls() [][]string {
 	if err != nil {
 		panic(err)
 	}
-	logContent := strings.TrimSuffix(string(raw), "\n")
+	logContent := strings.TrimSuffix(string(raw), "\000")
 
 	allCalls := [][]string{}
-	calls := strings.Split(logContent, "\n\n")
+	calls := strings.Split(logContent, "\000\000")
 	for _, call := range calls {
-		call = strings.TrimSuffix(call, "\n")
-		allCalls = append(allCalls, strings.Split(call, "\n"))
+		call = strings.TrimSuffix(call, "\000")
+		allCalls = append(allCalls, strings.Split(call, "\000"))
 	}
 	return allCalls
 }

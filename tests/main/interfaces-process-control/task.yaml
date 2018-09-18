@@ -13,21 +13,18 @@ summary: |
     extended later.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a snap declaring a plug on the process-control interface is installed"
-    snap pack $TESTSLIB/snaps/process-control-consumer
-    snap install --dangerous process-control-consumer_1.0_all.snap
+    install_local process-control-consumer
 
 restore: |
-    rm -f process-control-consumer_1.0_all.snap process-kill.error process-nice.error
+    rm -f process-kill.error process-nice.error
 
 execute: |
-    CONNECTED_PATTERN=":process-control +process-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +process-control-consumer:process-control"
-
-    echo "Then it is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "The interface is disconnected by default"
+    snap interfaces -i process-control | MATCH -- '- +process-control-consumer:process-control'
 
     echo "When the plug is connected"
     snap connect process-control-consumer:process-control
@@ -35,15 +32,15 @@ execute: |
     echo "Then the snap is able to kill an existing process"
     while :; do sleep 1; done &
     pid=$!
+    #shellcheck disable=SC2009
     ps ax | grep -Pq "^ *$pid"
     process-control-consumer.signal "SIGTERM" $pid
+    #shellcheck disable=SC2009
     ! ps ax | grep -Pq "^ *$pid"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
-
-    echo "==================================="
 
     echo "When the plug is disconnected"
     snap disconnect process-control-consumer:process-control
@@ -51,11 +48,13 @@ execute: |
     echo "Then the snap is not able to kill an existing process"
     while :; do sleep 1; done &
     pid=$!
-    if process-control-consumer.signal SIGTERM $pid 2>${PWD}/process-kill.error; then
+    if process-control-consumer.signal SIGTERM $pid 2>"${PWD}"/process-kill.error; then
         echo "Expected permission error accessing killing a process with disconnected plug"
         exit 1
     fi
     grep -q "Permission denied" process-kill.error
+    #shellcheck disable=SC2009
     ps ax | grep -Pq "^ *$pid"
     kill -9 $pid
+    #shellcheck disable=SC2009
     ! ps ax | grep -Pq "^ *$pid"

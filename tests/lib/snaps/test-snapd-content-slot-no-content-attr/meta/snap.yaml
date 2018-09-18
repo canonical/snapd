@@ -1,0 +1,7 @@
+name: test-snapd-content-slot-no-content-attr
+version: 1.0
+slots:
+    shared-content:
+        interface: content
+        read:
+            - /

@@ -1,0 +1,1 @@
+PATH=$PATH:@SNAP_MOUNT_DIR@/bin
