@@ -166,6 +166,11 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		if attrs == nil {
 			attrs = make(map[string]interface{})
 		}
+		label := slotSpec.Label
+		if label == "" {
+			si := interfaces.StaticInfoOf(iface)
+			label = si.Summary
+		}
 
 		// Determine slot name:
 		// - if a slot for given device key exists in hotplug state, use old name
@@ -189,6 +194,7 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		})
 		slot := &snap.SlotInfo{
 			Name:             proposedName,
+			Label:            label,
 			Snap:             coreSnapInfo,
 			Interface:        iface.Name(),
 			Attrs:            attrs,
