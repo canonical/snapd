@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -102,6 +103,16 @@ type TestInterface struct {
 	SystemdConnectedSlotCallback func(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	SystemdPermanentPlugCallback func(spec *systemd.Specification, plug *snap.PlugInfo) error
 	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *snap.SlotInfo) error
+}
+
+// TestHotplugInterface is a interface for various kind of tests needing hotplug-aware interface.
+// It is public so that it can be consumed from other packages.
+type TestHotplugInterface struct {
+	TestInterface
+
+	// Support for interacting with hotplug subsystem.
+	HotplugDeviceKeyCallback      func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error)
+	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error
 }
 
 // String() returns the same value as Name().
@@ -395,6 +406,20 @@ func (t *TestInterface) SystemdPermanentSlot(spec *systemd.Specification, slot *
 func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *snap.PlugInfo) error {
 	if t.SystemdPermanentPlugCallback != nil {
 		return t.SystemdPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestHotplugInterface) HotplugDeviceKey(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+	if t.HotplugDeviceKeyCallback != nil {
+		return t.HotplugDeviceKeyCallback(deviceInfo)
+	}
+	return "", nil
+}
+
+func (t *TestHotplugInterface) HotplugDeviceDetected(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+	if t.HotplugDeviceDetectedCallback != nil {
+		return t.HotplugDeviceDetectedCallback(deviceInfo, spec)
 	}
 	return nil
 }
