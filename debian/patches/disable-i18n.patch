@@ -7,6 +7,104 @@ Forwarded: not-needed
 Last-Update: 2018-08-15
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/i18n/i18n.go
++++ b/i18n/i18n.go
+@@ -21,83 +21,9 @@
+ 
+ //go:generate update-pot
+ 
+-import (
+-	"fmt"
+-	"os"
+-	"path/filepath"
+-	"strings"
+-
+-	"github.com/ojii/gettext.go"
+-
+-	"github.com/snapcore/snapd/dirs"
+-	"github.com/snapcore/snapd/osutil"
+-)
+-
+-// TEXTDOMAIN is the message domain used by snappy; see dgettext(3)
+-// for more information.
+-var (
+-	TEXTDOMAIN   = "snappy"
+-	locale       gettext.Catalog
+-	translations gettext.Translations
+-)
+-
+-func init() {
+-	bindTextDomain(TEXTDOMAIN, "/usr/share/locale")
+-	setLocale("")
+-}
+-
+-func langpackResolver(baseRoot string, locale string, domain string) string {
+-	// first check for the real locale (e.g. de_DE)
+-	// then try to simplify the locale (e.g. de_DE -> de)
+-	locales := []string{locale, strings.SplitN(locale, "_", 2)[0]}
+-	for _, locale := range locales {
+-		r := filepath.Join(locale, "LC_MESSAGES", fmt.Sprintf("%s.mo", domain))
+-
+-		// look into the core snaps first for translations,
+-		// then the main system
+-		candidateDirs := []string{
+-			filepath.Join(dirs.SnapMountDir, "/core/current/", baseRoot),
+-			baseRoot,
+-		}
+-		for _, root := range candidateDirs {
+-			// ubuntu uses /usr/lib/locale-langpack and patches the glibc gettext
+-			// implementation
+-			langpack := filepath.Join(root, "..", "locale-langpack", r)
+-			if osutil.FileExists(langpack) {
+-				return langpack
+-			}
+-
+-			regular := filepath.Join(root, r)
+-			if osutil.FileExists(regular) {
+-				return regular
+-			}
+-		}
+-	}
+-
+-	return ""
+-}
+-
+-func bindTextDomain(domain, dir string) {
+-	translations = gettext.NewTranslations(dir, domain, langpackResolver)
+-}
+-
+-func setLocale(loc string) {
+-	if loc == "" {
+-		loc = os.Getenv("LC_MESSAGES")
+-		if loc == "" {
+-			loc = os.Getenv("LANG")
+-		}
+-	}
+-	// de_DE.UTF-8, de_DE@euro all need to get simplified
+-	loc = strings.Split(loc, "@")[0]
+-	loc = strings.Split(loc, ".")[0]
+-
+-	locale = translations.Locale(loc)
+-}
+-
+ // G is the shorthand for Gettext
+ func G(msgid string) string {
+-	return locale.Gettext(msgid)
++	return msgid
+ }
+ 
+ // https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html
+@@ -115,5 +41,9 @@
+ 
+ // NG is the shorthand for NGettext
+ func NG(msgid string, msgidPlural string, n int) string {
+-	return locale.NGettext(msgid, msgidPlural, ngn(n))
++	if ngn(n) == 1 {
++		return msgid
++	} else {
++		return msgidPlural
++	}
+ }
 --- a/i18n/i18n_test.go
 +++ /dev/null
 @@ -1,162 +0,0 @@
