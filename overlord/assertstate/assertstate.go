@@ -187,7 +187,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 	// maps gating snap-ids to their snap names
 	gatingNames := make(map[string]string)
 	// snap declarations by snap-id
-	snapDecls := make(map[string]*asserts.SnapDeclaration)
+	snapDecls := make(map[string]*asserts.SnapDeclaration, len(snapInfos))
 
 	db := DB(s)
 	snapStates, err := snapstate.All(s)
@@ -195,14 +195,14 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		return nil, err
 	}
 	for instanceName, snapst := range snapStates {
+		if ignoreValidation[instanceName] {
+			continue
+		}
 		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}
 		if info.SnapID == "" {
-			continue
-		}
-		if ignoreValidation[instanceName] {
 			continue
 		}
 		gatingID := info.SnapID
