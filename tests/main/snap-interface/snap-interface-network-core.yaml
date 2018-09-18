@@ -3,4 +3,4 @@ summary: allows access to the network
 plugs:
   - network-consumer
 slots:
-  - system
+  - core
