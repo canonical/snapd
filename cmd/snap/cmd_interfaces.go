@@ -91,12 +91,16 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if wantedSnap == slot.Snap {
 				ok = true
 			}
-			// Normally snap nicknames are handled internally in the snapd API
-			// layer.  This specific command is an exception as it does
-			// client-side filtering.  As a special case, when the user asked
-			// for the snap "core" but we see the "system" nickname, treat that
-			// as a match.
-			if wantedSnap == "core" && slot.Snap == "system" {
+			// Normally snap nicknames are handled internally in the snapd
+			// layer. This specific command is an exception as it does
+			// client-side filtering. As a special case, when the user asked
+			// for the snap "core" but we see the "system" nickname or the
+			// "snapd" snap, treat that as a match.
+			//
+			// The system nickname was returned in 2.35.
+			// The snapd snap is returned by 2.36+ if snapd snap is installed
+			// and is the host for implicit interfaces.
+			if (wantedSnap == "core" || wantedSnap == "snapd" || wantedSnap == "system") && (slot.Snap == "core" || slot.Snap == "snapd" || slot.Snap == "system") {
 				ok = true
 			}
 
@@ -115,9 +119,10 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		if x.Interface != "" && slot.Interface != x.Interface {
 			continue
 		}
-		// The OS snap is special and enable abbreviated
-		// display syntax on the slot-side of the connection.
-		if slot.Snap == "system" {
+		// There are two special snaps, the "core" and "snapd" snaps are
+		// abbreviated to an empty snap name. The "system" snap name is still
+		// here in case we talk to older snapd for some reason.
+		if slot.Snap == "core" || slot.Snap == "snapd" || slot.Snap == "system" {
 			fmt.Fprintf(w, ":%s\t", slot.Name)
 		} else {
 			fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)

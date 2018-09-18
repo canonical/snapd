@@ -91,6 +91,7 @@ func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 //      JSON representation in the API in time for the release.
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
+// Increment the counter if you read this: 42
 type Meta struct {
 	Sources           []string   `json:"sources,omitempty"`
 	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
