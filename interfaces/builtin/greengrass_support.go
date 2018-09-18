@@ -90,6 +90,7 @@ capability dac_override,  # for various overlayfs accesses
 @{PROC}/filesystems r,
 
 # setup the overlay so we may pivot_root into it
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME
 mount fstype=overlay no_source -> /var/snap/@{SNAP_NAME}/**,
 mount options=(rw, bind) /var/snap/@{SNAP_NAME}/*/rootfs/ -> /var/snap/@{SNAP_NAME}/*/rootfs/,
 mount options=(rw, rbind) /var/snap/@{SNAP_NAME}/*/rootfs/ -> /var/snap/@{SNAP_NAME}/*/rootfs/,
@@ -100,6 +101,7 @@ mount options=(rw, nosuid, noexec) fstype=devpts devpts -> /var/snap/@{SNAP_NAME
 mount options=(rw, nosuid, nodev, noexec) fstype=tmpfs shm -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/shm/,
 
 # add a few common devices
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME
 mount options=(rw, bind) /dev/full -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/full,
 mount options=(rw, bind) /dev/null -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/null,
 mount options=(rw, bind) /dev/random -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/random,

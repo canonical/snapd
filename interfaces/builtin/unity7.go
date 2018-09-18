@@ -482,6 +482,8 @@ dbus (receive)
 # this leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
+# parallel-installs: this leaks read access to desktop files owned by keyed
+# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
 /var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
 
 # then allow talking to Unity DBus service
@@ -639,7 +641,10 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
 	// with the snap name, perform this conversion on the snap name.
-	// TODO parallel-install: use of proper instance/store name
+	//
+	// parallel-installs: UNITY_SNAP_NAME is used in the context of dbus
+	// mediation, this unintentionally opens access to dbus paths of keyed
+	// instances of @{SNAP_NAME} to @{SNAP_NAME} snap
 	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
