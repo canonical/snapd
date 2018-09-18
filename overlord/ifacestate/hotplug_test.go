@@ -94,8 +94,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
-	testIface1 := &ifacetest.TestInterface{
-		InterfaceName: "test-a",
+	testIface1 := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{ InterfaceName: "test-a" },
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-1", nil
 		},
@@ -108,8 +108,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 			})
 		},
 	}
-	testIface2 := &ifacetest.TestInterface{
-		InterfaceName: "test-b",
+	testIface2 := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{ InterfaceName: "test-b" },
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-2", nil
 		},
@@ -120,8 +120,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		},
 	}
 	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
-	testIface3 := &ifacetest.TestInterface{
-		InterfaceName: "test-c",
+	testIface3 := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{ InterfaceName: "test-c" },
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-3", nil
 		},
@@ -129,8 +129,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 			return nil
 		},
 	}
-	testIface4 := &ifacetest.TestInterface{
-		InterfaceName: "test-d",
+	testIface4 := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{ InterfaceName: "test-d" },
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
 			return spec.SetSlot(&hotplug.SlotSpec{
 				Name: "hotplugslot-d",
