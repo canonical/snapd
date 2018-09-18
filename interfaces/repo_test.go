@@ -2390,9 +2390,9 @@ func (s *RepositorySuite) TestConnection(c *C) {
 
 func (s *RepositorySuite) TestAllHotplugInterfaces(c *C) {
 	repo := NewRepository()
-	// TODO: add non-hotplug test iface1
-	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface2"}), IsNil)
-	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface3"}), IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface1"}), IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "iface2"}}), IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "iface3"}}), IsNil)
 
 	hi := repo.AllHotplugInterfaces()
 	c.Assert(hi, HasLen, 2)

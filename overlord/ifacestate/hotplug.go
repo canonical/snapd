@@ -106,7 +106,6 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	st.Lock()
 	defer st.Unlock()
 
-	// FIXME: agreement needed how to find about system snap and where to attach interfaces.
 	coreSnapInfo, err := snapstate.CoreInfo(st)
 	if err != nil {
 		logger.Noticef("core snap not available, hotplug events ignored")
