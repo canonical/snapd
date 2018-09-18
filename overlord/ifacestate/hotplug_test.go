@@ -62,9 +62,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(restoreTimeout)
 
 	s.udevMon = &udevMonitorMock{}
-	restoreCreate := ifacestate.MockCreateUDevMonitor(func(add udevmonitor.DeviceAddedFunc, remove udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(add udevmonitor.DeviceAddedFunc, remove udevmonitor.DeviceRemovedFunc, done udevmonitor.EnumerationDoneFunc) udevmonitor.Interface {
 		s.udevMon.AddDevice = add
 		s.udevMon.RemoveDevice = remove
+		s.udevMon.EnumerationDone = done
 		return s.udevMon
 	})
 	s.BaseTest.AddCleanup(restoreCreate)

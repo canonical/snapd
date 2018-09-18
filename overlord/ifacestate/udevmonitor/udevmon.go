@@ -38,12 +38,14 @@ type Interface interface {
 
 type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
 type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
+type EnumerationDoneFunc func()
 
 // Monitor monitors kernel uevents making it possible to find USB devices.
 type Monitor struct {
 	tomb          tomb.Tomb
 	deviceAdded   DeviceAddedFunc
 	deviceRemoved DeviceRemovedFunc
+	enumerationDone func()
 	netlinkConn   *netlink.UEventConn
 	// channels used by netlink connection and monitor
 	monitorStop   chan struct{}
@@ -60,10 +62,11 @@ type Monitor struct {
 	seen map[string]bool
 }
 
-func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
+func New(added DeviceAddedFunc, removed DeviceRemovedFunc, enumerationDone EnumerationDoneFunc) Interface {
 	m := &Monitor{
 		deviceAdded:   added,
 		deviceRemoved: removed,
+		enumerationDone: enumerationDone,
 		netlinkConn:   &netlink.UEventConn{},
 		seen:          make(map[string]bool),
 	}
@@ -140,6 +143,9 @@ func (m *Monitor) Run() error {
 			if m.deviceAdded != nil {
 				m.deviceAdded(dev)
 			}
+		}
+		if m.enumerationDone != nil {
+			m.enumerationDone()
 		}
 
 		// Process hotplug events reported by udev monitor.

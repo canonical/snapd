@@ -287,6 +287,26 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	}
 }
 
+func (m *InterfaceManager) hotplugEnumerationDone() {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	hotplugSlots, err := getHotplugSlots(st)
+	if err != nil {
+		logger.Noticef(err.Error())
+		return
+	}
+
+	for _, slot := range hotplugSlots {
+		if !m.enumeratedDeviceKeys[slot.HotplugDeviceKey] {
+			// TODO: device not present
+		}
+	}
+	// the map of enumeratedDeviceKeys is not needed anymore
+	m.enumeratedDeviceKeys = nil
+}
+
 func findConnsForDeviceKey(conns *map[string]connState, coreSnapName, ifaceName, deviceKey string) []string {
 	var connsForDevice []string
 	for id, connSt := range *conns {
