@@ -197,8 +197,10 @@ func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 }
 
 func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, error) {
-	// default to snap name if 'name' attribute not set
-	mprisName := "@{SNAP_NAME}"
+	// default to snap instance name if 'name' attribute not set
+	// parallel-installs: used for dbus mediation, SNAP_INSTANCE_NAME is
+	// appropriate
+	mprisName := "@{SNAP_INSTANCE_NAME}"
 	for attr := range attribs {
 		if attr != "name" {
 			return "", fmt.Errorf("unknown attribute '%s'", attr)

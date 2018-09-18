@@ -57,8 +57,8 @@ owner @{PROC}/@{pid}/oom_score_adj rw,
 /var/tmp/ r,
 owner /var/tmp/etilqs_* rw,
 
-# Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
-# packaging adjusted to use LD_PRELOAD technique from LP: #1577514
+# Chrome/Chromium should be modified to use snap.$SNAP_INSTANCE_NAME.* or
+# the snap packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 owner /{dev,run}/shm/.io.nwjs.* mrw,
@@ -66,8 +66,9 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
 # for now, allow non-owner read on the singleton socket (LP: #1731012). See
 # https://forum.snapcraft.io/t/electron-snap-killed-when-using-app-makesingleinstance-api/2667/20
-/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}org.chromium.*/SS r,
-/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}com.google.Chrome.*/SS r,
+# parallel-installs: $XDG_RUNTIME_DIR is not remapped, need to use SNAP_INSTANCE_NAME
+/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}org.chromium.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
@@ -115,7 +116,7 @@ const browserSupportConnectedPlugAppArmorWithoutSandbox = `
 # away this dangerous access frivolously. We may conditionally deny this in the
 # future. If the kernel has https://lkml.org/lkml/2016/5/26/354 we could also
 # allow this.
-deny ptrace (trace) peer=snap.@{SNAP_NAME}.**,
+deny ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.**,
 `
 
 const browserSupportConnectedPlugAppArmorWithSandbox = `
@@ -203,8 +204,8 @@ unix (bind)
 
 # Policy needed only when using the chrome/chromium setuid sandbox
 capability sys_ptrace,
-ptrace (trace) peer=snap.@{SNAP_NAME}.**,
-unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
+ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.**,
+unix (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.**),
 
 # If this were going to be allowed to all snaps, then for all the following
 # rules we would want to wrap in a 'browser_sandbox' profile, but a limitation
@@ -214,7 +215,7 @@ unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
 # profile browser_sandbox {
 #   ...
 #   # This rule needs to work but generates a parser error
-#   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/opt/google/chrome/chrome px -> snap.@{SNAP_NAME}.@{SNAP_APP},
+#   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/opt/google/chrome/chrome px -> snap.@{SNAP_INSTANCE_NAME}.@{SNAP_APP},
 #   ...
 # }
 

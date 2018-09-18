@@ -63,12 +63,15 @@ capability sys_admin,
 #         are not obligated to use fusermount to mount fuse filesystems, so
 #         be very strict and only support the default (rw,nosuid,nodev) and
 #         read-only.
-mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
-mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
+#
+# parallel-installs: SNAP_USER_{DATA,COMMON} are not remapped, need to use SNAP_INSTANCE_NAME
+mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/common/{,**/},
+mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/common/{,**/},
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, use SNAP_NAME instead
 mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
 mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
-mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/common/{,**/},
-mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/common/{,**/},
 mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/common/{,**/},
 mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/common/{,**/},
 

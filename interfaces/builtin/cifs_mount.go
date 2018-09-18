@@ -43,11 +43,13 @@ const cifsMountConnectedPlugAppArmor = `
 capability sys_admin,
 
 # Allow mounts to our snap-specific writable directories
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME
 mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
 mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/common/{,**},
 
 # NOTE: due to LP: #1613403, fstype is not mediated and as such, these rules
 # allow, for example, unmounting bind mounts from the content interface
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME
 umount /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
 umount /var/snap/@{SNAP_NAME}/common/{,**},
 

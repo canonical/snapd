@@ -65,6 +65,7 @@ capability sys_admin,
 /{,usr/}bin/mountpoint ixr,
 /run/mount/utab rw,
 @{PROC}/[0-9]*/mountinfo r,
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME
 mount options=(rw bind) /home/ -> /var/snap/@{SNAP_NAME}/**/,
 mount options=(rw bind) /run/ -> /var/snap/@{SNAP_NAME}/**/,
 mount options=(rw bind) /proc/ -> /var/snap/@{SNAP_NAME}/**/,
