@@ -56,7 +56,6 @@ Build-Depends: autoconf,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
-               squashfuse,
                tzdata,
                udev,
                xfslibs-dev

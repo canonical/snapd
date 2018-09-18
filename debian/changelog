@@ -2,7 +2,7 @@ snapd (2.35.2-1) UNRELEASED; urgency=medium
 
   * New upstream version.
   * d/control: make myself Maintainer, use my Debian address, update Vcs-* to
-    point to salsa, depend on squashfuse for use in containers.
+    point to salsa.
   * Add new build-dependencies.
   * d/watch: update to download new upstream-provided no-vendor tarballs.
   * d/patches: refresh/drop.
