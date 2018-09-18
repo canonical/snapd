@@ -143,3 +143,41 @@ const (
 	StopReasonRemove  ServiceStopReason = "remove"
 	StopReasonDisable ServiceStopReason = "disable"
 )
+
+// DaemonMode represents the mode of the systemd instance a daemon runs under
+type DaemonMode string
+
+const (
+	SystemDaemon DaemonMode = "system"
+	UserDaemon   DaemonMode = "user"
+)
+
+// UnmarshalJSON sets *daemonMode to a copy of data, assuming validation passes
+func (daemonMode *DaemonMode) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	return daemonMode.fromString(s)
+}
+
+// UnmarshalYAML so DaemonMode implements yaml's Unmarshaler interface
+func (daemonMode *DaemonMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	return daemonMode.fromString(s)
+}
+
+func (daemonMode *DaemonMode) fromString(str string) error {
+	d := DaemonMode(str)
+	if d != SystemDaemon && d != UserDaemon {
+		return fmt.Errorf("invalid daemon mode: %q", str)
+	}
+
+	*daemonMode = d
+	return nil
+}

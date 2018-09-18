@@ -72,8 +72,8 @@ type appYaml struct {
 	Command      string   `yaml:"command"`
 	CommandChain []string `yaml:"command-chain,omitempty"`
 
-	Daemon     string `yaml:"daemon"`
-	DaemonMode string `yaml:"daemon-mode"`
+	Daemon     string     `yaml:"daemon"`
+	DaemonMode DaemonMode `yaml:"daemon-mode"`
 
 	StopCommand     string          `yaml:"stop-command,omitempty"`
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`

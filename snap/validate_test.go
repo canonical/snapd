@@ -300,6 +300,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	app := createSampleApp()
+	app.Daemon = "simple"
+	app.DaemonMode = SystemDaemon
 	invalidListenAddresses := []string{
 		"10.0.1.1:8080",
 		"[fafa::baba]:8080",
@@ -316,6 +318,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	app := createSampleApp()
+	app.Daemon = "simple"
+	app.DaemonMode = SystemDaemon
 	invalidPorts := []string{
 		"0",
 		"66536",
@@ -337,7 +341,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *C) {
 	app := createSampleApp()
 	app.Daemon = "simple"
-	app.DaemonMode = "user"
+	app.DaemonMode = UserDaemon
 	validListenAddresses := []string{
 		// socket paths using variables as prefix
 		"$SNAP_USER_DATA/my.socket",
@@ -365,7 +369,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *
 func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) {
 	app := createSampleApp()
 	app.Daemon = "simple"
-	app.DaemonMode = "user"
+	app.DaemonMode = UserDaemon
 	invalidListenAddresses := []string{
 		// socket paths out of the snap dirs
 		"/some/path/my.socket",
@@ -431,17 +435,17 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 func (s *ValidateSuite) TestAppDaemonModeValue(c *C) {
 	for _, t := range []struct {
 		daemon     string
-		daemonMode string
+		daemonMode DaemonMode
 		ok         bool
 	}{
 		// good
 		{"", "", true},
 		{"simple", "", true},
-		{"simple", "system", true},
-		{"simple", "user", true},
+		{"simple", SystemDaemon, true},
+		{"simple", UserDaemon, true},
 		// bad
-		{"", "system", false},
-		{"", "user", false},
+		{"", SystemDaemon, false},
+		{"", UserDaemon, false},
 		{"simple", "invalid-mode", false},
 	} {
 		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: t.daemonMode}
@@ -475,9 +479,9 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
 
@@ -500,7 +504,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, RefreshMode: t.refreshMode}), IsNil)
 		} else {
 			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
 		}

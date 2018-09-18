@@ -1477,7 +1477,7 @@ apps:
 		Name:            "svc",
 		Command:         "svc1",
 		Daemon:          "forking",
-		DaemonMode:      "system",
+		DaemonMode:      snap.SystemDaemon,
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
 		StartTimeout:    timeout.Timeout(42 * time.Minute),
@@ -1542,6 +1542,18 @@ apps:
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Check(err.Error(), Equals, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
 		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
+}
+
+func (s *YamlSuite) TestDaemonInvalidDaemonMode(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc
+   daemon-mode: invalid
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Check(err.Error(), Equals, "cannot parse snap.yaml: invalid daemon mode: \"invalid\"")
 }
 
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {

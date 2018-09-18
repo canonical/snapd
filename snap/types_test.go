@@ -226,3 +226,67 @@ func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
 	}
 }
+
+func (s *typeSuite) TestYamlMarshalDaemonModes(c *C) {
+	out, err := yaml.Marshal(SystemDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "system\n")
+
+	out, err = yaml.Marshal(UserDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "user\n")
+}
+
+func (s *typeSuite) TestYamlUnmarshalDaemonModes(c *C) {
+	var daemonMode DaemonMode
+	err := yaml.Unmarshal([]byte("system"), &daemonMode)
+	c.Assert(err, IsNil)
+	c.Check(daemonMode, Equals, SystemDaemon)
+
+	err = yaml.Unmarshal([]byte("user"), &daemonMode)
+	c.Assert(err, IsNil)
+	c.Check(daemonMode, Equals, UserDaemon)
+}
+
+func (s *typeSuite) TestYamlUnmarshalInvalidDaemonModes(c *C) {
+	var invalidDaemonModes = []string{
+		"foo", "system-", "_user",
+	}
+	var daemonMode DaemonMode
+	for _, thisDaemonMode := range invalidDaemonModes {
+		err := yaml.Unmarshal([]byte(thisDaemonMode), &daemonMode)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon mode", thisDaemonMode))
+	}
+}
+
+func (s *typeSuite) TestJsonMarshalDaemonModes(c *C) {
+	out, err := json.Marshal(SystemDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"system\"")
+
+	out, err = json.Marshal(UserDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"user\"")
+}
+
+func (s *typeSuite) TestJsonUnmarshalDaemonModes(c *C) {
+	var daemonMode DaemonMode
+	err := json.Unmarshal([]byte("\"system\""), &daemonMode)
+	c.Assert(err, IsNil)
+	c.Check(daemonMode, Equals, SystemDaemon)
+
+	err = json.Unmarshal([]byte("\"user\""), &daemonMode)
+	c.Assert(err, IsNil)
+	c.Check(daemonMode, Equals, UserDaemon)
+}
+
+func (s *typeSuite) TestJsonUnmarshalInvalidDaemonModes(c *C) {
+	var invalidDaemonModes = []string{
+		"foo", "system-", "_user",
+	}
+	var daemonMode DaemonMode
+	for _, thisDaemonMode := range invalidDaemonModes {
+		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisDaemonMode)), &daemonMode)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon mode", thisDaemonMode))
+	}
+}

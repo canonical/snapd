@@ -201,16 +201,19 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if socket.App.IsUserService() {
-		if !(strings.HasPrefix(path, "$SNAP_USER_DATA/") || strings.HasPrefix(path, "$SNAP_USER_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
-			return fmt.Errorf(
-				"invalid %q: must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
-		}
-	} else {
+	switch socket.App.ServiceMode() {
+	case SystemDaemon:
 		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
 				"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
 		}
+	case UserDaemon:
+		if !(strings.HasPrefix(path, "$SNAP_USER_DATA/") || strings.HasPrefix(path, "$SNAP_USER_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
+		}
+	default:
+		panic("unknown systemd.InstanceMode")
 	}
 
 	return nil
@@ -521,7 +524,7 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
 
-		if app.IsUserService() != other.IsUserService() {
+		if app.ServiceMode() != other.ServiceMode() {
 			return fmt.Errorf("before/after references service with different daemon-mode %q", dep)
 		}
 	}
@@ -616,7 +619,7 @@ func ValidateApp(app *AppInfo) error {
 	switch app.DaemonMode {
 	case "":
 		// valid
-	case "system", "user":
+	case SystemDaemon, UserDaemon:
 		if app.Daemon == "" {
 			return fmt.Errorf(`"daemon-mode" should only be set for daemons`)
 		}

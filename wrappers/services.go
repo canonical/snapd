@@ -117,17 +117,18 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 		}
 
 		var sysd systemd.Systemd
-		if app.IsUserService() {
-			sysd = userSysd
-		} else {
+		switch app.ServiceMode() {
+		case snap.SystemDaemon:
 			sysd = systemSysd
+		case snap.UserDaemon:
+			sysd = userSysd
 		}
 
 		defer func(app *snap.AppInfo) {
 			if err == nil {
 				return
 			}
-			if !app.IsUserService() {
+			if app.ServiceMode() == snap.SystemDaemon {
 				if e := stopService(sysd, app, inter); e != nil {
 					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
 				}
@@ -146,7 +147,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			}
 		}(app)
 
-		if len(app.Sockets) == 0 && app.Timer == nil && !app.IsUserService() {
+		if len(app.Sockets) == 0 && app.Timer == nil && app.ServiceMode() == snap.SystemDaemon {
 			// check if the service is disabled, if so don't start it up
 			// this could happen for example if the service was disabled in
 			// the install hook by snapctl or if the service was disabled in
@@ -168,7 +169,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			if !app.IsUserService() {
+			if app.ServiceMode() == snap.SystemDaemon {
 				timings.Run(tm, "start-socket-service", fmt.Sprintf("start socket service %q", socketService), func(nested timings.Measurer) {
 					err = sysd.Start(socketService)
 				})
@@ -185,7 +186,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			if !app.IsUserService() {
+			if app.ServiceMode() == snap.SystemDaemon {
 				timings.Run(tm, "start-timer-service", fmt.Sprintf("start timer service %q", timerService), func(nested timings.Measurer) {
 					err = sysd.Start(timerService)
 				})
@@ -315,12 +316,8 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 
 		svcName := app.ServiceName()
-		if app.IsUserService() {
-			if err := userSysd.Enable(svcName); err != nil {
-				return err
-			}
-			userEnabled = append(userEnabled, svcName)
-		} else {
+		switch app.ServiceMode() {
+		case snap.SystemDaemon:
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				// service is disabled, nothing to do
 				continue
@@ -331,6 +328,13 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 					return err
 				}
 				enabled = append(enabled, svcName)
+			}
+		case snap.UserDaemon:
+			if !preseedMode() {
+				if err := userSysd.Enable(svcName); err != nil {
+					return err
+				}
+				userEnabled = append(userEnabled, svcName)
 			}
 		}
 	}
@@ -356,7 +360,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			continue
 		}
 		// We can't stop services that run under a user mode systemd
-		if app.IsUserService() {
+		if app.ServiceMode() == snap.UserDaemon {
 			continue
 		}
 		// Skip stop on refresh when refresh mode is set to something
@@ -427,10 +431,11 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		nservices++
 
 		var sysd systemd.Systemd
-		if app.IsUserService() {
-			sysd = userSysd
-		} else {
+		switch app.ServiceMode() {
+		case snap.SystemDaemon:
 			sysd = systemSysd
+		case snap.UserDaemon:
+			sysd = userSysd
 		}
 		serviceName := filepath.Base(app.ServiceFile())
 
@@ -612,16 +617,19 @@ WantedBy={{.ServicesTarget}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	if appInfo.IsUserService() {
-		wrapperData.ServicesTarget = systemd.UserServicesTarget
-		// FIXME: ideally use UserDataDir("%h"), but then the
-		// unit fails if the directory doesn't exist.
-		wrapperData.WorkingDir = appInfo.Snap.DataDir()
-	} else {
+	switch appInfo.ServiceMode() {
+	case snap.SystemDaemon:
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+	case snap.UserDaemon:
+		wrapperData.ServicesTarget = systemd.UserServicesTarget
+		// FIXME: ideally use UserDataDir("%h"), but then the
+		// unit fails if the directory doesn't exist.
+		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+	default:
+		panic("unknown snap.DaemonMode")
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -674,8 +682,13 @@ WantedBy={{.SocketsTarget}}
 		SocketInfo:      socket,
 		ListenStream:    listenStream,
 	}
-	if !appInfo.IsUserService() {
+	switch appInfo.ServiceMode() {
+	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
+	case snap.UserDaemon:
+		// nothing
+	default:
+		panic("unknown snap.DaemonMode")
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -699,21 +712,24 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 }
 
 func renderListenStream(socket *snap.SocketInfo) string {
-	snap := socket.App.Snap
+	s := socket.App.Snap
 	listenStream := socket.ListenStream
-	if socket.App.IsUserService() {
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", snap.UserDataDir("%h"), -1)
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", snap.UserCommonDataDir("%h"), -1)
-		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
-		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", snap.InstanceName()), -1)
-	} else {
-		listenStream = strings.Replace(listenStream, "$SNAP_DATA", snap.DataDir(), -1)
+	switch socket.App.ServiceMode() {
+	case snap.SystemDaemon:
+		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
 		// TODO: when we support User/Group in the generated
 		// systemd unit, adjust this accordingly
 		serviceUserUid := sys.UserID(0)
-		runtimeDir := snap.UserXdgRuntimeDir(serviceUserUid)
+		runtimeDir := s.UserXdgRuntimeDir(serviceUserUid)
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
-		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
+		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", s.CommonDataDir(), -1)
+	case snap.UserDaemon:
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h"), -1)
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h"), -1)
+		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
+		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", s.InstanceName()), -1)
+	default:
+		panic("unknown snap.DaemonMode")
 	}
 	return listenStream
 }
@@ -759,8 +775,13 @@ WantedBy={{.TimersTarget}}
 		TimerName:       app.Name,
 		Schedules:       schedules,
 	}
-	if !app.IsUserService() {
+	switch app.ServiceMode() {
+	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(app.Snap.MountDir()))
+	case snap.UserDaemon:
+		// nothing
+	default:
+		panic("unknown systemd.InstanceMode")
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -769,7 +790,6 @@ WantedBy={{.TimersTarget}}
 	}
 
 	return templateOut.Bytes(), nil
-
 }
 
 func makeAbbrevWeekdays(start time.Weekday, end time.Weekday) []string {

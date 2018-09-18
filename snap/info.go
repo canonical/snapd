@@ -810,7 +810,7 @@ type AppInfo struct {
 	CommonID      string
 
 	Daemon          string
-	DaemonMode      string
+	DaemonMode      DaemonMode
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -975,10 +975,13 @@ func (app *AppInfo) ServiceName() string {
 }
 
 func (app *AppInfo) serviceDir() string {
-	if app.IsUserService() {
-		return dirs.SnapUserServicesDir
-	} else {
+	switch app.ServiceMode() {
+	case SystemDaemon:
 		return dirs.SnapServicesDir
+	case UserDaemon:
+		return dirs.SnapUserServicesDir
+	default:
+		panic("unknown daemon mode")
 	}
 }
 
@@ -1002,9 +1005,12 @@ func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
 }
 
-// IsUserService returns whether a service is part of the user session.
-func (app *AppInfo) IsUserService() bool {
-	return app.IsService() && app.DaemonMode == "user"
+// ServiceMode returns the systemd instance mode for this service
+func (app *AppInfo) ServiceMode() DaemonMode {
+	if app.DaemonMode == UserDaemon {
+		return UserDaemon
+	}
+	return SystemDaemon
 }
 
 // SecurityTag returns the hook-specific security tag.
