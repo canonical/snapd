@@ -1497,6 +1497,21 @@ apps:
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{"svc": &app})
 }
 
+func (s *YamlSuite) TestDaemonNoDaemonMode(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc1
+   daemon: simple
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	// If daemon-mode is unset, default to system mode
+	c.Check(info.Apps["svc"].ServiceMode(), Equals, snap.SystemDaemon)
+}
+
 func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
 	y := []byte(`name: wat
 version: 42

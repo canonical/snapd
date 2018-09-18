@@ -40,4 +40,4 @@ execute: |
     systemctl start user@"$(id -u test)".service
 
     echo "We can see the service running"
-    as_user systemctl --user status snap.test-snapd-user-service.test-snapd-user-service|MATCH "running"
+    as_user systemctl --user status snap.test-snapd-user-service.test-snapd-user-service|MATCH "Active: active"
