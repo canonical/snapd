@@ -8,6 +8,8 @@ snapd (2.35.2-1) UNRELEASED; urgency=medium
   * d/patches: refresh/drop.
   * d/patches/no-snapfuse.patch: do not depend on snapfuse fork of squashfuse.
   * d/patches/upstram-bolt.patch: use upstream version of boltdb.
+  * d/patches/systemd-activation-compat.patch: compatibility for the
+    newer go-systemd in debian
 
  -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 18 Sep 2018 09:38:33 +0200
 
