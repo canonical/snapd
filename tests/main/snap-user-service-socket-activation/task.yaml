@@ -34,7 +34,12 @@ execute: |
     echo "And the user mode systemd instance is started"
     systemctl start user@"$(id -u test)".service
 
-    echo "It's sockets are created in the test user's directories"
+    echo "It's sockets are created in the test user's directories and activate the service"
     [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
+    nc -w 30 -U ~test/snap/test-snapd-user-service-sockets/common/common.sock | MATCH "Connected to common"
+
     [ -S ~test/snap/test-snapd-user-service-sockets/x1/data.sock ]
+    nc -w 30 -U ~test/snap/test-snapd-user-service-sockets/x1/data.sock | MATCH "Connected to data"
+
     [ -S "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock ]
+    nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"

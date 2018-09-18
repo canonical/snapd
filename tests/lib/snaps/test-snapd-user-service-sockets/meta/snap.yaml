@@ -7,9 +7,9 @@ apps:
         daemon-mode: user
         plugs: [network-bind]
         sockets:
-            sock1:
+            common:
                 listen-stream: $SNAP_USER_COMMON/common.sock
-            sock2:
+            data:
                 listen-stream: $SNAP_USER_DATA/data.sock
-            sock3:
+            runtime:
                 listen-stream: $XDG_RUNTIME_DIR/run.sock
