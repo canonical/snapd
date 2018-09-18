@@ -46,8 +46,8 @@ const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -80,8 +80,8 @@ var (
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=%s-xkcd\x2dwebserver-44.mount
-Wants=network-online.target
-After=%s-xkcd\x2dwebserver-44.mount network-online.target
+Wants=network.target
+After=%s-xkcd\x2dwebserver-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -280,8 +280,8 @@ func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service
+Wants=network.target
+After=%s-snap-44.mount network.target snap.snap.bar.service snap.snap.zed.service
 Before=snap.snap.foo.service
 X-Snappy=yes
 
@@ -404,8 +404,8 @@ func (s *servicesWrapperGenSuite) TestServiceTimerServiceUnit(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -564,8 +564,8 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]

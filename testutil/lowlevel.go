@@ -182,7 +182,7 @@ type SyscallRecorder struct {
 	osLstats    map[string]os.FileInfo
 	sysLstats   map[string]syscall.Stat_t
 	fstats      map[string]syscall.Stat_t
-	fstatfses   map[string]syscall.Statfs_t
+	fstatfses   map[string]func() syscall.Statfs_t
 	readdirs    map[string][]os.FileInfo
 	readlinkats map[string]string
 	// allocated file descriptors
@@ -447,11 +447,28 @@ func (sys *SyscallRecorder) Fstat(fd int, buf *syscall.Stat_t) error {
 }
 
 // InsertFstatfsResult makes given subsequent call fstatfs return the specified stat buffer.
-func (sys *SyscallRecorder) InsertFstatfsResult(call string, buf syscall.Statfs_t) {
+func (sys *SyscallRecorder) InsertFstatfsResult(call string, bufs ...syscall.Statfs_t) {
 	if sys.fstatfses == nil {
-		sys.fstatfses = make(map[string]syscall.Statfs_t)
+		sys.fstatfses = make(map[string]func() syscall.Statfs_t)
 	}
-	sys.fstatfses[call] = buf
+	if len(bufs) == 0 {
+		panic("cannot provide zero results to InsertFstatfsResult")
+	}
+	if len(bufs) == 1 {
+		// deterministic behavior
+		sys.fstatfses[call] = func() syscall.Statfs_t {
+			return bufs[0]
+		}
+	} else {
+		// sequential results with the last element repeated forever.
+		sys.fstatfses[call] = func() syscall.Statfs_t {
+			buf := bufs[0]
+			if len(bufs) > 1 {
+				bufs = bufs[1:]
+			}
+			return buf
+		}
+	}
 }
 
 // Fstatfs is a fake implementation of syscall.Fstatfs
@@ -461,8 +478,8 @@ func (sys *SyscallRecorder) Fstatfs(fd int, buf *syscall.Statfs_t) error {
 		if _, ok := sys.fds[fd]; !ok {
 			return nil, fmt.Errorf("attempting to fstatfs with an invalid file descriptor %d", fd)
 		}
-		if buf, ok := sys.fstatfses[call]; ok {
-			return buf, nil
+		if bufFn, ok := sys.fstatfses[call]; ok {
+			return bufFn(), nil
 		}
 		panic(fmt.Sprintf("one of InsertFstatfsResult() or InsertFault() for %s must be used", call))
 	})

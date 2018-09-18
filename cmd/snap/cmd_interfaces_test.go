@@ -627,3 +627,48 @@ func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
+
+func (s *SnapSuite) TestConnectionsCoreNicknamedSystem(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "core", "system")
+}
+
+func (s *SnapSuite) TestConnectionsSnapdNicknamedSystem(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "snapd", "system")
+}
+
+func (s *SnapSuite) TestConnectionsSnapdNicknamedCore(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "snapd", "core")
+}
+
+func (s *SnapSuite) TestConnectionsCoreSnap(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "core", "core")
+}
+
+func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSnapName string) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Connections{
+				Slots: []client.Slot{
+					{
+						Snap: apiSnapName,
+						Name: "network",
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces", cliSnapName})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Slot      Plug\n" +
+		":network  -\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}

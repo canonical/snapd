@@ -9,7 +9,9 @@ prepare: |
     # the file /etc/init/tty1.conf is present in the default images, upstart
     # (which is installed as a dependency of the required packages) ships it
     # and doesn't install cleanly if that file is in place
-    mv /etc/init/tty1.conf /etc/init/tty1.conf.back
+    if [ -f /etc/init/tty1.conf ]; then
+        mv /etc/init/tty1.conf /etc/init/tty1.conf.back
+    fi
 
     apt install -y --no-install-recommends unity
 
@@ -17,7 +19,9 @@ disabled_restore: |
     systemctl stop unity-app
     apt autoremove -y --purge unity
 
-    mv /etc/init/tty1.conf.back /etc/init/tty1.conf
+    if [ -f /etc/init/tty1.conf.back ]; then
+        mv /etc/init/tty1.conf.back /etc/init/tty1.conf
+    fi
 
 execute: |
     echo "Given a unity snap is installed"
@@ -28,4 +32,6 @@ execute: |
 
     echo "Then the app window is created"
     expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
-    while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done
+    while ! xwininfo -tree -root | grep -Pq "$expected"; do
+        sleep 1;
+    done
