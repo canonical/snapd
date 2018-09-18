@@ -1,5 +1,6 @@
-snapd (2.30-6) UNRELEASED; urgency=medium
+snapd (2.35.2-1) UNRELEASED; urgency=medium
 
+  * New upstream version.
   * d/control: make myself Maintainer, use my Debian address, update Vcs-* to
     point to salsa.
   * Add new build-dependencies.
