@@ -1406,6 +1406,28 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }
 
+func (s *backendSuite) TestParallelInstanceSetupSnapUpdateNS(c *C) {
+	dirs.SetRootDir(s.RootDir)
+
+	const trivialSnapYaml = `name: some-snap
+version: 1.0
+apps:
+  app:
+    command: app-command
+`
+	snapInfo := snaptest.MockInfo(c, trivialSnapYaml, &snap.SideInfo{Revision: snap.R(222)})
+	snapInfo.InstanceKey = "instance"
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "some-snap_instance", trivialSnapYaml, 1)
+	profileUpdateNS := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap_instance")
+	c.Check(profileUpdateNS, testutil.FileContains, `profile snap-update-ns.some-snap_instance (`)
+	c.Check(profileUpdateNS, testutil.FileContains, `
+  # Allow parallel instance snap mount namespace adjustments
+  mount options=(rw rbind) /snap/some-snap_instance/ -> /snap/some-snap/,
+  mount options=(rw rbind) /var/snap/some-snap_instance/ -> /var/snap/some-snap/,
+`)
+}
+
 func (s *backendSuite) TestDowngradeConfinement(c *C) {
 
 	restore := release.MockAppArmorLevel(release.PartialAppArmor)
