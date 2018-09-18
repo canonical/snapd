@@ -39,9 +39,9 @@ func (c byOriginAndMagicDir) Less(i, j int) bool {
 	iOrigin := iMe.XSnapdOrigin()
 	jOrigin := jMe.XSnapdOrigin()
 	if iOrigin == "overname" && iOrigin != jOrigin {
-		// should ith element be created by 'overname' mapping it is
-		// always sorted before jth element if that comes from layouts
-		// or content interface
+		// should ith element be created by 'overname' mapping, it is
+		// always sorted before jth element, if that one comes from
+		// layouts or content interface
 		return true
 	}
 
