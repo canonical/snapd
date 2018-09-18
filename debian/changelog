@@ -1,3 +1,10 @@
+snapd (2.30-6) UNRELEASED; urgency=medium
+
+  * d/control: make myself Maintainer, use my Debian address, update Vcs-* to
+    point to salsa.
+
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 18 Sep 2018 09:38:33 +0200
+
 snapd (2.30-5) unstable; urgency=medium
 
   * Team upload.
