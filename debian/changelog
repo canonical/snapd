@@ -4,6 +4,7 @@ snapd (2.35.2-1) UNRELEASED; urgency=medium
   * d/control: make myself Maintainer, use my Debian address, update Vcs-* to
     point to salsa.
   * Add new build-dependencies.
+  * d/watch: update to download new upstream-provided no-vendor tarballs.
 
  -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 18 Sep 2018 09:38:33 +0200
 
