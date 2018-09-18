@@ -628,15 +628,23 @@ func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsSystemNickname(c *C) {
-	s.checkConnectionsSystemCoreRemapping(c, "system")
+func (s *SnapSuite) TestConnectionsCoreNicknamedSystem(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "core", "system")
+}
+
+func (s *SnapSuite) TestConnectionsSnapdNicknamedSystem(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "snapd", "system")
+}
+
+func (s *SnapSuite) TestConnectionsSnapdNicknamedCore(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "snapd", "core")
 }
 
 func (s *SnapSuite) TestConnectionsCoreSnap(c *C) {
-	s.checkConnectionsSystemCoreRemapping(c, "core")
+	s.checkConnectionsSystemCoreRemapping(c, "core", "core")
 }
 
-func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, snapName string) {
+func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSnapName string) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -648,15 +656,14 @@ func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, snapName string) {
 			"result": client.Connections{
 				Slots: []client.Slot{
 					{
-						// The snap holding the slot is always the "system" nickname.
-						Snap: "system",
+						Snap: apiSnapName,
 						Name: "network",
 					},
 				},
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", snapName})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", cliSnapName})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +

@@ -3912,27 +3912,27 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
-					"snap":      "CONSUMER",
+					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "PRODUCER", "slot": "slot"},
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "PRODUCER",
+					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "CONSUMER", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
@@ -3977,7 +3977,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 				"name": "test",
 				"plugs": []interface{}{
 					map[string]interface{}{
-						"snap":  "CONSUMER",
+						"snap":  "consumer",
 						"plug":  "plug",
 						"label": "label",
 						"attrs": map[string]interface{}{
@@ -3986,7 +3986,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 					}},
 				"slots": []interface{}{
 					map[string]interface{}{
-						"snap":  "PRODUCER",
+						"snap":  "producer",
 						"slot":  "slot",
 						"label": "label",
 						"attrs": map[string]interface{}{
