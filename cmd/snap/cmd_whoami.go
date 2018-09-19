@@ -32,7 +32,9 @@ var longWhoAmIHelp = i18n.G(`
 The whoami command prints the email the user is logged in with.
 `)
 
-type cmdWhoAmI struct{}
+type cmdWhoAmI struct {
+	clientMixin
+}
 
 func init() {
 	addCommand("whoami", shortWhoAmIHelp, longWhoAmIHelp, func() flags.Commander { return &cmdWhoAmI{} }, nil, nil)
@@ -43,7 +45,7 @@ func (cmd cmdWhoAmI) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	email, err := Client().WhoAmI()
+	email, err := cmd.client.WhoAmI()
 	if err != nil {
 		return err
 	}

@@ -33,6 +33,8 @@ import (
 var RunMain = run
 
 var (
+	Client = mkClient
+
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
@@ -185,7 +187,9 @@ func MockWaitConfTimeout(d time.Duration) (restore func()) {
 }
 
 func Wait(cli *client.Client, id string) (*client.Change, error) {
-	return waitMixin{}.wait(cli, id)
+	wmx := waitMixin{}
+	wmx.client = cli
+	return wmx.wait(id)
 }
 
 func ColorMixin(cmode, umode string) colorMixin {

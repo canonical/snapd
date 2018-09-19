@@ -28,6 +28,7 @@ import (
 )
 
 type changeIDMixin struct {
+	clientMixin
 	LastChangeType string `long:"last"`
 	Positional     struct {
 		ID changeID `positional-arg-name:"<id>"`
@@ -48,7 +49,7 @@ var changeIDMixinArgDesc = []argDesc{{
 // should not be user-visible, but keep it clear and polite because mistakes happen
 var noChangeFoundOK = errors.New("no change found but that's ok")
 
-func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
+func (l *changeIDMixin) GetChangeID() (string, error) {
 	if l.Positional.ID == "" && l.LastChangeType == "" {
 		return "", fmt.Errorf(i18n.G("please provide change ID or type with --last=<type>"))
 	}
@@ -61,6 +62,7 @@ func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
 		return string(l.Positional.ID), nil
 	}
 
+	cli := l.client
 	// note that at this point we know l.LastChangeType != ""
 	kind := l.LastChangeType
 	optional := false
