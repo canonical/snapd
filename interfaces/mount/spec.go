@@ -21,8 +21,10 @@ package mount
 
 import (
 	"fmt"
+	"path"
 	"sort"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -35,9 +37,14 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layout  []osutil.MountEntry
-	general []osutil.MountEntry
-	user    []osutil.MountEntry
+	// The mount profile is internally re-sorted by snap-update-ns based on
+	// the source of given mount entry and MountEntry.Dir. See
+	// cmd/snap-update-ns/sorting.go for details.
+
+	layout   []osutil.MountEntry
+	general  []osutil.MountEntry
+	user     []osutil.MountEntry
+	overname []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
@@ -49,6 +56,12 @@ func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
 //AddUserMountEntry adds a new user mount entry.
 func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
 	spec.user = append(spec.user, e)
+	return nil
+}
+
+// AddOvernameMountEntry adds a new overname mount entry.
+func (spec *Specification) AddOvernameMountEntry(e osutil.MountEntry) error {
+	spec.overname = append(spec.overname, e)
 	return nil
 }
 
@@ -129,7 +142,11 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
-	result := make([]osutil.MountEntry, 0, len(spec.layout)+len(spec.general))
+	result := make([]osutil.MountEntry, 0, len(spec.overname)+len(spec.layout)+len(spec.general))
+	// overname is the mappings that were added to support parallel
+	// installation of snaps and must come first, as they establish the base
+	// namespace for any further operations
+	result = append(result, spec.overname...)
 	result = append(result, spec.layout...)
 	result = append(result, spec.general...)
 	unclashMountEntries(result)
@@ -205,4 +222,32 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		return iface.MountPermanentSlot(spec, slot)
 	}
 	return nil
+}
+
+// AddOvername records mappings of snap directories.
+//
+// When the snap is installed with an instance key, set up its mount namespace
+// such that it appears as a non-instance key snap. This ensures compatibility
+// with code making assumptions about $SNAP{,_DATA,_COMMON} locations. That is,
+// given a snap foo_bar, the mappings added are:
+//
+// - /snap/foo_bar      -> /snap/foo
+// - /var/snap/foo_bar  -> /var/snap/foo
+func (spec *Specification) AddOvername(info *snap.Info) {
+	if info.InstanceKey == "" {
+		return
+	}
+
+	// /snap/foo_bar -> /snap/foo
+	spec.AddOvernameMountEntry(osutil.MountEntry{
+		Name:    path.Join(dirs.CoreSnapMountDir, info.InstanceName()),
+		Dir:     path.Join(dirs.CoreSnapMountDir, info.SnapName()),
+		Options: []string{"rbind", osutil.XSnapdOriginOvername()},
+	})
+	// /var/snap/foo_bar -> /var/snap/foo
+	spec.AddOvernameMountEntry(osutil.MountEntry{
+		Name:    path.Join(dirs.SnapDataDir, info.InstanceName()),
+		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
+		Options: []string{"rbind", osutil.XSnapdOriginOvername()},
+	})
 }

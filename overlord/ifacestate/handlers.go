@@ -617,6 +617,18 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 	return defaultProviders
 }
 
+func obsoleteCorePhase2SetupProfiles(kind string, task *state.Task) (bool, error) {
+	if kind != "setup-profiles" {
+		return false, nil
+	}
+
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	return corePhase2, nil
+}
+
 func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
 	for _, task := range st.Tasks() {
 		if task.Status().Ready() {
@@ -648,6 +660,17 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 
 		// different snaps - no conflict
 		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+			continue
+		}
+
+		// setup-profiles core-phase-2 is now no-op, we shouldn't
+		// conflict on it; note, old snapd would create this task even
+		// for regular snaps if installed with the dangerous flag.
+		obsoleteCorePhase2, err := obsoleteCorePhase2SetupProfiles(k, task)
+		if err != nil {
+			return err
+		}
+		if obsoleteCorePhase2 {
 			continue
 		}
 
@@ -711,6 +734,32 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 	return nil
 }
 
+// inSameChangeWaitChains returns true if there is a wait chain so
+// that `startT` is run before `searchT` in the same state.Change.
+func inSameChangeWaitChain(startT, searchT *state.Task) bool {
+	// Trivial case, tasks in different changes (they could in theory
+	// still have cross-change waits but we don't do these today).
+	// In this case, return quickly.
+	if startT.Change() != searchT.Change() {
+		return false
+	}
+	// Do a recursive check if its in the same change
+	return waitChainSearch(startT, searchT)
+}
+
+func waitChainSearch(startT, searchT *state.Task) bool {
+	for _, cand := range startT.HaltTasks() {
+		if cand == searchT {
+			return true
+		}
+		if waitChainSearch(cand, searchT) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -759,7 +808,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
-				if defaultProviders[snapsup.InstanceName()] {
+				// Only retry if the task that installs the
+				// content provider is not waiting for us
+				// (or this will just hang forever).
+				if defaultProviders[snapsup.InstanceName()] && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
 			}

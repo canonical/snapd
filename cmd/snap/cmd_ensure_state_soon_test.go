@@ -47,7 +47,7 @@ func (s *SnapSuite) TestEnsureStateSoon(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"debug", "ensure-state-soon"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "ensure-state-soon"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "")

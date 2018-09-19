@@ -35,6 +35,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -55,6 +56,7 @@ var (
 )
 
 type cmdRun struct {
+	clientMixin
 	Command  string `long:"command" hidden:"yes"`
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
@@ -93,7 +95,7 @@ and environment.
 		}, nil)
 }
 
-func maybeWaitForSecurityProfileRegeneration() error {
+func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, err := interfaces.SystemKeyMismatch()
@@ -126,7 +128,6 @@ func maybeWaitForSecurityProfileRegeneration() error {
 		}
 	}
 
-	cli := Client()
 	for i := 0; i < timeout; i++ {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
@@ -164,7 +165,7 @@ func (x *cmdRun) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
 
-	if err := maybeWaitForSecurityProfileRegeneration(); err != nil {
+	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
 	}
 

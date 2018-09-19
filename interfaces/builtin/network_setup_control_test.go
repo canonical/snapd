@@ -56,9 +56,9 @@ apps:
 		Name:      "network-setup-control",
 		Interface: "network-setup-control",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	s.plugInfo = consumingSnapInfo.Plugs["network-setup-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *NetworkSetupControlInterfaceSuite) TestName(c *C) {
