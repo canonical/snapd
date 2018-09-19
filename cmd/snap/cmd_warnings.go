@@ -29,8 +29,10 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 type cmdWarnings struct {
@@ -73,17 +75,22 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	now := time.Now()
 
 	warnings, err := cmd.client.Warnings(client.WarningsOptions{All: cmd.All})
 	if err != nil {
 		return err
 	}
 	if len(warnings) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("No new warnings."))
+		if t, _ := lastWarningTimestamp(); t.IsZero() {
+			fmt.Fprintln(Stdout, i18n.G("No warnings."))
+		} else {
+			fmt.Fprintln(Stdout, i18n.G("No further warnings."))
+		}
 		return nil
 	}
 
-	if err := writeWarningTimestamp(time.Now()); err != nil {
+	if err := writeWarningTimestamp(now); err != nil {
 		return err
 	}
 
@@ -98,15 +105,15 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 			i18n.G("Warning"))
 		for _, warning := range warnings {
 			lastShown := "-"
-			if warning.LastShown != nil && !warning.LastShown.IsZero() {
-				lastShown = cmd.fmtTime(*warning.LastShown)
+			if !warning.LastShown.IsZero() {
+				lastShown = cmd.fmtTime(warning.LastShown)
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 				cmd.fmtTime(warning.FirstAdded),
 				cmd.fmtTime(warning.LastAdded),
-				warning.ExpireAfter,
+				quantity.FormatDuration(warning.ExpireAfter.Seconds()),
 				lastShown,
-				warning.RepeatAfter,
+				quantity.FormatDuration(warning.RepeatAfter.Seconds()),
 				warning.Message)
 		}
 	} else {
@@ -140,7 +147,7 @@ func warnFilename(homedir string) string {
 		return fn
 	}
 
-	return filepath.Join(homedir, ".snap", "warning")
+	return filepath.Join(dirs.GlobalRootDir, homedir, ".snap", "warnings")
 }
 
 type clientWarningData struct {
@@ -157,7 +164,12 @@ func writeWarningTimestamp(t time.Time) error {
 		return err
 	}
 
-	aw, err := osutil.NewAtomicFile(warnFilename(user.HomeDir), 0600, 0, uid, gid)
+	filename := warnFilename(user.HomeDir)
+	if err := osutil.MkdirAllChown(filepath.Dir(filename), 0700, uid, gid); err != nil {
+		return err
+	}
+
+	aw, err := osutil.NewAtomicFile(filename, 0600, 0, uid, gid)
 	if err != nil {
 		return err
 	}
