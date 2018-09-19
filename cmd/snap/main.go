@@ -474,7 +474,7 @@ fixed-width fonts, so it can be hard to tell.
 		return nil
 	}
 
-	checkWarnings(cli.WarningsSummary())
+	maybePresentWarnings(cli.WarningsSummary())
 
 	return nil
 }
