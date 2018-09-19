@@ -188,7 +188,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /etc/
-  /etc/ rw,
+  /etc/ r,
   /tmp/.snap/etc/ rw,
   mount options=(rbind, rw) /etc/ -> /tmp/.snap/etc/,
   mount fstype=tmpfs options=(rw) tmpfs -> /etc/,
@@ -208,7 +208,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /snap/ r,
   /snap/vanguard/ r,
   # .. variant with mimic at /snap/vanguard/42/
-  /snap/vanguard/42/ rw,
+  /snap/vanguard/42/ r,
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
@@ -232,7 +232,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /usr/
-  /usr/ rw,
+  /usr/ r,
   /tmp/.snap/usr/ rw,
   mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
   mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
@@ -252,7 +252,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /snap/ r,
   /snap/vanguard/ r,
   # .. variant with mimic at /snap/vanguard/42/
-  /snap/vanguard/42/ rw,
+  /snap/vanguard/42/ r,
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
@@ -267,7 +267,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   umount /snap/vanguard/42/*,
   umount /snap/vanguard/42/*/,
   # .. variant with mimic at /snap/vanguard/42/usr/
-  /snap/vanguard/42/usr/ rw,
+  /snap/vanguard/42/usr/ r,
   /tmp/.snap/snap/vanguard/42/usr/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
@@ -290,7 +290,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /var/
-  /var/ rw,
+  /var/ r,
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
@@ -305,7 +305,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   umount /var/*,
   umount /var/*/,
   # .. variant with mimic at /var/cache/
-  /var/cache/ rw,
+  /var/cache/ r,
   /tmp/.snap/var/cache/ rw,
   mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
   mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
@@ -329,7 +329,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /var/
-  /var/ rw,
+  /var/ r,
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
