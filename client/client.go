@@ -120,7 +120,10 @@ func (client *Client) Maintenance() error {
 	return client.maintenance
 }
 
-func (client *Client) WarningsSummary() (int, time.Time) {
+// WarningsSummary returns the number of warnings that are ready to be shown to
+// the user, and the timestamp of the most recently added warning (useful for
+// silencing the warning alerts, and OKing the returned warnings).
+func (client *Client) WarningsSummary() (count int, timestamp time.Time) {
 	return client.warningCount, client.warningTimestamp
 }
 
