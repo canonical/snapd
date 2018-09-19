@@ -41,6 +41,10 @@ const adbBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// adbVendorList contains the map of USB vendor IDs to vendor name.
+//
+// The map contains the list of vendors that make or made devices that ADB may
+// want to talk to. It was derived from https://forum.snapcraft.io/t//5443/3
 var adbVendorList = map[int]string{
 	0x03f0: "HP",
 	0x03fc: "ECS",
