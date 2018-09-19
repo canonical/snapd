@@ -172,7 +172,7 @@ func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *TestInterfaceSuite) TestHotplugDeviceKeyError(c *C) {
 	iface := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface {
+		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
@@ -190,7 +190,7 @@ func (s *TestInterfaceSuite) TestHotplugDeviceKeyError(c *C) {
 
 func (s *TestInterfaceSuite) TestHotplugDeviceKeyOK(c *C) {
 	iface := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface {
+		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
 		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
@@ -206,7 +206,7 @@ func (s *TestInterfaceSuite) TestHotplugDeviceKeyOK(c *C) {
 
 func (s *TestInterfaceSuite) TestHotplugDeviceDetectedOK(c *C) {
 	iface := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface {
+		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
@@ -225,7 +225,7 @@ func (s *TestInterfaceSuite) TestHotplugDeviceDetectedOK(c *C) {
 
 func (s *TestInterfaceSuite) TestHotplugDeviceDetectedError(c *C) {
 	iface := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface {
+		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
