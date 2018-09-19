@@ -47,8 +47,8 @@ var (
 	ClearBootstrapError = clearBootstrapError
 
 	// trespassing
-	IsReadOnly                 = isReadOnly
-	IsSnapdCreatedPrivateTmpfs = isSnapdCreatedPrivateTmpfs
+	IsReadOnly                   = isReadOnly
+	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.

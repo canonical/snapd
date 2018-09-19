@@ -98,7 +98,7 @@ func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, err
 	}
 	// Writing to a trusted tmpfs is allowed because those are not leaking to
 	// the host.
-	if ok := isSnapdCreatedPrivateTmpfs(dirName, &fsData, as.pastChanges); ok {
+	if ok := isPrivateTmpfsCreatedBySnapd(dirName, &fsData, as.pastChanges); ok {
 		return true, nil
 	}
 	// If writing is not not allowed by one of the three rules above then it is
@@ -195,13 +195,13 @@ func isReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 	return false
 }
 
-// isSnapdCreatedPrivateTmpfs checks whether a directory resides on a tmpfs mounted by snapd
+// isPrivateTmpfsCreatedBySnapd checks whether a directory resides on a tmpfs mounted by snapd
 //
 // The function inspects the directory and a list of changes that were applied
 // to the mount namespace. A directory is trusted if it is a tmpfs that was
 // mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
 // trusted tmpfs are not considered trusted by this function.
-func isSnapdCreatedPrivateTmpfs(dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
+func isPrivateTmpfsCreatedBySnapd(dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
 	// If something is not a tmpfs it cannot be the trusted tmpfs we are looking for.
 	if fsData.Type != TmpfsMagic {
 		return false
