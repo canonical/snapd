@@ -55,5 +55,5 @@ func (s *hotplugSpecSuite) TestAddSlotAlreadyCreated(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `slot specification already created`)
 
-	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"},})
+	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
