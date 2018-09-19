@@ -35,10 +35,9 @@ type Definer interface {
 // SlotSpec is a definition of the slot to create in response to udev event.
 type SlotSpec struct {
 	// Name is the name the interface wants to give to the slot. It can be
-	// left empty, in such case hotplug machinery will auto-generate a name.
-	// If the spec provides a name, it needs to be a syntactically valid
-	// slot name, hotplug machinery will only make sure it's a unique name
-	// by appending numeric suffix if needed.
+	// left empty, in such case hotplug machinery will auto-generate it.
+	// Hotplug machinery make sure the proposed name is unique by appending
+	// numeric suffix if needed.
 	Name  string
 	Label string
 	Attrs map[string]interface{}
