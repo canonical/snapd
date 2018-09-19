@@ -147,7 +147,7 @@ func warnFilename(homedir string) string {
 		return fn
 	}
 
-	return filepath.Join(dirs.GlobalRootDir, homedir, ".snap", "warnings")
+	return filepath.Join(dirs.GlobalRootDir, homedir, ".snap", "warnings.json")
 }
 
 type clientWarningData struct {
@@ -205,7 +205,7 @@ func lastWarningTimestamp() (time.Time, error) {
 	return d.Timestamp, nil
 }
 
-func checkWarnings(count int, timestamp time.Time) {
+func maybePresentWarnings(count int, timestamp time.Time) {
 	if count == 0 {
 		return
 	}

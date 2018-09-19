@@ -193,7 +193,7 @@ func (s *warningSuite) TestListWithWarnings(c *check.C) {
 		c.Check(count, check.Equals, 2)
 		c.Check(stamp, check.Equals, time.Date(2018, 9, 19, 12, 44, 19, 680362867, time.UTC))
 
-		snap.CheckWarnings(count, stamp)
+		snap.MaybePresentWarnings(count, stamp)
 	}
 
 	c.Check(rest, check.HasLen, 0)
