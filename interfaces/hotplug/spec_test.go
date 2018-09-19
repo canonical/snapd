@@ -48,6 +48,18 @@ func (s *hotplugSpecSuite) TestSetSlot(c *C) {
 	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
+func (s *hotplugSpecSuite) TestSetSlotEmptyName(c *C) {
+	spec := NewSpecification()
+	c.Assert(spec.SetSlot(&SlotSpec{Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+}
+
+func (s *hotplugSpecSuite) TestSetSlotInvalidName(c *C) {
+	spec := NewSpecification()
+	err := spec.SetSlot(&SlotSpec{Name: "slot!", Label: "A slot"})
+	c.Assert(err, ErrorMatches, `invalid slot name: "slot!"`)
+}
+
 func (s *hotplugSpecSuite) TestAddSlotAlreadyCreated(c *C) {
 	spec := NewSpecification()
 	c.Assert(spec.SetSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)

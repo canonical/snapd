@@ -59,8 +59,12 @@ func (h *Specification) SetSlot(slotSpec *SlotSpec) error {
 	if h.slot != nil {
 		return fmt.Errorf("slot specification already created")
 	}
-	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
-		return err
+	// only validate name if not empty, otherwise name is created by hotplug
+	// subsystem later on when the spec is processed.
+	if slotSpec.Name != "" {
+		if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
+			return err
+		}
 	}
 	attrs := slotSpec.Attrs
 	if attrs == nil {
