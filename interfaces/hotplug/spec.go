@@ -78,7 +78,7 @@ func (h *Specification) SetSlot(slotSpec *RequestedSlotSpec) error {
 	return nil
 }
 
-// Slot returns specification of the slot created by given interface.
+// Slot returns specification of the slot requested by given interface.
 func (h *Specification) Slot() *RequestedSlotSpec {
 	return h.slot
 }
