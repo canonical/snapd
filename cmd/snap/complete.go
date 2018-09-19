@@ -36,7 +36,7 @@ import (
 type installedSnapName string
 
 func (s installedSnapName) Complete(match string) []flags.Completion {
-	snaps, err := Client().List(nil, nil)
+	snaps, err := mkClient().List(nil, nil)
 	if err != nil {
 		return nil
 	}
@@ -103,7 +103,7 @@ func (s remoteSnapName) Complete(match string) []flags.Completion {
 	if len(match) < 3 {
 		return nil
 	}
-	snaps, _, err := Client().Find(&client.FindOptions{
+	snaps, _, err := mkClient().Find(&client.FindOptions{
 		Prefix: true,
 		Query:  match,
 	})
@@ -147,7 +147,7 @@ func (s anySnapName) Complete(match string) []flags.Completion {
 type changeID string
 
 func (s changeID) Complete(match string) []flags.Completion {
-	changes, err := Client().Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	changes, err := mkClient().Changes(&client.ChangesOptions{Selector: client.ChangesAll})
 	if err != nil {
 		return nil
 	}
@@ -165,7 +165,7 @@ func (s changeID) Complete(match string) []flags.Completion {
 type assertTypeName string
 
 func (n assertTypeName) Complete(match string) []flags.Completion {
-	cli := Client()
+	cli := mkClient()
 	names, err := cli.AssertionTypes()
 	if err != nil {
 		return nil
@@ -295,7 +295,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	parts := strings.SplitN(match, ":", 2)
 
 	// Ask snapd about available interfaces.
-	ifaces, err := Client().Connections()
+	ifaces, err := mkClient().Connections()
 	if err != nil {
 		return nil
 	}
@@ -386,7 +386,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 type interfaceName string
 
 func (s interfaceName) Complete(match string) []flags.Completion {
-	ifaces, err := Client().Interfaces(nil)
+	ifaces, err := mkClient().Interfaces(nil)
 	if err != nil {
 		return nil
 	}
@@ -404,7 +404,7 @@ func (s interfaceName) Complete(match string) []flags.Completion {
 type appName string
 
 func (s appName) Complete(match string) []flags.Completion {
-	cli := Client()
+	cli := mkClient()
 	apps, err := cli.Apps(nil, client.AppOptions{})
 	if err != nil {
 		return nil
@@ -428,7 +428,7 @@ func (s appName) Complete(match string) []flags.Completion {
 type serviceName string
 
 func (s serviceName) Complete(match string) []flags.Completion {
-	cli := Client()
+	cli := mkClient()
 	apps, err := cli.Apps(nil, client.AppOptions{Service: true})
 	if err != nil {
 		return nil
@@ -453,7 +453,7 @@ func (s serviceName) Complete(match string) []flags.Completion {
 type aliasOrSnap string
 
 func (s aliasOrSnap) Complete(match string) []flags.Completion {
-	aliases, err := Client().Aliases()
+	aliases, err := mkClient().Aliases()
 	if err != nil {
 		return nil
 	}

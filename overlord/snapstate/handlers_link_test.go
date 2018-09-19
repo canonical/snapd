@@ -64,7 +64,12 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	s.setup(c, s.stateBackend)
 
-	snapstate.MockModel()
+	snapstate.SetDefaultModel()
+}
+
+func (s *linkSnapSuite) TearDownTest(c *C) {
+	s.baseHandlerSuite.TearDownTest(c)
+	snapstate.Model = nil
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
@@ -385,8 +390,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = snapstate.MockModelWithBase("core18")
-	defer restore()
+	snapstate.SetModelWithBase("core18")
 
 	s.state.Lock()
 	si := &snap.SideInfo{

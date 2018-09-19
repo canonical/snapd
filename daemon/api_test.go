@@ -398,12 +398,14 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 	return df
 }
 
-func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
-	snapID := name + "-id"
+func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+
+	snapID := snapName + "-id"
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:   snapID,
-		RealName: name,
+		RealName: snapName,
 		Revision: revision,
 		Channel:  "stable",
 	}
@@ -412,14 +414,15 @@ func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, deve
 	yamlText := fmt.Sprintf(`
 name: %s
 version: %s
-%s`, name, version, extraYaml)
+%s`, snapName, version, extraYaml)
 
 	// Mock the snap on disk
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, yamlText, sideInfo)
 	if active {
 		dir, rev := filepath.Split(snapInfo.MountDir())
 		c.Assert(os.Symlink(rev, dir+"current"), check.IsNil)
 	}
+	c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -448,7 +451,7 @@ version: %s
 		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 			"series":       "16",
 			"snap-id":      snapID,
-			"snap-name":    name,
+			"snap-name":    snapName,
 			"publisher-id": devAcct.AccountID(),
 			"timestamp":    time.Now().Format(time.RFC3339),
 		}, nil, "")
@@ -476,13 +479,14 @@ version: %s
 		c.Assert(err, check.IsNil)
 
 		var snapst snapstate.SnapState
-		snapstate.Get(st, name, &snapst)
+		snapstate.Get(st, instanceName, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
 		snapst.Channel = "stable"
+		snapst.InstanceKey = instanceKey
 
-		snapstate.Set(st, name, &snapst)
+		snapstate.Set(st, instanceName, &snapst)
 	}
 
 	return snapInfo
@@ -1532,18 +1536,24 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(2), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(3), true, "")
+	s.mkInstalledInState(c, d, "local_foo", "foo", "v4", snap.R(4), true, "")
 
+	expectedHappy := map[string]bool{
+		"local":     true,
+		"local_foo": true,
+	}
 	for _, t := range []struct {
 		q        string
 		numSnaps int
 		typ      ResponseType
 	}{
-		{"?select=enabled", 1, "sync"},
-		{`?select=`, 1, "sync"},
-		{"", 1, "sync"},
-		{"?select=all", 3, "sync"},
+		{"?select=enabled", 2, "sync"},
+		{`?select=`, 2, "sync"},
+		{"", 2, "sync"},
+		{"?select=all", 4, "sync"},
 		{"?select=invalid-field", 0, "error"},
 	} {
+		c.Logf("trying: %v", t)
 		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/snaps%s", t.q), nil)
 		c.Assert(err, check.IsNil)
 		rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
@@ -1552,7 +1562,11 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 		if rsp.Type != "error" {
 			snaps := snapList(rsp.Result)
 			c.Assert(snaps, check.HasLen, t.numSnaps)
-			c.Assert(snaps[0]["name"], check.Equals, "local")
+			seen := map[string]bool{}
+			for _, s := range snaps {
+				seen[s["name"].(string)] = true
+			}
+			c.Assert(seen, check.DeepEquals, expectedHappy)
 		}
 	}
 }
@@ -3898,27 +3912,27 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
-					"snap":      "CONSUMER",
+					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "PRODUCER", "slot": "slot"},
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "PRODUCER",
+					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "CONSUMER", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
@@ -3963,7 +3977,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 				"name": "test",
 				"plugs": []interface{}{
 					map[string]interface{}{
-						"snap":  "CONSUMER",
+						"snap":  "consumer",
 						"plug":  "plug",
 						"label": "label",
 						"attrs": map[string]interface{}{
@@ -3972,7 +3986,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 					}},
 				"slots": []interface{}{
 					map[string]interface{}{
-						"snap":  "PRODUCER",
+						"snap":  "producer",
 						"slot":  "slot",
 						"label": "label",
 						"attrs": map[string]interface{}{
@@ -7269,6 +7283,61 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	})
 }
 
+func (s *apiSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result interface{}) {
+	s.daemon(c)
+
+	oldOK := stateOkayWarnings
+	oldAll := stateAllWarnings
+	oldPending := statePendingWarnings
+	stateOkayWarnings = func(*state.State, time.Time) int { calls += "ok"; return 0 }
+	stateAllWarnings = func(*state.State) []*state.Warning { calls += "all"; return nil }
+	statePendingWarnings = func(*state.State) ([]*state.Warning, time.Time) { calls += "show"; return nil, time.Time{} }
+	defer func() {
+		stateOkayWarnings = oldOK
+		stateAllWarnings = oldAll
+		statePendingWarnings = oldPending
+	}()
+
+	method := "GET"
+	f := warningsCmd.GET
+	if body != nil {
+		method = "POST"
+		f = warningsCmd.POST
+	}
+	q := url.Values{}
+	if all {
+		q.Set("select", "all")
+	}
+	req, err := http.NewRequest(method, "/v2/warnings?"+q.Encode(), body)
+	c.Assert(err, check.IsNil)
+
+	rsp, ok := f(warningsCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.NotNil)
+	return calls, rsp.Result
+}
+
+func (s *apiSuite) TestAllWarnings(c *check.C) {
+	calls, result := s.testWarnings(c, true, nil)
+	c.Check(calls, check.Equals, "all")
+	c.Check(result, check.DeepEquals, []state.Warning{})
+}
+
+func (s *apiSuite) TestSomeWarnings(c *check.C) {
+	calls, result := s.testWarnings(c, false, nil)
+	c.Check(calls, check.Equals, "show")
+	c.Check(result, check.DeepEquals, []state.Warning{})
+}
+
+func (s *apiSuite) TestAckWarnings(c *check.C) {
+	calls, result := s.testWarnings(c, false, bytes.NewReader([]byte(`{"action": "okay", "timestamp": "2006-01-02T15:04:05Z"}`)))
+	c.Check(calls, check.Equals, "ok")
+	c.Check(result, check.DeepEquals, 0)
+}
+
 func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
@@ -7316,7 +7385,6 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			},
 		},
 	})
-
 }
 
 func (s *appSuite) TestErrToResponse(c *check.C) {
