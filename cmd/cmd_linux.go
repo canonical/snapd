@@ -42,13 +42,13 @@ import (
 const reExecKey = "SNAP_REEXEC"
 
 var (
-	// newCore is the place to look for the core snap; everything in this
-	// location will be new enough to re-exec into.
-	newCore = "/snap/core/current"
+	// snapdSnap is the place to look for the snapd snap; we will re-exec
+	// here
+	snapdSnap = "/snap/snapd/current"
 
-	// oldCore is the previous location of the core snap. Only things
-	// newer than minOldRevno will be ok to re-exec into.
-	oldCore = "/snap/ubuntu-core/current"
+	// coreSnap is the place to look for the core snap; we will re-exec
+	// here if there is no snapd snap
+	coreSnap = "/snap/core/current"
 
 	// selfExe is the path to a symlink pointing to the current executable
 	selfExe = "/proc/self/exe"
@@ -95,7 +95,7 @@ func coreSupportsReExec(corePath string) bool {
 	// > 0 means our Version is bigger than the version of snapd in core
 	res, err := strutil.VersionCompare(Version, ver[1])
 	if err != nil {
-		logger.Debugf("cannot version compare %q and %q: %s", Version, ver[1], res)
+		logger.Debugf("cannot version compare %q and %q: %v", Version, ver[1], res)
 		return false
 	}
 	if res > 0 {
@@ -147,9 +147,9 @@ func mustUnsetenv(key string) {
 	}
 }
 
-// ExecInCoreSnap makes sure you're executing the binary that ships in
-// the core snap.
-func ExecInCoreSnap() {
+// ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
+// the snapd/core snap.
+func ExecInSnapdOrCoreSnap() {
 	// Which executable are we?
 	exe, err := os.Readlink(selfExe)
 	if err != nil {
@@ -185,11 +185,11 @@ func ExecInCoreSnap() {
 	}
 
 	// Is this executable in the core snap too?
-	corePath := newCore
-	full := filepath.Join(newCore, exe)
+	corePath := snapdSnap
+	full := filepath.Join(snapdSnap, exe)
 	if !osutil.FileExists(full) {
-		corePath = oldCore
-		full = filepath.Join(oldCore, exe)
+		corePath = coreSnap
+		full = filepath.Join(coreSnap, exe)
 		if !osutil.FileExists(full) {
 			return
 		}

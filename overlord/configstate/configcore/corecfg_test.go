@@ -119,6 +119,7 @@ func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 		"experimental.layouts":            "foo",
 		"experimental.parallel-instances": "foo",
 		"experimental.hotplug":            "foo",
+		"experimental.snapd-snap":         "foo",
 	} {
 		conf := &mockConf{
 			state: r.state,

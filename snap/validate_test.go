@@ -223,6 +223,7 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 		{Name: "aa-a"},
 		{Name: "a-aa"},
 		{Name: "a-b-c"},
+		{Name: "valid", CommandChain: []string{"valid"}},
 	}
 	for _, hook := range validHooks {
 		err := ValidateHook(hook)
@@ -242,6 +243,14 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 	for _, hook := range invalidHooks {
 		err := ValidateHook(hook)
 		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
+	}
+	invalidHooks = []*HookInfo{
+		{Name: "valid", CommandChain: []string{"in'valid"}},
+		{Name: "valid", CommandChain: []string{"in valid"}},
+	}
+	for _, hook := range invalidHooks {
+		err := ValidateHook(hook)
+		c.Assert(err, ErrorMatches, `hook command-chain contains illegal.*`)
 	}
 }
 

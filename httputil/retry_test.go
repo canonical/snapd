@@ -361,7 +361,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 
 	defer close(finished)
 
-	cli := httputil.NewHTTPClient(&httputil.ClientOpts{
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout: 50 * time.Millisecond,
 	})
 

@@ -26,6 +26,13 @@ install_local() {
     snap install --dangerous "$@" "$SNAP_FILE"
 }
 
+install_local_as() {
+    local snap="$1"
+    local name="$2"
+    shift 2
+    install_local "$snap" --name "$name" "$@"
+}
+
 install_local_devmode() {
     install_local "$1" --devmode
 }

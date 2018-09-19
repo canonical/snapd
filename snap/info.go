@@ -421,7 +421,8 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
+// snap's mount namespace.
 func (s *Info) ExpandSnapVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
@@ -431,11 +432,11 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
 			// TODO parallel-install: use of proper instance/store name
-			return filepath.Join(dirs.CoreSnapMountDir, s.InstanceName(), s.Revision.String())
+			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
-			return s.DataDir()
+			return DataDir(s.SnapName(), s.Revision)
 		case "SNAP_COMMON":
-			return s.CommonDataDir()
+			return CommonDataDir(s.SnapName())
 		}
 		return ""
 	})
@@ -741,7 +742,8 @@ type HookInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment strutil.OrderedMap
+	Environment  strutil.OrderedMap
+	CommandChain []string
 }
 
 // File returns the path to the *.socket file
@@ -1076,19 +1078,12 @@ func InstanceName(snapName, instanceKey string) string {
 	return snapName
 }
 
-// ByType sorts the given slice of snap info by types. The most
-// important types will come first. The "snapd" snap is handled
-// as well.
+// ByType supports sorting the given slice of snap info by types. The most
+// important types will come first.
 type ByType []*Info
 
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	if r[i].SideInfo.RealName == "snapd" {
-		return true
-	}
-	if r[j].SideInfo.RealName == "snapd" {
-		return false
-	}
-	return typeOrder[r[i].Type] < typeOrder[r[j].Type]
+	return r[i].Type.SortsBefore(r[j].Type)
 }

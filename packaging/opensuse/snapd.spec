@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.35
+Version:        2.35.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -281,9 +281,6 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
-# move snapd-generator
-install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/
 
 # Don't ship apparmor helper service when AppArmor is not enabled
 %if ! %{with apparmor}
@@ -358,6 +355,7 @@ fi
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.*
 %{_mandir}/man5/snap-discard-ns.5.*
+%{_mandir}/man7/snapd-env-generator.7*
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
@@ -398,6 +396,7 @@ fi
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %{_environmentdir}/990-snapd.conf
+%{_prefix}/lib/systemd/system-environment-generators/snapd-env-generator
 
 %changelog
 

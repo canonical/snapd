@@ -7,3 +7,7 @@ apps:
   hello:
     command: hello
     command-chain: [chain1, chain2]
+
+hooks:
+  configure:
+    command-chain: [chain1, chain2]
