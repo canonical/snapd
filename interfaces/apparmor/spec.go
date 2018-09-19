@@ -291,8 +291,8 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
 		// Describe the variant
 		fmt.Fprintf(buf, "  # .. variant with mimic at %s\n", mimicPath)
-		// Allow creating the mimic directory.
-		fmt.Fprintf(buf, "  %s rw,\n", mimicPath)
+		// Allow reading the mimic directory, it must exist in the first place.
+		fmt.Fprintf(buf, "  %s r,\n", mimicPath)
 		// Allow setting the read-only directory aside via a bind mount.
 		fmt.Fprintf(buf, "  %s rw,\n", mimicAuxPath)
 		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)

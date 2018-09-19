@@ -316,7 +316,7 @@ slots:
   # Writable mimic /snap/producer/5
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
-  / rw,
+  / r,
   /tmp/.snap/ rw,
   mount options=(rbind, rw) / -> /tmp/.snap/,
   mount fstype=tmpfs options=(rw) tmpfs -> /,
@@ -331,7 +331,7 @@ slots:
   umount /*,
   umount /*/,
   # .. variant with mimic at /snap/
-  /snap/ rw,
+  /snap/ r,
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
@@ -346,7 +346,7 @@ slots:
   umount /snap/*,
   umount /snap/*/,
   # .. variant with mimic at /snap/producer/
-  /snap/producer/ rw,
+  /snap/producer/ r,
   /tmp/.snap/snap/producer/ rw,
   mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
@@ -361,7 +361,7 @@ slots:
   umount /snap/producer/*,
   umount /snap/producer/*/,
   # .. variant with mimic at /snap/producer/5/
-  /snap/producer/5/ rw,
+  /snap/producer/5/ r,
   /tmp/.snap/snap/producer/5/ rw,
   mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
@@ -378,7 +378,7 @@ slots:
   # Writable mimic /snap/consumer/7
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
-  / rw,
+  / r,
   /tmp/.snap/ rw,
   mount options=(rbind, rw) / -> /tmp/.snap/,
   mount fstype=tmpfs options=(rw) tmpfs -> /,
@@ -393,7 +393,7 @@ slots:
   umount /*,
   umount /*/,
   # .. variant with mimic at /snap/
-  /snap/ rw,
+  /snap/ r,
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
@@ -408,7 +408,7 @@ slots:
   umount /snap/*,
   umount /snap/*/,
   # .. variant with mimic at /snap/consumer/
-  /snap/consumer/ rw,
+  /snap/consumer/ r,
   /tmp/.snap/snap/consumer/ rw,
   mount options=(rbind, rw) /snap/consumer/ -> /tmp/.snap/snap/consumer/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/,
@@ -423,7 +423,7 @@ slots:
   umount /snap/consumer/*,
   umount /snap/consumer/*/,
   # .. variant with mimic at /snap/consumer/7/
-  /snap/consumer/7/ rw,
+  /snap/consumer/7/ r,
   /tmp/.snap/snap/consumer/7/ rw,
   mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
@@ -719,7 +719,7 @@ slots:
   # Writable mimic /snap/producer/2
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
-  / rw,
+  / r,
   /tmp/.snap/ rw,
   mount options=(rbind, rw) / -> /tmp/.snap/,
   mount fstype=tmpfs options=(rw) tmpfs -> /,
@@ -734,7 +734,7 @@ slots:
   umount /*,
   umount /*/,
   # .. variant with mimic at /snap/
-  /snap/ rw,
+  /snap/ r,
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
@@ -749,7 +749,7 @@ slots:
   umount /snap/*,
   umount /snap/*/,
   # .. variant with mimic at /snap/producer/
-  /snap/producer/ rw,
+  /snap/producer/ r,
   /tmp/.snap/snap/producer/ rw,
   mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
@@ -764,7 +764,7 @@ slots:
   umount /snap/producer/*,
   umount /snap/producer/*/,
   # .. variant with mimic at /snap/producer/2/
-  /snap/producer/2/ rw,
+  /snap/producer/2/ r,
   /tmp/.snap/snap/producer/2/ rw,
   mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
