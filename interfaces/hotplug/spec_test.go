@@ -44,28 +44,28 @@ func (s *hotplugSpecSuite) TearDownTest(c *C) {
 
 func (s *hotplugSpecSuite) TestSetSlot(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.SetSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
-	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(spec.SetSlot(&RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	c.Assert(spec.Slot(), DeepEquals, &RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
 func (s *hotplugSpecSuite) TestSetSlotEmptyName(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.SetSlot(&SlotSpec{Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
-	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(spec.SetSlot(&RequestedSlotSpec{Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	c.Assert(spec.Slot(), DeepEquals, &RequestedSlotSpec{Name: "", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
 func (s *hotplugSpecSuite) TestSetSlotInvalidName(c *C) {
 	spec := NewSpecification()
-	err := spec.SetSlot(&SlotSpec{Name: "slot!", Label: "A slot"})
+	err := spec.SetSlot(&RequestedSlotSpec{Name: "slot!", Label: "A slot"})
 	c.Assert(err, ErrorMatches, `invalid slot name: "slot!"`)
 }
 
 func (s *hotplugSpecSuite) TestAddSlotAlreadyCreated(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.SetSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
-	err := spec.SetSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(spec.SetSlot(&RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	err := spec.SetSlot(&RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `slot specification already created`)
 
-	c.Assert(spec.Slot(), DeepEquals, &SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(spec.Slot(), DeepEquals, &RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
