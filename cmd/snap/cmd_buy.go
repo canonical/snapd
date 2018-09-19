@@ -36,6 +36,7 @@ The buy command buys a snap from the store.
 `)
 
 type cmdBuy struct {
+	clientMixin
 	Positional struct {
 		SnapName remoteSnapName
 	} `positional-args:"yes" required:"yes"`
@@ -56,12 +57,10 @@ func (x *cmdBuy) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return buySnap(string(x.Positional.SnapName))
+	return buySnap(x.client, string(x.Positional.SnapName))
 }
 
-func buySnap(snapName string) error {
-	cli := Client()
-
+func buySnap(cli *client.Client, snapName string) error {
 	user := cli.LoggedInUser()
 	if user == nil {
 		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
@@ -112,7 +111,7 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name, snap.Name
 for %s. Press ctrl-c to cancel.`), snap.Name, snap.Publisher.Username, formatPrice(opts.Price, opts.Currency))
 	fmt.Fprint(Stdout, "\n")
 
-	err = requestLogin(user.Email)
+	err = requestLogin(cli, user.Email)
 	if err != nil {
 		return err
 	}

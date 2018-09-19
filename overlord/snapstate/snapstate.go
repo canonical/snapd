@@ -67,7 +67,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			tr := config.NewTransaction(st)
+			experimentalAllowSnapd, err := getFeatureFlagBool(tr, "experimental.snapd-snap")
+			if err != nil && !config.IsNoOption(err) {
+				return nil, err
+			}
+			if !experimentalAllowSnapd {
+				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			}
 		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {
@@ -496,7 +503,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-// InstallPath returns a set of tasks for installing snap from a file path.
+// InstallPath returns a set of tasks for installing a snap from a file path
+// and the snap.Info for the given snap.
+//
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it
@@ -662,7 +671,10 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, nil, err
@@ -691,10 +703,14 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	}
 
-	return doUpdate(st, names, updates, params, userID)
+	return doUpdate(ctx, st, names, updates, params, userID, flags)
 }
 
-func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags) ([]string, []*state.TaskSet, error) {
+	if globalFlags == nil {
+		globalFlags = &Flags{}
+	}
+
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 
 	refreshAll := len(names) == 0
@@ -749,7 +765,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	// and bases and then other snaps
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
-
+		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
@@ -1068,7 +1084,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
 	if err != nil {
 		return nil, err
 	}
@@ -1182,7 +1198,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 		}
 	}
 
-	return UpdateMany(ctx, st, nil, userID)
+	return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
 }
 
 // Enable sets a snap to the active state

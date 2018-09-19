@@ -212,6 +212,14 @@ func ValidateHook(hook *HookInfo) error {
 	if !valid {
 		return fmt.Errorf("invalid hook name: %q", hook.Name)
 	}
+
+	// Also validate the command chain
+	for _, value := range hook.CommandChain {
+		if !commandChainContentWhitelist.MatchString(value) {
+			return fmt.Errorf("hook command-chain contains illegal %q (legal: '%s')", value, commandChainContentWhitelist)
+		}
+	}
+
 	return nil
 }
 

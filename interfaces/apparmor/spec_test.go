@@ -90,8 +90,8 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.spec = &apparmor.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *specSuite) TearDownTest(c *C) {
@@ -170,7 +170,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
 	defer restore()
 
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
 			"# Layout path: /etc/foo.conf\n/etc/foo.conf mrwklix,",
@@ -419,4 +419,43 @@ func (s *specSuite) TestChopTree(c *C) {
 			c.Assert(err, ErrorMatches, tc.e, comment)
 		}
 	}
+}
+
+const snapTrivial = `
+name: some-snap
+version: 0
+apps:
+  app:
+    command: app-command
+`
+
+func (s *specSuite) TestApparmorOvernameSnippetsNotInstanceKeyed(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapTrivial, &snap.SideInfo{Revision: snap.R(42)})
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap.app"})
+	defer restore()
+
+	s.spec.AddOvername(snapInfo)
+	c.Assert(s.spec.Snippets(), HasLen, 0)
+	// non instance-keyed snaps require no extra snippets
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+}
+
+func (s *specSuite) TestApparmorOvernameSnippets(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapTrivial, &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo.InstanceKey = "instance"
+
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap_instace.app"})
+	defer restore()
+
+	s.spec.AddOvername(snapInfo)
+	c.Assert(s.spec.Snippets(), HasLen, 0)
+
+	updateNS := s.spec.UpdateNS()
+	c.Assert(updateNS, HasLen, 1)
+
+	profile := `  # Allow parallel instance snap mount namespace adjustments
+  mount options=(rw rbind) /snap/some-snap_instance/ -> /snap/some-snap/,
+  mount options=(rw rbind) /var/snap/some-snap_instance/ -> /var/snap/some-snap/,
+`
+	c.Assert(updateNS[0], Equals, profile)
 }

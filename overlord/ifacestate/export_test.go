@@ -20,6 +20,7 @@ package ifacestate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -31,6 +32,7 @@ var (
 	ConnectPriv                  = connect
 	GetConns                     = getConns
 	SetConns                     = setConns
+	InSameChangeWaitChain        = inSameChangeWaitChain
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -47,6 +49,22 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
+}
+
+func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface) (restore func()) {
+	old := createUDevMonitor
+	createUDevMonitor = new
+	return func() {
+		createUDevMonitor = old
+	}
+}
+
+func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {
+	old := udevInitRetryTimeout
+	udevInitRetryTimeout = t
+	return func() {
+		udevInitRetryTimeout = old
+	}
 }
 
 // UpperCaseConnState returns a canned connection state map.
