@@ -19,6 +19,8 @@
 
 package main
 
+//go:generate mkauthors.sh
+
 import (
 	"fmt"
 	"math/rand"
