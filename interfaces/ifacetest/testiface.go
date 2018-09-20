@@ -410,6 +410,8 @@ func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *
 	return nil
 }
 
+// Support for interacting with hotplug subsystem.
+
 func (t *TestHotplugInterface) HotplugDeviceKey(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 	if t.HotplugDeviceKeyCallback != nil {
 		return t.HotplugDeviceKeyCallback(deviceInfo)
