@@ -52,6 +52,7 @@ Nested values may be retrieved via a dotted path:
 `)
 
 type cmdGet struct {
+	clientMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
 		Keys []string
@@ -239,8 +240,7 @@ func (x *cmdGet) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
-	cli := Client()
-	conf, err := cli.Conf(snapName, confKeys)
+	conf, err := x.client.Conf(snapName, confKeys)
 	if err != nil {
 		return err
 	}
