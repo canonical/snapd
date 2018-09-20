@@ -201,23 +201,14 @@ func (s *mountSnapSuite) TestDoMountSnapErrorSetupSnap(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	si1 := &snap.SideInfo{
-		RealName: "borken-in-setup",
-		Revision: snap.R(1),
-	}
-	si2 := &snap.SideInfo{
+	si := &snap.SideInfo{
 		RealName: "borken-in-setup",
 		Revision: snap.R(2),
 	}
-	snapstate.Set(s.state, "borken-in-setup", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
-		Current:  si1.Revision,
-		SnapType: "app",
-	})
 
 	t := s.state.NewTask("mount-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: si2,
+		SideInfo: si,
 		SnapPath: testSnap,
 	})
 	chg := s.state.NewChange("dummy", "...")
@@ -237,7 +228,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorSetupSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
-			old: filepath.Join(dirs.SnapMountDir, "borken-in-setup/1"),
+			old: "<no-current>",
 		},
 		{
 			op:    "setup-snap",
