@@ -818,13 +818,13 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidation(
 	err = assertstate.Add(s.state, snapDeclBar)
 	c.Assert(err, IsNil)
 
-	fooBarRefresh := &snap.Info{
+	fooInstanceRefresh := &snap.Info{
 		SideInfo:    snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
-		InstanceKey: "bar",
+		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooBarRefresh}, nil, 0)
-	c.Assert(err, ErrorMatches, `cannot refresh "foo_bar" to revision 9: no validation by "bar"`)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, nil, 0)
+	c.Assert(err, ErrorMatches, `cannot refresh "foo_instance" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
 }
 
@@ -886,9 +886,10 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true, "foo": true}, 0)
-	c.Assert(err, IsNil)
-	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh, fooInstanceRefresh})
+	// validation is ignore for foo_instance but not for foo
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0)
+	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
+	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
 
 func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationButIgnoreInstanceKeyed(c *C) {
