@@ -115,7 +115,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -234,7 +234,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -332,7 +332,7 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -368,7 +368,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -404,7 +404,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -449,7 +449,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello

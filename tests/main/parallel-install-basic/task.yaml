@@ -1,0 +1,92 @@
+summary: Checks for parallel installation of a local snap files
+
+prepare: |
+    # ensure we have no snap user data directory yet
+    rm -rf /home/test/snap
+    rm -rf /var/snap/test-snapd-tools /var/snap/test-snapd-tools_foo
+
+    snap set system experimental.parallel-instances=true
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    devmode=
+    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
+        # TODO parallel-install: disable devmode once AppArmor profile updates
+        # are in
+        devmode=--devmode
+    fi
+
+    install_local test-snapd-tools
+    install_local_as test-snapd-tools test-snapd-tools_foo $devmode
+
+    su -l -c '! test -d ~/snap/test-snapd-tools' test
+    su -l -c '! test -d ~/snap/test-snapd-tools_foo' test
+
+    su -l -c 'test-snapd-tools_foo.cmd echo foo' test | MATCH foo
+    su -l -c 'test -d ~/snap/test-snapd-tools' test
+    su -l -c 'test -d ~/snap/test-snapd-tools_foo' test
+
+    # instance environment variables are correctly set up
+    su -l -c 'test-snapd-tools_foo.env' test > snap_foo-env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools_foo'                      < snap_foo-env.txt
+    MATCH 'SNAP_NAME=test-snapd-tools'                                   < snap_foo-env.txt
+    MATCH 'SNAP_INSTANCE_KEY=foo'                                        < snap_foo-env.txt
+    MATCH 'SNAP=/snap/test-snapd-tools/x1'                               < snap_foo-env.txt
+    MATCH 'SNAP_COMMON=/var/snap/test-snapd-tools/common'                < snap_foo-env.txt
+    MATCH 'SNAP_DATA=/var/snap/test-snapd-tools/x1'                      < snap_foo-env.txt
+    MATCH 'SNAP_USER_DATA=/home/test/snap/test-snapd-tools_foo/x1'       < snap_foo-env.txt
+    MATCH 'SNAP_USER_COMMON=/home/test/snap/test-snapd-tools_foo/common' < snap_foo-env.txt
+
+    # and non-instance one's are too
+    su -l -c 'test-snapd-tools.env' test > snap-env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-tools'           < snap-env.txt
+    MATCH 'SNAP_NAME=test-snapd-tools'                    < snap-env.txt
+    MATCH 'SNAP_INSTANCE_KEY=$'                           < snap-env.txt
+    MATCH 'SNAP=/snap/test-snapd-tools/x1'                < snap-env.txt
+
+    mkdir /var/snap/test-snapd-tools_foo/common/foobar
+    chown test:test /var/snap/test-snapd-tools_foo/common/foobar
+    echo canary-instance > /var/snap/test-snapd-tools_foo/common/foobar/data
+
+    mkdir /var/snap/test-snapd-tools/common/foobar
+    chown test:test /var/snap/test-snapd-tools/common/foobar
+    echo canary-regular > /var/snap/test-snapd-tools/common/foobar/data
+
+    echo "Make sure snap data writes and reads work"
+
+    # instance can access its data
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_COMMON/foobar/data'" test | MATCH canary-instance
+    # non-instance sees its data
+    su -l -c "test-snapd-tools.cmd sh -c 'cat \$SNAP_COMMON/foobar/data'" test | MATCH canary-regular
+
+    # instance can write data
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello from instance \$SNAP_INSTANCE_NAME > \$SNAP_COMMON/foobar/hello'" test
+    MATCH 'hello from instance test-snapd-tools_foo' < /var/snap/test-snapd-tools_foo/common/foobar/hello
+    # and the file is not visible in non instance snap
+    su -l -c "test-snapd-tools.cmd sh -c 'cat \$SNAP_COMMON/foobar/hello || true'" test 2>&1 | MATCH 'cat: /var/snap/test-snapd-tools/common/foobar/hello: No such file or directory'
+
+    echo "Make sure snap user data writes work"
+    echo canary-instance-snap > /home/test/snap/test-snapd-tools_foo/x1/canary
+    chown test:test /home/test/snap/test-snapd-tools_foo/x1/canary
+    echo canary-instance-common > /home/test/snap/test-snapd-tools_foo/common/canary
+    chown test:test /home/test/snap/test-snapd-tools_foo/common/canary
+
+    # instance snap can write to user data
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
+    MATCH 'hello user data from test-snapd-tools_foo' < /home/test/snap/test-snapd-tools_foo/x1/data
+    # the file not present in non-instance snap data
+    ! test -f /home/test/snap/test-snapd-tools/x1/data
+
+    # instance snap can write to common user data
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_COMMON/data'" test
+    MATCH 'hello user data from test-snapd-tools_foo' < /home/test/snap/test-snapd-tools_foo/common/data
+    # the file not present in non-instance snap data
+    ! test -f /home/test/snap/test-snapd-tools/common/data
+
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_COMMON/canary'" test | MATCH canary-instance-common
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_DATA/canary'" test | MATCH canary-instance-snap
+
+restore:
+    snap set system experimental.parallel-instances=null

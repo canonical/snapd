@@ -32,21 +32,19 @@ type Definer interface {
 	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
 }
 
-// SlotSpec is a definition of the slot to create in response to udev event.
-type SlotSpec struct {
-	// Name is the name the interface wants to give to the slot. It can be
-	// left empty, in such case hotplug machinery will auto-generate a name.
-	// If the spec provides a name, it needs to be a syntactically valid
-	// slot name, hotplug machinery will only make sure it's a unique name
-	// by appending numeric suffix if needed.
+// RequestedSlotSpec is a definition of the slot to create in response to hotplug event.
+type RequestedSlotSpec struct {
+	// Name is how the interface wants to name the slot. When left empty,
+	// one will be generated on demand. The hotplug machinery appends a
+	// suffix to ensure uniqueness of the name.
 	Name  string
 	Label string
 	Attrs map[string]interface{}
 }
 
-// Specification contains a slot definition to create in response to uevent.
+// Specification contains a slot definition to create in response to hotplug event
 type Specification struct {
-	slot *SlotSpec
+	slot *RequestedSlotSpec
 }
 
 // NewSpecification creates an empty hotplug Specification.
@@ -55,12 +53,16 @@ func NewSpecification() *Specification {
 }
 
 // SetSlot adds a specification of a slot.
-func (h *Specification) SetSlot(slotSpec *SlotSpec) error {
+func (h *Specification) SetSlot(slotSpec *RequestedSlotSpec) error {
 	if h.slot != nil {
 		return fmt.Errorf("slot specification already created")
 	}
-	if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
-		return err
+	// only validate name if not empty, otherwise name is created by hotplug
+	// subsystem later on when the spec is processed.
+	if slotSpec.Name != "" {
+		if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
+			return err
+		}
 	}
 	attrs := slotSpec.Attrs
 	if attrs == nil {
@@ -68,7 +70,7 @@ func (h *Specification) SetSlot(slotSpec *SlotSpec) error {
 	} else {
 		attrs = utils.CopyAttributes(slotSpec.Attrs)
 	}
-	h.slot = &SlotSpec{
+	h.slot = &RequestedSlotSpec{
 		Name:  slotSpec.Name,
 		Label: slotSpec.Label,
 		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
@@ -76,7 +78,7 @@ func (h *Specification) SetSlot(slotSpec *SlotSpec) error {
 	return nil
 }
 
-// Slot returns specification of the slot created by given interface.
-func (h *Specification) Slot() *SlotSpec {
+// Slot returns specification of the slot requested by given interface.
+func (h *Specification) Slot() *RequestedSlotSpec {
 	return h.slot
 }

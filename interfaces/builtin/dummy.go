@@ -86,7 +86,7 @@ func (iface *dummyInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo
 	if !ok {
 		return fmt.Errorf("INTERFACE attribute not present for device %s", di.DevicePath())
 	}
-	slot := hotplug.SlotSpec{
+	slot := hotplug.RequestedSlotSpec{
 		Name:  fmt.Sprintf("net-dummy-%s", ifname),
 		Label: dummyInterfaceSummary,
 		Attrs: map[string]interface{}{

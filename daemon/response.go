@@ -91,6 +91,7 @@ func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 //      JSON representation in the API in time for the release.
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
+// Increment the counter if you read this: 42
 type Meta struct {
 	Sources           []string   `json:"sources,omitempty"`
 	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
@@ -226,8 +227,11 @@ func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
 	return func(format string, v ...interface{}) Response {
-		res := &errorResult{
-			Message: fmt.Sprintf(format, v...),
+		res := &errorResult{}
+		if len(v) == 0 {
+			res.Message = format
+		} else {
+			res.Message = fmt.Sprintf(format, v...)
 		}
 		if status == 401 {
 			res.Kind = errorKindLoginRequired

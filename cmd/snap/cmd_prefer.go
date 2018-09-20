@@ -52,12 +52,11 @@ func (x *cmdPrefer) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-	id, err := cli.Prefer(string(x.Positionals.Snap))
+	id, err := x.client.Prefer(string(x.Positionals.Snap))
 	if err != nil {
 		return err
 	}
-	chg, err := x.wait(cli, id)
+	chg, err := x.wait(id)
 	if err != nil {
 		if err == noWait {
 			return nil
