@@ -183,14 +183,7 @@ func Parser(cli *client.Client) *flags.Parser {
 	}
 	parser := flags.NewParser(&optionsData, flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
-	parser.LongDescription = i18n.G(`
-Install, configure, refresh and remove snap packages. Snaps are
-'universal' packages that work across many different Linux systems,
-enabling secure distribution of the latest apps and utilities for
-cloud, servers, desktops and the internet of things.
-
-This is the CLI for snapd, a background service that takes care of
-snaps on the system. Start with 'snap list' to see installed snaps.`)
+	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
 	parser.Usage = ""
 	if version := parser.FindOptionByLongName("version"); version != nil {
@@ -440,14 +433,14 @@ func run() error {
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
-			if e.Type == flags.ErrHelp || e.Type == flags.ErrCommandRequired {
-				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
-					parser.Command.Active = nil
-				}
+			switch e.Type {
+			case flags.ErrCommandRequired:
+				printShortHelp()
+				return nil
+			case flags.ErrHelp:
 				parser.WriteHelp(Stdout)
 				return nil
-			}
-			if e.Type == flags.ErrUnknownCommand {
+			case flags.ErrUnknownCommand:
 				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
 			}
 		}
