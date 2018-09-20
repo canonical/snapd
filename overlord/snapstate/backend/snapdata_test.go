@@ -20,12 +20,8 @@
 package backend_test
 
 import (
-	// "fmt"
-	// "io/ioutil"
 	"os"
 	"path/filepath"
-	// "regexp"
-	// "strconv"
 
 	. "gopkg.in/check.v1"
 
