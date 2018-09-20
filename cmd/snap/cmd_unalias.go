@@ -53,12 +53,11 @@ func (x *cmdUnalias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-	id, err := cli.Unalias(string(x.Positionals.AliasOrSnap))
+	id, err := x.client.Unalias(string(x.Positionals.AliasOrSnap))
 	if err != nil {
 		return err
 	}
-	chg, err := x.wait(cli, id)
+	chg, err := x.wait(id)
 	if err != nil {
 		if err == noWait {
 			return nil

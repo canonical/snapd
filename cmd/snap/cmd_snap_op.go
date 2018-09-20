@@ -113,8 +113,7 @@ type cmdRemove struct {
 func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 	name := string(x.Positional.Snaps[0])
 
-	cli := Client()
-	changeID, err := cli.Remove(name, opts)
+	changeID, err := x.client.Remove(name, opts)
 	if err != nil {
 		msg, err := errorToCmdMessage(name, err, opts)
 		if err != nil {
@@ -124,7 +123,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(cli, changeID); err != nil {
+	if _, err := x.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -137,13 +136,12 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
-	cli := Client()
-	changeID, err := cli.RemoveMany(names, opts)
+	changeID, err := x.client.RemoveMany(names, opts)
 	if err != nil {
 		return err
 	}
 
-	chg, err := x.wait(cli, changeID)
+	chg, err := x.wait(changeID)
 	if err != nil {
 		if err == noWait {
 			return nil
@@ -245,8 +243,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 }
 
 // show what has been done
-func showDone(names []string, op string, esc *escapes) error {
-	cli := Client()
+func showDone(cli *client.Client, names []string, op string, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err
@@ -352,16 +349,15 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var snapName string
 	var path string
 
-	cli := Client()
 	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".snap") || strings.Contains(nameOrPath, ".snap.") {
 		path = nameOrPath
-		changeID, err = cli.InstallPath(path, x.Name, opts)
+		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
 		snapName = nameOrPath
 		if desiredName != "" {
 			return errors.New(i18n.G("cannot use explicit name when installing from store"))
 		}
-		changeID, err = cli.Install(snapName, opts)
+		changeID, err = x.client.Install(snapName, opts)
 	}
 	if err != nil {
 		msg, err := errorToCmdMessage(nameOrPath, err, opts)
@@ -372,7 +368,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		return nil
 	}
 
-	chg, err := x.wait(cli, changeID)
+	chg, err := x.wait(changeID)
 	if err != nil {
 		if err == noWait {
 			return nil
@@ -387,7 +383,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		}
 	}
 
-	return showDone([]string{snapName}, "install", x.getEscapes())
+	return showDone(x.client, []string{snapName}, "install", x.getEscapes())
 }
 
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
@@ -398,8 +394,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		}
 	}
 
-	cli := Client()
-	changeID, err := cli.InstallMany(names, opts)
+	changeID, err := x.client.InstallMany(names, opts)
 	if err != nil {
 		var snapName string
 		if err, ok := err.(*client.Error); ok {
@@ -413,7 +408,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		return nil
 	}
 
-	chg, err := x.wait(cli, changeID)
+	chg, err := x.wait(changeID)
 	if err != nil {
 		if err == noWait {
 			return nil
@@ -427,7 +422,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		if err := showDone(installed, "install", x.getEscapes()); err != nil {
+		if err := showDone(x.client, installed, "install", x.getEscapes()); err != nil {
 			return err
 		}
 	}
@@ -507,13 +502,12 @@ type cmdRefresh struct {
 }
 
 func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error {
-	cli := Client()
-	changeID, err := cli.RefreshMany(snaps, opts)
+	changeID, err := x.client.RefreshMany(snaps, opts)
 	if err != nil {
 		return err
 	}
 
-	chg, err := x.wait(cli, changeID)
+	chg, err := x.wait(changeID)
 	if err != nil {
 		if err == noWait {
 			return nil
@@ -527,7 +521,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 	}
 
 	if len(refreshed) > 0 {
-		return showDone(refreshed, "refresh", x.getEscapes())
+		return showDone(x.client, refreshed, "refresh", x.getEscapes())
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -536,8 +530,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 }
 
 func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
-	cli := Client()
-	changeID, err := cli.Refresh(name, opts)
+	changeID, err := x.client.Refresh(name, opts)
 	if err != nil {
 		msg, err := errorToCmdMessage(name, err, opts)
 		if err != nil {
@@ -547,19 +540,18 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(cli, changeID); err != nil {
+	if _, err := x.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	return showDone([]string{name}, "refresh", x.getEscapes())
+	return showDone(x.client, []string{name}, "refresh", x.getEscapes())
 }
 
 func (x *cmdRefresh) showRefreshTimes() error {
-	cli := Client()
-	sysinfo, err := cli.SysInfo()
+	sysinfo, err := x.client.SysInfo()
 	if err != nil {
 		return err
 	}
@@ -589,8 +581,7 @@ func (x *cmdRefresh) showRefreshTimes() error {
 }
 
 func (x *cmdRefresh) listRefresh() error {
-	cli := Client()
-	snaps, _, err := cli.Find(&client.FindOptions{
+	snaps, _, err := x.client.Find(&client.FindOptions{
 		Refresh: true,
 	})
 	if err != nil {
@@ -694,7 +685,6 @@ func (x *cmdTry) Execute([]string) error {
 	if err := x.validateMode(); err != nil {
 		return err
 	}
-	cli := Client()
 	name := x.Positional.SnapDir
 	opts := &client.SnapOptions{}
 	x.setModes(opts)
@@ -718,7 +708,7 @@ func (x *cmdTry) Execute([]string) error {
 		return fmt.Errorf(i18n.G("cannot get full path for %q: %v"), name, err)
 	}
 
-	changeID, err := cli.Try(path, opts)
+	changeID, err := x.client.Try(path, opts)
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
 		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
 
@@ -728,7 +718,7 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`), path)
 		return err
 	}
 
-	chg, err := x.wait(cli, changeID)
+	chg, err := x.wait(changeID)
 	if err != nil {
 		if err == noWait {
 			return nil
@@ -745,7 +735,7 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`), path)
 	name = snapName
 
 	// show output as speced
-	snaps, err := cli.List([]string{name}, nil)
+	snaps, err := x.client.List([]string{name}, nil)
 	if err != nil {
 		return err
 	}
@@ -768,15 +758,14 @@ type cmdEnable struct {
 }
 
 func (x *cmdEnable) Execute([]string) error {
-	cli := Client()
 	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{}
-	changeID, err := cli.Enable(name, opts)
+	changeID, err := x.client.Enable(name, opts)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, changeID); err != nil {
+	if _, err := x.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -796,15 +785,14 @@ type cmdDisable struct {
 }
 
 func (x *cmdDisable) Execute([]string) error {
-	cli := Client()
 	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{}
-	changeID, err := cli.Disable(name, opts)
+	changeID, err := x.client.Disable(name, opts)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, changeID); err != nil {
+	if _, err := x.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -844,23 +832,22 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	cli := Client()
 	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{Revision: x.Revision}
 	x.setModes(opts)
-	changeID, err := cli.Revert(name, opts)
+	changeID, err := x.client.Revert(name, opts)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, changeID); err != nil {
+	if _, err := x.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	return showDone([]string{name}, "revert", nil)
+	return showDone(x.client, []string{name}, "revert", nil)
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
@@ -886,18 +873,17 @@ func (x cmdSwitch) Execute(args []string) error {
 		return fmt.Errorf("missing --channel=<channel-name> parameter")
 	}
 
-	cli := Client()
 	name := string(x.Positional.Snap)
 	channel := string(x.Channel)
 	opts := &client.SnapOptions{
 		Channel: channel,
 	}
-	changeID, err := cli.Switch(name, opts)
+	changeID, err := x.client.Switch(name, opts)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, changeID); err != nil {
+	if _, err := x.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
