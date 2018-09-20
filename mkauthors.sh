@@ -36,13 +36,9 @@ if [ ! -d .git ]; then
     exit
 fi
 
-# "John Lenton" and "John R. Lenton" are the same guy
-raw_authors="$(git shortlog -s|sort -n|grep -v "John Lenton"|tail -n14|cut -f2)"
+raw_authors="$(git shortlog -s|sort -n|tail -n14|cut -f2)"
 authors=""
 while read -r author; do
-    if [ "$author" = "sergio-j-cazzolato" ]; then
-        author="Sergio Cazzolato"
-    fi
     authors="$authors \"$author\","
 done <<< "$raw_authors"
 
@@ -57,3 +53,4 @@ func init() {
 }
 EOF
 
+go fmt $GO_GENERATE_BUILDDIR/cmd/snap/cmd_blame_generated.go >/dev/null
