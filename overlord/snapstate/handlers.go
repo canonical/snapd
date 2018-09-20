@@ -515,11 +515,29 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	cleanup := func() {
+		st.Lock()
+		defer st.Unlock()
+
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+		if err != nil {
+			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
+			return
+		}
+
+		// remove snap dir is idempotent so it's ok to always call it in the cleanup path
+		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
+			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
+		}
+
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	if err != nil {
+		cleanup()
 		return err
 	}
 
@@ -542,25 +560,13 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		time.Sleep(mountPollInterval)
 	}
 	if readInfoErr != nil {
-		err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb)
-
-		st.Lock()
-		defer st.Unlock()
-
-		if err != nil {
+		if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb); err != nil {
+			st.Lock()
 			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
+			st.Unlock()
 		}
 
-		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-		if err != nil {
-			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
-			return readInfoErr
-		}
-
-		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
-			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
-		}
-
+		cleanup()
 		return readInfoErr
 	}
 
