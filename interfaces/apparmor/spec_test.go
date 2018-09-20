@@ -188,17 +188,27 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /etc/
+  # Allow reading the mimic directory, it must exist in the first place.
   /etc/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/etc/ rw,
   mount options=(rbind, rw) /etc/ -> /tmp/.snap/etc/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /etc/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/etc/*/ rw,
   /etc/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/etc/*/ -> /etc/*/,
   /tmp/.snap/etc/* rw,
   /etc/* rw,
   mount options=(bind, rw) /tmp/.snap/etc/* -> /etc/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/etc/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /etc/,
   umount /etc/*,
   umount /etc/*/,
@@ -208,17 +218,27 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /snap/ r,
   /snap/vanguard/ r,
   # .. variant with mimic at /snap/vanguard/42/
+  # Allow reading the mimic directory, it must exist in the first place.
   /snap/vanguard/42/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/vanguard/42/*/ rw,
   /snap/vanguard/42/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/*/ -> /snap/vanguard/42/*/,
   /tmp/.snap/snap/vanguard/42/* rw,
   /snap/vanguard/42/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/snap/vanguard/42/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /snap/vanguard/42/,
   umount /snap/vanguard/42/*,
   umount /snap/vanguard/42/*/,
@@ -232,17 +252,27 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /usr/
+  # Allow reading the mimic directory, it must exist in the first place.
   /usr/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/usr/ rw,
   mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/usr/*/ rw,
   /usr/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/usr/*/ -> /usr/*/,
   /tmp/.snap/usr/* rw,
   /usr/* rw,
   mount options=(bind, rw) /tmp/.snap/usr/* -> /usr/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/usr/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /usr/,
   umount /usr/*,
   umount /usr/*/,
@@ -252,32 +282,52 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /snap/ r,
   /snap/vanguard/ r,
   # .. variant with mimic at /snap/vanguard/42/
+  # Allow reading the mimic directory, it must exist in the first place.
   /snap/vanguard/42/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/vanguard/42/*/ rw,
   /snap/vanguard/42/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/*/ -> /snap/vanguard/42/*/,
   /tmp/.snap/snap/vanguard/42/* rw,
   /snap/vanguard/42/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/snap/vanguard/42/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /snap/vanguard/42/,
   umount /snap/vanguard/42/*,
   umount /snap/vanguard/42/*/,
   # .. variant with mimic at /snap/vanguard/42/usr/
+  # Allow reading the mimic directory, it must exist in the first place.
   /snap/vanguard/42/usr/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/usr/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/vanguard/42/usr/*/ rw,
   /snap/vanguard/42/usr/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/usr/*/ -> /snap/vanguard/42/usr/*/,
   /tmp/.snap/snap/vanguard/42/usr/* rw,
   /snap/vanguard/42/usr/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/usr/* -> /snap/vanguard/42/usr/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/snap/vanguard/42/usr/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /snap/vanguard/42/usr/,
   umount /snap/vanguard/42/usr/*,
   umount /snap/vanguard/42/usr/*/,
@@ -290,32 +340,52 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /var/
+  # Allow reading the mimic directory, it must exist in the first place.
   /var/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/var/*/ rw,
   /var/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/var/*/ -> /var/*/,
   /tmp/.snap/var/* rw,
   /var/* rw,
   mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/var/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /var/,
   umount /var/*,
   umount /var/*/,
   # .. variant with mimic at /var/cache/
+  # Allow reading the mimic directory, it must exist in the first place.
   /var/cache/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/cache/ rw,
   mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/var/cache/*/ rw,
   /var/cache/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/var/cache/*/ -> /var/cache/*/,
   /tmp/.snap/var/cache/* rw,
   /var/cache/* rw,
   mount options=(bind, rw) /tmp/.snap/var/cache/* -> /var/cache/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/var/cache/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /var/cache/,
   umount /var/cache/*,
   umount /var/cache/*/,
@@ -329,17 +399,27 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # .. permissions for traversing the prefix that is assumed to exist
   / r,
   # .. variant with mimic at /var/
+  # Allow reading the mimic directory, it must exist in the first place.
   /var/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
+  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
   /tmp/.snap/var/*/ rw,
   /var/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/var/*/ -> /var/*/,
   /tmp/.snap/var/* rw,
   /var/* rw,
   mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   umount /tmp/.snap/var/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
   umount /var/,
   umount /var/*,
   umount /var/*/,
