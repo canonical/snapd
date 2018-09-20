@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Add the given assertion to the system assertion database.
@@ -186,8 +185,6 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 	controlled := make(map[string][]string)
 	// maps gating snap-ids to their snap names
 	gatingNames := make(map[string]string)
-	// snap declarations by snap-id
-	snapDecls := make(map[string]*asserts.SnapDeclaration, len(snapInfos))
 
 	db := DB(s)
 	snapStates, err := snapstate.All(s)
@@ -195,9 +192,6 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		return nil, err
 	}
 	for instanceName, snapst := range snapStates {
-		if ignoreValidation[instanceName] {
-			continue
-		}
 		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
@@ -206,27 +200,24 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			continue
 		}
 		gatingID := info.SnapID
-		decl := snapDecls[gatingID]
-		if decl == nil {
-			a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
-				"series":  release.Series,
-				"snap-id": gatingID,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", instanceName, err)
-			}
-			decl = a.(*asserts.SnapDeclaration)
-			snapDecls[gatingID] = decl
-			gatingNames[gatingID] = decl.SnapName()
+		if gatingNames[gatingID] != "" {
+			continue
 		}
+		a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+			"series":  release.Series,
+			"snap-id": gatingID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", instanceName, err)
+		}
+		decl := a.(*asserts.SnapDeclaration)
+		gatingNames[gatingID] = decl.SnapName()
 		control := decl.RefreshControl()
 		if len(control) == 0 {
 			continue
 		}
 		for _, gatedID := range control {
-			if !strutil.ListContains(controlled[gatedID], gatingID) {
-				controlled[gatedID] = append(controlled[gatedID], gatingID)
-			}
+			controlled[gatedID] = append(controlled[gatedID], gatingID)
 		}
 	}
 
