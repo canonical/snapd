@@ -210,7 +210,7 @@ func (s *TestInterfaceSuite) TestHotplugDeviceDetectedOK(c *C) {
 			InterfaceName: "test",
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			spec.SetSlot(&hotplug.SlotSpec{
+			spec.SetSlot(&hotplug.RequestedSlotSpec{
 				Name: "slot",
 			})
 			return nil
