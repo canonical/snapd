@@ -51,7 +51,7 @@ var (
 The services command lists information about the services specified, or about
 the services in all currently installed snaps.
 `)
-	shortLogsHelp = i18n.G("Retrieve logs of services")
+	shortLogsHelp = i18n.G("Retrieve logs for services")
 	longLogsHelp  = i18n.G(`
 The logs command fetches logs of the given services and displays them in
 chronological order.

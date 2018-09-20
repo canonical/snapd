@@ -36,10 +36,10 @@ import (
 )
 
 var (
-	shortInstallHelp = i18n.G("Install a snap to the system")
-	shortRemoveHelp  = i18n.G("Remove a snap from the system")
-	shortRefreshHelp = i18n.G("Refresh a snap in the system")
-	shortTryHelp     = i18n.G("Test a snap in the system")
+	shortInstallHelp = i18n.G("Install snaps on the system")
+	shortRemoveHelp  = i18n.G("Remove snaps from the system")
+	shortRefreshHelp = i18n.G("Refresh snaps in the system")
+	shortTryHelp     = i18n.G("Test an unpacked snap in the system")
 	shortEnableHelp  = i18n.G("Enable a snap in the system")
 	shortDisableHelp = i18n.G("Disable a snap in the system")
 )

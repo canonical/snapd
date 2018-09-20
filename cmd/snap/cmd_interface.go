@@ -41,7 +41,7 @@ type cmdInterface struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfaceHelp = i18n.G("List snap interfaces")
+var shortInterfaceHelp = i18n.G("Show details of snap interfaces")
 var longInterfaceHelp = i18n.G(`
 The interface command shows details of snap interfaces.
 
