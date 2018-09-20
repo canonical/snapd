@@ -23,12 +23,14 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/snapcore/snapd/i18n"
-
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdAck struct {
+	clientMixin
 	AckOptions struct {
 		AssertionFile flags.Filename
 	} `positional-args:"true" required:"true"`
@@ -57,20 +59,20 @@ func init() {
 	}})
 }
 
-func ackFile(assertFile string) error {
+func ackFile(cli *client.Client, assertFile string) error {
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
 		return err
 	}
 
-	return Client().Ack(assertData)
+	return cli.Ack(assertData)
 }
 
 func (x *cmdAck) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := ackFile(string(x.AckOptions.AssertionFile)); err != nil {
+	if err := ackFile(x.client, string(x.AckOptions.AssertionFile)); err != nil {
 		return fmt.Errorf("cannot assert: %v", err)
 	}
 	return nil

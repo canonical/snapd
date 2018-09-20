@@ -195,7 +195,7 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "candidate", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
@@ -216,7 +216,7 @@ func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	// snap install --channel=3.4 means 3.4/stable, this is what we test here
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "3.4", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "3.4", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/stable\) 1.0 from Bar installed`)
@@ -236,7 +236,7 @@ func (s *SnapOpSuite) TestInstallFromBranch(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "3.4/hotfix-1", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "3.4/hotfix-1", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/hotfix-1\) 1.0 from Bar installed`)
@@ -257,7 +257,7 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "beta", "--devmode", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "beta", "--devmode", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from Bar installed`)
@@ -276,7 +276,7 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -295,7 +295,7 @@ func (s *SnapOpSuite) TestInstallUnaliased(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--unaliased", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--unaliased", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -309,7 +309,7 @@ func (s *SnapOpSuite) TestInstallSnapNotFound(c *check.C) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("error: %v\n", err), check.Equals, `error: snap "foo" not found
 `)
@@ -323,7 +323,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailable(c *check.C) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision available as specified", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" not available as specified (see 'snap info foo')
@@ -338,7 +338,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableOnChannel(c *check.C) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision available as specified", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=mytrack", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=mytrack", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" not available on channel "mytrack/stable" (see 'snap info
@@ -354,7 +354,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableAtRevision(c *check.C) 
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision available as specified", "value": "foo", "kind": "snap-revision-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--revision=2", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--revision=2", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" revision 2 not available (see 'snap info foo')
@@ -376,7 +376,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOK(c *ch
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on stable but is available to install on the
@@ -406,7 +406,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOKPrerel
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--candidate", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--candidate", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on candidate but is available to install on
@@ -434,7 +434,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackOther(c 
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on latest/stable but is available to install
@@ -462,7 +462,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackLatestSt
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on 2.0/stable but is available to install on
@@ -489,7 +489,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelTrackAndRiskO
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=2.0/stable", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on 2.0/stable but other tracks exist.
@@ -514,7 +514,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAnd
 }, "kind": "snap-architecture-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on stable for this architecture (arm64) but
@@ -537,7 +537,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForArchitectureTrackAnd
 }, "kind": "snap-architecture-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=1.0/stable", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=1.0/stable", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: snap "foo" is not available on this architecture (arm64) but exists on
@@ -559,7 +559,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: requested channel "a/b/c/d" is not valid (see 'snap info foo' for valid
@@ -581,7 +581,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBr
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: requested a non-existing branch on latest/stable for snap "foo": baz
@@ -602,7 +602,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableForChannelNonExistingBr
 }, "kind": "snap-channel-not-available"}, "status-code": 404}`)
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=stable/baz", "foo"})
 	c.Assert(err, check.NotNil)
 	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
 error: requested a non-existing branch for snap "foo": latest/stable/baz
@@ -666,7 +666,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	err := ioutil.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -697,7 +697,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	err := ioutil.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--devmode", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -728,7 +728,7 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 	err := ioutil.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", snapPath})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -759,7 +759,7 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	err := ioutil.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--dangerous", snapPath})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -794,7 +794,7 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	err := ioutil.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from Bar installed`)
@@ -804,12 +804,12 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 }
 
 func (s *SnapSuite) TestInstallWithInstanceNoPath(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"install", "--name", "foo_bar", "some-snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--name", "foo_bar", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "cannot use explicit name when installing from store")
 }
 
 func (s *SnapSuite) TestInstallManyWithInstance(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"install", "--name", "foo_bar", "some-snap-1", "some-snap-2"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--name", "foo_bar", "some-snap-1", "some-snap-2"})
 	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing multiple snaps")
 }
 
@@ -824,7 +824,7 @@ func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"revert", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"revert", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	// tracking channel is "" in the test server
@@ -874,7 +874,7 @@ func (s *SnapOpSuite) runRevertTest(c *check.C, opts *client.SnapOptions) {
 		}
 	}
 
-	rest, err := snap.Parser().ParseArgs(cmd)
+	rest, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "foo reverted to 1.0\n")
@@ -900,7 +900,7 @@ func (s *SnapOpSuite) TestRevertClassic(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"revert"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"revert"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
 }
@@ -920,7 +920,7 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--list"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Publisher +Notes
@@ -945,7 +945,7 @@ func (s *SnapSuite) TestRefreshLegacyTime(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time", "--abs-time"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time", "--abs-time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `schedule: 00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59
@@ -971,7 +971,7 @@ func (s *SnapSuite) TestRefreshTimer(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time", "--abs-time"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time", "--abs-time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
@@ -997,7 +997,7 @@ func (s *SnapSuite) TestRefreshHold(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time", "--abs-time"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time", "--abs-time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
@@ -1016,13 +1016,13 @@ func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
 		fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
 	})
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time"})
 	c.Assert(err, check.ErrorMatches, `internal error: both refresh.timer and refresh.schedule are empty`)
 }
 
 func (s *SnapSuite) TestRefreshListErr(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--list", "--beta"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", "--beta"})
 	c.Check(err, check.ErrorMatches, "--list does not take .* flags")
 }
 
@@ -1035,7 +1035,7 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 			"action": "refresh",
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
 
@@ -1052,7 +1052,7 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 		})
 		s.srv.channel = "beta"
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from Bar refreshed`)
 }
@@ -1067,7 +1067,7 @@ func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
 			"classic": true,
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--classic", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--classic", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -1081,7 +1081,7 @@ func (s *SnapOpSuite) TestRefreshOneDevmode(c *check.C) {
 			"devmode": true,
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--devmode", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--devmode", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -1095,7 +1095,7 @@ func (s *SnapOpSuite) TestRefreshOneJailmode(c *check.C) {
 			"jailmode": true,
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--jailmode", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--jailmode", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -1109,7 +1109,7 @@ func (s *SnapOpSuite) TestRefreshOneIgnoreValidation(c *check.C) {
 			"ignore-validation": true,
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--ignore-validation", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-validation", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -1135,37 +1135,37 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 
 func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--jailmode", "--devmode", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--jailmode", "--devmode", "one"})
 	c.Assert(err, check.ErrorMatches, `cannot use devmode and jailmode flags together`)
 }
 
 func (s *SnapOpSuite) TestRefreshOneChanErr(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "--channel=foo", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "--channel=foo", "one"})
 	c.Assert(err, check.ErrorMatches, `Please specify a single channel`)
 }
 
 func (s *SnapOpSuite) TestRefreshAllChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
 func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "one", "two"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "one", "two"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
 func (s *SnapOpSuite) TestRefreshManyIgnoreValidation(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--ignore-validation", "one", "two"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-validation", "one", "two"})
 	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring validation`)
 }
 
 func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--devmode"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--devmode"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
@@ -1179,7 +1179,7 @@ func (s *SnapOpSuite) TestRefreshOneAmend(c *check.C) {
 			"amend":  true,
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--amend", "one"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--amend", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -1230,7 +1230,7 @@ func (s *SnapOpSuite) runTryTest(c *check.C, opts *client.SnapOptions) {
 		}
 	}
 
-	rest, err := snap.Parser().ParseArgs(cmd)
+	rest, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, fmt.Sprintf(`(?sm).*foo 1.0 mounted from .*%s`, tryDir))
@@ -1271,19 +1271,19 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 	})
 
 	cmd := []string{"try", "/"}
-	_, err := snap.Parser().ParseArgs(cmd)
+	_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
 
 Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
 func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--edge", "--beta", "some-snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--edge", "--beta", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
@@ -1298,7 +1298,7 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--edge", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--edge", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 from Bar installed`)
@@ -1317,7 +1317,7 @@ func (s *SnapOpSuite) TestEnable(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"enable", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"enable", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo enabled`)
@@ -1336,7 +1336,7 @@ func (s *SnapOpSuite) TestDisable(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"disable", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"disable", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo disabled`)
@@ -1355,7 +1355,7 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"remove", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)
@@ -1366,7 +1366,7 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 
 func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"remove", "--revision=17", "one", "two"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "one", "two"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
 }
 
@@ -1400,7 +1400,7 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser().ParseArgs([]string{"remove", "one", "two"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "one", "two"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*one removed`)
@@ -1412,13 +1412,13 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 
 func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"install", "--beta", "one", "two"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--beta", "one", "two"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
 func (s *SnapOpSuite) TestInstallManyMixFileAndStore(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{"install", "store-snap", "./local.snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "store-snap", "./local.snap"})
 	c.Assert(err, check.ErrorMatches, `only one snap file can be installed at a time`)
 }
 
@@ -1457,7 +1457,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser().ParseArgs([]string{"install", "one", "two"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one", "two"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	// note that (stable) is omitted
@@ -1469,11 +1469,11 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestInstallZeroEmpty(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"install"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install"})
 	c.Assert(err, check.ErrorMatches, "cannot install zero snaps")
-	_, err = snap.Parser().ParseArgs([]string{"install", ""})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"install", ""})
 	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
-	_, err = snap.Parser().ParseArgs([]string{"install", "", "bar"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"install", "", "bar"})
 	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
 }
 
@@ -1507,7 +1507,7 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	for _, cmd := range cmds {
-		rest, err := snap.Parser().ParseArgs(cmd)
+		rest, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 		c.Assert(err, check.IsNil, check.Commentf("%v", cmd))
 		c.Assert(rest, check.DeepEquals, []string{})
 		c.Check(s.Stdout(), check.Matches, "(?sm)42\n")
@@ -1551,7 +1551,7 @@ func (s *SnapOpSuite) TestNoWaitImmediateError(c *check.C) {
 	})
 
 	for _, cmd := range cmds {
-		_, err := snap.Parser().ParseArgs(cmd)
+		_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 		c.Assert(err, check.ErrorMatches, "failure", check.Commentf("%v", cmd))
 	}
 }
@@ -1601,7 +1601,7 @@ func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
 	})
 
 	for _, cmd := range cmds {
-		_, err := snap.Parser().ParseArgs(cmd)
+		_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 		c.Assert(err, check.ErrorMatches, "server error", check.Commentf("%v", cmd))
 		// reset
 		n = 0
@@ -1619,7 +1619,7 @@ func (s *SnapOpSuite) TestSwitchHappy(c *check.C) {
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"switch", "--beta", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--beta", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "beta" channel`)
@@ -1629,12 +1629,12 @@ func (s *SnapOpSuite) TestSwitchHappy(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestSwitchUnhappy(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"switch"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch"})
 	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
 }
 
 func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"switch", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "foo"})
 	c.Assert(err, check.ErrorMatches, `missing --channel=<channel-name> parameter`)
 }
 
@@ -1656,6 +1656,6 @@ func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {
 	})
 
 	cmd := []string{"install", "hello"}
-	_, err := snap.Parser().ParseArgs(cmd)
+	_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
 	c.Assert(err, check.ErrorMatches, `unable to contact snap store`)
 }

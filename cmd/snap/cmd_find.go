@@ -86,7 +86,7 @@ func (s SectionName) Complete(match string) []flags.Completion {
 		return ret
 	}
 
-	cli := Client()
+	cli := mkClient()
 	sections, err := cli.Sections()
 	if err != nil {
 		return nil
@@ -121,7 +121,7 @@ func cachedSections() (sections []string, err error) {
 	return sections, nil
 }
 
-func getSections() (sections []string, err error) {
+func getSections(cli *client.Client) (sections []string, err error) {
 	// try loading from cached sections file
 	sections, err = cachedSections()
 	if err != nil {
@@ -131,12 +131,11 @@ func getSections() (sections []string, err error) {
 		return sections, nil
 	}
 	// fallback to listing from the daemon
-	cli := Client()
 	return cli.Sections()
 }
 
-func showSections() error {
-	sections, err := getSections()
+func showSections(cli *client.Client) error {
+	sections, err := getSections(cli)
 	if err != nil {
 		return err
 	}
@@ -151,6 +150,7 @@ func showSections() error {
 }
 
 type cmdFind struct {
+	clientMixin
 	Private    bool        `long:"private"`
 	Narrow     bool        `long:"narrow"`
 	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified"`
@@ -191,7 +191,7 @@ func (x *cmdFind) Execute(args []string) error {
 	//   the commandline at all
 	switch x.Section {
 	case "show-all-sections-please":
-		return showSections()
+		return showSections(x.client)
 	case "no-section-specified":
 		x.Section = ""
 	}
@@ -202,8 +202,6 @@ func (x *cmdFind) Execute(args []string) error {
 		x.Section = "featured"
 	}
 
-	cli := Client()
-
 	if x.Section != "" && x.Section != "featured" {
 		sections, err := cachedSections()
 		if err != nil {
@@ -211,7 +209,7 @@ func (x *cmdFind) Execute(args []string) error {
 		}
 		if !strutil.ListContains(sections, string(x.Section)) {
 			// try the store just in case it was added in the last 24 hours
-			sections, err = cli.Sections()
+			sections, err = x.client.Sections()
 			if err != nil {
 				return err
 			}
@@ -232,7 +230,7 @@ func (x *cmdFind) Execute(args []string) error {
 		opts.Scope = "wide"
 	}
 
-	snaps, resInfo, err := cli.Find(opts)
+	snaps, resInfo, err := x.client.Find(opts)
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
 		logger.Debugf("cannot list snaps: %v", e)
 		return fmt.Errorf("unable to contact snap store")

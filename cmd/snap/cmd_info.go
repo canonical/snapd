@@ -40,6 +40,7 @@ import (
 )
 
 type infoCmd struct {
+	clientMixin
 	colorMixin
 	timeMixin
 
@@ -359,8 +360,6 @@ func formatSummary(raw string) string {
 }
 
 func (x *infoCmd) Execute([]string) error {
-	cli := Client()
-
 	termWidth, _ := termSize()
 	termWidth -= 3
 	if termWidth > 100 {
@@ -386,8 +385,8 @@ func (x *infoCmd) Execute([]string) error {
 			noneOK = false
 			continue
 		}
-		remote, resInfo, _ := cli.FindOne(snapName)
-		local, _, _ := cli.Snap(snapName)
+		remote, resInfo, _ := x.client.FindOne(snapName)
+		local, _, _ := x.client.Snap(snapName)
 
 		both := coalesce(local, remote)
 
