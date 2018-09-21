@@ -21,6 +21,9 @@ package builtin
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -39,21 +42,51 @@ const dotfilesBaseDeclarationSlots = `
 const dotfilesConnectedPlugAppArmor = `
 # Description: Can access hidden files in user's $HOME. This is restricted
 # because it gives file access to some of the user's $HOME.
-
-# Note, @{HOME} is the user's $HOME, not the snap's $HOME
 `
 
 type dotfilesInterface struct {
 	commonInterface
 }
 
+func validatePaths(attrName string, paths []interface{}) error {
+	for _, npp := range paths {
+		np, ok := npp.(string)
+		if !ok {
+			return fmt.Errorf("%q must be a list of strings", attrName)
+		}
+		p := filepath.Clean(np)
+		if p != np {
+			return fmt.Errorf("%q must be clean", np)
+		}
+
+		if strings.Contains(p, "..") {
+			return fmt.Errorf(`%q contains invalid ".."`, p)
+		}
+		illegalChars := apparmorAARE
+		if strings.ContainsAny(p, illegalChars) {
+			// must not contain any AppArmor regular expression (AARE)
+			// characters or double quotes
+			return fmt.Errorf("%q contains one of %s", p, illegalChars)
+		}
+
+	}
+	return nil
+}
+
 func (iface *dotfilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	hasValidAttr := false
-	var sl []interface{}
-	for _, s := range []string{"files", "dirs"} {
-		if err := plug.Attr(s, &sl); err == nil {
-			hasValidAttr = true
+	for _, att := range []string{"files", "dirs"} {
+		if _, ok := plug.Attrs[att]; !ok {
+			continue
 		}
+		il, ok := plug.Attrs[att].([]interface{})
+		if !ok {
+			return fmt.Errorf("cannot add dotfiles plug: %q must be a list of strings", att)
+		}
+		if err := validatePaths(att, il); err != nil {
+			return fmt.Errorf("cannot add dotfiles plug: %s", err)
+		}
+		hasValidAttr = true
 	}
 	if !hasValidAttr {
 		return fmt.Errorf(`cannot add dotfiles plug without valid "files" or "dirs" attribute`)
