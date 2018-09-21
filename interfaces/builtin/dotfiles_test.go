@@ -107,7 +107,59 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug without valid "files" or "dirs" attribute`)
+		`cannot add dotfiles plug: "files" must be a list of strings`)
+}
+
+func (s *dotfilesInterfaceSuite) TestSanitizePlugWithWrongFileAttrType(c *C) {
+	const mockSnapYaml = `name: dotfiles-plug-snap
+version: 1.0
+plugs:
+ dotfiles:
+  files: [ 121 ]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["dotfiles"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot add dotfiles plug: "files" must be a list of strings`)
+}
+
+func (s *dotfilesInterfaceSuite) TestSanitizePlugWithUncleanPath(c *C) {
+	const mockSnapYaml = `name: dotfiles-plug-snap
+version: 1.0
+plugs:
+ dotfiles:
+  files: [ "./foo/./bar" ]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["dotfiles"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot add dotfiles plug: "./foo/./bar" must be clean`)
+}
+
+func (s *dotfilesInterfaceSuite) TestSanitizePlugDots(c *C) {
+	const mockSnapYaml = `name: dotfiles-plug-snap
+version: 1.0
+plugs:
+ dotfiles:
+  files: [ "../foo" ]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["dotfiles"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot add dotfiles plug: "../foo" contains invalid ".."`)
+}
+
+func (s *dotfilesInterfaceSuite) TestSanitizePlugAARE(c *C) {
+	const mockSnapYaml = `name: dotfiles-plug-snap
+version: 1.0
+plugs:
+ dotfiles:
+  files: [ "foo[" ]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["dotfiles"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot add dotfiles plug: "foo\[" contains one of \?\*\[\]\{\}\^\"`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizePlugWithEmptyDirsAttrib(c *C) {
@@ -120,7 +172,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug without valid "files" or "dirs" attribute`)
+		`cannot add dotfiles plug: "dirs" must be a list of strings`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
