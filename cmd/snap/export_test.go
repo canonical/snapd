@@ -58,6 +58,9 @@ var (
 	ShortPublisher       = shortPublisher
 
 	ReadRpc = readRpc
+
+	WriteWarningTimestamp = writeWarningTimestamp
+	MaybePresentWarnings  = maybePresentWarnings
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

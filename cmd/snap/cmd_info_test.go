@@ -417,12 +417,12 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-channels:                    
-  1/stable:    2.10 (1) 65kB -
-  1/candidate: ↑             
-  1/beta:      ↑             
-  1/edge:      ↑             
-installed:     2.10 (1) 1kB  disabled
+channels:                             
+  1/stable:    2.10 (1) 65kB -        
+  1/candidate: ↑                      
+  1/beta:      ↑                      
+  1/edge:      ↑                      
+installed:     2.10 (1) 1kB  disabled 
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
