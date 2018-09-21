@@ -130,7 +130,11 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+	if opts.Revision != "" {
+		fmt.Fprintf(Stdout, i18n.G("%s (revision %s) removed\n"), name, opts.Revision)
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+	}
 	return nil
 }
 

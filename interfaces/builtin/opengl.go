@@ -69,6 +69,9 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 # eglfs
 /dev/vchiq rw,
 
+# va-api
+/dev/dri/renderD[0-9]* rw,
+
 # cuda
 @{PROC}/sys/vm/mmap_min_addr r,
 @{PROC}/devices r,
@@ -106,6 +109,7 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="renderD[0-9]*"`,
 }
 
 func init() {
