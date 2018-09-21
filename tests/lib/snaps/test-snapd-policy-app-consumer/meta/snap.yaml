@@ -83,6 +83,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  dotfiles:
+    command: bin/run
+    plugs: [ dotfiles ]
   dvb:
     command: bin/run
     plugs: [ dvb ]
