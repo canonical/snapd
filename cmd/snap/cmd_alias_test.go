@@ -41,7 +41,7 @@ invoked just using the alias.
           --no-wait     Do not wait for the operation to finish but just print
                         the change id.
 `
-	rest, err := Parser().ParseArgs([]string{"alias", "--help"})
+	rest, err := Parser(Client()).ParseArgs([]string{"alias", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -65,7 +65,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"alias", "alias-snap.cmd1", "alias1"})
+	rest, err := Parser(Client()).ParseArgs([]string{"alias", "alias-snap.cmd1", "alias1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+

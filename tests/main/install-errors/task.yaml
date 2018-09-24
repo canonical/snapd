@@ -54,12 +54,12 @@ execute: |
     MATCH 'cannot install "ubuntu-core", please use "core" instead' < stderr.out
 
     echo "Install a snap that is only available in the edge channel"
-    if snap install test-snapd-only-in-edge 2>stderr.out; then
-        echo "Installing test-snapd-only-in-edge should fail but did not"
+    if snap install test-snapd-just-edge 2>stderr.out; then
+        echo "Installing test-snapd-just-edge should fail but did not"
         exit 1
     fi
-    MATCH 'error: snap "test-snapd-only-in-edge" is not available on stable but' < stderr.out
-    MATCH "snap install --edge test-snapd-only-in-edge" < stderr.out
+    MATCH 'error: snap "test-snapd-just-edge" is not available on stable but' < stderr.out
+    MATCH "snap install --edge test-snapd-just-edge" < stderr.out
 
     echo "Install a snap not available for the given architecture"
     if [ "$(uname -m)" = "x86_64" ]; then
