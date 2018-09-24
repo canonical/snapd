@@ -57,10 +57,10 @@ func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 		Name:      "greengrass-support",
 		Interface: "greengrass-support",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, ggMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["greengrass-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestName(c *C) {

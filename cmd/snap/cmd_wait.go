@@ -33,6 +33,7 @@ import (
 )
 
 type cmdWait struct {
+	clientMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
 		Key  string
@@ -135,9 +136,8 @@ The same is true of the laugh.`)
 		return fmt.Errorf("the required argument `<key>` was not provided")
 	}
 
-	cli := Client()
 	for {
-		conf, err := cli.Conf(snapName, []string{confKey})
+		conf, err := x.client.Conf(snapName, []string{confKey})
 		if err != nil && !isNoOption(err) {
 			return err
 		}

@@ -43,15 +43,12 @@ execute: |
         exit
     fi
 
-    wait_for_lxd(){
-        while ! printf 'GET / HTTP/1.0\n\n' | nc -U /var/snap/lxd/common/lxd/unix.socket | MATCH '200 OK'; do sleep 1; done
-    }
-
     echo "Install lxd"
     snap install --candidate lxd
 
     echo "Create a trivial container using the lxd snap"
-    wait_for_lxd
+    snap set lxd waitready.timeout=240
+    lxd waitready
     lxd init --auto
 
     echo "Setting up proxy for lxc"

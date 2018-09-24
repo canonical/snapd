@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	httpClient = httputil.NewHTTPClient(&httputil.ClientOpts{
+	httpClient = httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout:    10 * time.Second,
 		MayLogBody: true,
 	})

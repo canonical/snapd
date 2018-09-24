@@ -292,8 +292,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
 
+	// Add snippets for parallel snap installation mapping
+	spec.(*Specification).AddOvername(snapInfo)
+
 	// Add snippets derived from the layout definition.
-	spec.(*Specification).AddSnapLayout(snapInfo)
+	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
 	//

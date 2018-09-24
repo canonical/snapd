@@ -504,6 +504,7 @@ pkg_dependencies_ubuntu_classic(){
         gnome-keyring
         jq
         man
+        nfs-kernel-server
         printer-driver-cups-pdf
         python3-yaml
         upower
@@ -518,6 +519,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-32)
             echo "
+                gccgo-6
                 evolution-data-server
                 gnome-online-accounts
                 "
@@ -530,7 +532,6 @@ pkg_dependencies_ubuntu_classic(){
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
-                nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
@@ -542,6 +543,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
+                gccgo-8
                 evolution-data-server
                 "
             ;;
@@ -593,6 +595,7 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
+        nfs-utils
         python3-yaml
         redhat-lsb-core
         rpm-build
@@ -613,6 +616,7 @@ pkg_dependencies_amazon(){
         man
         mock
         net-tools
+        nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
@@ -634,6 +638,7 @@ pkg_dependencies_opensuse(){
         jq
         lsb-release
         man
+        nfs-kernel-server
         python3-yaml
         netcat-openbsd
         osc
@@ -660,6 +665,7 @@ pkg_dependencies_arch(){
     libcap
     libx11
     net-tools
+    nfs-utils
     openbsd-netcat
     python
     python-docutils
