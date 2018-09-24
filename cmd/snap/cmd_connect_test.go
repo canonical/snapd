@@ -57,7 +57,7 @@ the plug name.
           --no-wait        Do not wait for the operation to finish but just
                            print the change id.
 `
-	rest, err := Parser().ParseArgs([]string{"connect", "--help"})
+	rest, err := Parser(Client()).ParseArgs([]string{"connect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -90,7 +90,7 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer:slot"})
+	rest, err := Parser(Client()).ParseArgs([]string{"connect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -123,7 +123,7 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer"})
+	rest, err := Parser(Client()).ParseArgs([]string{"connect", "producer:plug", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -156,7 +156,7 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer:slot"})
+	rest, err := Parser(Client()).ParseArgs([]string{"connect", "plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -189,7 +189,7 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer"})
+	rest, err := Parser(Client()).ParseArgs([]string{"connect", "plug", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -292,7 +292,7 @@ func (s *SnapSuite) TestConnectCompletion(c *C) {
 	defer os.Unsetenv("GO_FLAGS_COMPLETION")
 
 	expected := []flags.Completion{}
-	parser := Parser()
+	parser := Parser(Client())
 	parser.CompletionHandler = func(obtained []flags.Completion) {
 		c.Check(obtained, DeepEquals, expected)
 	}
