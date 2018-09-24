@@ -437,7 +437,9 @@ type combineSnippetsScenario struct {
 }
 
 const commonPrefix = `
+# This is a snap name without the instance key
 @{SNAP_NAME}="samba"
+# This is a snap name with instance key
 @{SNAP_INSTANCE_NAME}="samba"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_2esmbd"
@@ -554,7 +556,9 @@ func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
 		return nil
 	}
 	expected := `
+# This is a snap name without the instance key
 @{SNAP_NAME}="samba"
+# This is a snap name with instance key
 @{SNAP_INSTANCE_NAME}="samba_foo"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_5ffoo_2esmbd"
