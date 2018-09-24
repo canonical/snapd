@@ -218,6 +218,13 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		}
 		setHotplugSlots(st, stateSlots)
 
+		if m.enumeratedDeviceKeys != nil {
+			if m.enumeratedDeviceKeys[iface.Name()] == nil {
+				m.enumeratedDeviceKeys[iface.Name()] = make(map[string]bool)
+			}
+			m.enumeratedDeviceKeys[iface.Name()][key] = true
+		}
+
 		logger.Noticef("Added hotplug slot %s:%s of interface %s for device key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, key)
 
 		chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slot of interface %s", iface))
@@ -269,21 +276,25 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 
 		logger.Debugf("HotplugDeviceRemoved: %s (interface: %s, device key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), iface, key, devinfo.DeviceName(), devinfo.Subsystem())
 
-		// create tasks to disconnect given interface
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", iface), fmt.Sprintf("Remove hotplug connections and slots of interface %s", iface))
-
-		// hotplug-disconnect task will create hooks and disconnect the slot
-		hotplugRemove := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of device %q", key))
-		hotplugTaskSetAttrs(hotplugRemove, key, iface.Name())
-		chg.AddTask(hotplugRemove)
-
-		// hotplug-remove-slot will remove this device's slot from the repository.
-		removeSlot := st.NewTask("hotplug-remove-slot", fmt.Sprintf("Remove slot for device %q, interface %q", key, iface))
-		hotplugTaskSetAttrs(removeSlot, key, iface.Name())
-		removeSlot.WaitFor(hotplugRemove)
-		chg.AddTask(removeSlot)
-		st.EnsureBefore(0)
+		ts := removeDevice(st, key, iface.Name())
+		chg.AddAll(ts)
 	}
+	st.EnsureBefore(0)
+}
+
+// create tasks to disconnect slots of given device and remove affected slots.
+func removeDevice(st *state.State, deviceKey, ifaceName string) *state.TaskSet {
+	// hotplug-disconnect task will create hooks and disconnect the slot
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of device %q", deviceKey))
+	hotplugTaskSetAttrs(hotplugDisconnect, deviceKey, ifaceName)
+
+	// hotplug-remove-slot will remove this device's slot from the repository.
+	removeSlot := st.NewTask("hotplug-remove-slot", fmt.Sprintf("Remove slot for device %q, interface %q", deviceKey, ifaceName))
+	hotplugTaskSetAttrs(removeSlot, deviceKey, ifaceName)
+	removeSlot.WaitFor(hotplugDisconnect)
+
+	return state.NewTaskSet(hotplugDisconnect, removeSlot)
 }
 
 func (m *InterfaceManager) hotplugEnumerationDone() {
@@ -298,10 +309,18 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 	}
 
 	for _, slot := range hotplugSlots {
-		if !m.enumeratedDeviceKeys[slot.HotplugDeviceKey] {
-			// TODO: device not present
+		if byIface, ok := m.enumeratedDeviceKeys[slot.Interface]; ok {
+			if byIface[slot.HotplugDeviceKey] {
+				continue
+			}
 		}
+		// device not present, disconnect its slots and remove them (as if it was unplugged)
+		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", slot.Interface), fmt.Sprintf("Remove hotplug connections and slots of interface %s", slot.Interface))
+		ts := removeDevice(st, slot.HotplugDeviceKey, slot.Interface)
+		chg.AddAll(ts)
 	}
+	st.EnsureBefore(0)
+
 	// the map of enumeratedDeviceKeys is not needed anymore
 	m.enumeratedDeviceKeys = nil
 }

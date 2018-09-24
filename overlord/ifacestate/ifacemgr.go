@@ -41,7 +41,8 @@ type InterfaceManager struct {
 	udevMon             udevmonitor.Interface
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
-	enumeratedDeviceKeys map[string]bool
+	// indexed by interface name and device key
+	enumeratedDeviceKeys map[string]map[string]bool
 }
 
 // Manager returns a new InterfaceManager.
@@ -181,7 +182,7 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		mon.Disconnect()
 		return err
 	}
-	m.enumeratedDeviceKeys = make(map[string]bool)
+	m.enumeratedDeviceKeys = make(map[string]map[string]bool)
 	m.udevMon = mon
 	return nil
 }
