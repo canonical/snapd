@@ -94,10 +94,6 @@ type Command struct {
 	// can polkit grant access? set to polkit action ID if so
 	PolkitOK string
 
-	// degradedOK means that the command can be used even if snapd
-	// is in degraded mode (e.g. no squashfs mounts, out of diskspace)
-	degradedOK bool
-
 	d *Daemon
 }
 
@@ -216,7 +212,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check if we are in degradedMode
-	if c.d.degradedErr != nil && !c.degradedOK {
+	if c.d.degradedErr != nil && r.Method != "GET" {
 		InternalError(c.d.degradedErr.Error()).ServeHTTP(w, r)
 		return
 	}

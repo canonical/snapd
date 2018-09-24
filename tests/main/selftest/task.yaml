@@ -25,6 +25,9 @@ execute: |
 
     echo "Ensure selftest error is reported in the journal"
     journalctl -u snapd | MATCH "selftest failed with: cannot mount squashfs image"
+
+    echo "Ensure GET commands still work"
+    snap list | MATCH core
     
     echo "Ensure snap commands reply with selftest error"
-    snap list 2>&1 | MATCH "selftest failed with: cannot mount squashfs image"
+    snap install test-snapd-tools 2>&1 | MATCH "selftest failed with: cannot mount squashfs image"
