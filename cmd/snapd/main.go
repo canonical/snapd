@@ -91,6 +91,20 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 	return wt, nil
 }
 
+var selftestRetryDelay = 300 * time.Second
+
+func doSelftest(d *daemon.Daemon) (t *time.Timer) {
+	err := selftestRun()
+	if err == nil {
+		d.DegradedMode(nil)
+		return &time.Timer{}
+	}
+	degradedErr := fmt.Errorf("selftest failed with: %s", err)
+	logger.Noticef("%s", degradedErr)
+	d.DegradedMode(degradedErr)
+	return time.NewTimer(selftestRetryDelay)
+}
+
 func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
@@ -106,12 +120,7 @@ func run(ch chan os.Signal) error {
 	// Run selftest now, if anything goes wrong with the selftest we go
 	// into "degraded" mode where we always report the given error to
 	// any snap client.
-	if err := selftestRun(); err != nil {
-		degradedErr := fmt.Errorf("selftest failed with: %s", err)
-		logger.Noticef("%s", degradedErr)
-		logger.Noticef("entering degraded mode")
-		d.DegradedMode(degradedErr)
-	}
+	tic := doSelftest(d)
 
 	d.Version = cmd.Version
 
@@ -127,11 +136,18 @@ func run(ch chan os.Signal) error {
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
-	select {
-	case sig := <-ch:
-		logger.Noticef("Exiting on %s signal.\n", sig)
-	case <-d.Dying():
-		// something called Stop()
+out:
+	for {
+		select {
+		case sig := <-ch:
+			logger.Noticef("Exiting on %s signal.\n", sig)
+			break out
+		case <-d.Dying():
+			// something called Stop()
+			break out
+		case <-tic.C:
+			tic = doSelftest(d)
+		}
 	}
 
 	return d.Stop(ch)
