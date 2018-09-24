@@ -216,6 +216,7 @@ unix (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.**),
 #   ...
 #   # This rule needs to work but generates a parser error
 #   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/opt/google/chrome/chrome px -> snap.@{SNAP_INSTANCE_NAME}.@{SNAP_APP},
+#   @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/opt/google/chrome/chrome px -> snap.@{SNAP_INSTANCE_NAME}.@{SNAP_APP},
 #   ...
 # }
 
