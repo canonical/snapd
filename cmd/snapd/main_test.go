@@ -82,9 +82,6 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 	_, err = cli.SysInfo()
 	c.Check(err, IsNil)
 
-	// verify that we logged the right message
-	c.Check(logbuf.String(), testutil.Contains, "entering degraded mode")
-
 	// stop the daemon
 	close(ch)
 }
