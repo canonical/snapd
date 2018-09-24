@@ -66,7 +66,11 @@ type Daemon struct {
 	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
 	restartSystem bool
-	mu            sync.Mutex
+
+	// degradedErr is set when the daemon is in degraded mode
+	degradedErr error
+
+	mu sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -356,16 +360,18 @@ func (d *Daemon) Init() error {
 // This is useful to report permanent errors to the client when
 // the daemon cannot work because e.g. a selftest failed.
 func (d *Daemon) DegradedMode(err error) {
-	d.router = mux.NewRouter()
-	// handle sysinfo so that e.g. snap version works
-	d.router.Handle(sysInfoCmd.Path, sysInfoCmd).Name(sysInfoCmd.Path)
-	// but everything else gives an internal error with the details
-	// why the system is in degraded mode
-	d.router.PathPrefix("/").Handler(InternalError(err.Error()))
+	d.degradedErr = err
 }
 
 func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
+
+	// add handling of degraded mode
+	d.router.MatcherFunc(func(r *http.Request, rm *mux.RouteMatch) bool {
+		return d.degradedErr != nil
+	}).PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		InternalError(d.degradedErr.Error()).ServeHTTP(w, r)
+	})
 
 	for _, c := range api {
 		c.d = d
