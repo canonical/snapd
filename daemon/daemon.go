@@ -94,6 +94,10 @@ type Command struct {
 	// can polkit grant access? set to polkit action ID if so
 	PolkitOK string
 
+	// degradedOK means that the command can be used even if snapd
+	// is in degraded mode (e.g. no squashfs mounts, out of diskspace)
+	degradedOK bool
+
 	d *Daemon
 }
 
@@ -212,6 +216,12 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case accessCancelled:
 		AuthCancelled("cancelled").ServeHTTP(w, r)
+		return
+	}
+
+	// check if we are in degradedMode
+	if c.d.degradedErr != nil && !c.degradedOK {
+		InternalError(c.d.degradedErr.Error()).ServeHTTP(w, r)
 		return
 	}
 
@@ -354,24 +364,22 @@ func (d *Daemon) Init() error {
 	return nil
 }
 
-// DegradedMode puts the daemon into an degraded mode which will
-// always return the internal error given in the "err" argument.
+// DegradedMode puts the daemon into an degraded mode which will the
+// error given in the "err" argument for commands that are not marked
+// as readonlyOK.
 //
-// This is useful to report permanent errors to the client when
-// the daemon cannot work because e.g. a selftest failed.
+// This is useful to report errors to the client when the daemon
+// cannot work because e.g. a selftest failed or the system is out of
+// diskspace.
+//
+// When the system is fine again calling "DegradedMode(nil)" is enough
+// to put the daemon into full operation again.
 func (d *Daemon) DegradedMode(err error) {
 	d.degradedErr = err
 }
 
 func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
-
-	// add handling of degraded mode
-	d.router.MatcherFunc(func(r *http.Request, rm *mux.RouteMatch) bool {
-		return d.degradedErr != nil
-	}).PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		InternalError(d.degradedErr.Error()).ServeHTTP(w, r)
-	})
 
 	for _, c := range api {
 		c.d = d

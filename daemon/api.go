@@ -103,12 +103,16 @@ var (
 		Path:    "/",
 		GuestOK: true,
 		GET:     tbd,
+
+		degradedOK: true,
 	}
 
 	sysInfoCmd = &Command{
 		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
+
+		degradedOK: true,
 	}
 
 	loginCmd = &Command{
