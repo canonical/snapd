@@ -24,8 +24,8 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-func serverVersion() *client.ServerVersion {
-	sv, err := Client().ServerVersion()
+func serverVersion(cli *client.Client) *client.ServerVersion {
+	sv, err := cli.ServerVersion()
 
 	if err != nil {
 		sv = &client.ServerVersion{

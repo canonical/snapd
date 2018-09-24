@@ -33,6 +33,7 @@ import (
 )
 
 type cmdInterface struct {
+	clientMixin
 	ShowAttrs   bool `long:"attrs"`
 	ShowAll     bool `long:"all"`
 	Positionals struct {
@@ -70,7 +71,7 @@ func (x *cmdInterface) Execute(args []string) error {
 	if x.Positionals.Interface != "" {
 		// Show one interface in detail.
 		name := string(x.Positionals.Interface)
-		ifaces, err := Client().Interfaces(&client.InterfaceOptions{
+		ifaces, err := x.client.Interfaces(&client.InterfaceOptions{
 			Names: []string{name},
 			Doc:   true,
 			Plugs: true,
@@ -85,7 +86,7 @@ func (x *cmdInterface) Execute(args []string) error {
 		x.showOneInterface(ifaces[0])
 	} else {
 		// Show an overview of available interfaces.
-		ifaces, err := Client().Interfaces(&client.InterfaceOptions{
+		ifaces, err := x.client.Interfaces(&client.InterfaceOptions{
 			Connected: !x.ShowAll,
 		})
 		if err != nil {

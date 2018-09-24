@@ -43,7 +43,7 @@ An alias noted as undefined means it was explicitly enabled or disabled but is
 not defined in the current revision of the snap, possibly temporarily (e.g.
 because of a revert). This can cleared with 'snap alias --reset'.
 `
-	rest, err := Parser().ParseArgs([]string{"aliases", "--help"})
+	rest, err := Parser(Client()).ParseArgs([]string{"aliases", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -70,7 +70,7 @@ func (s *SnapSuite) TestAliases(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"aliases"})
+	rest, err := Parser(Client()).ParseArgs([]string{"aliases"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -105,7 +105,7 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"aliases", "foo"})
+	rest, err := Parser(Client()).ParseArgs([]string{"aliases", "foo"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -128,7 +128,7 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 			"result": map[string]map[string]client.AliasStatus{},
 		})
 	})
-	_, err := Parser().ParseArgs([]string{"aliases"})
+	_, err := Parser(Client()).ParseArgs([]string{"aliases"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "No aliases are currently defined.\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
@@ -149,7 +149,7 @@ func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
 				}},
 		})
 	})
-	_, err := Parser().ParseArgs([]string{"aliases", "not-bar"})
+	_, err := Parser(Client()).ParseArgs([]string{"aliases", "not-bar"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "No aliases are currently defined for snap \"not-bar\".\n\nUse 'snap help alias' to learn how to create aliases manually.\n")

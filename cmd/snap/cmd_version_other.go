@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-func serverVersion() *client.ServerVersion {
+func serverVersion(*client.Client) *client.ServerVersion {
 	return &client.ServerVersion{
 		Version:       i18n.G("unavailable"),
 		Series:        release.Series,

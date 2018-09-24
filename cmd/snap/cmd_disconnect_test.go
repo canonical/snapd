@@ -50,7 +50,7 @@ The snap name may be omitted for the core snap.
           --no-wait        Do not wait for the operation to finish but just
                            print the change id.
 `
-	rest, err := Parser().ParseArgs([]string{"disconnect", "--help"})
+	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -83,7 +83,7 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
+	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
@@ -118,7 +118,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:slot"})
+	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
@@ -153,7 +153,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnapPlugOrSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:plug-or-slot"})
+	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer:plug-or-slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
@@ -164,7 +164,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Fatalf("expected nothing to reach the server")
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
+	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer"})
 	c.Assert(err, ErrorMatches, `please provide the plug or slot name to disconnect from snap "consumer"`)
 	c.Assert(rest, DeepEquals, []string{"consumer"})
 	c.Assert(s.Stdout(), Equals, "")
@@ -188,7 +188,7 @@ func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 	defer os.Unsetenv("GO_FLAGS_COMPLETION")
 
 	expected := []flags.Completion{}
-	parser := Parser()
+	parser := Parser(Client())
 	parser.CompletionHandler = func(obtained []flags.Completion) {
 		c.Check(obtained, DeepEquals, expected)
 	}

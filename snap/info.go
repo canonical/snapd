@@ -38,8 +38,12 @@ import (
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
-	// InstanceName returns the name of the snap.
+	// InstanceName returns the name of the snap decorated with instance
+	// key, if any.
 	InstanceName() string
+
+	// SnapName returns the name of the snap.
+	SnapName() string
 
 	// MountDir returns the base directory of the snap.
 	MountDir() string
@@ -81,9 +85,14 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
+// BaseDir returns the system level directory of given snap.
+func BaseDir(name string) string {
+	return filepath.Join(dirs.SnapMountDir, name)
+}
+
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapMountDir, name, revision.String())
+	return filepath.Join(BaseDir(name), revision.String())
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
@@ -117,10 +126,15 @@ func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
 }
 
-// DataDir returns the data directory for given snap name. The name can be
+// BaseDataDir returns the base directory for snap data locations.
+func BaseDataDir(name string) string {
+	return filepath.Join(dirs.SnapDataDir, name)
+}
+
+// DataDir returns the data directory for given snap name and revision. The name can be
 // either a snap name or snap instance name.
 func DataDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapDataDir, name, revision.String())
+	return filepath.Join(BaseDataDir(name), revision.String())
 }
 
 // CommonDataDir returns the common data directory for given snap name. The name

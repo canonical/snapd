@@ -83,13 +83,12 @@ func (x *cmdSet) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	cli := Client()
-	id, err := cli.SetConf(snapName, patchValues)
+	id, err := x.client.SetConf(snapName, patchValues)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, id); err != nil {
+	if _, err := x.wait(id); err != nil {
 		if err == noWait {
 			return nil
 		}
