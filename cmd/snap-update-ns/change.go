@@ -339,8 +339,8 @@ func NeededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	}
 
 	// Sort both lists by directory name with implicit trailing slash.
-	sort.Sort(byMagicDir(current))
-	sort.Sort(byMagicDir(desired))
+	sort.Sort(byOriginAndMagicDir(current))
+	sort.Sort(byOriginAndMagicDir(desired))
 
 	// Construct a desired directory map.
 	desiredMap := make(map[string]*osutil.MountEntry)

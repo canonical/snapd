@@ -39,7 +39,7 @@ func (s *SnapSuite) TestManaged(c *C) {
 			fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {"managed":%v}}`, managed)
 		})
 
-		_, err := snap.Parser().ParseArgs([]string{"managed"})
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"managed"})
 		c.Assert(err, IsNil)
 		c.Check(s.Stdout(), Equals, fmt.Sprintf("%v\n", managed))
 	}

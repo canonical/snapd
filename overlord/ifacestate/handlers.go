@@ -618,6 +618,18 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 	return defaultProviders
 }
 
+func obsoleteCorePhase2SetupProfiles(kind string, task *state.Task) (bool, error) {
+	if kind != "setup-profiles" {
+		return false, nil
+	}
+
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	return corePhase2, nil
+}
+
 func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
 	for _, task := range st.Tasks() {
 		if task.Status().Ready() {
@@ -649,6 +661,17 @@ func checkAutoconnectConflicts(st *state.State, plugSnap, slotSnap string) error
 
 		// different snaps - no conflict
 		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+			continue
+		}
+
+		// setup-profiles core-phase-2 is now no-op, we shouldn't
+		// conflict on it; note, old snapd would create this task even
+		// for regular snaps if installed with the dangerous flag.
+		obsoleteCorePhase2, err := obsoleteCorePhase2SetupProfiles(k, task)
+		if err != nil {
+			return err
+		}
+		if obsoleteCorePhase2 {
 			continue
 		}
 

@@ -38,6 +38,7 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
+	clientMixin
 	Positional struct {
 		Email string
 	} `positional-args:"yes"`
@@ -69,8 +70,6 @@ func (x *cmdCreateUser) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-
 	options := client.CreateUserOptions{
 		Email:        x.Positional.Email,
 		Sudoer:       x.Sudoer,
@@ -83,9 +82,9 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	var err error
 
 	if options.Email == "" && options.Known {
-		results, err = cli.CreateUsers([]*client.CreateUserOptions{&options})
+		results, err = x.client.CreateUsers([]*client.CreateUserOptions{&options})
 	} else {
-		result, err = cli.CreateUser(&options)
+		result, err = x.client.CreateUser(&options)
 		if err == nil {
 			results = append(results, result)
 		}
