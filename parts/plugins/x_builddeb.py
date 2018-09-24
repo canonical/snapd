@@ -20,14 +20,18 @@ import snapcraft
 # cowboy baby :(
 # see https://bugs.launchpad.net/snapcraft/+bug/1772584
 # and https://bugs.launchpad.net/snapcraft/+bug/1791871
+#
+# This will be fixed by snapcraft - the agreement is that they
+# will look for a .snap/ directory with "snapcraft" in it and
+# use that when available.
 def patch_snapcraft():
     import snapcraft.internal.common
     import snapcraft.internal.sources._local
     # very hacky but gets the job done for now, right now
     # SNAPCRAFT_FILES is only used to know what to exclude
     snapcraft.internal.common.SNAPCRAFT_FILES.remove("snap")
-        def _patched_check(self, target):
-            return False
+    def _patched_check(self, target):
+        return False
     snapcraft.internal.sources._local.Local._check = _patched_check
 patch_snapcraft()
 
