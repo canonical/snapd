@@ -827,5 +827,53 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+}
 
+func doTestReq(c *check.C, cmd *Command) *httptest.ResponseRecorder {
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	return rec
+}
+
+func (s *daemonSuite) TestDegradedModeReplyNormalCmd(c *check.C) {
+	d := newTestDaemon(c)
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+
+	// enter degraded mode
+	d.DegradedMode(fmt.Errorf("foo error"))
+	rec := doTestReq(c, cmd)
+	c.Check(rec.Code, check.Equals, 500)
+	// verify we get the error
+	var v struct{ Result errorResult }
+	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
+	c.Check(v.Result.Message, check.Equals, "foo error")
+
+	// clean degraded mode
+	d.DegradedMode(nil)
+	rec = doTestReq(c, cmd)
+	c.Check(rec.Code, check.Equals, 200)
+}
+
+func (s *daemonSuite) TestDegradedModeReplyCmdDegradedOK(c *check.C) {
+	d := newTestDaemon(c)
+	cmd := &Command{d: d, degradedOK: true}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+
+	// enter degraded mode
+	d.DegradedMode(fmt.Errorf("foo error"))
+	rec := doTestReq(c, cmd)
+	c.Check(rec.Code, check.Equals, 200)
+
+	// clean degraded mode
+	d.DegradedMode(nil)
+	rec = doTestReq(c, cmd)
+	c.Check(rec.Code, check.Equals, 200)
 }
