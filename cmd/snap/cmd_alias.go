@@ -67,12 +67,11 @@ func (x *cmdAlias) Execute(args []string) error {
 	snapName, appName := snap.SplitSnapApp(string(x.Positionals.SnapApp))
 	alias := x.Positionals.Alias
 
-	cli := Client()
-	id, err := cli.Alias(snapName, appName, alias)
+	id, err := x.client.Alias(snapName, appName, alias)
 	if err != nil {
 		return err
 	}
-	chg, err := x.wait(cli, id)
+	chg, err := x.wait(id)
 	if err != nil {
 		if err == noWait {
 			return nil

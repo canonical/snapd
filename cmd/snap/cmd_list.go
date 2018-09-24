@@ -42,6 +42,7 @@ indicates that the publisher has been verified.
 `)
 
 type cmdList struct {
+	clientMixin
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -107,8 +108,7 @@ func (x *cmdList) Execute(args []string) error {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	cli := Client()
-	snaps, err := cli.List(names, &client.ListOptions{All: x.All})
+	snaps, err := x.client.List(names, &client.ListOptions{All: x.All})
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
 			if len(names) == 0 {

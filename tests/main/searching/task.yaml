@@ -62,3 +62,7 @@ execute: |
         echo 'snap find " " returns non user friendly error with whitespace query'
         exit 1
     fi
+
+    echo "List of snaps in edge and beta channels"
+    snap find test-snapd-just- | MATCH "test-snapd-just-edge"
+    snap find test-snapd-just- | MATCH "test-snapd-just-beta"

@@ -46,14 +46,22 @@ create_nested_core_vm(){
     esac
 
     # create ubuntu-core image
+    EXTRA_SNAPS=""
+    if [ -d "${PWD}/extra-snaps" ] && [ "$(ls -l ${PWD}/extra-snaps/*.snap | wc -l)" -gt 0 ]; then
+        EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
+    fi
+    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img "$EXTRA_SNAPS"
     mkdir -p /tmp/work-dir
-    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img
     mv ubuntu-core.img /tmp/work-dir
 
     create_assertions_disk
     start_nested_vm
-    wait_for_ssh
-    prepare_ssh
+    if wait_for_ssh; then
+        prepare_ssh
+    else
+        echo "ssh not stablished, exiting..."
+        exit 1
+    fi
 }
 
 start_nested_vm(){
