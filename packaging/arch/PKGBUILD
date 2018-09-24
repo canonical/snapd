@@ -146,7 +146,7 @@ package() {
   install -Dm755 "$GOPATH/bin/snap-exec" "$pkgdir/usr/lib/snapd/snap-exec"
   # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
   install -Dm755 "$GOPATH/bin/snapctl" "$pkgdir/usr/lib/snapd/snapctl"
-  ln -s  ../libexec/snapd/snapctl  "$pkgdir/usr/bin/snapctl"
+  ln -s  ../lib/snapd/snapctl  "$pkgdir/usr/bin/snapctl"
 
   # pre-create directories
   install -dm755 "$pkgdir/var/lib/snapd/snap"
