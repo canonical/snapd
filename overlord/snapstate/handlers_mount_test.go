@@ -131,7 +131,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 
 }
 
-func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
+func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
 	v1 := "name: borken\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
@@ -195,6 +195,54 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 	})
 }
 
+func (s *mountSnapSuite) TestDoMountSnapErrorSetupSnap(c *C) {
+	v1 := "name: borken\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si := &snap.SideInfo{
+		RealName: "borken-in-setup",
+		Revision: snap.R(2),
+	}
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot install snap "borken-in-setup".*`)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:    "setup-snap",
+			name:  "borken-in-setup",
+			path:  testSnap,
+			revno: snap.R(2),
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "borken-in-setup",
+			path: filepath.Join(dirs.SnapMountDir, "borken-in-setup"),
+		},
+	})
+}
 func (s *mountSnapSuite) TestDoMountSnapUndoError(c *C) {
 	v1 := "name: borken-undo-setup\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
