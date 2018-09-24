@@ -43,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // hook setup by devicestate
@@ -401,6 +403,23 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
 }
 
+// autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
+// there is no limit.
+func autoRefreshRateLimited(st *state.State) (rate int64) {
+	tr := config.NewTransaction(st)
+
+	var rateLimit string
+	err := tr.Get("core", "refresh.rate-limit", &rateLimit)
+	if err != nil {
+		return 0
+	}
+	val, err := strutil.ParseByteSize(rateLimit)
+	if err != nil {
+		return 0
+	}
+	return val
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -412,6 +431,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	theStore := Store(st)
+	rate := autoRefreshRateLimited(st)
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
@@ -420,6 +440,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
+
+	dlOpts := &store.DownloadOptions{}
+	if snapsup.IsAutoRefresh && rate > 0 {
+		dlOpts.RateLimit = rate
+	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
@@ -429,10 +454,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 	}
 	if err != nil {
 		return err
@@ -452,10 +477,30 @@ var (
 	mountPollInterval = 1 * time.Second
 )
 
+// hasOtherInstances checks whether there are other instances of the snap, be it
+// instance keyed or not
+func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
+	snapName, _ := snap.SplitInstanceName(instanceName)
+	var all map[string]*json.RawMessage
+	if err := st.Get("snaps", &all); err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	for otherName := range all {
+		if otherName == instanceName {
+			continue
+		}
+		if otherSnapName, _ := snap.SplitInstanceName(otherName); otherSnapName == snapName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -466,8 +511,25 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
+	if err := checkSnap(st, snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags); err != nil {
 		return err
+	}
+
+	cleanup := func() {
+		st.Lock()
+		defer st.Unlock()
+
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+		if err != nil {
+			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
+			return
+		}
+
+		// remove snap dir is idempotent so it's ok to always call it in the cleanup path
+		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
+			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
+		}
+
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
@@ -475,6 +537,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	//      instead of assuming the candidate is the right one.
 	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	if err != nil {
+		cleanup()
 		return err
 	}
 
@@ -498,17 +561,19 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb); err != nil {
-			t.State().Lock()
+			st.Lock()
 			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
-			t.State().Unlock()
+			st.Unlock()
 		}
+
+		cleanup()
 		return readInfoErr
 	}
 
+	st.Lock()
 	// set snapst type for undoMountSnap
-	t.State().Lock()
 	t.Set("snap-type", snapType)
-	t.State().Unlock()
+	st.Unlock()
 
 	if snapsup.Flags.RemoveSnapPath {
 		if err := os.Remove(snapsup.SnapPath); err != nil {
@@ -520,17 +585,18 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, err := TaskSnapSetup(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	t.State().Lock()
+	st.Lock()
 	var typ snap.Type
 	err = t.Get("snap-type", &typ)
-	t.State().Unlock()
+	st.Unlock()
 	// backward compatibility
 	if err == state.ErrNoState {
 		typ = "app"
@@ -539,7 +605,19 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	return m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb)
+	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb); err != nil {
+		return err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+
+	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -612,9 +690,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -630,13 +709,37 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	return m.backend.CopySnapData(newInfo, oldInfo, pb)
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb); copyDataErr != nil {
+		if oldInfo != nil {
+			// there is another revision of the snap, cannot remove
+			// shared data directory
+			return copyDataErr
+		}
+
+		// cleanup shared snap data directory
+		st.Lock()
+		defer st.Unlock()
+
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+		if err != nil {
+			t.Errorf("cannot undo partial snap %q data copy: %v", snapsup.InstanceName(), err)
+			return copyDataErr
+		}
+		// no other instances of this snap, shared data directory can be
+		// removed now too
+		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
+		}
+		return copyDataErr
+	}
+	return nil
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -652,7 +755,29 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb); err != nil {
+		return err
+	}
+
+	if oldInfo != nil {
+		// there is other revision of this snap, cannot remove shared
+		// directory anyway
+		return nil
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+	// no other instances of this snap and no other revisions, shared data
+	// directory can be removed
+	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -1144,16 +1269,17 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	t.State().Lock()
+	st.Lock()
 	info, err := Info(t.State(), snapsup.InstanceName(), snapsup.Revision())
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -1162,9 +1288,21 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// Only remove data common between versions if this is the last version
 	if len(snapst.Sequence) == 1 {
+		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info); err != nil {
+			return err
+		}
+
+		st.Lock()
+		defer st.Unlock()
+
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+		if err != nil {
+			return err
+		}
+		// Snap data directory can be removed now too
+		if err := m.backend.RemoveSnapDataDir(info, otherInstances); err != nil {
 			return err
 		}
 	}
@@ -1227,6 +1365,15 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
+		}
+
+		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
+		if err != nil {
+			return err
+		}
+
+		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
+			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {

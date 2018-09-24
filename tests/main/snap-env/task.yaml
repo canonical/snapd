@@ -38,11 +38,8 @@ execute: |
     MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
     # TODO parallel-install: install snap with instance key and verify variables
     MATCH '^SNAP_INSTANCE_NAME=test-snapd-tools$'                         < snap-vars.txt
-    MATCH '^SNAP_INSTANCE_COMMON=/var/snap/test-snapd-tools/common$'      < snap-vars.txt
-    MATCH '^SNAP_INSTANCE_DATA=/var/snap/test-snapd-tools/x1$'            < snap-vars.txt
-    MATCH '^SNAP_INSTANCE_USER_COMMON=/root/snap/test-snapd-tools/common$' < snap-vars.txt
-    MATCH '^SNAP_INSTANCE_USER_DATA=/root/snap/test-snapd-tools/x1$'      < snap-vars.txt
-    test "$(wc -l < snap-vars.txt)" -eq 18
+    MATCH '^SNAP_INSTANCE_KEY=$'                                          < snap-vars.txt
+    test "$(wc -l < snap-vars.txt)" -eq 14
 
     echo "Enure that XDG environment variables are what we expect"
     MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt

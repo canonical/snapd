@@ -33,7 +33,7 @@ func (s *SnapSuite) TestPathsUbuntu(c *C) {
 	defer dirs.SetRootDir("/")
 
 	dirs.SetRootDir("/")
-	_, err := snap.Parser().ParseArgs([]string{"debug", "paths"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/snap\n"+
@@ -48,7 +48,7 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 	defer dirs.SetRootDir("/")
 
 	dirs.SetRootDir("/")
-	_, err := snap.Parser().ParseArgs([]string{"debug", "paths"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
@@ -63,7 +63,7 @@ func (s *SnapSuite) TestPathsArch(c *C) {
 	defer dirs.SetRootDir("/")
 
 	dirs.SetRootDir("/")
-	_, err := snap.Parser().ParseArgs([]string{"debug", "paths"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
