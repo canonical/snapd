@@ -15,6 +15,18 @@ wait_for_ssh(){
     done
 }
 
+wait_for_no_ssh(){
+    retry=150
+    while execute_remote true; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for no ssh. Aborting!"
+            return 1
+        fi
+        sleep 1
+    done
+}
+
 prepare_ssh(){
     execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
     execute_remote "echo test:ubuntu | sudo chpasswd"
@@ -79,3 +91,8 @@ destroy_nested_core_vm(){
 execute_remote(){
     sshpass -p ubuntu ssh -p 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
 }   
+
+get_nested_core_revision(){
+    ID=$1
+    execute_remote "snap info core" | awk "/${ID}: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+}
