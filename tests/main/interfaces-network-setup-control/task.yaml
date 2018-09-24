@@ -13,7 +13,6 @@ prepare: |
 
 restore: |
     rm -f call.error
-    rm -f /etc/netplan/test001 /etc/netplan/test002
     rm -f /etc/network/test001 /etc/network/test002
 
 execute: |
