@@ -74,3 +74,18 @@ execute: |
 
     echo "Checking that the $HOTPLUG_SLOT is recreated and reconnected after restart"
     check_slot_connected
+
+    echo "Stopping snapd"
+    sudo systemctl stop snapd.service snapd.socket
+
+    # removing the device while snapd is not running
+    rmmod dummy
+
+    echo "Starting snapd"
+    sudo systemctl stop snapd.service snapd.socket
+
+    echo "Checking that hotplug slot is no longer present"
+    if snap interfaces | MATCH "$HOTPLUG_SLOT"; then
+        echo "Expected $HOTPLUG_SLOT slot to be removed"
+        exit 1
+    fi
