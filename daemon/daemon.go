@@ -197,6 +197,12 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromRequest(st, r)
 	st.Unlock()
 
+	// check if we are in degradedMode
+	if c.d.degradedErr != nil && r.Method != "GET" {
+		InternalError(c.d.degradedErr.Error()).ServeHTTP(w, r)
+		return
+	}
+
 	switch c.canAccess(r, user) {
 	case accessOK:
 		// nothing
@@ -208,12 +214,6 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case accessCancelled:
 		AuthCancelled("cancelled").ServeHTTP(w, r)
-		return
-	}
-
-	// check if we are in degradedMode
-	if c.d.degradedErr != nil && r.Method != "GET" {
-		InternalError(c.d.degradedErr.Error()).ServeHTTP(w, r)
 		return
 	}
 

@@ -75,23 +75,18 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 		err := snapd.Run(ch)
 		c.Assert(err, IsNil)
 	}()
+	time.Sleep(100 * time.Millisecond)
 
 	// verify that talking to the daemon yields the selftest error
 	// message
 	cli := client.New(nil)
-	_, err := cli.Changes(nil)
+	_, err := cli.Abort("123")
+	c.Check(selftestWasRun >= 1, Equals, true)
 	c.Check(err, ErrorMatches, "selftest failed with: foo failed")
-	c.Check(selftestWasRun > 1, Equals, true)
 	c.Check(logbuf.String(), testutil.Contains, "selftest failed with: foo failed")
 
 	// verify that the sysinfo command is still available
 	_, err = cli.SysInfo()
-	c.Check(err, IsNil)
-
-	// pretend the error went away
-	selftestErr = nil
-	time.Sleep(100 * time.Millisecond)
-	_, err = cli.Changes(nil)
 	c.Check(err, IsNil)
 
 	// stop the daemon
