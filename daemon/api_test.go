@@ -5901,6 +5901,16 @@ func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
 }
 
+func (s *postCreateUserSuite) TestSysInfoWorksDegraded(c *check.C) {
+	s.d.DegradedMode(fmt.Errorf("some error"))
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+}
+
 // aliases
 
 func (s *apiSuite) TestAliasSuccess(c *check.C) {
