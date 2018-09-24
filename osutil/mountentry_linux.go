@@ -427,6 +427,11 @@ func XSnapdOriginLayout() string {
 	return "x-snapd.origin=layout"
 }
 
+// XSnapdOriginOvername returns the string "x-snapd.origin=overname"
+func XSnapdOriginOvername() string {
+	return "x-snapd.origin=overname"
+}
+
 // XSnapdUser returns the string "x-snapd.user=%d".
 func XSnapdUser(uid uint32) string {
 	return fmt.Sprintf("x-snapd.user=%d", uid)

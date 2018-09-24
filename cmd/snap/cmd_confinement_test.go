@@ -32,7 +32,7 @@ func (s *SnapSuite) TestConfinement(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"confinement": "strict"}}`)
 	})
-	_, err := snap.Parser().ParseArgs([]string{"debug", "confinement"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "confinement"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "strict\n")
 	c.Assert(s.Stderr(), Equals, "")

@@ -313,3 +313,41 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	c.Check(osutil.FileExists(minInfo.MountFile()), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, false)
 }
+
+func (s *setupSuite) TestRemoveSnapFilesDir(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	snapType, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeApp)
+
+	minInfo := snap.MinimalPlaceInfo("hello_instance", snap.R(14))
+	// mount dir was created
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+
+	s.be.RemoveSnapFiles(minInfo, snapType, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.InstanceName())), Equals, true)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, true)
+
+	// /snap/hello is kept as other instances exist
+	err = s.be.RemoveSnapDir(minInfo, true)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.InstanceName())), Equals, false)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, true)
+
+	// /snap/hello is removed when there are no more instances
+	err = s.be.RemoveSnapDir(minInfo, false)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, false)
+}
