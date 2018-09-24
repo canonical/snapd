@@ -19,6 +19,10 @@
 
 package main
 
+import (
+	"time"
+)
+
 var (
 	Run = run
 )
@@ -28,5 +32,13 @@ func MockSelftestRun(f func() error) (restore func()) {
 	selftestRun = f
 	return func() {
 		selftestRun = oldSelftestRun
+	}
+}
+
+func MockSelftestRetryDelay(d time.Duration) (restore func()) {
+	oldSelftestRetryDelay := selftestRetryDelay
+	selftestRetryDelay = d
+	return func() {
+		selftestRetryDelay = oldSelftestRetryDelay
 	}
 }

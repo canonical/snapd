@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -57,11 +58,15 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	selftestErr := fmt.Errorf("foo failed")
 	selftestWasRun := 0
 	restore = snapd.MockSelftestRun(func() error {
 		selftestWasRun += 1
-		return fmt.Errorf("foo failed")
+		return selftestErr
 	})
+	defer restore()
+
+	restore = snapd.MockSelftestRetryDelay(10 * time.Millisecond)
 	defer restore()
 
 	// run the daemon
@@ -76,10 +81,17 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 	cli := client.New(nil)
 	_, err := cli.Changes(nil)
 	c.Check(err, ErrorMatches, "selftest failed with: foo failed")
-	c.Check(selftestWasRun, Equals, 1)
+	c.Check(selftestWasRun > 1, Equals, true)
+	c.Check(logbuf.String(), testutil.Contains, "selftest failed with: foo failed")
 
 	// verify that the sysinfo command is still available
 	_, err = cli.SysInfo()
+	c.Check(err, IsNil)
+
+	// pretend the error went away
+	selftestErr = nil
+	time.Sleep(100 * time.Millisecond)
+	_, err = cli.Changes(nil)
 	c.Check(err, IsNil)
 
 	// stop the daemon
