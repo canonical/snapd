@@ -501,6 +501,8 @@ dbus (send)
     member={Register,Unregister}Application
     peer=(label=unconfined),
 
+# When @{SNAP_NAME} == @{SNAP_INSTANCE_NAME}, this rule
+# allows the snap to access parallel installs of this snap.
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Properties
@@ -508,6 +510,8 @@ dbus (receive)
     member=GetAll
     peer=(label=unconfined),
 
+# When @{SNAP_NAME} == @{SNAP_INSTANCE_NAME}, this rule
+# allows the snap to access parallel installs of this snap.
 dbus (receive, send)
     bus=session
     interface=com.canonical.indicator.messages.application
