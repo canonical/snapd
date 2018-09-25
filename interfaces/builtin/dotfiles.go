@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const dotfilesSummary = `allows access to hidden files in the home directory`
+const dotfilesSummary = `allows access to specific hidden files in the home directory`
 
 const dotfilesBaseDeclarationSlots = `
   dotfiles:
@@ -40,7 +40,7 @@ const dotfilesBaseDeclarationSlots = `
 `
 
 const dotfilesConnectedPlugAppArmor = `
-# Description: Can access hidden files in user's $HOME. This is restricted
+# Description: Can access specific hidden files in user's $HOME. This is restricted
 # because it gives file access to some of the user's $HOME.
 `
 
@@ -53,6 +53,14 @@ func validatePaths(attrName string, paths []interface{}) error {
 		np, ok := npp.(string)
 		if !ok {
 			return fmt.Errorf("%q must be a list of strings", attrName)
+		}
+		// filepath.Clean() will remove trailing "/" but we allow this
+		// for "paths"
+		if attrName == "dirs" {
+			last := len(np)
+			if np[last-1] == '/' {
+				np = np[:last-1]
+			}
 		}
 		p := filepath.Clean(np)
 		if p != np {
@@ -98,11 +106,11 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 
 	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
 	for _, file := range files {
-		s := fmt.Sprintf("owner @${HOME}/%s rwklix,", file)
+		s := fmt.Sprintf("owner @${HOME}/%s rwklix,", filepath.Clean(file.(string)))
 		spec.AddSnippet(s)
 	}
 	for _, dir := range dirs {
-		s := fmt.Sprintf("owner @${HOME}/%s/** rwklix,", dir)
+		s := fmt.Sprintf("owner @${HOME}/%s/** rwklix,", filepath.Clean(dir.(string)))
 		spec.AddSnippet(s)
 	}
 
