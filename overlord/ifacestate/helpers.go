@@ -742,25 +742,25 @@ func hotplugTaskGetAttrs(task *state.Task) (deviceKey, ifaceName string, err err
 	return deviceKey, ifaceName, err
 }
 
-type hotplugSlotDef struct {
+type HotplugSlotDef struct {
 	Name             string                 `json:"name"`
 	Interface        string                 `json:"interface"`
 	StaticAttrs      map[string]interface{} `json:"static-attrs,omitempty"`
 	HotplugDeviceKey string                 `json:"device-key"`
 }
 
-func getHotplugSlots(st *state.State) (map[string]hotplugSlotDef, error) {
-	var slots map[string]hotplugSlotDef
+func getHotplugSlots(st *state.State) (map[string]HotplugSlotDef, error) {
+	var slots map[string]HotplugSlotDef
 	err := st.Get("hotplug-slots", &slots)
 	if err != nil {
 		if err != state.ErrNoState {
 			return nil, err
 		}
-		slots = make(map[string]hotplugSlotDef)
+		slots = make(map[string]HotplugSlotDef)
 	}
 	return slots, nil
 }
 
-func setHotplugSlots(st *state.State, slots map[string]hotplugSlotDef) {
+func setHotplugSlots(st *state.State, slots map[string]HotplugSlotDef) {
 	st.Set("hotplug-slots", slots)
 }
