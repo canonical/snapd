@@ -244,9 +244,11 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
+		_, instanceKey := snap.SplitInstanceName(name)
 		info := &snap.Info{
 			SuggestedName: name,
 			Broken:        bse.Broken(),
+			InstanceKey:   instanceKey,
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {

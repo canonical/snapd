@@ -6,17 +6,17 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-raw-usb
+    install_local test-snapd-sh
 
 restore: |
     rm -f call.error
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i raw-usb | MATCH -- '^- +test-snapd-raw-usb:raw-usb'
+    snap interfaces -i raw-usb | MATCH -- '^- +test-snapd-sh:raw-usb'
 
     echo "When the interface is connected"
-    snap connect test-snapd-raw-usb:raw-usb
+    snap connect test-snapd-sh:raw-usb
 
     if ! [ -d /sys/bus/usb/devices/usb1 ]; then
         echo "No usb devices registered"
@@ -24,16 +24,16 @@ execute: |
     fi
 
     echo "Then the snap is able to check for USB devices"
-    test-snapd-raw-usb.sh -c "test -d /sys/bus/usb/devices/usb1"
+    test-snapd-sh.with-raw-usb-plug -c "test -d /sys/bus/usb/devices/usb1"
 
     echo "And the snap has raw access to a connected USB device"
-    test-snapd-raw-usb.sh -c "dd if=/dev/bus/usb/001/001 of=/dev/null count=10"
+    test-snapd-sh.with-raw-usb-plug -c "dd if=/dev/bus/usb/001/001 of=/dev/null count=10"
 
     echo "And the snap has read access to ACM USB modems and various USB devices"
     for exp in 'c166:*' 'c167:*' 'b180:*' 'c180:*' 'c188:*' 'c189:*' '+usb:*'; do
         file=$(find /run/udev/data/ -name "$exp" | head -1)
         if ! [ -z "$file" ]; then 
-            test-snapd-raw-usb.sh -c "cat \"$file\""
+            test-snapd-sh.with-raw-usb-plug -c "cat \"$file\""
         fi
     done
 
@@ -42,10 +42,10 @@ execute: |
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-raw-usb:raw-usb
+    snap disconnect test-snapd-sh:raw-usb
 
     echo "Then the snap is not able to check for USB devices"
-    if test-snapd-raw-usb.sh -c "cat /sys/bus/usb/devices/usb1/serial" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-raw-usb-plug -c "cat /sys/bus/usb/devices/usb1/serial" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to check for USB devices"
         exit 1
     fi
