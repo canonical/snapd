@@ -57,10 +57,10 @@ func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
 		Name:      "autopilot-introspection",
 		Interface: "autopilot-introspection",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockAutopilotPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["autopilot-introspection"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *AutopilotInterfaceSuite) TestName(c *C) {

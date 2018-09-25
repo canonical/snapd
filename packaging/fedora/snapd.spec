@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35.1
+Version:        2.35.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -158,6 +158,7 @@ BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
+BuildRequires: golang(github.com/juju/ratelimit)
 BuildRequires: golang(github.com/kr/pretty)
 BuildRequires: golang(github.com/kr/text)
 BuildRequires: golang(github.com/mvo5/goconfigparser)
@@ -251,6 +252,7 @@ Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
+Requires:      golang(github.com/juju/ratelimit)
 Requires:      golang(github.com/kr/pretty)
 Requires:      golang(github.com/kr/text)
 Requires:      golang(github.com/mvo5/goconfigparser)
@@ -279,6 +281,7 @@ Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
+Provides:      bundled(golang(github.com/juju/ratelimit))
 Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
@@ -461,6 +464,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+%gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
 
 # To ensure things work correctly with base snaps,
 # snap-exec and snap-update-ns need to be built statically
@@ -543,10 +547,13 @@ install -d -p %{buildroot}%{_datadir}/selinux/packages
 # Install snap and snapd
 install -p -m 0755 bin/snap %{buildroot}%{_bindir}
 install -p -m 0755 bin/snap-exec %{buildroot}%{_libexecdir}/snapd
-install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
+install -p -m 0755 bin/snap-failure %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
+# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
 
 %if 0%{?with_selinux}
 # Install SELinux module
@@ -574,8 +581,6 @@ chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
-# Move systemd-generator to the right place
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_systemdgeneratordir}
 popd
 
 # Install all systemd and dbus units, and env files
@@ -672,8 +677,10 @@ popd
 %{_bindir}/snapctl
 %{_environmentdir}/990-snapd.conf
 %dir %{_libexecdir}/snapd
+%{_libexecdir}/snapd/snapctl
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec
+%{_libexecdir}/snapd/snap-failure
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-mgmt
 %{_mandir}/man1/snap.1*
@@ -800,6 +807,13 @@ fi
 %endif
 
 %changelog
+* Wed Sep 12 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.2
+ - cmd,overlord/snapstate: go 1.11 format fixes
+ - ifacestate: fix hang when retrying content providers
+ - snap-env-generator: do nothing when PATH is unset
+ - interfaces/modem-manager: allow access to more USB strings
+
 * Mon Sep 03 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.35.1
  - packaging/fedora: Merge changes from Fedora Dist-Git

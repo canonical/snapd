@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.35.1
+Version:        2.35.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -220,6 +220,9 @@ mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
 mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}%{_bindir}/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}%{_bindir}/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
+# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+mv %{buildroot}%{_bindir}/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
 
 # Install all systemd and dbus units, and env files
 %make_install -C data BINDIR=%{_bindir} LIBEXECDIR=%{_libexecdir} \
@@ -281,9 +284,6 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
-# move snapd-generator
-install -m 755 -d %{buildroot}%{_prefix}/lib/systemd/system-generators/
-mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}%{_prefix}/lib/systemd/system-generators/
 
 # Don't ship apparmor helper service when AppArmor is not enabled
 %if ! %{with apparmor}
@@ -379,6 +379,7 @@ fi
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snapctl
 %if %{with apparmor}
 %{_libexecdir}/snapd/snapd-apparmor
 %endif

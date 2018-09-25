@@ -194,6 +194,43 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	})
 }
 
+func (s *daemonSuite) TestFillsWarnings(c *check.C) {
+	d := newTestDaemon(c)
+
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var rst struct {
+		WarningTimestamp *time.Time `json:"warning-timestamp,omitempty"`
+		WarningCount     int        `json:"warning-count,omitempty"`
+	}
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.WarningCount, check.Equals, 0)
+	c.Check(rst.WarningTimestamp, check.IsNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.Warnf("hello world")
+	st.Unlock()
+
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.WarningCount, check.Equals, 1)
+	c.Check(rst.WarningTimestamp, check.NotNil)
+}
+
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	get := &http.Request{Method: "GET"}
 	put := &http.Request{Method: "PUT"}
@@ -790,5 +827,43 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+}
 
+func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
+	req, err := http.NewRequest(mth, "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	return rec
+}
+
+func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
+	d := newTestDaemon(c)
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+
+	// pretend we are in degraded mode
+	d.SetDegradedMode(fmt.Errorf("foo error"))
+
+	// GET is ok even in degraded mode
+	rec := doTestReq(c, cmd, "GET")
+	c.Check(rec.Code, check.Equals, 200)
+	// POST is not allowed
+	rec = doTestReq(c, cmd, "POST")
+	c.Check(rec.Code, check.Equals, 500)
+	// verify we get the error
+	var v struct{ Result errorResult }
+	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
+	c.Check(v.Result.Message, check.Equals, "foo error")
+
+	// clean degraded mode
+	d.SetDegradedMode(nil)
+	rec = doTestReq(c, cmd, "POST")
+	c.Check(rec.Code, check.Equals, 200)
 }

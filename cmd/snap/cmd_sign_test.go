@@ -43,7 +43,7 @@ var statement = []byte(fmt.Sprintf(`{"type": "snap-build",
 func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
-	rest, err := snap.Parser().ParseArgs([]string{"sign"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
@@ -55,7 +55,7 @@ func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 func (s *SnapKeysSuite) TestHappyNonDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
-	rest, err := snap.Parser().ParseArgs([]string{"sign", "-k", "another"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "-k", "another"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
