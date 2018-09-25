@@ -20,7 +20,14 @@
 package configcore
 
 import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func init() {
@@ -41,4 +48,25 @@ func validateExperimentalSettings(tr Conf) error {
 		}
 	}
 	return nil
+}
+
+func handleExperimentalFlags(tr Conf) error {
+	var buf bytes.Buffer
+	for _, flag := range experimentalFlags {
+		value, err := coreCfg(tr, "experimental."+flag)
+		if err != nil {
+			return err
+		}
+		if value == "true" {
+			fmt.Fprintf(&buf, "%s=%s\n", strings.TrimPrefix(flag, "core.experimental."), value)
+		}
+	}
+
+	if !osutil.IsDirectory(dirs.FactsDir) {
+		if err := os.MkdirAll(dirs.FactsDir, 0755); err != nil {
+			return err
+		}
+	}
+
+	return osutil.AtomicWriteFile(filepath.Join(dirs.FactsDir, "experimental"), buf.Bytes(), 0644, 0)
 }

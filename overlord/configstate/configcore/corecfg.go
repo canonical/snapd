@@ -103,6 +103,11 @@ func Run(tr Conf) error {
 		return err
 	}
 
+	// Export experimental.* flags to a place easily accessible from C.
+	if err := handleExperimentalFlags(tr); err != nil {
+		return err
+	}
+
 	// see if it makes sense to run at all
 	if release.OnClassic {
 		// nothing to do
