@@ -5902,7 +5902,7 @@ func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 }
 
 func (s *postCreateUserSuite) TestSysInfoWorksDegraded(c *check.C) {
-	s.d.DegradedMode(fmt.Errorf("some error"))
+	s.d.SetDegradedMode(fmt.Errorf("some error"))
 
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)

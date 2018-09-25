@@ -66,7 +66,7 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 	})
 	defer restore()
 
-	restore = snapd.MockSelftestRetryDelay(10 * time.Millisecond)
+	restore = snapd.MockCheckRunningConditionsRetryDelay(10 * time.Millisecond)
 	defer restore()
 
 	// run the daemon
@@ -82,8 +82,8 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 	cli := client.New(nil)
 	_, err := cli.Abort("123")
 	c.Check(selftestWasRun >= 1, Equals, true)
-	c.Check(err, ErrorMatches, "selftest failed with: foo failed")
-	c.Check(logbuf.String(), testutil.Contains, "selftest failed with: foo failed")
+	c.Check(err, ErrorMatches, "system does not fully support snapd: foo failed")
+	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
 
 	// verify that the sysinfo command is still available
 	_, err = cli.SysInfo()
