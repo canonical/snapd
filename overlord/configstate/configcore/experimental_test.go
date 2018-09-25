@@ -99,5 +99,5 @@ func (s *experimentalSuite) TestExportedState(c *C) {
 	c.Check(err, IsNil)
 
 	expected := "hotplug=true\nlayouts=true\n"
-	c.Assert(filepath.Join(dirs.FactsDir, "experimental"), testutil.FileEquals, expected)
+	c.Assert(filepath.Join(dirs.FactsDir, "experimental-features"), testutil.FileEquals, expected)
 }

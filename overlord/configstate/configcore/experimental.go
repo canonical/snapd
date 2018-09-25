@@ -68,5 +68,5 @@ func handleExperimentalFlags(tr Conf) error {
 		}
 	}
 
-	return osutil.AtomicWriteFile(filepath.Join(dirs.FactsDir, "experimental"), buf.Bytes(), 0644, 0)
+	return osutil.AtomicWriteFile(filepath.Join(dirs.FactsDir, "experimental-features"), buf.Bytes(), 0644, 0)
 }

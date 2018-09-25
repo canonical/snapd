@@ -1,0 +1,11 @@
+summary: experimental features are exported as facts by snapd
+details: |
+    Experimental features are exported as facts that can be easily read by
+    snap-confine and snap-update-ns that otherwise don't have access to the
+    system state.
+execute: |
+    snap set core experimental.layouts=true
+    MATCH 'layouts=true' < /var/lib/snapd/facts/experimental-features
+
+    snap set core experimental.layouts=false
+    MATCH '' < /var/lib/snapd/facts/experimental-features
