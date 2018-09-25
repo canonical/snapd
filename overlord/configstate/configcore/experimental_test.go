@@ -21,10 +21,13 @@ package configcore_test
 
 import (
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type experimentalSuite struct {
@@ -83,4 +86,18 @@ func (s *experimentalSuite) TestConfigureKnownOption(c *C) {
 		err := configcore.Run(conf)
 		c.Check(err, IsNil)
 	}
+}
+
+func (s *experimentalSuite) TestExportedState(c *C) {
+	conf := &mockConf{
+		state:   s.state,
+		conf:    map[string]interface{}{"experimental.hotplug": true},
+		changes: map[string]interface{}{"experimental.layouts": true},
+	}
+
+	err := configcore.Run(conf)
+	c.Check(err, IsNil)
+
+	c.Assert(filepath.Join(dirs.FeaturesDir, "hotplug"), testutil.FileEquals, "")
+	c.Assert(filepath.Join(dirs.FeaturesDir, "layouts"), testutil.FileEquals, "")
 }
