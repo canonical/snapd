@@ -40,17 +40,11 @@ import (
 )
 
 var (
-	currentDesktop = splitSkippingEmpty(os.Getenv("XDG_CURRENT_DESKTOP"), ":")
+	currentDesktop = splitSkippingEmpty(os.Getenv("XDG_CURRENT_DESKTOP"), ':')
 )
 
-func splitSkippingEmpty(s, substr string) []string {
-	var out []string
-	for _, en := range strings.Split(s, substr) {
-		if en != "" {
-			out = append(out, en)
-		}
-	}
-	return out
+func splitSkippingEmpty(s string, sep rune) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == sep })
 }
 
 // expandDesktopFields processes the input string and expands any %<char>
@@ -121,12 +115,12 @@ func loadAutostartDesktopFile(path string) (command string, err error) {
 				return "", &skipDesktopFileError{"desktop file is hidden"}
 			}
 		case "OnlyShowIn":
-			onlyIn := splitSkippingEmpty(string(split[1]), ";")
+			onlyIn := splitSkippingEmpty(string(split[1]), ';')
 			if !isOneOfIn(currentDesktop, onlyIn) {
 				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q not included in %q", currentDesktop, onlyIn)}
 			}
 		case "NotShownIn":
-			notIn := splitSkippingEmpty(string(split[1]), ";")
+			notIn := splitSkippingEmpty(string(split[1]), ';')
 			if isOneOfIn(currentDesktop, notIn) {
 				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q excluded by %q", currentDesktop, notIn)}
 			}
