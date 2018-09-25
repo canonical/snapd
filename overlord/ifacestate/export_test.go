@@ -35,7 +35,11 @@ var (
 	InSameChangeWaitChain        = inSameChangeWaitChain
 	HotplugTaskGetAttrs          = hotplugTaskGetAttrs
 	HotplugTaskSetAttrs          = hotplugTaskSetAttrs
+	GetHotplugSlots              = getHotplugSlots
+	SetHotplugSlots              = setHotplugSlots
 )
+
+type HotplugSlotDef = hotplugSlotDef
 
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
