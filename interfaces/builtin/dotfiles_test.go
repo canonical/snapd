@@ -47,7 +47,7 @@ func (s *dotfilesInterfaceSuite) SetUpTest(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  dirs: [.dir1]
+  dirs: [.dir1/]
   files: [.file1]
 apps:
  app:
@@ -90,7 +90,7 @@ version: 1.0
 plugs:
  dotfiles:
   files: [".file1"]
-  dirs: [".dir1"]
+  dirs: [".dir1/"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
@@ -147,6 +147,19 @@ plugs:
 	plug := info.Plugs["dotfiles"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
 		`cannot add dotfiles plug: "../foo" contains invalid ".."`)
+}
+
+func (s *dotfilesInterfaceSuite) TestSanitizePlugFilesWithTrailingSlash(c *C) {
+	const mockSnapYaml = `name: dotfiles-plug-snap
+version: 1.0
+plugs:
+ dotfiles:
+  files: [ "foo/" ]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["dotfiles"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot add dotfiles plug: "foo/" must be clean`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizePlugAARE(c *C) {
