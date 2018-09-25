@@ -20,7 +20,11 @@
 package configcore
 
 import (
+	"os"
 	"strings"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func init() {
@@ -41,4 +45,25 @@ func validateExperimentalSettings(tr Conf) error {
 		}
 	}
 	return nil
+}
+
+func handleExperimentalFlags(tr Conf) error {
+	dir := dirs.FeaturesDir
+	if !osutil.IsDirectory(dir) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	content := make(map[string]*osutil.FileState, len(experimentalFlags))
+	for _, flag := range experimentalFlags {
+		value, err := coreCfg(tr, "experimental."+flag)
+		if err != nil {
+			return err
+		}
+		if value == "true" {
+			content[flag] = &osutil.FileState{Mode: 0644}
+		}
+	}
+	_, _, err := osutil.EnsureDirState(dir, "*", content)
+	return err
 }
