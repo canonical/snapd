@@ -54,7 +54,7 @@ func (s *emptyStore) SnapAction(context.Context, []*store.CurrentSnap, []*store.
 	return nil, fmt.Errorf("cannot find snap")
 }
 
-func (s *emptyStore) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *emptyStore) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
 	return fmt.Errorf("cannot download")
 }
 
@@ -202,7 +202,7 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
 
-func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
 	return osutil.CopyFile(s.downloadedSnaps[name], targetFn, 0)
 }
 

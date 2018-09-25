@@ -57,10 +57,10 @@ func (s *ProcessControlInterfaceSuite) SetUpTest(c *C) {
 		Name:      "process-control",
 		Interface: "process-control",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, procctlMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["process-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *ProcessControlInterfaceSuite) TestName(c *C) {
