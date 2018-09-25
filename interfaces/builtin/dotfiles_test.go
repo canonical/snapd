@@ -159,7 +159,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "foo\[" contains one of \?\*\[\]\{\}\^\"`)
+		`cannot add dotfiles plug: "foo\[" contains a reserved apparmor char from .*`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizePlugWithEmptyDirsAttrib(c *C) {

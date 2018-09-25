@@ -62,13 +62,9 @@ func validatePaths(attrName string, paths []interface{}) error {
 		if strings.Contains(p, "..") {
 			return fmt.Errorf(`%q contains invalid ".."`, p)
 		}
-		illegalChars := apparmorAARE
-		if strings.ContainsAny(p, illegalChars) {
-			// must not contain any AppArmor regular expression (AARE)
-			// characters or double quotes
-			return fmt.Errorf("%q contains one of %s", p, illegalChars)
+		if err := apparmor.ValidateFreeFromAARE(p); err != nil {
+			return err
 		}
-
 	}
 	return nil
 }
