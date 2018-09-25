@@ -50,7 +50,7 @@ func MockUserCurrent(f func() (*user.User, error)) func() {
 
 func MockCurrentDesktop(current string) func() {
 	old := currentDesktop
-	currentDesktop = splitSkippingEmpty(current, ":")
+	currentDesktop = splitSkippingEmpty(current, ':')
 	return func() {
 		currentDesktop = old
 	}
