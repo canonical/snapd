@@ -399,6 +399,11 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 			"interface":  "test-a",
 			"device-key": "key-other-device",
 		},
+		"anotherslot": map[string]interface{}{
+			"name":       "anotherslot",
+			"interface":  "test-a",
+			"device-key": "yet-another-device",
+		},
 	}
 	st.Set("hotplug-slots", hotplugSlots)
 
@@ -428,14 +433,13 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 	c.Assert(ok, Equals, true)
 	ok, _ = repo.HasHotplugSlot("key-2", "test-b")
 	c.Assert(ok, Equals, true)
-	ok, _ = repo.HasHotplugSlot("key-3", "test-c")
-	c.Assert(ok, Equals, false)
 
 	// make sure slots for missing device got disconnected and removed
 	slot, _ = repo.SlotForDeviceKey("key-other-device", "test-a")
 	c.Assert(slot, IsNil)
 
-	// and the connection for missing device is marked with hotplug-removed: true
+	// and the connection for missing device is marked with hotplug-removed: true;
+	// "anotherslot" is removed completely since there was no connection for it.
 	var newconns map[string]interface{}
 	c.Assert(st.Get("conns", &newconns), IsNil)
 	c.Assert(newconns, DeepEquals, map[string]interface{}{
@@ -444,8 +448,9 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 			"hotplug-key":     "key-other-device",
 			"interface":       "test-a"}})
 
-	c.Assert(st.Get("hotplug-slots", &hotplugSlots), IsNil)
-	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+	var newHotplugSlots map[string]interface{}
+	c.Assert(st.Get("hotplug-slots", &newHotplugSlots), IsNil)
+	c.Assert(newHotplugSlots, DeepEquals, map[string]interface{}{
 		"hotplugslot-a": map[string]interface{}{
 			"interface": "test-a", "static-attrs": map[string]interface{}{"slot-a-attr1": "a"}, "device-key": "key-1", "name": "hotplugslot-a"},
 		"hotplugslot-b": map[string]interface{}{

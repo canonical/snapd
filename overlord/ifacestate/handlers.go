@@ -523,6 +523,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		delete(conns, cref.ID())
 	}
 	setConns(st, conns)
+
 	return nil
 }
 
@@ -1285,7 +1286,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 				// reload the connection
 				if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
 					return err
-				}// else - TODO
+				} // else - TODO
 			} // else - TODO
 		}
 	}
@@ -1387,8 +1388,8 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	return nil
 }
 
-// doHotplugRemoveSlot removes hotplug slot for given device from the repository.
-// Note, this task must necessarily be run after all affected slot gets disconnected.
+// doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
+// This task must necessarily be run after all affected slot gets disconnected in the repo.
 func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -1399,21 +1400,40 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 
+	slot, err := m.repo.SlotForDeviceKey(deviceKey, ifaceName)
+	if err != nil {
+		return fmt.Errorf("cannot determine slots: %s", err)
+	}
+	if slot != nil {
+		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
+			return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
+		}
+	}
+
 	stateSlots, err := getHotplugSlots(st)
 	if err != nil {
 		return err
 	}
 
-	slot, err := m.repo.SlotForDeviceKey(deviceKey, ifaceName)
-	if err != nil {
-		return fmt.Errorf("cannot determine slots: %s", err)
+	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
+	// including connection with hotplug-removed=true.
+Loop:
+	for slotName, def := range stateSlots {
+		if def.HotplugDeviceKey == deviceKey && def.Interface == ifaceName {
+			conns, err := getConns(st)
+			if err != nil {
+				return err
+			}
+			for _, conn := range conns {
+				if conn.Interface == def.Interface && conn.HotplugDeviceKey == def.HotplugDeviceKey {
+					break Loop
+				}
+			}
+			delete(stateSlots, slotName)
+			setHotplugSlots(st, stateSlots)
+			break
+		}
 	}
-	if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
-		return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
-	}
-
-	delete(stateSlots, slot.Name)
-	setHotplugSlots(st, stateSlots)
 
 	return nil
 }
