@@ -31,8 +31,6 @@ import (
 // The maximum number of Usb bInterfaceNumber.
 const UsbMaxInterfaces = 32
 
-const apparmorAARE = `?*[]{}^"`
-
 // AppLabelExpr returns the specification of the apparmor label describing
 // all the apps bound to a given slot. The result has one of three forms,
 // depending on how apps are bound to the slot:

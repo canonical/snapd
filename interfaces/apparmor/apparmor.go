@@ -37,6 +37,17 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// ValidateFreeFromAARE will check that the given string does not
+// contain AppArmor regular expressions (AARE) or double quotes
+func ValidateFreeFromAARE(s string) error {
+	const AARE = `?*[]{}^"`
+
+	if strings.ContainsAny(s, AARE) {
+		return fmt.Errorf("%q contains a reserved apparmor char from %s ", s, AARE)
+	}
+	return nil
+}
+
 // LoadProfile loads an apparmor profile from the given file.
 //
 // If no such profile was previously loaded then it is simply added to the kernel.
