@@ -201,6 +201,19 @@ plugs:
 		`cannot add dotfiles plug without valid "files" or "dirs" attribute`)
 }
 
+func (s *dotfilesInterfaceSuite) TestSanitizePlugFilesWithTilde(c *C) {
+	const mockSnapYaml = `name: dotfiles-plug-snap
+version: 1.0
+plugs:
+ dotfiles:
+  files: [ "~/foo" ]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["dotfiles"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot add dotfiles plug: "~/foo" contains invalid "~"`)
+}
+
 func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
