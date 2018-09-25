@@ -41,6 +41,7 @@ type Conf interface {
 	State() *state.State
 }
 
+// coreCfg returns the configuration value for the core snap.
 func coreCfg(tr Conf, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
