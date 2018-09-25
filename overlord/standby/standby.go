@@ -29,8 +29,8 @@ type Opinionator interface {
 	CanStandby() bool
 }
 
-// StandbyHelper tracks if snapd can go into socket activation mode
-type StandbyHelper struct {
+// StandbyOpinions tracks if snapd can go into socket activation mode
+type StandbyOpinions struct {
 	state     *state.State
 	startTime time.Time
 	opinions  []Opinionator
@@ -42,7 +42,7 @@ type StandbyHelper struct {
 // "socket-activation" mode. This is only possible once seeding is done
 // and there are no snaps on the system. This is to reduce the memory
 // footprint on e.g. containers.
-func (m *StandbyHelper) CanStandby() bool {
+func (m *StandbyOpinions) CanStandby() bool {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
@@ -66,15 +66,15 @@ func (m *StandbyHelper) CanStandby() bool {
 	return true
 }
 
-func New(st *state.State) *StandbyHelper {
-	return &StandbyHelper{
+func New(st *state.State) *StandbyOpinions {
+	return &StandbyOpinions{
 		state:     st,
 		startTime: time.Now(),
 		sleep:     standbyWait,
 	}
 }
 
-func (m *StandbyHelper) Loop() {
+func (m *StandbyOpinions) Loop() {
 	go func() {
 		for {
 			if m.CanStandby() {
@@ -89,7 +89,7 @@ func (m *StandbyHelper) Loop() {
 	}()
 }
 
-func (m *StandbyHelper) AddOpinion(opi Opinionator) {
+func (m *StandbyOpinions) AddOpinion(opi Opinionator) {
 	if opi != nil {
 		m.opinions = append(m.opinions, opi)
 	}

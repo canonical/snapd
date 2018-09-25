@@ -57,15 +57,15 @@ var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	Version       string
-	overlord      *overlord.Overlord
-	snapdListener net.Listener
-	snapdServe    *shutdownServer
-	snapListener  net.Listener
-	snapServe     *shutdownServer
-	tomb          tomb.Tomb
-	router        *mux.Router
-	standbyHelper *standby.StandbyHelper
+	Version         string
+	overlord        *overlord.Overlord
+	snapdListener   net.Listener
+	snapdServe      *shutdownServer
+	snapListener    net.Listener
+	snapServe       *shutdownServer
+	tomb            tomb.Tomb
+	router          *mux.Router
+	standbyOpinions *standby.StandbyOpinions
 
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
@@ -467,14 +467,14 @@ func (srv *shutdownServer) finishShutdown() error {
 }
 
 func (d *Daemon) initStandbyHandling() {
-	d.standbyHelper = standby.New(d.overlord.State())
-	d.standbyHelper.AddOpinion(d.snapdServe)
-	d.standbyHelper.AddOpinion(d.snapServe)
-	d.standbyHelper.AddOpinion(d.overlord)
-	d.standbyHelper.AddOpinion(d.overlord.SnapManager())
-	d.standbyHelper.AddOpinion(d.overlord.DeviceManager())
+	d.standbyOpinions = standby.New(d.overlord.State())
+	d.standbyOpinions.AddOpinion(d.snapdServe)
+	d.standbyOpinions.AddOpinion(d.snapServe)
+	d.standbyOpinions.AddOpinion(d.overlord)
+	d.standbyOpinions.AddOpinion(d.overlord.SnapManager())
+	d.standbyOpinions.AddOpinion(d.overlord.DeviceManager())
 	// loop runs in its own go-routine
-	d.standbyHelper.Loop()
+	d.standbyOpinions.Loop()
 }
 
 // Start the Daemon
@@ -608,7 +608,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		//
 		// If this is the case we do a "normal" snapd restart
 		// to process the new changes.
-		if !d.standbyHelper.CanStandby() {
+		if !d.standbyOpinions.CanStandby() {
 			d.restartSocket = false
 		}
 	}
