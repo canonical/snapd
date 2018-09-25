@@ -39,8 +39,6 @@ var (
 	SetHotplugSlots              = setHotplugSlots
 )
 
-type HotplugSlotDef = hotplugSlotDef
-
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
 }
