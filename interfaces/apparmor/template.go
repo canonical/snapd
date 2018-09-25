@@ -32,14 +32,18 @@ var defaultTemplate = `
 
 #include <tunables/global>
 
-###VAR###
+# snapd supports the concept of 'parallel installs' where snaps with the same
+# name are differentiated by '_<instance>' such that foo, foo_bar and foo_baz
+# may all be installed on the system. To support this, SNAP_NAME is set to the
+# name (eg, 'foo') while SNAP_INSTANCE_NAME is set to the instance name (eg
+# 'foo_bar'). The profile name and most rules therefore reference
+# SNAP_INSTANCE_NAME. In some cases, snapd will adjust the snap's runtime
+# environment so the snap doesn't have to be aware of the distinction (eg,
+# SNAP, SNAP_DATA and SNAP_COMMON are all bind mounted onto a directory with
+# SNAP_NAME so the security policy will allow writing to both locations (since
+# they are equivalent).
 
-# parallel-installs: for instances with instance key set, the SNAP and
-# SNAP_{DATA,COMMON} are remapped, to appear same as for non-keyed snaps, make
-# sure we allow access to both instance specific and snap specific locations. In
-# contrast, SNAP_NAME SNAP_USER_{DATA,COMMON}, XDG_RUNTIME_DIR are not remapped,
-# rules need to use SNAP_INSTANCE_NAME, applications supporting parallel
-# installation should use $SNAP_INSTANCE_NAME when accessing such paths
+###VAR###
 
 ###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
@@ -64,10 +68,9 @@ var defaultTemplate = `
   # for details)
   deny /usr/lib/python3*/{,**/}__pycache__/ w,
   deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
-  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
-  deny @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/**/__pycache__/*.pyc.[0-9]* w,
+  # bind mount used here (see 'parallel installs', above)
+  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
 
   # for perl apps/services
   #include <abstractions/perl>
@@ -369,43 +372,34 @@ var defaultTemplate = `
   @{PROC}/@{pid}/net/dev r,
 
   # Read-only for the install directory
-  @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
-  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
-  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
-  # parallel-installs: should snap use $SNAP_INSTANCE_NAME for these paths, make
-  # sure it has access too
-  @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/                   r,
-  @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/    r,
-  @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/**  mrklix,
+  # bind mount used here (see 'parallel installs', above)
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/                   r,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}}/    r,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}}/**  mrklix,
 
   # Read-only install directory for other revisions to help with bugs like
   # LP: #1616650 and LP: #1655992
-  @{INSTALL_DIR}/@{SNAP_NAME}/**  mrkix,
-  @{INSTALL_DIR}/@{SNAP_INSTANCE_NAME}/**  mrkix,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**  mrkix,
 
   # Read-only home area for other versions
+  # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
   # Writable home area for this version.
+  # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
 
   # Read-only system area for other versions
-  /var/snap/@{SNAP_NAME}/   r,
-  /var/snap/@{SNAP_NAME}/** mrkix,
-  # parallel-installs: should snap use $SNAP_INSTANCE_NAME for these paths, make
-  # sure it has access too
-  /var/snap/@{SNAP_INSTANCE_NAME}/   r,
-  /var/snap/@{SNAP_INSTANCE_NAME}/** mrkix,
+  # bind mount used here (see 'parallel installs', above)
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/   r,
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** mrkix,
 
   # Writable system area only for this version
-  /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
-  /var/snap/@{SNAP_NAME}/common/** wl,
-  # parallel-installs: should snap use $SNAP_INSTANCE_NAME for these paths, make
-  # sure it has access too
-  /var/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
-  /var/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
+  # bind mount used here (see 'parallel installs', above)
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/** wl,
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
@@ -415,11 +409,13 @@ var defaultTemplate = `
 
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()
+  # bind mount *not* used here (see 'parallel installs', above)
   /{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,
   # Also allow app-specific access for sem_open()
   /{dev,run}/shm/sem.snap.@{SNAP_INSTANCE_NAME}.* mrwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
+  # bind mount *not* used here (see 'parallel installs', above)
   owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/   rw,
   owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 

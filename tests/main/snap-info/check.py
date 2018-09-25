@@ -37,7 +37,7 @@ def maybe(name, d):
 
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
-    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
+    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + r"(?:\s+<?)?$")
 
 if os.environ['SNAPPY_USE_STAGING_STORE'] == '1':
     snap_ids={

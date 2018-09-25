@@ -211,11 +211,11 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", instanceName, err)
 		}
 		decl := a.(*asserts.SnapDeclaration)
-		gatingNames[gatingID] = decl.SnapName()
 		control := decl.RefreshControl()
 		if len(control) == 0 {
 			continue
 		}
+		gatingNames[gatingID] = decl.SnapName()
 		for _, gatedID := range control {
 			controlled[gatedID] = append(controlled[gatedID], gatingID)
 		}
