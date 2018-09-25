@@ -624,6 +624,9 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	case "gadget":
 		snapType = snap.TypeGadget
 	}
+	if instanceName == "borken-in-setup" {
+		return snapType, fmt.Errorf("cannot install snap %q", instanceName)
+	}
 	return snapType, nil
 }
 
