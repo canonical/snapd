@@ -849,7 +849,7 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	}
 
 	// pretend we are in degraded mode
-	d.DegradedMode(fmt.Errorf("foo error"))
+	d.SetDegradedMode(fmt.Errorf("foo error"))
 
 	// GET is ok even in degraded mode
 	rec := doTestReq(c, cmd, "GET")
@@ -863,7 +863,7 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	c.Check(v.Result.Message, check.Equals, "foo error")
 
 	// clean degraded mode
-	d.DegradedMode(nil)
+	d.SetDegradedMode(nil)
 	rec = doTestReq(c, cmd, "POST")
 	c.Check(rec.Code, check.Equals, 200)
 }

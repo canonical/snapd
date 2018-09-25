@@ -362,7 +362,7 @@ func (d *Daemon) Init() error {
 	return nil
 }
 
-// DegradedMode puts the daemon into an degraded mode which will the
+// SetDegradedMode puts the daemon into an degraded mode which will the
 // error given in the "err" argument for commands that are not marked
 // as readonlyOK.
 //
@@ -372,7 +372,7 @@ func (d *Daemon) Init() error {
 //
 // When the system is fine again calling "DegradedMode(nil)" is enough
 // to put the daemon into full operation again.
-func (d *Daemon) DegradedMode(err error) {
+func (d *Daemon) SetDegradedMode(err error) {
 	d.degradedErr = err
 }
 

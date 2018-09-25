@@ -91,18 +91,12 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 	return wt, nil
 }
 
-var selftestRetryDelay = 300 * time.Second
+var checkRunningConditionsRetryDelay = 300 * time.Second
 
-func doSelftest(d *daemon.Daemon) (t *time.Timer) {
-	err := selftestRun()
-	if err == nil {
-		d.DegradedMode(nil)
-		return &time.Timer{}
-	}
-	degradedErr := fmt.Errorf("selftest failed with: %s", err)
-	logger.Noticef("%s", degradedErr)
-	d.DegradedMode(degradedErr)
-	return time.NewTimer(selftestRetryDelay)
+// FIXME: rename selftest package to reflect that its not about the selftest
+//        so much then it is about the environment that snapd runs in
+func checkRunningConditions() error {
+	return selftestRun()
 }
 
 func run(ch chan os.Signal) error {
@@ -120,7 +114,15 @@ func run(ch chan os.Signal) error {
 	// Run selftest now, if anything goes wrong with the selftest we go
 	// into "degraded" mode where we always report the given error to
 	// any snap client.
-	tic := doSelftest(d)
+	var checkTicker <-chan time.Time
+	var tic *time.Ticker
+	if err := checkRunningConditions(); err != nil {
+		degradedErr := fmt.Errorf("system does not fully support snapd: %s", err)
+		logger.Noticef("%s", degradedErr)
+		d.SetDegradedMode(degradedErr)
+		tic = time.NewTicker(checkRunningConditionsRetryDelay)
+		checkTicker = tic.C
+	}
 
 	d.Version = cmd.Version
 
@@ -145,8 +147,11 @@ out:
 		case <-d.Dying():
 			// something called Stop()
 			break out
-		case <-tic.C:
-			tic = doSelftest(d)
+		case <-checkTicker:
+			if err := checkRunningConditions(); err == nil {
+				d.SetDegradedMode(nil)
+				tic.Stop()
+			}
 		}
 	}
 

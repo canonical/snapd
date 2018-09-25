@@ -35,10 +35,10 @@ func MockSelftestRun(f func() error) (restore func()) {
 	}
 }
 
-func MockSelftestRetryDelay(d time.Duration) (restore func()) {
-	oldSelftestRetryDelay := selftestRetryDelay
-	selftestRetryDelay = d
+func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
+	oldCheckRunningConditionsRetryDelay := checkRunningConditionsRetryDelay
+	checkRunningConditionsRetryDelay = d
 	return func() {
-		selftestRetryDelay = oldSelftestRetryDelay
+		checkRunningConditionsRetryDelay = oldCheckRunningConditionsRetryDelay
 	}
 }
