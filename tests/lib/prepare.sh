@@ -107,14 +107,14 @@ update_core_snap_for_classic_reexec() {
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs -no-progress "$snap"
     # clean the old snapd binaries, just in case
-    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
+    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
-    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
     if [ ! -L squashfs-root/usr/bin/snapctl ]; then
-        mv squashfs-root/usr/bin/snapctl squashfs-root/usr/lib/snapd
+        rm -f squashfs-root/usr/bin/snapctl
         ln -s ../lib/snapd/snapctl squashfs-root/usr/bin/snapctl
     fi
 

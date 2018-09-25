@@ -47,7 +47,7 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"debug", "get-base-declaration"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "get-base-declaration"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "hello\n")

@@ -55,10 +55,10 @@ apps:
 		Name:      "system-trace",
 		Interface: "system-trace",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["system-trace"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *SystemTraceInterfaceSuite) TestName(c *C) {
