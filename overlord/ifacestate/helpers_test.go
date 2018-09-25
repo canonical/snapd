@@ -150,3 +150,26 @@ func (s *helpersSuite) TestSetConns(c *C) {
 			"interface": "network",
 		}})
 }
+
+func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("foo", "")
+	_, _, err := ifacestate.HotplugTaskGetAttrs(t)
+	c.Assert(err, ErrorMatches, `internal error: failed to get interface name: no state entry for key`)
+
+	ifacestate.HotplugTaskSetAttrs(t, "key", "iface")
+
+	var key, iface string
+	c.Assert(t.Get("device-key", &key), IsNil)
+	c.Assert(key, Equals, "key")
+
+	c.Assert(t.Get("interface", &iface), IsNil)
+	c.Assert(iface, Equals, "iface")
+
+	key, iface, err = ifacestate.HotplugTaskGetAttrs(t)
+	c.Assert(err, IsNil)
+	c.Assert(key, Equals, "key")
+	c.Assert(iface, Equals, "iface")
+}
