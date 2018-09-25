@@ -141,12 +141,14 @@ package() {
 
   # Install executables
   install -Dm755 "$GOPATH/bin/snap" "$pkgdir/usr/bin/snap"
-  install -Dm755 "$GOPATH/bin/snapctl" "$pkgdir/usr/bin/snapctl"
   install -Dm755 "$GOPATH/bin/snapd" "$pkgdir/usr/lib/snapd/snapd"
   install -Dm755 "$GOPATH/bin/snap-seccomp" "$pkgdir/usr/lib/snapd/snap-seccomp"
   install -Dm755 "$GOPATH/bin/snap-failure" "$pkgdir/usr/lib/snapd/snap-failure"
   install -Dm755 "$GOPATH/bin/snap-update-ns" "$pkgdir/usr/lib/snapd/snap-update-ns"
   install -Dm755 "$GOPATH/bin/snap-exec" "$pkgdir/usr/lib/snapd/snap-exec"
+  # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+  install -Dm755 "$GOPATH/bin/snapctl" "$pkgdir/usr/lib/snapd/snapctl"
+  ln -s  ../lib/snapd/snapctl  "$pkgdir/usr/bin/snapctl"
 
   # pre-create directories
   install -dm755 "$pkgdir/var/lib/snapd/snap"

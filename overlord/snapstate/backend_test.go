@@ -357,13 +357,13 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		panic("fake SnapAction unexpectedly called with more than 3 actions")
 	}
 
-	curByID := make(map[string]*store.CurrentSnap, len(currentSnaps))
+	curByInstanceName := make(map[string]*store.CurrentSnap, len(currentSnaps))
 	curSnaps := make(byName, len(currentSnaps))
 	for i, cur := range currentSnaps {
 		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
-		curByID[cur.SnapID] = cur
+		curByInstanceName[cur.InstanceName] = cur
 		curSnaps[i] = *cur
 	}
 	sort.Sort(curSnaps)
@@ -433,7 +433,10 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 		// refresh
 
-		cur := curByID[a.SnapID]
+		cur := curByInstanceName[a.InstanceName]
+		if cur == nil {
+			return nil, fmt.Errorf("internal error: no matching current snap for %q", a.InstanceName)
+		}
 		channel := a.Channel
 		if channel == "" {
 			channel = cur.TrackingChannel
