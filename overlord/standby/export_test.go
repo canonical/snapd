@@ -22,6 +22,6 @@ import (
 	"time"
 )
 
-func (m *StandbyHelper) SetStartTime(t time.Time) {
+func (m *StandbyOpinions) SetStartTime(t time.Time) {
 	m.startTime = t
 }
