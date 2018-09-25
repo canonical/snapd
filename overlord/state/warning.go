@@ -261,20 +261,25 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 }
 
 // WarningsSummary returns the number of warnings that are ready to be
-// shown to the user, and the current timestamp (useful for OKing the
+// shown to the user, and the timestamp of the most recently added
+// warning (useful for silencing the warning alerts, and OKing the
 // returned warnings).
 func (s *State) WarningsSummary() (int, time.Time) {
 	s.reading()
 	now := time.Now().UTC()
+	var last time.Time
 
 	var n int
 	for _, w := range s.warnings {
 		if w.ShowAfter(now) {
 			n++
+			if w.lastAdded.After(last) {
+				last = w.lastAdded
+			}
 		}
 	}
 
-	return n, now
+	return n, last
 }
 
 // UnshowAllWarnings clears the lastShown timestamp from all the

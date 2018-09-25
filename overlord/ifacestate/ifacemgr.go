@@ -109,6 +109,12 @@ func (m *InterfaceManager) Ensure() error {
 		return nil
 	}
 
+	// don't initialize udev monitor until we have a system snap so that we
+	// can attach the hotplug interfaces to the core/snapd snap.
+	if err := ensureSystemSnapIsPresent(m.state); err != nil {
+		return nil
+	}
+
 	// retry udev monitor initialization every 5 minutes
 	now := time.Now()
 	if now.After(m.udevRetryTimeout) {

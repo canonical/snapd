@@ -720,7 +720,9 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
   timer: 10:00-12:00
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.StartServices(info.Services(), nil)
+	// fix the apps order to make the test stable
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"]}
+	err := wrappers.StartServices(apps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 3, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
