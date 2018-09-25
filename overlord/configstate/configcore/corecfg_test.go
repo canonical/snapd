@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/systemd"
@@ -104,7 +105,12 @@ func (s *configcoreSuite) TearDownSuite(c *C) {
 }
 
 func (s *configcoreSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
+}
+
+func (s *configcoreSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
 }
 
 // runCfgSuite tests configcore.Run()
