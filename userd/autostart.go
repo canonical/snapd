@@ -43,9 +43,9 @@ var (
 	currentDesktop = splitSkippingEmpty(os.Getenv("XDG_CURRENT_DESKTOP"), ":")
 )
 
-func splitSkippingEmpty(what, substr string) []string {
+func splitSkippingEmpty(s, substr string) []string {
 	var out []string
-	for _, en := range strings.Split(what, substr) {
+	for _, en := range strings.Split(s, substr) {
 		if en != "" {
 			out = append(out, en)
 		}
@@ -95,13 +95,13 @@ func isOneOfIn(of []string, other []string) bool {
 }
 
 func loadAutostartDesktopFile(path string) (command string, err error) {
-	inf, err := os.Open(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	defer inf.Close()
+	defer f.Close()
 
-	scanner := bufio.NewScanner(inf)
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		bline := scanner.Bytes()
 		if bytes.HasPrefix(bline, []byte("#")) {
@@ -113,8 +113,6 @@ func loadAutostartDesktopFile(path string) (command string, err error) {
 		}
 		// See https://standards.freedesktop.org/autostart-spec/autostart-spec-latest.html
 		// for details on how Hidden, OnlyShowIn, NotShownIn are handled.
-		// Also see gnome-session handling of app autostart:
-		// https://github.com/GNOME/gnome-session/blob/c449df5269e02c59ae83021a3110ec1b338a2bba/gnome-session/gsm-autostart-app.c#L110..L145
 		switch string(split[0]) {
 		case "Exec":
 			command = strings.TrimSpace(expandDesktopFields(string(split[1])))
@@ -133,7 +131,8 @@ func loadAutostartDesktopFile(path string) (command string, err error) {
 				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q excluded by %q", currentDesktop, notIn)}
 			}
 		case "X-GNOME-Autostart-enabled":
-			// GNOME extension
+			// GNOME specific extension, see gnome-session:
+			// https://github.com/GNOME/gnome-session/blob/c449df5269e02c59ae83021a3110ec1b338a2bba/gnome-session/gsm-autostart-app.c#L110..L145
 			if !strutil.ListContains(currentDesktop, "GNOME") {
 				// not GNOME
 				continue
