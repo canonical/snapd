@@ -53,7 +53,7 @@ func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapActi
 	panic("Store.SnapAction not expected")
 }
 
-func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
+func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error {
 	panic("Store.Download not expected")
 }
 

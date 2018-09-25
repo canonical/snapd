@@ -4,6 +4,48 @@ version: 1.0
 apps:
     test-snapd-sh:
         command: bin/sh
+    with-broadcom-asic-control-plug:
+        command: bin/sh
+        plugs: [broadcom-asic-control]
+    with-dvb-plug:
+        command: bin/sh
+        plugs: [dvb]
+    with-gpg-keys-plug:
+        command: bin/sh
+        plugs: [gpg-keys]
+    with-gpg-public-keys-plug:
+        command: bin/sh
+        plugs: [gpg-public-keys]
     with-home-plug:
         command: bin/sh
         plugs: [home]
+    with-hostname-control-plug:
+        command: bin/sh
+        plugs: [hostname-control]
+    with-joystick-plug:
+        command: bin/sh
+        plugs: [joystick]
+    with-juju-client-observe-plug:
+        command: bin/sh
+        plugs: [juju-client-observe]
+    with-kvm-plug:
+        command: bin/sh
+        plugs: [kvm]
+    with-network-setup-control-plug:
+        command: bin/sh
+        plugs: [network-setup-control]
+    with-network-setup-observe-plug:
+        command: bin/sh
+        plugs: [network-setup-observe]
+    with-removable-media-plug:
+        command: bin/sh
+        plugs: [removable-media]
+    with-ssh-keys-plug:
+        command: bin/sh
+        plugs: [ssh-keys]
+    with-ssh-public-keys-plug:
+        command: bin/sh
+        plugs: [ssh-public-keys]
+    with-raw-usb-plug:
+        command: bin/sh
+        plugs: [raw-usb]

@@ -29,7 +29,7 @@ import (
 )
 
 func init() {
-	patches[1] = patch1
+	patches[1] = []PatchFunc{patch1}
 }
 
 type patch1SideInfo struct {

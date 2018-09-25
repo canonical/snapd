@@ -28,7 +28,7 @@ import (
 )
 
 func init() {
-	patches[5] = patch5
+	patches[5] = []PatchFunc{patch5}
 }
 
 type log struct{}

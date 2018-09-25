@@ -65,10 +65,10 @@ apps:
 `
 	snapInfo := snaptest.MockInfo(c, plugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["location-client"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	snapInfo = snaptest.MockInfo(c, slotSnapInfoYaml, nil)
 	s.slotInfo = snapInfo.Slots["location"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *LocationControlInterfaceSuite) TestName(c *C) {
@@ -87,7 +87,7 @@ func (s *LocationControlInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll
 		Name:      "location",
 		Interface: "location",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -109,7 +109,7 @@ func (s *LocationControlInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSom
 		Name:      "location",
 		Interface: "location",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -129,7 +129,7 @@ func (s *LocationControlInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne
 		Name:      "location",
 		Interface: "location",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -150,7 +150,7 @@ func (s *LocationControlInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll
 		Name:      "location",
 		Interface: "location",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -172,7 +172,7 @@ func (s *LocationControlInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSom
 		Name:      "location",
 		Interface: "location",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -192,7 +192,7 @@ func (s *LocationControlInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne
 		Name:      "location",
 		Interface: "location",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
