@@ -345,6 +345,114 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		}})
 }
 
+func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
+	st := s.state
+	st.Lock()
+
+	// existing connection
+	conns := map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":       "test-a",
+			"hotplug-key":     "key-other-device",
+			"hotplug-removed": false,
+		},
+	}
+	st.Set("conns", conns)
+
+	repo := s.mgr.Repository()
+
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
+	c.Assert(repo.AddPlug(&snap.PlugInfo{
+		Interface: "test-a",
+		Name:      "plug",
+		Attrs:     map[string]interface{}{},
+		Snap:      testSnap,
+	}), IsNil)
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	core, err := snapstate.CoreInfo(s.state)
+	c.Assert(err, IsNil)
+	c.Assert(repo.AddSlot(&snap.SlotInfo{
+		Interface:        "test-a",
+		Name:             "hotplugslot",
+		Attrs:            map[string]interface{}{},
+		Snap:             core,
+		HotplugDeviceKey: "key-other-device",
+	}), IsNil)
+
+	conn, err := repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"},
+	}, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
+
+	hotplugSlots := map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":       "hotplugslot",
+			"interface":  "test-a",
+			"device-key": "key-other-device",
+		},
+	}
+	st.Set("hotplug-slots", hotplugSlots)
+
+	// sanity
+	slot, _ := repo.SlotForDeviceKey("key-other-device", "test-a")
+	c.Assert(slot, NotNil)
+
+	st.Unlock()
+
+	// new device added; device for existing connection not present when enumeration is finished
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":   "a/path",
+		"ACTION":    "add",
+		"SUBSYSTEM": "foo",
+	})
+	c.Assert(err, IsNil)
+	s.udevMon.AddDevice(di)
+	s.udevMon.EnumerationDone()
+
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// make sure slots for new device have been created in the repo
+	ok, _ := repo.HasHotplugSlot("key-1", "test-a")
+	c.Assert(ok, Equals, true)
+	ok, _ = repo.HasHotplugSlot("key-2", "test-b")
+	c.Assert(ok, Equals, true)
+	ok, _ = repo.HasHotplugSlot("key-3", "test-c")
+	c.Assert(ok, Equals, false)
+
+	// make sure slots for missing device got disconnected and removed
+	slot, _ = repo.SlotForDeviceKey("key-other-device", "test-a")
+	c.Assert(slot, IsNil)
+
+	// and the connection for missing device is marked with hotplug-removed: true
+	var newconns map[string]interface{}
+	c.Assert(st.Get("conns", &newconns), IsNil)
+	c.Assert(newconns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"hotplug-removed": true,
+			"hotplug-key":     "key-other-device",
+			"interface":       "test-a"}})
+
+	c.Assert(st.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot-a": map[string]interface{}{
+			"interface": "test-a", "static-attrs": map[string]interface{}{"slot-a-attr1": "a"}, "device-key": "key-1", "name": "hotplugslot-a"},
+		"hotplugslot-b": map[string]interface{}{
+			"name": "hotplugslot-b", "interface": "test-b", "device-key": "key-2"},
+		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "interface": "test-a", "device-key": "key-other-device"}})
+}
+
 func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 	fakeRepositoryLookup := func(n string) bool {
 		reserved := map[string]bool{
