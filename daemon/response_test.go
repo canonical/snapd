@@ -107,3 +107,33 @@ func (s *responseSuite) TestRespJSONWithNullResult(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(string(data), check.Equals, `{"type":"","status-code":0,"status":"","result":null}`)
 }
+
+func (responseSuite) TestErrorResponderPrintfsWithArgs(c *check.C) {
+	teapot := makeErrorResponder(418)
+
+	rec := httptest.NewRecorder()
+	rsp := teapot("system memory below %d%%.", 1)
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	rsp.ServeHTTP(rec, req)
+
+	var v struct{ Result errorResult }
+	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
+
+	c.Check(v.Result.Message, check.Equals, "system memory below 1%.")
+}
+
+func (responseSuite) TestErrorResponderDoesNotPrintfAlways(c *check.C) {
+	teapot := makeErrorResponder(418)
+
+	rec := httptest.NewRecorder()
+	rsp := teapot("system memory below 1%.")
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	rsp.ServeHTTP(rec, req)
+
+	var v struct{ Result errorResult }
+	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
+
+	c.Check(v.Result.Message, check.Equals, "system memory below 1%.")
+}

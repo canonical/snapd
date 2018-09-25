@@ -13,7 +13,7 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-broadcom-asic-control
+    install_local test-snapd-sh
 
     #shellcheck source=tests/lib/files.sh
     . "$TESTSLIB"/files.sh
@@ -36,19 +36,19 @@ restore: |
 
 execute: |
     echo "When the interface is connected"
-    snap connect test-snapd-broadcom-asic-control:broadcom-asic-control
+    snap connect test-snapd-sh:broadcom-asic-control
 
     echo "Then the snap is able to read the system modules directories"
     for module in "linux_bcm_knet" "linux_kernel_bde" "linux_user_bde"; do
         if [ -d /sys/module/$module ]; then
-            test-snapd-broadcom-asic-control.sh -c "ls /sys/module/$module"
+            test-snapd-sh.with-broadcom-asic-control-plug -c "ls /sys/module/$module"
         fi
     done
 
     echo "Then the snap is able to read/write the system modules devices"
     for device in "linux-bcm-knet" "linux-kernel-bde" "linux-user-bde"; do
-        test-snapd-broadcom-asic-control.sh -c "cat /dev/$device"
-        test-snapd-broadcom-asic-control.sh -c "echo test >> /dev/$device"
+        test-snapd-sh.with-broadcom-asic-control-plug -c "cat /dev/$device"
+        test-snapd-sh.with-broadcom-asic-control-plug -c "echo test >> /dev/$device"
     done
 
     echo "Then the snap is able to read pci devices info"
@@ -61,25 +61,25 @@ execute: |
 
         for file in "$config" "$vendor" "$device" "$subsystem_vendor" "$subsystem_device"; do
             if ! [ -z "$file" ]; then
-                test-snapd-broadcom-asic-control.sh -c "cat $file"
+                test-snapd-sh.with-broadcom-asic-control-plug -c "cat $file"
             fi
         done
     fi
 
     if [ -d /sys/bus/pci/devices ]; then
-        test-snapd-broadcom-asic-control.sh -c "ls /sys/bus/pci/devices/"
+        test-snapd-sh.with-broadcom-asic-control-plug -c "ls /sys/bus/pci/devices/"
     fi
-    test-snapd-broadcom-asic-control.sh -c "cat /run/udev/data/+pci:0test"
+    test-snapd-sh.with-broadcom-asic-control-plug -c "cat /run/udev/data/+pci:0test"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-broadcom-asic-control:broadcom-asic-control
+    snap disconnect test-snapd-sh:broadcom-asic-control
 
     echo "Then the snap is not able to read the device"
-    if test-snapd-broadcom-asic-control.sh -c "cat /dev/linux-bcm-knet" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-broadcom-asic-control-plug -c "cat /dev/linux-bcm-knet" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to device"
         exit 1
     fi
