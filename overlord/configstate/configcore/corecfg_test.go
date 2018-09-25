@@ -120,41 +120,6 @@ type runCfgSuite struct {
 
 var _ = Suite(&runCfgSuite{})
 
-func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
-	for setting, value := range map[string]interface{}{
-		"experimental.layouts":            "foo",
-		"experimental.parallel-instances": "foo",
-		"experimental.hotplug":            "foo",
-		"experimental.snapd-snap":         "foo",
-	} {
-		conf := &mockConf{
-			state: r.state,
-			changes: map[string]interface{}{
-				setting: value,
-			},
-		}
-
-		err := configcore.Run(conf)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, setting))
-	}
-}
-
-func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, setting := range []string{"experimental.layouts", "experimental.parallel-instances", "experimental.hotplug"} {
-		for _, t := range []string{"true", "false"} {
-			conf := &mockConf{
-				state: r.state,
-				conf: map[string]interface{}{
-					setting: t,
-				},
-			}
-
-			err := configcore.Run(conf)
-			c.Check(err, IsNil)
-		}
-	}
-}
-
 func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 	conf := &mockConf{
 		state: r.state,
@@ -165,21 +130,4 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 
 	err := configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
-}
-
-func (r *runCfgSuite) TestConfigureKnownOption(c *C) {
-	for setting, value := range map[string]interface{}{
-		"experimental.layouts":            true,
-		"experimental.parallel-instances": false,
-	} {
-		conf := &mockConf{
-			state: r.state,
-			changes: map[string]interface{}{
-				setting: value,
-			},
-		}
-
-		err := configcore.Run(conf)
-		c.Check(err, IsNil)
-	}
 }
