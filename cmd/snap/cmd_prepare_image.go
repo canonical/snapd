@@ -48,18 +48,20 @@ core device images.
 		func() flags.Commander {
 			return &cmdPrepareImage{}
 		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": "Extra snaps to be installed",
-			"channel":     "The channel to use",
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"channel": "The channel to use",
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<model-assertion>"),
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The model assertion name"),
 			}, {
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<root-dir>"),
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The output directory"),
 			},
 		})

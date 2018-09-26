@@ -60,7 +60,7 @@ func init() {
 		}, nil, []argDesc{{
 			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 			name: i18n.G("<email>"),
-			// TRANSLATORS: This should probably not start with a lowercase letter.
+			// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 			desc: i18n.G("The login.ubuntu.com email to login as"),
 		}})
 }

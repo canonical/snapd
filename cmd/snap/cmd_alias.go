@@ -98,9 +98,11 @@ func showAliasChanges(chg *client.Change) error {
 	}
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 	if len(added) != 0 {
+		// TRANSLATORS: this is used to introduce a list of aliases that were added
 		printChangedAliases(w, i18n.G("Added"), added)
 	}
 	if len(removed) != 0 {
+		// TRANSLATORS: this is used to introduce a list of aliases that were removed
 		printChangedAliases(w, i18n.G("Removed"), removed)
 	}
 	w.Flush()
@@ -110,6 +112,7 @@ func showAliasChanges(chg *client.Change) error {
 func printChangedAliases(w io.Writer, label string, changed []*changedAlias) {
 	fmt.Fprintf(w, "%s:\n", label)
 	for _, a := range changed {
+		// TRANSLATORS: the first %s is a snap command (e.g. "hello-world.echo"), the second is the alias
 		fmt.Fprintf(w, "\t- %s as %s\n", snap.JoinSnapApp(a.Snap, a.App), a.Alias)
 	}
 }
