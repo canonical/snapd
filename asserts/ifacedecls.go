@@ -376,8 +376,8 @@ type DeviceScopeConstraint struct {
 }
 
 var (
-	validStoreID        = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
-	validBrandSlahModel = regexp.MustCompile("^(" +
+	validStoreID         = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
+	validBrandSlashModel = regexp.MustCompile("^(" +
 		strings.Trim(validAccountID.String(), "^$") +
 		")/(" +
 		strings.Trim(validModel.String(), "^$") +
@@ -385,11 +385,17 @@ var (
 	deviceScopeConstraints = map[string]*regexp.Regexp{
 		"on-store": validStoreID,
 		"on-brand": validAccountID,
-		"on-model": validBrandSlahModel,
+		// on-model constraints are of the form list of
+		// <brand>/<model> strings where <brand> are account
+		// IDs as they appear in the respective model assertion
+		"on-model": validBrandSlashModel,
 	}
 )
 
 func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
+	// for consistency and simplicity we support all of on-store,
+	// on-brand, and on-model to appear together. The interpretation
+	// layer will AND them as usual
 	for field := range deviceScopeConstraints {
 		if cMap[field] != nil {
 			return true
@@ -529,6 +535,10 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 		}
 		target.setDeviceScopeConstraint(c)
 	}
+	// checks whether defaults have been used for everything, which is not
+	// well-formed
+	// +1+1 accounts for defaults for missing on-classic plus missing
+	// on-store/on-brand/on-model
 	if defaultUsed == len(attributeConstraints)+len(idConstraints)+1+1 {
 		return fmt.Errorf("%s must specify at least one of %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
 	}
