@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -47,8 +49,8 @@ func (s *dotfilesInterfaceSuite) SetUpTest(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  dirs: [.dir1/]
-  files: [.file1]
+  dirs: [$HOME/.dir1/, /etc/dir2]
+  files: [$HOME/.file1, /var/lib/file2]
 apps:
  app:
   command: foo
@@ -67,6 +69,16 @@ apps:
 
 func (s *dotfilesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "dotfiles")
+}
+
+func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.file1 rwklix,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.dir1/** rwklix,`)
+
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -89,139 +101,70 @@ func (s *dotfilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  files: [".file1"]
-  dirs: [".dir1/"]
+  files: ["$HOME/.file1"]
+  dirs: ["$HOME/.dir1/"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
-func (s *dotfilesInterfaceSuite) TestSanitizePlugWithEmptyFilesAttrib(c *C) {
+func (s *dotfilesInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 	const mockSnapYaml = `name: dotfiles-plug-snap
 version: 1.0
 plugs:
  dotfiles:
-  files: ""
+  $t
 `
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "files" must be a list of strings`)
+	errPrefix := `cannot add dotfiles plug: `
+	var testCases = []struct {
+		inp    string
+		errStr string
+	}{
+		{`files: ""`, `"files" must be a list of strings`},
+		{`files: [ 123 ]`, `"files" must be a list of strings`},
+		{`files: [ "/foo/./bar" ]`, `"/foo/./bar" must be clean`},
+		{`files: [ "../foo" ]`, `"../foo" must start with "/" or "\$HOME"`},
+		{`files: [ "/foo/" ]`, `"/foo/" must be clean`},
+		{`files: [ "/foo[" ]`, `"/foo\[" contains a reserved apparmor char from .*`},
+		{`dirs: ""`, `"dirs" must be a list of strings`},
+		{`foo: bar`, `needs valid "files" or "dirs" attribute`},
+		{`files: [ "~/foo" ]`, `"~/foo" must start with "/" or "\$HOME"`},
+	}
+
+	for _, t := range testCases {
+		yml := strings.Replace(mockSnapYaml, "$t", t.inp, -1)
+		info := snaptest.MockInfo(c, yml, nil)
+		plug := info.Plugs["dotfiles"]
+
+		c.Check(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, errPrefix+t.errStr, Commentf("unexpected error for %q", t.inp))
+	}
 }
 
-func (s *dotfilesInterfaceSuite) TestSanitizePlugWithWrongFileAttrType(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
+func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmorInternalError(c *C) {
+	const mockPlugSnapInfo = `name: other
 version: 1.0
 plugs:
  dotfiles:
-  files: [ 121 ]
+  files: [ 123 , 345 ]
+apps:
+ app:
+  command: foo
+  plugs: [dotfiles]
 `
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "files" must be a list of strings`)
-}
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "dotfiles",
+		Interface: "dotfiles",
+	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plugInfo = plugSnap.Plugs["dotfiles"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
-func (s *dotfilesInterfaceSuite) TestSanitizePlugWithUncleanPath(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  files: [ "./foo/./bar" ]
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "./foo/./bar" must be clean`)
-}
-
-func (s *dotfilesInterfaceSuite) TestSanitizePlugDots(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  files: [ "../foo" ]
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "../foo" contains invalid ".."`)
-}
-
-func (s *dotfilesInterfaceSuite) TestSanitizePlugFilesWithTrailingSlash(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  files: [ "foo/" ]
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "foo/" must be clean`)
-}
-
-func (s *dotfilesInterfaceSuite) TestSanitizePlugAARE(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  files: [ "foo[" ]
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "foo\[" contains a reserved apparmor char from .*`)
-}
-
-func (s *dotfilesInterfaceSuite) TestSanitizePlugWithEmptyDirsAttrib(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  dirs: ""
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "dirs" must be a list of strings`)
-}
-
-func (s *dotfilesInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  foo: bar
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug without valid "files" or "dirs" attribute`)
-}
-
-func (s *dotfilesInterfaceSuite) TestSanitizePlugFilesWithTilde(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
-version: 1.0
-plugs:
- dotfiles:
-  files: [ "~/foo" ]
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`cannot add dotfiles plug: "~/foo" contains invalid "~"`)
-}
-
-func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.file1 rwklix,`)
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.dir1/** rwklix,`)
-
+	c.Assert(err, ErrorMatches, `cannot connect plug dotfiles: 123 \(int64\) is not a string`)
 }
 
 func (s *dotfilesInterfaceSuite) TestInterfaces(c *C) {
