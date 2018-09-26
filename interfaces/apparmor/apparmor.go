@@ -40,7 +40,7 @@ import (
 // ValidateFreeFromAARE will check that the given string does not
 // contain AppArmor regular expressions (AARE) or double quotes
 func ValidateFreeFromAARE(s string) error {
-	const AARE = `?*[]{}^"`
+	const AARE = `?*[]{}^"` + "\x00"
 
 	if strings.ContainsAny(s, AARE) {
 		return fmt.Errorf("%q contains a reserved apparmor char from %s ", s, AARE)

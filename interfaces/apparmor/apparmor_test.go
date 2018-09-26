@@ -183,3 +183,11 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
 	c.Assert(err, ErrorMatches, `syntax error, expected: name \(mode\)`)
 	c.Check(profiles, IsNil)
 }
+
+func (s *appArmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
+	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateFreeFromAARE(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
+	}
+}
