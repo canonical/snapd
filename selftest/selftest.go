@@ -19,11 +19,7 @@
 
 package selftest
 
-var checks = []func() error{
-	checkSquashfsMount,
-	checkApparmorUsable,
-	checkKernelVersion,
-}
+var checks []func() error
 
 func Run() error {
 	for _, f := range checks {

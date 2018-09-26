@@ -29,6 +29,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+func init() {
+	checks = append(checks, checkKernelVersion)
+}
+
 // checkKernelVersion looks for some unsupported configurations that users may
 // encounter and provides advice on how to resolve them.
 func checkKernelVersion() error {
