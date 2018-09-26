@@ -827,5 +827,43 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+}
 
+func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
+	req, err := http.NewRequest(mth, "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	return rec
+}
+
+func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
+	d := newTestDaemon(c)
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+
+	// pretend we are in degraded mode
+	d.SetDegradedMode(fmt.Errorf("foo error"))
+
+	// GET is ok even in degraded mode
+	rec := doTestReq(c, cmd, "GET")
+	c.Check(rec.Code, check.Equals, 200)
+	// POST is not allowed
+	rec = doTestReq(c, cmd, "POST")
+	c.Check(rec.Code, check.Equals, 500)
+	// verify we get the error
+	var v struct{ Result errorResult }
+	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
+	c.Check(v.Result.Message, check.Equals, "foo error")
+
+	// clean degraded mode
+	d.SetDegradedMode(nil)
+	rec = doTestReq(c, cmd, "POST")
+	c.Check(rec.Code, check.Equals, 200)
 }

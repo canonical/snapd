@@ -1,12 +1,11 @@
 summary: Check that `snapctl` can be run from the snap
 
+environment:
+    SNAP/nobase: snapctl-from-snap
+    SNAP/wcore18: snapctl-from-snap-core18
+
 prepare: |
     snap install --devmode jq
-    echo "Build basic test package"
-    snap pack $TESTSLIB/snaps/snapctl-from-snap
-  
-restore: |
-    rm -f snapctl-from-snap_1.0_all.snap
 
 execute: |
     . $TESTSLIB/dirs.sh
@@ -34,17 +33,24 @@ execute: |
         check_single_cookie $1
     }
 
-    snap install --dangerous snapctl-from-snap_1.0_all.snap
+    # FIXME: remove once core18 stable has /usr/bin/snapctl symlink
+    if [ "$SNAP" = "snapctl-from-snap-core18" ]; then
+        snap install --edge core18
+    fi
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local "$SNAP"
 
     echo "Verify that cookie file exists and has proper permissions and size"
-    check_cookie snapctl-from-snap
+    check_cookie "$SNAP"
 
     echo "Verify that a single cookie remains on restart"
     systemctl stop snapd.{service,socket}
-    check_cookie snapctl-from-snap
+    check_cookie "$SNAP"
     systemctl start snapd.{service,socket}
 
-    COOKIE_FILE=/var/lib/snapd/cookie/snap.snapctl-from-snap
+    COOKIE_FILE=/var/lib/snapd/cookie/snap."$SNAP"
 
     echo "Simulate upgrade from old snapd with no cookie support"
     systemctl stop snapd.{service,socket}
@@ -54,36 +60,36 @@ execute: |
     systemctl start snapd.{service,socket}
 
     echo "Verify that cookie file was re-created"
-    check_cookie snapctl-from-snap
+    check_cookie "$SNAP"
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
-    $SNAP_MOUNT_DIR/bin/snapctl-from-snap.snapctl-get foo | MATCH bar
+    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-get foo | MATCH bar
 
     echo "Verify that snapctl set can modify configuration values"
-    $SNAP_MOUNT_DIR/bin/snapctl-from-snap.snapctl-set foo=123
-    $SNAP_MOUNT_DIR/bin/snapctl-from-snap.snapctl-get foo | MATCH 123
+    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-set foo=123
+    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-get foo | MATCH 123
 
     echo "Verify configuration value with snap get"
-    snap get snapctl-from-snap foo | MATCH 123
+    snap get "$SNAP" foo | MATCH 123
 
     echo "Given two revisions of a snap have been installed"
-    snap install --dangerous snapctl-from-snap_1.0_all.snap
-    check_cookie snapctl-from-snap
+    install_local "$SNAP"
+    check_cookie "$SNAP"
 
     echo "And a single revision gets removed"
-    snap remove snapctl-from-snap --revision=x1
+    snap remove "$SNAP" --revision=x1
 
     echo "Verify that cookie file is still present"
-    check_cookie snapctl-from-snap
+    check_cookie "$SNAP"
 
     echo "Verify that cookie is not removed when snap is disabled"
-    snap disable snapctl-from-snap
-    check_cookie snapctl-from-snap
-    snap enable snapctl-from-snap
-    check_cookie snapctl-from-snap
+    snap disable "$SNAP"
+    check_cookie "$SNAP"
+    snap enable "$SNAP"
+    check_cookie "$SNAP"
 
     echo "Verify that snap cookie is removed on snap removal"
-    snap remove snapctl-from-snap
+    snap remove "$SNAP"
     if test -f $COOKIE_FILE ; then
         echo "Cookie file $COOKIE_FILE still exists"
         exit 1
