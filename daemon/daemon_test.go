@@ -99,6 +99,11 @@ func newTestDaemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
+	// don't actually try to talk to the store on snapstate.Ensure
+	// needs doing after the call to devicestate.Manager (which
+	// happens in daemon.New via overlord.New)
+	snapstate.CanAutoRefresh = nil
+
 	return d
 }
 
