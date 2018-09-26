@@ -37,7 +37,7 @@ func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
 //
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
-func addImplicitSlots(snapInfo *snap.Info, hotplugSlots map[string]hotplugSlotDef) {
+func addImplicitSlots(snapInfo *snap.Info, hotplugSlots map[string]HotplugSlotDef) {
 	// Implicit slots can be added to the special "snapd" snap or to snaps with
 	// type "os". Currently there are no other snaps that gain implicit
 	// interfaces.

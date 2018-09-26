@@ -49,21 +49,6 @@ func deviceKey(defaultDeviceKey string, device *hotplug.HotplugDeviceInfo, iface
 	return defaultDeviceKey, nil
 }
 
-func hotplugTaskSetAttrs(task *state.Task, deviceKey, ifaceName string) {
-	task.Set("device-key", deviceKey)
-	task.Set("interface", ifaceName)
-}
-
-func hotplugTaskGetAttrs(task *state.Task) (deviceKey, ifaceName string, err error) {
-	if err = task.Get("interface", &ifaceName); err != nil {
-		return "", "", fmt.Errorf("internal error: failed to get interface name: %s", err)
-	}
-	if err = task.Get("device-key", &deviceKey); err != nil {
-		return "", "", fmt.Errorf("internal error: failed to get device key: %s", err)
-	}
-	return deviceKey, ifaceName, err
-}
-
 // List of attributes that determine the computation of default device key.
 // Attributes are grouped by similarity, the first non-empty attribute within the group goes into the key.
 // The final key is composed of 4 attributes (some of which may be empty), separated by "/".
@@ -210,7 +195,7 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			logger.Noticef("Failed to create slot %q for interface %s", slot.Name, slot.Interface)
 			continue
 		}
-		stateSlots[slot.Name] = hotplugSlotDef{
+		stateSlots[slot.Name] = HotplugSlotDef{
 			Name:             slot.Name,
 			Interface:        slot.Interface,
 			StaticAttrs:      slot.Attrs,
@@ -346,22 +331,6 @@ type hotplugSlotDef struct {
 	Interface        string                 `json:"interface"`
 	StaticAttrs      map[string]interface{} `json:"static-attrs,omitempty"`
 	HotplugDeviceKey string                 `json:"device-key"`
-}
-
-func getHotplugSlots(st *state.State) (map[string]hotplugSlotDef, error) {
-	var slots map[string]hotplugSlotDef
-	err := st.Get("hotplug-slots", &slots)
-	if err != nil {
-		if err != state.ErrNoState {
-			return nil, err
-		}
-		slots = make(map[string]hotplugSlotDef)
-	}
-	return slots, nil
-}
-
-func setHotplugSlots(st *state.State, slots map[string]hotplugSlotDef) {
-	st.Set("hotplug-slots", slots)
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.
