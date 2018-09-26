@@ -2048,3 +2048,28 @@ func (s *changeSuite) TestPerformKeep(c *C) {
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.RCalls(), HasLen, 0)
 }
+
+// ############################################
+// Topic: change history tracked in Assumptions
+// ############################################
+
+func (s *changeSuite) TestPerformedChangesAreTracked(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	c.Assert(s.as.PastChanges(), HasLen, 0)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
+	_, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(s.as.PastChanges(), DeepEquals, []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
+	})
+
+	chg = &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
+	_, err = chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(s.as.PastChanges(), DeepEquals, []*update.Change{
+		// past changes stack in order.
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
+		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
+	})
+}
