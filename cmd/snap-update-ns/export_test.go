@@ -174,6 +174,10 @@ func (as *Assumptions) IsRestricted(path string) bool {
 	return as.isRestricted(path)
 }
 
+func (as *Assumptions) PastChanges() []*Change {
+	return as.pastChanges
+}
+
 func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	return as.canWriteToDirectory(dirFd, dirName)
 }
