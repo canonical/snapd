@@ -84,7 +84,11 @@ func (s *selftestSuite) TestUnexportedChecks(c *C) {
 		v := v.Index(i)
 		fname := runtime.FuncForPC(v.Pointer()).Name()
 		pos := strings.LastIndexByte(fname, '.')
-		runCheckers = append(runCheckers, fname[pos+1:])
+		checker := fname[pos+1:]
+		if !strings.HasPrefix(checker, "check") {
+			c.Fatalf(`%q in selftest.Checks does not have "check" prefix`, checker)
+		}
+		runCheckers = append(runCheckers, checker)
 	}
 
 	// collect all "check*" functions
