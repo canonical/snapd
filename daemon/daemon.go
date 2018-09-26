@@ -66,7 +66,11 @@ type Daemon struct {
 	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
 	restartSystem bool
-	mu            sync.Mutex
+
+	// degradedErr is set when the daemon is in degraded mode
+	degradedErr error
+
+	mu sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -192,6 +196,12 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
 	user, _ := UserFromRequest(st, r)
 	st.Unlock()
+
+	// check if we are in degradedMode
+	if c.d.degradedErr != nil && r.Method != "GET" {
+		InternalError(c.d.degradedErr.Error()).ServeHTTP(w, r)
+		return
+	}
 
 	switch c.canAccess(r, user) {
 	case accessOK:
@@ -350,6 +360,20 @@ func (d *Daemon) Init() error {
 	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil
+}
+
+// SetDegradedMode puts the daemon into an degraded mode which will the
+// error given in the "err" argument for commands that are not marked
+// as readonlyOK.
+//
+// This is useful to report errors to the client when the daemon
+// cannot work because e.g. a selftest failed or the system is out of
+// diskspace.
+//
+// When the system is fine again calling "DegradedMode(nil)" is enough
+// to put the daemon into full operation again.
+func (d *Daemon) SetDegradedMode(err error) {
+	d.degradedErr = err
 }
 
 func (d *Daemon) addRoutes() {
