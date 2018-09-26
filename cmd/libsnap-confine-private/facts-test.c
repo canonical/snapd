@@ -23,7 +23,7 @@
 
 #include <glib.h>
 
-static void remove_file(gpointer * fname)
+static void remove_file(gpointer fname)
 {
 	chmod((const char *)fname, 0644);
 	unlink((const char *)fname);
@@ -34,7 +34,7 @@ static void test_sc_load_facts(void)
 	const char *fname = "facts.test";
 	char *facts = NULL;
 
-	g_test_queue_destroy((GDestroyNotify) remove_file, (gpointer) fname);
+	g_test_queue_destroy(remove_file, (gpointer) fname);
 
 	/* The facts file can be missing. */
 	unlink(fname);
@@ -59,7 +59,7 @@ static void test_sc_load_facts__too_big(void)
 {
 	const char *fname = "facts.test";
 
-	g_test_queue_destroy((GDestroyNotify) remove_file, (gpointer) fname);
+	g_test_queue_destroy(remove_file, (gpointer) fname);
 
 	if (g_test_subprocess()) {
 		/* The facts file cannot be larger than 16KB */
@@ -80,7 +80,7 @@ static void test_sc_load_facts__cannot_open(void)
 {
 	const char *fname = "facts.test";
 
-	g_test_queue_destroy((GDestroyNotify) remove_file, (gpointer) fname);
+	g_test_queue_destroy(remove_file, (gpointer) fname);
 
 	if (g_test_subprocess()) {
 		g_file_set_contents(fname, "key=value\nfoo=bar\n", -1, NULL);
