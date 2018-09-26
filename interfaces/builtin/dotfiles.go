@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const dotfilesSummary = `allows access to specific hidden files in the home directory`
+const dotfilesSummary = `allows access to files or directories`
 
 const dotfilesBaseDeclarationSlots = `
   dotfiles:
@@ -40,8 +40,8 @@ const dotfilesBaseDeclarationSlots = `
 `
 
 const dotfilesConnectedPlugAppArmor = `
-# Description: Can access specific hidden files in user's $HOME. This is restricted
-# because it gives file access to some of the user's $HOME.
+# Description: Can access specific files or directories.
+# This is restricted because it gives file access to arbitrary locations.
 `
 
 type dotfilesInterface struct {
@@ -55,15 +55,11 @@ func validatePaths(attrName string, paths []interface{}) error {
 			return fmt.Errorf("%q must be a list of strings", attrName)
 		}
 		// filepath.Clean() will remove trailing "/" but we allow this
-		// for "paths"
-		if attrName == "dirs" {
-			last := len(np)
-			if np[last-1] == '/' {
-				np = np[:last-1]
-			}
+		// to differentiate between files or dirs
+		last := len(np)
+		if np[last-1] == '/' {
+			np = np[:last-1]
 		}
-
-		// FIXME: should we ensure that no other "$" is part of the string?
 		if !strings.HasPrefix(np, "/") && !strings.HasPrefix(np, "$HOME/") {
 			return fmt.Errorf(`%q must start with "/" or "$HOME"`, np)
 		}
@@ -71,7 +67,6 @@ func validatePaths(attrName string, paths []interface{}) error {
 		if p != np {
 			return fmt.Errorf("%q must be clean", np)
 		}
-
 		if strings.Contains(p, "..") {
 			return fmt.Errorf(`%q contains invalid ".."`, p)
 		}
@@ -87,7 +82,7 @@ func validatePaths(attrName string, paths []interface{}) error {
 
 func (iface *dotfilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	hasValidAttr := false
-	for _, att := range []string{"files", "dirs"} {
+	for _, att := range []string{"read", "write"} {
 		if _, ok := plug.Attrs[att]; !ok {
 			continue
 		}
@@ -101,7 +96,7 @@ func (iface *dotfilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		hasValidAttr = true
 	}
 	if !hasValidAttr {
-		return fmt.Errorf(`cannot add dotfiles plug: needs valid "files" or "dirs" attribute`)
+		return fmt.Errorf(`cannot add dotfiles plug: needs valid "read" or "write" attribute`)
 	}
 
 	return nil
@@ -121,26 +116,36 @@ func formatPath(ip interface{}) (string, error) {
 }
 
 func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var files, dirs []interface{}
-	_ = plug.Attr("files", &files)
-	_ = plug.Attr("dirs", &dirs)
+	var reads, writes []interface{}
+	_ = plug.Attr("read", &reads)
+	_ = plug.Attr("write", &writes)
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
-	for _, file := range files {
-		f, err := formatPath(file)
+	for _, r := range reads {
+		p, err := formatPath(r)
 		if err != nil {
 			return fmt.Errorf(errPrefix+"%v", err)
 		}
-		s := fmt.Sprintf("%s rwkl,", f)
+		var s string
+		if strings.HasSuffix(p, "/") {
+			s = fmt.Sprintf("%s/** rkl,", p)
+		} else {
+			s = fmt.Sprintf("%s rkl,", p)
+		}
 		spec.AddSnippet(s)
 	}
-	for _, dir := range dirs {
-		d, err := formatPath(dir)
+	for _, w := range writes {
+		p, err := formatPath(w)
 		if err != nil {
 			return fmt.Errorf(errPrefix+"%v", err)
 		}
-		s := fmt.Sprintf("%s/** rwkl,", d)
+		var s string
+		if strings.HasSuffix(p, "/") {
+			s = fmt.Sprintf("%s/** rwkl,", p)
+		} else {
+			s = fmt.Sprintf("%s rwkl,", p)
+		}
 		spec.AddSnippet(s)
 	}
 

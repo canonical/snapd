@@ -49,8 +49,8 @@ func (s *dotfilesInterfaceSuite) SetUpTest(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  dirs: [$HOME/.dir1/, /etc/dir2]
-  files: [$HOME/.file1, /var/lib/file2]
+  read: [$HOME/.read-dir1/, /etc/read-dir2, $HOME/.read-file2, /etc/read-file2]
+  write:  [$HOME/.write-dir1/, /etc/write-dir2, $HOME/.write-file2, /etc/write-file2]
 apps:
  app:
   command: foo
@@ -76,10 +76,18 @@ func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.file1 rwklix,`)
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.dir1/** rwklix,`)
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/var/lib/file2 rwklix,`)
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/etc/dir2/** rwklix,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
+# Description: Can access specific files or directories.
+# This is restricted because it gives file access to arbitrary locations.
+
+/etc/read-dir2 rkl,
+/etc/read-file2 rkl,
+/etc/write-dir2 rwkl,
+/etc/write-file2 rwkl,
+owner @${HOME}/.read-dir1 rkl,
+owner @${HOME}/.read-file2 rkl,
+owner @${HOME}/.write-dir1 rwkl,
+owner @${HOME}/.write-file2 rwkl,`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -102,8 +110,8 @@ func (s *dotfilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  files: ["$HOME/.file1"]
-  dirs: ["$HOME/.dir1/"]
+  read: ["$HOME/.file1"]
+  write: ["$HOME/.dir1/"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
@@ -122,15 +130,14 @@ plugs:
 		inp    string
 		errStr string
 	}{
-		{`files: ""`, `"files" must be a list of strings`},
-		{`files: [ 123 ]`, `"files" must be a list of strings`},
-		{`files: [ "/foo/./bar" ]`, `"/foo/./bar" must be clean`},
-		{`files: [ "../foo" ]`, `"../foo" must start with "/" or "\$HOME"`},
-		{`files: [ "/foo/" ]`, `"/foo/" must be clean`},
-		{`files: [ "/foo[" ]`, `"/foo\[" contains a reserved apparmor char from .*`},
-		{`dirs: ""`, `"dirs" must be a list of strings`},
-		{`foo: bar`, `needs valid "files" or "dirs" attribute`},
-		{`files: [ "~/foo" ]`, `"~/foo" must start with "/" or "\$HOME"`},
+		{`read: ""`, `"read" must be a list of strings`},
+		{`read: [ 123 ]`, `"read" must be a list of strings`},
+		{`read: [ "/foo/./bar" ]`, `"/foo/./bar" must be clean`},
+		{`read: [ "../foo" ]`, `"../foo" must start with "/" or "\$HOME"`},
+		{`read: [ "/foo[" ]`, `"/foo\[" contains a reserved apparmor char from .*`},
+		{`write: ""`, `"write" must be a list of strings`},
+		{`write: bar`, `"write" must be a list of strings`},
+		{`read: [ "~/foo" ]`, `"~/foo" must start with "/" or "\$HOME"`},
 	}
 
 	for _, t := range testCases {
@@ -147,7 +154,7 @@ func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmorInternalError(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  files: [ 123 , 345 ]
+  read: [ 123 , 345 ]
 apps:
  app:
   command: foo
