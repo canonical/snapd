@@ -145,8 +145,8 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	// Open the root directory and start there.
 	//
-	// NOTE: We don't have to check for possible trespassing on / here because
-	// we are going to check for it in sec.MkDir call below which verifies that
+	// We don't have to check for possible trespassing on / here because we are
+	// going to check for it in sec.MkDir call below which verifies that
 	// trespassing restrictions are not violated?
 	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
