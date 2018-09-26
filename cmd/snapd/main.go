@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var (
+	selftestRun = selftest.Run
+)
+
 func init() {
 	err := logger.SimpleSetup()
 	if err != nil {
@@ -48,7 +52,10 @@ func init() {
 
 func main() {
 	cmd.ExecInSnapdOrCoreSnap()
-	if err := run(); err != nil {
+
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	if err := run(ch); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
@@ -84,16 +91,17 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 	return wt, nil
 }
 
-func run() error {
+var checkRunningConditionsRetryDelay = 300 * time.Second
+
+// FIXME: rename selftest package to reflect that its not about the selftest
+//        so much then it is about the environment that snapd runs in
+func checkRunningConditions() error {
+	return selftestRun()
+}
+
+func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
-
-	if err := selftest.Run(); err != nil {
-		return fmt.Errorf("cannot start snapd: %v", err)
-	}
-
-	ch := make(chan os.Signal, 2)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -102,6 +110,20 @@ func run() error {
 	if err := d.Init(); err != nil {
 		return err
 	}
+
+	// Run selftest now, if anything goes wrong with the selftest we go
+	// into "degraded" mode where we always report the given error to
+	// any snap client.
+	var checkTicker <-chan time.Time
+	var tic *time.Ticker
+	if err := checkRunningConditions(); err != nil {
+		degradedErr := fmt.Errorf("system does not fully support snapd: %s", err)
+		logger.Noticef("%s", degradedErr)
+		d.SetDegradedMode(degradedErr)
+		tic = time.NewTicker(checkRunningConditionsRetryDelay)
+		checkTicker = tic.C
+	}
+
 	d.Version = cmd.Version
 
 	d.Start()
@@ -116,11 +138,21 @@ func run() error {
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
-	select {
-	case sig := <-ch:
-		logger.Noticef("Exiting on %s signal.\n", sig)
-	case <-d.Dying():
-		// something called Stop()
+out:
+	for {
+		select {
+		case sig := <-ch:
+			logger.Noticef("Exiting on %s signal.\n", sig)
+			break out
+		case <-d.Dying():
+			// something called Stop()
+			break out
+		case <-checkTicker:
+			if err := checkRunningConditions(); err == nil {
+				d.SetDegradedMode(nil)
+				tic.Stop()
+			}
+		}
 	}
 
 	return d.Stop(ch)
