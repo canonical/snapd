@@ -406,12 +406,6 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 2)
 
-	deviceScopeConstrs := map[string][]interface{}{
-		"on-store": {"store"},
-		"on-brand": {"brand"},
-		"on-model": {"brand/model"},
-	}
-
 	// combinations with on-store/on-brand/on-model => format 3
 	for _, side := range []string{"plugs", "slots"} {
 		for k, vals := range deviceScopeConstrs {
