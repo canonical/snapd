@@ -23,9 +23,11 @@ var (
 	CheckSquashfsMount  = checkSquashfsMount
 	CheckKernelVersion  = checkKernelVersion
 	CheckApparmorUsable = checkApparmorUsable
-
-	Checks = checks
 )
+
+func Checks() []func() error {
+	return checks
+}
 
 func MockChecks(mockChecks []func() error) (restore func()) {
 	oldChecks := checks

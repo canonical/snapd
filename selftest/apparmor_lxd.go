@@ -24,6 +24,10 @@ import (
 	"os"
 )
 
+func init() {
+	checks = append(checks, checkApparmorUsable)
+}
+
 var apparmorProfilesPath = "/sys/kernel/security/apparmor/profiles"
 
 func checkApparmorUsable() error {

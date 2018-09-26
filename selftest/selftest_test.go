@@ -79,7 +79,7 @@ func (s *selftestSuite) TestRunNotHappy(c *C) {
 func (s *selftestSuite) TestUnexportedChecks(c *C) {
 	// collect what funcs we run in selftest.Check
 	var runCheckers []string
-	v := reflect.ValueOf(selftest.Checks)
+	v := reflect.ValueOf(selftest.Checks())
 	for i := 0; i < v.Len(); i++ {
 		v := v.Index(i)
 		fname := runtime.FuncForPC(v.Pointer()).Name()
@@ -118,5 +118,6 @@ func (s *selftestSuite) TestUnexportedChecks(c *C) {
 
 	sort.Strings(checkers)
 	sort.Strings(runCheckers)
+
 	c.Check(checkers, DeepEquals, runCheckers)
 }

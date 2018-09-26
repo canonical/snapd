@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
 
+func init() {
+	checks = append(checks, checkSquashfsMount)
+}
+
 /* This image was created using:
 
 #!/bin/sh
