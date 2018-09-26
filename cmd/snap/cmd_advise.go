@@ -80,7 +80,6 @@ func outputAdviseExactText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("Command %q not found, but can be installed with:\n"), command)
 	fmt.Fprintf(Stdout, "\n")
 	for _, snap := range result {
-		// TRANSLATORS: %s is a snap name
 		fmt.Fprintf(Stdout, "sudo snap install %s\n", snap.Snap)
 	}
 	fmt.Fprintf(Stdout, "\n")

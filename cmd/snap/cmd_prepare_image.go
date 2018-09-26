@@ -49,9 +49,9 @@ core device images.
 			return &cmdPrepareImage{}
 		}, map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"extra-snaps": "Extra snaps to be installed",
+			"extra-snaps": i18n.G("Extra snaps to be installed"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"channel": "The channel to use",
+			"channel": i18n.G("The channel to use"),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to be wrapped in <>s.
