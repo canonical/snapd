@@ -31,13 +31,13 @@ func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
 	return ok
 }
 
-// addImplicitSlots adds implicitly defined slots to a given snap.
+// addImplicitSlots adds implicitly defined slots and hotplug slots to a given snap.
 //
-// Only the OS snap has implicit slots.
+// Only the OS snap has implicit and hotplug slots.
 //
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
-func addImplicitSlots(snapInfo *snap.Info) {
+func addImplicitSlots(snapInfo *snap.Info, hotplugSlotDefs map[string]HotplugSlotDef) {
 	// Implicit slots can be added to the special "snapd" snap or to snaps with
 	// type "os". Currently there are no other snaps that gain implicit
 	// interfaces.
@@ -59,6 +59,17 @@ func addImplicitSlots(snapInfo *snap.Info) {
 			if _, ok := snapInfo.Slots[ifaceName]; !ok {
 				snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
 			}
+		}
+	}
+
+	// Add hotplug slots
+	for _, slotDef := range hotplugSlotDefs {
+		snapInfo.Slots[slotDef.Name] = &snap.SlotInfo{
+			Name:             slotDef.Name,
+			Snap:             snapInfo,
+			Interface:        slotDef.Interface,
+			Attrs:            slotDef.StaticAttrs,
+			HotplugDeviceKey: slotDef.HotplugDeviceKey,
 		}
 	}
 }
