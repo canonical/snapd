@@ -22,6 +22,7 @@ package selftest
 var checks = []func() error{
 	trySquashfsMount,
 	apparmorUsable,
+	checkKernelVersion,
 }
 
 func Run() error {
