@@ -147,7 +147,7 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 	//
 	// We don't have to check for possible trespassing on / here because we are
 	// going to check for it in sec.MkDir call below which verifies that
-	// trespassing restrictions are not violated?
+	// trespassing restrictions are not violated.
 	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open root directory: %v", err)
