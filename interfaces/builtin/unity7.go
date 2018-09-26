@@ -482,9 +482,9 @@ dbus (receive)
 # this leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
-# parallel-installs: this leaks read access to desktop files owned by keyed
-# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-/var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
+# parallel-installs: when @{SNAP_INSTANCE_NAME} == @{SNAP_NAME},
+# this leaks read access to desktop files of parallel installs of the snap
+/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
 
 # then allow talking to Unity DBus service
 dbus (send)
