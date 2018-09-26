@@ -101,7 +101,7 @@ static void test_sc_load_facts__cannot_open(void)
 
 static void test_sc_query_fact(void)
 {
-	const char *facts = "f1=1\nf2=22\nf3=333\n";
+	const char *facts = "f0=\nf1=1\nf2=22\nf3=333\n";
 
 	/* Searching in and for various NULL or empty things. */
 	g_assert_cmpuint(sc_query_fact(NULL, NULL, NULL, 0), ==, 0);
@@ -118,6 +118,7 @@ static void test_sc_query_fact(void)
 	g_assert_cmpuint(sc_query_fact("name=", "name", NULL, 0), ==, 1);
 	g_assert_cmpuint(sc_query_fact("\n", "name", NULL, 0), ==, 0);
 
+	g_assert_cmpuint(sc_query_fact(facts, "f0", NULL, 0), ==, 0 + 1);
 	g_assert_cmpuint(sc_query_fact(facts, "f1", NULL, 0), ==, 1 + 1);
 	g_assert_cmpuint(sc_query_fact(facts, "f2", NULL, 0), ==, 2 + 1);
 	g_assert_cmpuint(sc_query_fact(facts, "f3", NULL, 0), ==, 3 + 1);
@@ -153,6 +154,11 @@ static void test_sc_query_fact(void)
 	char buf[16];
 
 	/* Retrieval of values */
+	memset(buf, 0777, sizeof buf);
+	n = sc_query_fact(facts, "f0", buf, sizeof buf);
+	g_assert_cmpuint(n, ==, 0 + 1);
+	g_assert_cmpstr(buf, ==, "");
+
 	memset(buf, 0777, sizeof buf);
 	n = sc_query_fact(facts, "f1", buf, sizeof buf);
 	g_assert_cmpuint(n, ==, 1 + 1);
