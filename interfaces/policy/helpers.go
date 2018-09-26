@@ -100,7 +100,7 @@ func checkDeviceScope(c *asserts.DeviceScopeConstraint, model *asserts.Model) er
 		return nil
 	}
 	if model == nil {
-		return fmt.Errorf("cannot match on-store/on-brand/on-model withouth model")
+		return fmt.Errorf("cannot match on-store/on-brand/on-model without model")
 	}
 	if len(c.Store) != 0 {
 		if !strutil.ListContains(c.Store, model.Store()) {

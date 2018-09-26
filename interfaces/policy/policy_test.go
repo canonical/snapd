@@ -696,7 +696,7 @@ plugs:
     allow-auto-connection:
       on-brand:
         - my-brand
-        - my-brand-subrand
+        - my-brand-subbrand
       on-store:
         - store1
         - other-store
@@ -760,7 +760,7 @@ slots:
     allow-auto-connection:
       on-brand:
         - my-brand
-        - my-brand-subrand
+        - my-brand-subbrand
       on-store:
         - store1
         - other-store
@@ -1801,7 +1801,7 @@ slots:
     allow-installation:
       on-brand:
         - my-brand
-        - my-brand-subrand
+        - my-brand-subbrand
       on-store:
         - store1
         - other-store
