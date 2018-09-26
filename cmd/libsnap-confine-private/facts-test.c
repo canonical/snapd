@@ -44,13 +44,14 @@ static void test_sc_load_facts(void)
 	g_assert_cmpstr(facts, ==, NULL);
 
 	/* The facts file can be empty. */
-	g_file_set_contents(fname, "", -1, NULL);
+	g_assert_true(g_file_set_contents(fname, "", -1, NULL));
 	facts = sc_load_facts(fname);
 	g_test_queue_free(facts);
 	g_assert_cmpstr(facts, ==, "");
 
 	/* The facts file can have reasonable contents. */
-	g_file_set_contents(fname, "key=value\nfoo=bar\n", -1, NULL);
+	g_assert_true(g_file_set_contents
+		      (fname, "key=value\nfoo=bar\n", -1, NULL));
 	facts = sc_load_facts(fname);
 	g_test_queue_free(facts);
 	g_assert_cmpstr(facts, ==, "key=value\nfoo=bar\n");
@@ -66,7 +67,7 @@ static void test_sc_load_facts__too_big(void)
 		/* The facts file cannot be larger than 16KB */
 		char buf[16 * 1024];
 		memset(buf, 'x', sizeof buf);
-		g_file_set_contents(fname, buf, -1, NULL);
+		g_assert_true(g_file_set_contents(fname, buf, -1, NULL));
 		(void)sc_load_facts(fname);
 		g_test_message("expected sc_load_facts not to return");
 		g_test_fail();
@@ -84,7 +85,8 @@ static void test_sc_load_facts__cannot_open(void)
 	g_test_queue_destroy(remove_file, fname);
 
 	if (g_test_subprocess()) {
-		g_file_set_contents(fname, "key=value\nfoo=bar\n", -1, NULL);
+		g_assert_true(g_file_set_contents
+			      (fname, "key=value\nfoo=bar\n", -1, NULL));
 		chmod(fname, 0000);
 		(void)sc_load_facts(fname);
 		g_test_message("expected sc_load_facts not to return");
