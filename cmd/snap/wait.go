@@ -43,6 +43,7 @@ type waitMixin struct {
 }
 
 var waitDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
 }
 
