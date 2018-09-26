@@ -91,17 +91,19 @@ size_t sc_query_fact(const char *facts, const char *name, char *buf, size_t n)
 		}
 		/* The value starts just after "${name}=" */
 		f_value_start = &f_start[name_len + 1];
-		/* The length includes the terminating '\0' we wish to insert. */
+		/* The length includes the terminating '\0' we wish to insert.
+		 * This also the value is never really empty so we can safely
+		 * subtract one from this value in memcpy call below. */
 		f_value_len = f_end - f_value_start + 1;
 
 		if (buf != NULL && n > 0) {
 			if (f_value_len < n) {
 				/* Copy complete fact. */
-				memcpy(buf, f_value_start, f_value_len);
+				memcpy(buf, f_value_start, f_value_len - 1);
 				buf[f_value_len - 1] = '\0';
 			} else {
 				/* Copy truncated fact. */
-				memcpy(buf, f_value_start, n);
+				memcpy(buf, f_value_start, n - 1);
 				buf[n - 1] = '\0';
 			}
 		}
