@@ -36,7 +36,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	defer restore()
 
 	hotplugSlots := map[string]ifacestate.HotplugSlotDef{
-		"foo": ifacestate.HotplugSlotDef{
+		"foo": {
 			Name:             "foo",
 			Interface:        "dummy",
 			StaticAttrs:      map[string]interface{}{"attr": "value"},
