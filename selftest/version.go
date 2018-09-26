@@ -21,7 +21,9 @@ package selftest
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
@@ -31,7 +33,16 @@ import (
 // encounter and provides advice on how to resolve them.
 func checkKernelVersion() error {
 	if release.OnClassic && release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
-		if cmp, _ := strutil.VersionCompare(osutil.KernelVersion(), "3.13"); cmp <= 0 {
+		kver := osutil.KernelVersion()
+		// a kernel version looks like this: "4.4.0-112-generic" and
+		// we are only interested in the bits before the "-"
+		kver = strings.SplitN(kver, "-", 2)[0]
+		cmp, err := strutil.VersionCompare(kver, "3.13.0")
+		if err != nil {
+			logger.Noticef("cannot check kernel: %v", err)
+			return nil
+		}
+		if cmp <= 0 {
 			return fmt.Errorf("you need to reboot into a 4.4 kernel to start using snapd")
 		}
 	}
