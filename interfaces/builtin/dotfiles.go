@@ -62,6 +62,11 @@ func validatePaths(attrName string, paths []interface{}) error {
 				np = np[:last-1]
 			}
 		}
+
+		// FIXME: should we ensure that no other "$" is part of the string?
+		if !strings.HasPrefix(np, "/") && !strings.HasPrefix(np, "$HOME/") {
+			return fmt.Errorf(`%q must start with "/" or "$HOME"`, np)
+		}
 		p := filepath.Clean(np)
 		if p != np {
 			return fmt.Errorf("%q must be clean", np)
@@ -96,10 +101,19 @@ func (iface *dotfilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		hasValidAttr = true
 	}
 	if !hasValidAttr {
-		return fmt.Errorf(`cannot add dotfiles plug without valid "files" or "dirs" attribute`)
+		return fmt.Errorf(`cannot add dotfiles plug: needs valid "files" or "dirs" attribute`)
 	}
 
 	return nil
+}
+
+func formatPath(ip interface{}) (string, error) {
+	p, ok := ip.(string)
+	if !ok {
+		return "", fmt.Errorf("%[1]v (%[1]T) is not a string", ip)
+	}
+	p = strings.Replace(p, "$HOME", "@${HOME}", 1)
+	return filepath.Clean(p), nil
 }
 
 func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -107,13 +121,22 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	_ = plug.Attr("files", &files)
 	_ = plug.Attr("dirs", &dirs)
 
+	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
 	for _, file := range files {
-		s := fmt.Sprintf("owner @${HOME}/%s rwklix,", filepath.Clean(file.(string)))
+		f, err := formatPath(file)
+		if err != nil {
+			return fmt.Errorf(errPrefix+"%v", err)
+		}
+		s := fmt.Sprintf("owner %s rwklix,", f)
 		spec.AddSnippet(s)
 	}
 	for _, dir := range dirs {
-		s := fmt.Sprintf("owner @${HOME}/%s/** rwklix,", filepath.Clean(dir.(string)))
+		d, err := formatPath(dir)
+		if err != nil {
+			return fmt.Errorf(errPrefix+"%v", err)
+		}
+		s := fmt.Sprintf("owner %s/** rwklix,", d)
 		spec.AddSnippet(s)
 	}
 
