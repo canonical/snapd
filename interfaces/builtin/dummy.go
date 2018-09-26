@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -54,6 +55,47 @@ func (iface *dummyInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
+func supported(di *hotplug.HotplugDeviceInfo) bool {
+	if di.Subsystem() != "net" {
+		return false
+	}
+	if driver, _ := di.Attribute("ID_NET_DRIVER"); driver != "dummy" {
+		return false
+	}
+	return true
+}
+
+func (iface *dummyInterface) HotplugDeviceKey(di *hotplug.HotplugDeviceInfo) (string, error) {
+	if !supported(di) {
+		return "", nil
+	}
+
+	ifname, ok := di.Attribute("INTERFACE") // e.g. dummy0
+	if !ok {
+		return "", fmt.Errorf("INTERFACE attribute not present for device %s", di.DevicePath())
+	}
+	return ifname, nil
+}
+
+func (iface *dummyInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+	if !supported(di) {
+		return nil
+	}
+
+	ifname, ok := di.Attribute("INTERFACE") // e.g. dummy0
+	if !ok {
+		return fmt.Errorf("INTERFACE attribute not present for device %s", di.DevicePath())
+	}
+	slot := hotplug.RequestedSlotSpec{
+		Name:  fmt.Sprintf("net-dummy-%s", ifname),
+		Label: dummyInterfaceSummary,
+		Attrs: map[string]interface{}{
+			"path": di.DevicePath(),
+		},
+	}
+	return spec.SetSlot(&slot)
+}
+
 func (iface *dummyInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return nil
 }
@@ -64,18 +106,14 @@ func (iface *dummyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	var value string
-	if err := plug.Attr("before-connect", &value); err != nil {
-		return err
-	}
+	plug.Attr("before-connect", &value)
 	value = fmt.Sprintf("plug-changed(%s)", value)
 	return plug.SetAttr("before-connect", value)
 }
 
 func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
 	var value string
-	if err := slot.Attr("before-connect", &value); err != nil {
-		return err
-	}
+	slot.Attr("before-connect", &value)
 	value = fmt.Sprintf("slot-changed(%s)", value)
 	return slot.SetAttr("before-connect", value)
 }

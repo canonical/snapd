@@ -41,6 +41,8 @@ type InterfaceManager struct {
 	udevMon             udevmonitor.Interface
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
+	// indexed by interface name and device key
+	enumeratedDeviceKeys map[string]map[string]bool
 }
 
 // Manager returns a new InterfaceManager.
@@ -65,6 +67,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	s.Lock()
 	ifacerepo.Replace(s, m.repo)
+
 	s.Unlock()
 
 	taskKinds := map[string]bool{}
@@ -81,6 +84,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
+	addHandler("hotplug-connect", m.doHotplugConnect, nil)
+	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
+	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
@@ -168,7 +174,7 @@ var (
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
-	mon := createUDevMonitor(m.HotplugDeviceAdded, m.HotplugDeviceRemoved)
+	mon := createUDevMonitor(m.hotplugDeviceAdded, m.hotplugDeviceRemoved, m.hotplugEnumerationDone)
 	if err := mon.Connect(); err != nil {
 		return err
 	}
@@ -176,6 +182,7 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		mon.Disconnect()
 		return err
 	}
+	m.enumeratedDeviceKeys = make(map[string]map[string]bool)
 	m.udevMon = mon
 	return nil
 }

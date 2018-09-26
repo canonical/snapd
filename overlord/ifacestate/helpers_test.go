@@ -150,3 +150,58 @@ func (s *helpersSuite) TestSetConns(c *C) {
 			"interface": "network",
 		}})
 }
+
+func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("foo", "")
+	_, _, err := ifacestate.HotplugTaskGetAttrs(t)
+	c.Assert(err, ErrorMatches, `internal error: failed to get interface name: no state entry for key`)
+
+	ifacestate.HotplugTaskSetAttrs(t, "key", "iface")
+
+	var key, iface string
+	c.Assert(t.Get("device-key", &key), IsNil)
+	c.Assert(key, Equals, "key")
+
+	c.Assert(t.Get("interface", &iface), IsNil)
+	c.Assert(iface, Equals, "iface")
+
+	key, iface, err = ifacestate.HotplugTaskGetAttrs(t)
+	c.Assert(err, IsNil)
+	c.Assert(key, Equals, "key")
+	c.Assert(iface, Equals, "iface")
+}
+
+func (s *helpersSuite) TestHotplugSlotDefs(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	slots, err := ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(slots, HasLen, 0)
+
+	defs := map[string]ifacestate.HotplugSlotDef{}
+	defs["foo"] = ifacestate.HotplugSlotDef{
+		Name:             "foo",
+		Interface:        "iface",
+		StaticAttrs:      map[string]interface{}{"attr": "value"},
+		HotplugDeviceKey: "key",
+	}
+	ifacestate.SetHotplugSlots(s.st, defs)
+
+	var data map[string]interface{}
+	c.Assert(s.st.Get("hotplug-slots", &data), IsNil)
+	c.Assert(data, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"name":         "foo",
+			"interface":    "iface",
+			"static-attrs": map[string]interface{}{"attr": "value"},
+			"device-key":   "key",
+		}})
+
+	slots, err = ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(slots, DeepEquals, defs)
+}

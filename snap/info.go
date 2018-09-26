@@ -654,6 +654,10 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// HotplugDeviceKey is the key of the associated device; it's empty for
+	// regular slots.
+	HotplugDeviceKey string
 }
 
 // SocketInfo provides information on application sockets.

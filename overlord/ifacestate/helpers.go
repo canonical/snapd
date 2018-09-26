@@ -56,7 +56,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
-	m.addSnaps(snaps)
+	if err := m.addSnaps(snaps); err != nil {
+		return err
+	}
 	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
@@ -117,13 +119,19 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps(snaps []*snap.Info) {
+func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
+	hotplugSlots, err := getHotplugSlots(m.state)
+	if err != nil {
+		return err
+	}
+
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		addImplicitSlots(snapInfo, hotplugSlots)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
 	}
+	return nil
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
@@ -145,9 +153,15 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	if err != nil {
 		return err
 	}
+
+	hotplugSlots, err := getHotplugSlots(m.state)
+	if err != nil {
+		return err
+	}
+
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		addImplicitSlots(snapInfo, hotplugSlots)
 	}
 
 	// For each snap:
@@ -220,10 +234,14 @@ var removeStaleConnections = func(st *state.State) error {
 		return err
 	}
 	var staleConns []string
-	for id := range conns {
+	for id, conn := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
+		}
+		// do not remove connections belonging to hotplug devices as they may re-appear
+		if conn.HotplugDeviceKey != "" {
+			continue
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
@@ -263,7 +281,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 	affected := make(map[string]bool)
 	for id, conn := range conns {
-		if conn.Undesired {
+		if conn.Undesired || conn.HotplugRemoved {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(id)
@@ -337,6 +355,14 @@ type connState struct {
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
 	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
+
+	// Hotplug-related attributes: HotplugRemoved indicates a connection
+	// that disappeared because the device was removed, but may potentially
+	// be restored in the future if we see the device again.
+	// HotplugDeviceKey is the key of the associated device; it's empty for
+	// connections of regular slots.
+	HotplugRemoved   bool   `json:"hotplug-removed,omitempty"`
+	HotplugDeviceKey string `json:"hotplug-key,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -718,4 +744,42 @@ func ensureSystemSnapIsPresent(st *state.State) error {
 	defer st.Unlock()
 	_, err := snapstate.CoreInfo(st)
 	return err
+}
+
+func hotplugTaskSetAttrs(task *state.Task, deviceKey, ifaceName string) {
+	task.Set("device-key", deviceKey)
+	task.Set("interface", ifaceName)
+}
+
+func hotplugTaskGetAttrs(task *state.Task) (deviceKey, ifaceName string, err error) {
+	if err = task.Get("interface", &ifaceName); err != nil {
+		return "", "", fmt.Errorf("internal error: failed to get interface name: %s", err)
+	}
+	if err = task.Get("device-key", &deviceKey); err != nil {
+		return "", "", fmt.Errorf("internal error: failed to get device key: %s", err)
+	}
+	return deviceKey, ifaceName, err
+}
+
+type HotplugSlotDef struct {
+	Name             string                 `json:"name"`
+	Interface        string                 `json:"interface"`
+	StaticAttrs      map[string]interface{} `json:"static-attrs,omitempty"`
+	HotplugDeviceKey string                 `json:"device-key"`
+}
+
+func getHotplugSlots(st *state.State) (map[string]HotplugSlotDef, error) {
+	var slots map[string]HotplugSlotDef
+	err := st.Get("hotplug-slots", &slots)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		slots = make(map[string]HotplugSlotDef)
+	}
+	return slots, nil
+}
+
+func setHotplugSlots(st *state.State, slots map[string]HotplugSlotDef) {
+	st.Set("hotplug-slots", slots)
 }

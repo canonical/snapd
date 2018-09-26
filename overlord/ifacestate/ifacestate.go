@@ -111,7 +111,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		return nil, err
 	}
 	connRef := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
-	if conn, ok := conns[connRef.ID()]; ok && conn.Undesired == false {
+	if conn, ok := conns[connRef.ID()]; ok && conn.Undesired == false && conn.HotplugRemoved == false {
 		return nil, &ErrAlreadyConnected{Connection: connRef}
 	}
 
@@ -238,7 +238,12 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 		return nil, nil, err
 	}
 
-	addImplicitSlots(snapInfo)
+	hotplugSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return nil, nil, err
+	}
+	addImplicitSlots(snapInfo, hotplugSlots)
+
 	slot, ok := snapInfo.Slots[slotName]
 	if !ok {
 		return nil, nil, fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
@@ -260,6 +265,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 
 type disconnectOpts struct {
 	AutoDisconnect bool
+	ByHotplug      bool
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -290,6 +296,9 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 
 	if flags.AutoDisconnect {
 		disconnectTask.Set("auto-disconnect", true)
+	}
+	if flags.ByHotplug {
+		disconnectTask.Set("by-hotplug", true)
 	}
 
 	ts := state.NewTaskSet()
@@ -350,8 +359,12 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
+	hotplugSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return err
+	}
 	// XXX: addImplicitSlots is really a brittle interface
-	addImplicitSlots(snapInfo)
+	addImplicitSlots(snapInfo, hotplugSlots)
 
 	if snapInfo.SnapID == "" {
 		// no SnapID means --dangerous was given, so skip interface checks

@@ -153,6 +153,7 @@ func New() (*Overlord, error) {
 
 	s.Lock()
 	defer s.Unlock()
+
 	// setting up the store
 	proxyConf := proxyconf.New(s)
 	authContext := auth.NewAuthContext(s, o.deviceMgr)

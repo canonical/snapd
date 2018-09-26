@@ -36,7 +36,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	defer restore()
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	ifacestate.AddImplicitSlots(info, nil)
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
@@ -58,7 +58,7 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	defer restore()
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	ifacestate.AddImplicitSlots(info, nil)
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]

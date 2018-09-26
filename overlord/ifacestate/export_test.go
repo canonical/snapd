@@ -32,7 +32,15 @@ var (
 	ConnectPriv                  = connect
 	GetConns                     = getConns
 	SetConns                     = setConns
+	DefaultDeviceKey             = defaultDeviceKey
+	EnsureUniqueName             = ensureUniqueName
+	SuggestedSlotName            = suggestedSlotName
+	MakeSlotName                 = makeSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
+	HotplugTaskGetAttrs          = hotplugTaskGetAttrs
+	HotplugTaskSetAttrs          = hotplugTaskSetAttrs
+	GetHotplugSlots              = getHotplugSlots
+	SetHotplugSlots              = setHotplugSlots
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -51,7 +59,7 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	return func() { contentLinkRetryTimeout = old }
 }
 
-func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface) (restore func()) {
+func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface) (restore func()) {
 	old := createUDevMonitor
 	createUDevMonitor = new
 	return func() {
