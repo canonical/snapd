@@ -145,7 +145,10 @@ func applyFstab(instanceName string, fromSnapConfine bool) error {
 	// points must traverse writable host filesystem that contains /snap/*/ and
 	// normally such access is off-limits. This approach allows /snap/foo
 	// without allowing /snap/bin, for example.
-
+	//
+	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
+	// remapping for parallel installs only when the snap has an instance key
+	//
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
