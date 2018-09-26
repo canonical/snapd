@@ -46,6 +46,11 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
 	st := task.State()
 
+	hotplugSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return err
+	}
+
 	// Setup security of the affected snaps.
 	for _, affectedSnapName := range affectedSnaps {
 		// the snap that triggered the change needs to be skipped
@@ -61,7 +66,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		addImplicitSlots(affectedSnapInfo)
+		addImplicitSlots(affectedSnapInfo, hotplugSlots)
 		opts := confinementOptions(snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
@@ -103,7 +108,12 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
-	addImplicitSlots(snapInfo)
+	hotplugSlots, err := getHotplugSlots(task.State())
+	if err != nil {
+		return err
+	}
+	addImplicitSlots(snapInfo, hotplugSlots)
+
 	snapName := snapInfo.InstanceName()
 
 	// The snap may have been updated so perform the following operation to

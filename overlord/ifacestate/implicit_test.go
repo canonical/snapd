@@ -35,8 +35,16 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	hotplugSlots := map[string]ifacestate.HotplugSlotDef{
+		"foo": ifacestate.HotplugSlotDef{
+			Name:             "foo",
+			Interface:        "dummy",
+			StaticAttrs:      map[string]interface{}{"attr": "value"},
+			HotplugDeviceKey: "1234",
+		}}
+
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	ifacestate.AddImplicitSlots(info, hotplugSlots)
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
@@ -51,6 +59,13 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
+
+	// Ensure hotplug slots were added
+	slot := info.Slots["foo"]
+	c.Assert(slot, NotNil)
+	c.Assert(slot.Interface, Equals, "dummy")
+	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "value"})
+	c.Assert(slot.HotplugDeviceKey, Equals, "1234")
 }
 
 func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
@@ -58,7 +73,7 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	defer restore()
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	ifacestate.AddImplicitSlots(info, nil)
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]
