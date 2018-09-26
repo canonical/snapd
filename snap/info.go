@@ -648,12 +648,15 @@ func (slot *SlotInfo) String() string {
 type SlotInfo struct {
 	Snap *Info
 
-	Name             string
-	Interface        string
-	Attrs            map[string]interface{}
-	Label            string
-	Apps             map[string]*AppInfo
-	Hooks            map[string]*HookInfo
+	Name      string
+	Interface string
+	Attrs     map[string]interface{}
+	Label     string
+	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
+
+	// HotplugDeviceKey is the key of the associated device; it's empty for
+	// regular slots.
 	HotplugDeviceKey string
 }
 
