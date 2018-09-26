@@ -65,19 +65,20 @@ capability sys_admin,
 /{,usr/}bin/mountpoint ixr,
 /run/mount/utab rw,
 @{PROC}/[0-9]*/mountinfo r,
-# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME
-mount options=(rw bind) /home/ -> /var/snap/@{SNAP_NAME}/**/,
-mount options=(rw bind) /run/ -> /var/snap/@{SNAP_NAME}/**/,
-mount options=(rw bind) /proc/ -> /var/snap/@{SNAP_NAME}/**/,
-mount options=(rw bind) /sys/ -> /var/snap/@{SNAP_NAME}/**/,
-mount options=(rw bind) /dev/ -> /var/snap/@{SNAP_NAME}/**/,
-mount options=(rw bind) / -> /var/snap/@{SNAP_NAME}/**/,
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
+# completeness allow SNAP_INSTANCE_NAME too
+mount options=(rw bind) /home/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
+mount options=(rw bind) /run/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
+mount options=(rw bind) /proc/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
+mount options=(rw bind) /sys/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
+mount options=(rw bind) /dev/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
+mount options=(rw bind) / -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
 mount fstype=devpts options=(rw) devpts -> /dev/pts/,
-mount options=(rw rprivate) -> /var/snap/@{SNAP_NAME}/**/,
+mount options=(rw rprivate) -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
 
 # reset
 /{,usr/}bin/umount ixr,
-umount /var/snap/@{SNAP_NAME}/**/,
+umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
 
 # These rules allow running anything unconfined as well as managing systemd
 /usr/bin/systemd-run Uxr,
