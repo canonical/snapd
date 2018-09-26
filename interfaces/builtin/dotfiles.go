@@ -112,8 +112,12 @@ func formatPath(ip interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("%[1]v (%[1]T) is not a string", ip)
 	}
-	p = strings.Replace(p, "$HOME", "@${HOME}", 1)
-	return filepath.Clean(p), nil
+	prefix := ""
+	if strings.Count(p, "$HOME") > 0 {
+		p = strings.Replace(p, "$HOME", "@${HOME}", 1)
+		prefix = "owner "
+	}
+	return filepath.Clean(prefix + p), nil
 }
 
 func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -128,7 +132,7 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 		if err != nil {
 			return fmt.Errorf(errPrefix+"%v", err)
 		}
-		s := fmt.Sprintf("owner %s rwklix,", f)
+		s := fmt.Sprintf("%s rwkl,", f)
 		spec.AddSnippet(s)
 	}
 	for _, dir := range dirs {
@@ -136,7 +140,7 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 		if err != nil {
 			return fmt.Errorf(errPrefix+"%v", err)
 		}
-		s := fmt.Sprintf("owner %s/** rwklix,", d)
+		s := fmt.Sprintf("%s/** rwkl,", d)
 		spec.AddSnippet(s)
 	}
 
