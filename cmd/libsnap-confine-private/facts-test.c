@@ -23,10 +23,11 @@
 
 #include <glib.h>
 
-static void remove_file(gpointer fname)
+static void remove_file(gpointer data)
 {
-	chmod((const char *)fname, 0644);
-	unlink((const char *)fname);
+	const char *fname = (const char *)data;
+	chmod(fname, 0644);
+	unlink(fname);
 }
 
 static void test_sc_load_facts(void)
