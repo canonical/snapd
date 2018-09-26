@@ -66,7 +66,7 @@ size_t sc_query_fact(const char *facts, const char *name, char *buf, size_t n)
 	}
 	name_len = strlen(name);
 
-	/* Advance from one fact to the next. Each loop finds the next fact. */
+	/* Advance from one fact to the next. Each iteration finds the next fact. */
 	for (f_start = facts; f_start != NULL; f_start = f_next) {
 		/* Facts are delimited with newlines, the last newline is optional. */
 		f_next = strchr(f_start, '\n');
