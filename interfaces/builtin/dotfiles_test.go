@@ -78,7 +78,8 @@ func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.file1 rwklix,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @${HOME}/.dir1/** rwklix,`)
-
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/var/lib/file2 rwklix,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/etc/dir2/** rwklix,`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizeSlot(c *C) {
