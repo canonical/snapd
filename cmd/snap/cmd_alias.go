@@ -113,6 +113,6 @@ func printChangedAliases(w io.Writer, label string, changed []*changedAlias) {
 	fmt.Fprintf(w, "%s:\n", label)
 	for _, a := range changed {
 		// TRANSLATORS: the first %s is a snap command (e.g. "hello-world.echo"), the second is the alias
-		fmt.Fprintf(w, "\t- %s as %s\n", snap.JoinSnapApp(a.Snap, a.App), a.Alias)
+		fmt.Fprintf(w, i18n.G("\t- %s as %s\n"), snap.JoinSnapApp(a.Snap, a.App), a.Alias)
 	}
 }
