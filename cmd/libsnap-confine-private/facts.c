@@ -28,7 +28,7 @@
 
 char *sc_load_facts(const char *fname)
 {
-	FILE *f __attribute__ ((cleanup(sc_cleanup_file))) = NULL;
+	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
 	char *buf_copy;
 	size_t nread;
 	char buf[16 * 1024 + 1];
