@@ -19,8 +19,9 @@
 package standby
 
 import (
-	"github.com/snapcore/snapd/overlord/state"
 	"time"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var standbyWait = 5 * time.Second
@@ -35,7 +36,9 @@ type StandbyOpinions struct {
 	startTime time.Time
 	opinions  []Opinionator
 
-	sleep time.Duration
+	sleep   time.Duration
+	timerCh <-chan time.Time
+	stopCh  chan interface{}
 }
 
 // CanStandby returns true if the main ensure loop can go into
@@ -74,19 +77,31 @@ func New(st *state.State) *StandbyOpinions {
 	}
 }
 
-func (m *StandbyOpinions) Loop() {
+func (m *StandbyOpinions) Start() {
+	m.stopCh = make(chan interface{})
 	go func() {
 		for {
+			m.timerCh = time.NewTimer(m.sleep).C
 			if m.CanStandby() {
 				m.state.RequestRestart(state.RestartSocket)
 			}
-			// FIXME: very crude, just to give the idea
-			time.Sleep(m.sleep)
-			if m.sleep < 5*time.Minute {
-				m.sleep *= 2
+			select {
+			case <-m.timerCh:
+				if m.sleep < 5*time.Minute {
+					m.sleep *= 2
+				}
+			case <-m.stopCh:
+				return
 			}
 		}
 	}()
+}
+
+func (m *StandbyOpinions) Stop() {
+	if m.stopCh != nil {
+		close(m.stopCh)
+		m.stopCh = nil
+	}
 }
 
 func (m *StandbyOpinions) AddOpinion(opi Opinionator) {

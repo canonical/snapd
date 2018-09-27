@@ -496,8 +496,7 @@ func (d *Daemon) initStandbyHandling() {
 	d.standbyOpinions.AddOpinion(d.overlord)
 	d.standbyOpinions.AddOpinion(d.overlord.SnapManager())
 	d.standbyOpinions.AddOpinion(d.overlord.DeviceManager())
-	// loop runs in its own go-routine
-	d.standbyOpinions.Loop()
+	d.standbyOpinions.Start()
 }
 
 // Start the Daemon
@@ -592,6 +591,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.mu.Unlock()
 
 	d.snapdListener.Close()
+	d.standbyOpinions.Stop()
 
 	if d.snapListener != nil {
 		// stop running hooks first
