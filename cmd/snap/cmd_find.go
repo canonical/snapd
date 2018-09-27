@@ -164,8 +164,11 @@ func init() {
 	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
 	}, colorDescs.also(map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"private": i18n.G("Search private snaps"),
-		"narrow":  i18n.G("Only search for snaps in “stable”"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"narrow": i18n.G("Only search for snaps in “stable”"),
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"section": i18n.G("Restrict the search to a given section"),
 	}), []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.

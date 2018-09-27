@@ -84,12 +84,19 @@ and environment.
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command":    i18n.G("Alternative command to run"),
-			"hook":       i18n.G("Hook to run"),
-			"r":          i18n.G("Use a specific snap revision when running hook"),
-			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
-			"gdb":        i18n.G("Run the command with gdb"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"command": i18n.G("Alternative command to run"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"hook": i18n.G("Hook to run"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"r": i18n.G("Use a specific snap revision when running hook"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"shell": i18n.G("Run a shell instead of the command (useful for debugging)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"strace": i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"gdb": i18n.G("Run the command with gdb"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer":      i18n.G("Run as a timer service with given schedule"),
 			"parser-ran": "",
 		}, nil)

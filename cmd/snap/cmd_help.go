@@ -70,7 +70,10 @@ type cmdHelp struct {
 
 func init() {
 	addCommand("help", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdHelp{} },
-		map[string]string{"man": i18n.G("Generate the manpage")}, nil)
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"man": i18n.G("Generate the manpage"),
+		}, nil)
 }
 
 func (cmd *cmdHelp) setParser(parser *flags.Parser) {
