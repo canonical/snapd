@@ -383,7 +383,17 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
-	if !settings.ProblemReportsDisabled(st) {
+	// Only report and error if there is an actual error in the change,
+	// we could undo things because the user canceled the change.
+	isErr := func() bool {
+		for _, tt := range t.Change().Tasks() {
+			if tt.Status() == state.ErrorStatus {
+				return true
+			}
+		}
+		return false
+	}
+	if isErr() && !settings.ProblemReportsDisabled(st) {
 		st.Unlock()
 		oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
 		st.Lock()
