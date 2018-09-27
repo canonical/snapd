@@ -26,5 +26,5 @@ execute: |
     #   more than once in the request.
     MATCH 'cannot install "test-snapd-tools"' < run.err
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=
