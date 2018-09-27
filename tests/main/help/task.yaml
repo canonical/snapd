@@ -1,6 +1,6 @@
 summary: Check commands help
 
-systems: [fedora-*]
+systems: [+fedora-*]
 
 execute: |
     bad=""
