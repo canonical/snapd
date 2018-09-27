@@ -1,6 +1,6 @@
 summary: Checks parallel installation of snaps from local files
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
