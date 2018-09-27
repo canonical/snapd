@@ -1,8 +1,8 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 
 environment:
-    NAME: test-snapd-tools
-    INSTANCE_KEY:
+    NAME/regular: test-snapd-tools
+    INSTANCE_KEY/regular:
     NAME/parallel: test-snapd-tools_foo
     INSTANCE_KEY/parallel: foo
 
