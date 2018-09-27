@@ -7999,6 +7999,40 @@ run-hook: Hold`)
 
 }
 
+func (s *snapmgrTestSuite) TestAbortCausesNoErrReport(c *C) {
+	errReported := 0
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
+		errReported++
+		return "oops-id", nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	s.fakeBackend.linkSnapWaitCh = make(chan int)
+	s.fakeBackend.linkSnapWaitTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
+	go func() {
+		<-s.fakeBackend.linkSnapWaitCh
+		chg.Abort()
+		s.fakeBackend.linkSnapWaitCh <- 1
+	}()
+
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.UndoneStatus)
+	c.Assert(errReported, Equals, 0)
+}
+
 func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

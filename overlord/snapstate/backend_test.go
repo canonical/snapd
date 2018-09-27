@@ -563,6 +563,9 @@ type fakeSnappyBackend struct {
 	ops fakeOps
 	mu  sync.Mutex
 
+	linkSnapWaitCh      chan int
+	linkSnapWaitTrigger string
+
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
@@ -731,6 +734,11 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 }
 
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+	if info.MountDir() == f.linkSnapWaitTrigger {
+		f.linkSnapWaitCh <- 1
+		<-f.linkSnapWaitCh
+	}
+
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",
