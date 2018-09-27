@@ -35,6 +35,9 @@ execute: |
         systemctl enable snapd.socket
     fi
 
+    # need to be seeded to allow snap install
+    snap wait system seed.loaded
+
     prevsnapdver=$(snap --version|grep "snapd ")
 
     if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
