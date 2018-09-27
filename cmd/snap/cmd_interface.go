@@ -53,12 +53,14 @@ func init() {
 	addCommand("interface", shortInterfaceHelp, longInterfaceHelp, func() flags.Commander {
 		return &cmdInterface{}
 	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"attrs": i18n.G("Show interface attributes"),
-		"all":   i18n.G("Include unused interfaces"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"all": i18n.G("Include unused interfaces"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<interface>"),
-		// TRANSLATORS: This should probably not start with a lowercase letter.
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Show details of a specific interface"),
 	}})
 }
