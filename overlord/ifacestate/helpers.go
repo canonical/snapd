@@ -427,6 +427,11 @@ func newConnectChecker(s *state.State) (*connectChecker, error) {
 }
 
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	modelAs, err := devicestate.Model(c.st)
+	if err != nil {
+		return false, err
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -452,6 +457,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
+		Model:               modelAs,
 	}
 
 	// if either of plug or slot snaps don't have a declaration it

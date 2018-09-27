@@ -688,6 +688,8 @@ func (s *interfaceManagerSuite) TestAutoconnectIgnoresSetupProfilesPhase2(c *C) 
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
+	s.mockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -792,6 +794,8 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
+	s.mockModel(c, nil)
+
 	s.testConnectTaskCheck(c, func() {
 		s.mockSnapDecl(c, "consumer", "consumer-publisher", nil)
 		s.mockSnap(c, consumerYaml)
@@ -808,6 +812,8 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
+	s.mockModel(c, nil)
+
 	s.testConnectTaskCheck(c, func() {
 		s.mockSnap(c, consumerYaml)
 		s.mockSnap(c, producerYaml)
@@ -823,6 +829,8 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
+	s.mockModel(c, nil)
+
 	s.testConnectTaskCheck(c, func() {
 		s.mockSnapDecl(c, "consumer", "one-publisher", nil)
 		s.mockSnap(c, consumerYaml)
@@ -855,6 +863,100 @@ slots:
 
 	setup()
 	_ = s.manager(c)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	check(change)
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeNoStore(c *C) {
+	s.mockModel(c, nil)
+
+	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
+		c.Check(change.Status(), Equals, state.ErrorStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Check(ifaces.Connections, HasLen, 0)
+	})
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "other-store",
+	})
+
+	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
+		c.Check(change.Status(), Equals, state.ErrorStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Check(ifaces.Connections, HasLen, 0)
+	})
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-store",
+	})
+
+	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+		c.Assert(change.Err(), IsNil)
+		c.Check(change.Status(), Equals, state.DoneStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Assert(ifaces.Connections, HasLen, 1)
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	})
+}
+
+func (s *interfaceManagerSuite) testConnectTaskCheckDeviceScope(c *C, check func(*state.Change)) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-connection: false
+`))
+	defer restore()
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnapDecl(c, "producer", "one-publisher", nil)
+	s.mockSnap(c, producerYaml)
+	s.mockSnapDecl(c, "consumer", "one-publisher", map[string]interface{}{
+		"format": "3",
+		"plugs": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-connection": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	s.mockSnap(c, consumerYaml)
+
+	s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -2316,6 +2418,8 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
+	s.mockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -2358,6 +2462,8 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
+	s.mockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 
 	s.mockSnap(c, consumerYaml)
@@ -2621,6 +2727,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
+	s.mockModel(c, nil)
+
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -2661,6 +2769,8 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
+	s.mockModel(c, nil)
+
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -2683,6 +2793,72 @@ slots:
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-store",
+	})
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-installation: true
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "3",
+		"slots": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "other-store",
+	})
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-installation: true
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "3",
+		"slots": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, `installation not allowed.*`)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
@@ -3883,6 +4059,8 @@ func (s *interfaceManagerSuite) TestGadgetConnectHappyPolicyChecks(c *C) {
 	// rules) is used for gadget connections
 	r1 := release.MockOnClassic(false)
 	defer r1()
+
+	s.mockModel(c, nil)
 
 	s.mockSnap(c, coreSnapYaml)
 
