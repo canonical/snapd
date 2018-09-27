@@ -1,9 +1,9 @@
 summary: Checks for parallel installation of sideloaded snaps containing services
 
-prepare:
+prepare: |
     snap set system experimental.parallel-instances=true
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
@@ -15,6 +15,12 @@ execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
+    check_services_active() {
+       test -n "$1"
+       systemctl is-active "snap.$1.test-snapd-service.service"
+       systemctl is-active "snap.$1.test-snapd-other-service.service"
+    }
+
     for instance in foo longname; do
         echo "Install a snap as instance named test-snapd-service_$instance"
         expected="^test-snapd-service_$instance 1.0 installed\$"
@@ -24,9 +30,10 @@ execute: |
 
         test -f /etc/systemd/system/snap.test-snapd-service_$instance.test-snapd-service.service
         test -f /etc/systemd/system/snap.test-snapd-service_$instance.test-snapd-other-service.service
-        systemctl is-active snap.test-snapd-service_$instance.test-snapd-service.service
-        systemctl is-active snap.test-snapd-service_$instance.test-snapd-other-service.service
+        check_services_active "test-snapd-service_$instance"
     done
+
+    check_services_active test-snapd-service
 
     echo "All snaps are listed"
     snap list | MATCH '^test-snapd-service '
@@ -39,9 +46,15 @@ execute: |
     test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
     test -f /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service
 
+    echo "The services of remaining snaps are still active"
+    check_services_active test-snapd-service
+    check_services_active test-snapd-service_longname
+
     snap remove test-snapd-service
     ! test -f /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service
     test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
+    echo "The services of remaining snap are active"
+    check_services_active test-snapd-service_longname
 
     snap remove test-snapd-service_longname
     ! test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
