@@ -1537,20 +1537,25 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(2), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(3), true, "")
 	s.mkInstalledInState(c, d, "local_foo", "foo", "v4", snap.R(4), true, "")
+	brokenInfo := s.mkInstalledInState(c, d, "local_bar", "foo", "v5", snap.R(5), true, "")
+	// make sure local_bar is 'broken'
+	err := os.Remove(filepath.Join(brokenInfo.MountDir(), "meta", "snap.yaml"))
+	c.Assert(err, check.IsNil)
 
 	expectedHappy := map[string]bool{
 		"local":     true,
 		"local_foo": true,
+		"local_bar": true,
 	}
 	for _, t := range []struct {
 		q        string
 		numSnaps int
 		typ      ResponseType
 	}{
-		{"?select=enabled", 2, "sync"},
-		{`?select=`, 2, "sync"},
-		{"", 2, "sync"},
-		{"?select=all", 4, "sync"},
+		{"?select=enabled", 3, "sync"},
+		{`?select=`, 3, "sync"},
+		{"", 3, "sync"},
+		{"?select=all", 5, "sync"},
 		{"?select=invalid-field", 0, "error"},
 	} {
 		c.Logf("trying: %v", t)
@@ -5894,6 +5899,16 @@ func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
+}
+
+func (s *postCreateUserSuite) TestSysInfoWorksDegraded(c *check.C) {
+	s.d.SetDegradedMode(fmt.Errorf("some error"))
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
 }
 
 // aliases

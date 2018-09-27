@@ -22,16 +22,9 @@ execute: |
 
     install_local test-snapd-content-advanced-slot
 
-    devmode=
-    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-        # TODO parallel-install: disable devmode once AppArmor profile updates
-        # are in
-        devmode=--devmode
-    fi
-
     install_local test-snapd-content-advanced-plug
-    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_foo $devmode
-    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_bar $devmode
+    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_foo
+    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_bar
 
     test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target' "$VAR")"
 

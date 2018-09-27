@@ -20,10 +20,14 @@
 package selftest
 
 var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
-	ApparmorUsable     = apparmorUsable
+	CheckSquashfsMount  = checkSquashfsMount
+	CheckKernelVersion  = checkKernelVersion
+	CheckApparmorUsable = checkApparmorUsable
 )
+
+func Checks() []func() error {
+	return checks
+}
 
 func MockChecks(mockChecks []func() error) (restore func()) {
 	oldChecks := checks
