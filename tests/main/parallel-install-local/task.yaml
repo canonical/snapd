@@ -7,7 +7,7 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    echo "Sideload the regular snap"
+    echo "Install the regular snap"
     install_local test-snapd-tools
 
     #shellcheck source=tests/lib/dirs.sh
@@ -19,7 +19,7 @@ execute: |
     snap set system experimental.parallel-instances=true
 
     for instance in foo longname; do
-        echo "Sideload same snap as different instance named test-snapd-tools_$instance"
+        echo "Install snap instance named test-snapd-tools_$instance"
         expected="^test-snapd-tools_$instance 1.0 installed\$"
         install_local_as test-snapd-tools "test-snapd-tools_$instance" | MATCH "$expected"
 
