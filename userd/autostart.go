@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log/syslog"
 	"os"
 	"os/exec"
@@ -35,9 +34,18 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/systemd"
 )
+
+var (
+	currentDesktop = splitSkippingEmpty(os.Getenv("XDG_CURRENT_DESKTOP"), ':')
+)
+
+func splitSkippingEmpty(s string, sep rune) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == sep })
+}
 
 // expandDesktopFields processes the input string and expands any %<char>
 // patterns. '%%' expands to '%', all other patterns expand to empty strings.
@@ -63,30 +71,81 @@ func expandDesktopFields(in string) string {
 	return string(out)
 }
 
-// Note: consider wrappers/desktop.go if we start parsing more than Exec line
-func findExec(desktopFileContent []byte) (string, error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(desktopFileContent))
-	execCmd := ""
+type skipDesktopFileError struct {
+	reason string
+}
+
+func (s *skipDesktopFileError) Error() string {
+	return s.reason
+}
+
+func isOneOfIn(of []string, other []string) bool {
+	for _, one := range of {
+		if strutil.ListContains(other, one) {
+			return true
+		}
+	}
+	return false
+}
+
+func loadAutostartDesktopFile(path string) (command string, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		bline := scanner.Bytes()
-
-		if !bytes.HasPrefix(bline, []byte("Exec=")) {
+		if bytes.HasPrefix(bline, []byte("#")) {
 			continue
 		}
-
-		full := string(bline[len("Exec="):])
-		execCmd = expandDesktopFields(full)
-		break
+		split := bytes.SplitN(bline, []byte("="), 2)
+		if len(split) != 2 {
+			continue
+		}
+		// See https://standards.freedesktop.org/autostart-spec/autostart-spec-latest.html
+		// for details on how Hidden, OnlyShowIn, NotShownIn are handled.
+		switch string(split[0]) {
+		case "Exec":
+			command = strings.TrimSpace(expandDesktopFields(string(split[1])))
+		case "Hidden":
+			if bytes.Equal(split[1], []byte("true")) {
+				return "", &skipDesktopFileError{"desktop file is hidden"}
+			}
+		case "OnlyShowIn":
+			onlyIn := splitSkippingEmpty(string(split[1]), ';')
+			if !isOneOfIn(currentDesktop, onlyIn) {
+				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q not included in %q", currentDesktop, onlyIn)}
+			}
+		case "NotShownIn":
+			notIn := splitSkippingEmpty(string(split[1]), ';')
+			if isOneOfIn(currentDesktop, notIn) {
+				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q excluded by %q", currentDesktop, notIn)}
+			}
+		case "X-GNOME-Autostart-enabled":
+			// GNOME specific extension, see gnome-session:
+			// https://github.com/GNOME/gnome-session/blob/c449df5269e02c59ae83021a3110ec1b338a2bba/gnome-session/gsm-autostart-app.c#L110..L145
+			if !strutil.ListContains(currentDesktop, "GNOME") {
+				// not GNOME
+				continue
+			}
+			if !bytes.Equal(split[1], []byte("true")) {
+				return "", &skipDesktopFileError{"desktop file is hidden by X-GNOME-Autostart-enabled extension"}
+			}
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return "", err
 	}
 
-	execCmd = strings.TrimSpace(execCmd)
-	if execCmd == "" {
+	command = strings.TrimSpace(command)
+	if command == "" {
 		return "", fmt.Errorf("Exec not found or invalid")
 	}
-	return execCmd, nil
+	return command, nil
+
 }
 
 func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
@@ -108,17 +167,11 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", snapName)
 	}
 
-	content, err := ioutil.ReadFile(desktopFilePath)
+	command, err := loadAutostartDesktopFile(desktopFilePath)
 	if err != nil {
-		return nil, err
-	}
-
-	// NOTE: Ignore all fields and just look for Exec=..., this also means
-	// that fields with meaning such as TryExec, X-GNOME-Autostart and so on
-	// are ignored
-
-	command, err := findExec(content)
-	if err != nil {
+		if _, ok := err.(*skipDesktopFileError); ok {
+			return nil, fmt.Errorf("skipped: %v", err)
+		}
 		return nil, fmt.Errorf("cannot determine startup command for application %s in snap %s: %v", app.Name, snapName, err)
 	}
 	logger.Debugf("exec line: %v", command)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,41 +17,28 @@
  *
  */
 
-package userd
+package main
 
 import (
-	"os/user"
-
-	"github.com/godbus/dbus"
+	"time"
 )
 
 var (
-	SnapFromPid = snapFromPid
-
-	LoadAutostartDesktopFile = loadAutostartDesktopFile
-	AutostartCmd             = autostartCmd
+	Run = run
 )
 
-func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
-	origSnapFromSender := snapFromSender
-	snapFromSender = f
+func MockSelftestRun(f func() error) (restore func()) {
+	oldSelftestRun := selftestRun
+	selftestRun = f
 	return func() {
-		snapFromSender = origSnapFromSender
+		selftestRun = oldSelftestRun
 	}
 }
 
-func MockUserCurrent(f func() (*user.User, error)) func() {
-	origUserCurrent := userCurrent
-	userCurrent = f
+func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
+	oldCheckRunningConditionsRetryDelay := checkRunningConditionsRetryDelay
+	checkRunningConditionsRetryDelay = d
 	return func() {
-		userCurrent = origUserCurrent
-	}
-}
-
-func MockCurrentDesktop(current string) func() {
-	old := currentDesktop
-	currentDesktop = splitSkippingEmpty(current, ':')
-	return func() {
-		currentDesktop = old
+		checkRunningConditionsRetryDelay = oldCheckRunningConditionsRetryDelay
 	}
 }
