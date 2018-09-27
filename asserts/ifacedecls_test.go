@@ -1749,7 +1749,7 @@ func (s *plugSlotRulesSuite) TestValidOnStoreBrandModel(c *C) {
 		{"on-store", "foo.", false},
 		{"on-store", "foo/", false},
 		{"on-brand", "", false},
-		// manually set brands (length 2-28
+		// custom set brands (length 2-28)
 		{"on-brand", "dwell", true},
 		{"on-brand", "Dwell", false},
 		{"on-brand", "dwell-88", true},
