@@ -264,7 +264,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
-	assertstateRefreshAssertions = nil
+	assertstateRefreshSnapDeclarations = nil
 	snapstateInstall = nil
 	snapstateInstallMany = nil
 	snapstateInstallPath = nil
@@ -285,8 +285,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
 
-	snapstate.Model = nil
-	assertstateRefreshAssertions = assertstate.RefreshAssertions
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateInstall = snapstate.Install
 	snapstateInstallMany = snapstate.InstallMany
 	snapstateInstallPath = snapstate.InstallPath
@@ -333,6 +332,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	snapstate.Model = func(*state.State) (*asserts.Model, error) {
 		return model, nil
 	}
+
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
@@ -3261,10 +3261,6 @@ func (s *apiSuite) TestInstallRevision(c *check.C) {
 }
 
 func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.Flags, revision snap.Revision) {
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		return nil
-	}
-
 	calledFlags := snapstate.Flags{}
 	installQueue := []string{}
 	restore := release.MockForcedDevmode(forcedDevmode)
@@ -3333,7 +3329,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		assertstateCalledUserID = userID
 		return nil
 	}
@@ -3372,7 +3368,7 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		return nil
 	}
 
@@ -3406,7 +3402,7 @@ func (s *apiSuite) TestRefreshClassic(c *check.C) {
 		calledFlags = flags
 		return nil, nil
 	}
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		return nil
 	}
 
@@ -3440,7 +3436,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		return nil
 	}
 
@@ -3469,7 +3465,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
-	assertstateRefreshAssertions = func(*state.State, *assertstate.RefreshAssertionsOptions, int) error { return nil }
+	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
@@ -3499,9 +3495,9 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 
 func (s *apiSuite) TestRefreshAll(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		refreshSnapDecls = true
-		return assertstate.RefreshAssertions(s, opts, userID)
+		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
 	d := s.daemon(c)
 
@@ -3534,9 +3530,9 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 
 func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		refreshSnapDecls = true
-		return assertstate.RefreshAssertions(s, opts, userID)
+		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
 
 	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
@@ -3557,7 +3553,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 
 func (s *apiSuite) TestRefreshMany(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		refreshSnapDecls = true
 		return nil
 	}
@@ -3582,7 +3578,7 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 
 func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	refreshSnapDecls := false
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
 		refreshSnapDecls = true
 		return nil
 	}
@@ -3606,12 +3602,6 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallMany(c *check.C) {
-	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		refreshAssertionsOpts = opts
-		return nil
-	}
-
 	snapstateInstallMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-install-2", "Install two")
@@ -3627,10 +3617,6 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.summary, check.Equals, `Install snaps "foo", "bar"`)
 	c.Check(res.affected, check.DeepEquals, inst.Snaps)
-
-	c.Assert(refreshAssertionsOpts, check.NotNil)
-	c.Check(refreshAssertionsOpts.SnapDeclarations, check.Equals, false)
-	c.Check(refreshAssertionsOpts, check.DeepEquals, &assertstate.RefreshAssertionsOptions{Store: true})
 }
 
 func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
@@ -3666,10 +3652,6 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		return nil
-	}
-
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
@@ -3727,48 +3709,9 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *apiSuite) TestInstall(c *check.C) {
-	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		refreshAssertionsOpts = opts
-		return nil
-	}
-
-	var calledName string
-
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledName = name
-
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
-	}
-
-	d := s.daemon(c)
-	inst := &snapInstruction{
-		Action: "install",
-		// Install the snap in developer mode
-		DevMode: true,
-		Snaps:   []string{"fake"},
-	}
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	_, _, err := inst.dispatch()(inst, st)
-	c.Check(err, check.IsNil)
-	c.Check(calledName, check.Equals, "fake")
-
-	c.Assert(refreshAssertionsOpts, check.NotNil)
-	c.Check(refreshAssertionsOpts.SnapDeclarations, check.Equals, false)
-	c.Check(refreshAssertionsOpts, check.DeepEquals, &assertstate.RefreshAssertionsOptions{Store: true})
-}
-
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		return nil
-	}
-
 	var calledFlags snapstate.Flags
+
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
@@ -3794,11 +3737,8 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallJailMode(c *check.C) {
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		return nil
-	}
-
 	var calledFlags snapstate.Flags
+
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
@@ -6530,11 +6470,8 @@ func (s *apiSuite) TestAliases(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallUnaliased(c *check.C) {
-	assertstateRefreshAssertions = func(s *state.State, opts *assertstate.RefreshAssertionsOptions, userID int) error {
-		return nil
-	}
-
 	var calledFlags snapstate.Flags
+
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 

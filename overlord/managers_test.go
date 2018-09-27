@@ -1838,7 +1838,7 @@ apps:
 	ms.serveSnap(fooPath, "15")
 
 	// refresh all
-	err = assertstate.RefreshAssertions(st, nil, 0)
+	err = assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
@@ -2364,7 +2364,7 @@ version: @VERSION@`
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshAssertions(st, nil, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0, nil)
@@ -2464,7 +2464,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	c.Assert(repo.AddSnap(otherInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshAssertions(st, nil, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Update(st, updateSnapName, "stable", snap.R(0), 0, snapstate.Flags{})
