@@ -153,7 +153,7 @@ var helpCategories = []helpCategory{
 		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Other"),
-		Description: i18n.G("miscelanea"),
+		Description: i18n.G("miscellanea"),
 		Commands:    []string{"version", "warnings", "okay"},
 	}, {
 		Label:       i18n.G("Development"),
