@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
 
+func init() {
+	checks = append(checks, checkSquashfsMount)
+}
+
 /* This image was created using:
 
 #!/bin/sh
@@ -64,7 +68,7 @@ INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
 bAEA+f+YuAAQAAA=
 `)
 
-func trySquashfsMount() error {
+func checkSquashfsMount() error {
 	tmpSquashfsFile, err := ioutil.TempFile("", "selftest-squashfs-")
 	if err != nil {
 		return err
