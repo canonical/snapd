@@ -1,9 +1,6 @@
 summary: Checks for parallel installation of snaps from the store
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     ! snap install test-snapd-tools_foo 2> run.err
     MATCH 'experimental feature disabled' < run.err
 
@@ -13,8 +10,13 @@ execute: |
 
     echo "The snap is listed"
     snap list | MATCH '^test-snapd-tools_foo '
-    # TODO parallel-install: extend the test to run a snap when the remaining
-    # bits land.
+
+    echo "The snap application can be run"
+    #shellcheck disable=SC2016
+    test-snapd-tools_foo.cmd sh -c 'echo hello data from $SNAP_INSTANCE_NAME > $SNAP_DATA/data'
+    MATCH 'hello data from test-snapd-tools_foo' < /var/snap/test-snapd-tools_foo/current/data
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
+    MATCH 'hello user data from test-snapd-tools_foo' < /home/test/snap/test-snapd-tools_foo/current/data
 
     # TODO parallel-install: extend the test once we can install more than one
     # instance of a snap from the store
