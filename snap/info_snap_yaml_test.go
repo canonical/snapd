@@ -1702,7 +1702,7 @@ layouts:
     bind: $SNAP/usr/share/foo
 `)
 	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, ErrorMatches, "incorrect layout definition, please use singular form \\(layout\\)")
+	c.Assert(err, ErrorMatches, `cannot use "layouts" \(plural\), please use singular "layout" instead`)
 	c.Assert(info, IsNil)
 }
 

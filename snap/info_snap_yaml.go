@@ -188,7 +188,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	if y.TypoLayouts != nil {
-		return nil, fmt.Errorf("incorrect layout definition, please use singular form (layout)")
+		return nil, fmt.Errorf(`cannot use "layouts" (plural), please use singular "layout" instead`)
 	}
 
 	// Rename specific plugs on the core snap.
