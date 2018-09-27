@@ -19,10 +19,7 @@
 
 package selftest
 
-var checks = []func() error{
-	trySquashfsMount,
-	apparmorUsable,
-}
+var checks []func() error
 
 func Run() error {
 	for _, f := range checks {
