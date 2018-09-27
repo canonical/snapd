@@ -112,7 +112,22 @@ func formatPath(ip interface{}) (string, error) {
 		p = strings.Replace(p, "$HOME", "@${HOME}", 1)
 		prefix = "owner "
 	}
-	return filepath.Clean(prefix + p), nil
+	return prefix + filepath.Clean(p), nil
+}
+
+func addSnippet(spec *apparmor.Specification, perm string, paths []interface{}) error {
+	for _, rp := range paths {
+		p, err := formatPath(rp)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(p, "/") {
+			spec.AddSnippet(fmt.Sprintf("%s/** %s", p, perm))
+		} else {
+			spec.AddSnippet(fmt.Sprintf("%s %s", p, perm))
+		}
+	}
+	return nil
 }
 
 func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -122,33 +137,12 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
-	for _, r := range reads {
-		p, err := formatPath(r)
-		if err != nil {
-			return fmt.Errorf(errPrefix+"%v", err)
-		}
-		var s string
-		if strings.HasSuffix(p, "/") {
-			s = fmt.Sprintf("%s/** rkl,", p)
-		} else {
-			s = fmt.Sprintf("%s rkl,", p)
-		}
-		spec.AddSnippet(s)
+	if err := addSnippet(spec, "rkl,", reads); err != nil {
+		return fmt.Errorf(errPrefix+"%v", err)
 	}
-	for _, w := range writes {
-		p, err := formatPath(w)
-		if err != nil {
-			return fmt.Errorf(errPrefix+"%v", err)
-		}
-		var s string
-		if strings.HasSuffix(p, "/") {
-			s = fmt.Sprintf("%s/** rwkl,", p)
-		} else {
-			s = fmt.Sprintf("%s rwkl,", p)
-		}
-		spec.AddSnippet(s)
+	if err := addSnippet(spec, "rwkl,", writes); err != nil {
+		return fmt.Errorf(errPrefix+"%v", err)
 	}
-
 	return nil
 }
 
