@@ -33,7 +33,6 @@ execute: |
         test-snapd-layout.sh -c "true"
 
         echo "layout declarations are honored"
-
         test-snapd-layout.sh -c "test -d /etc/demo"
         test-snapd-layout.sh -c "test -f /etc/demo.conf"
         test-snapd-layout.sh -c "test -h /etc/demo.cfg"
@@ -60,6 +59,15 @@ execute: |
         [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%a'")" = "700" ]
         [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%u'")" = "108" ]
         [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%g'")" = "4" ]
+
+        echo "layout declarations didn't leak to the host"
+        test ! -e /etc/demo
+        test ! -e /etc/demo.conf
+        test ! -e /etc/demo.cfg
+        test ! -e /usr/share/demo
+        test ! -e /var/lib/demo
+        test ! -e /var/cache/demo
+        test ! -e /opt/demo
 
         echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
         echo "and the writes go to the right place in the backing store"
@@ -95,8 +103,3 @@ execute: |
         test-snapd-layout.sh -c 'test -w $SNAP/bin-very-weird-place'
         test-snapd-layout.sh -c 'test -w /bin/very-weird-place'
     done
-
-restore:
-    # cleanup after the trespassing bug, see: https://github.com/snapcore/snapd/pull/4889
-    # TODO: remove this once the problem is addressed
-    rm -rf /etc/demo /etc/demo.conf /etc/demo.cfg

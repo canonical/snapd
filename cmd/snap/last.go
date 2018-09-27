@@ -36,13 +36,14 @@ type changeIDMixin struct {
 }
 
 var changeIDMixinOptDesc = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"last": i18n.G("Select last change of given type (install, refresh, remove, try, auto-refresh, etc.). A question mark at the end of the type means to do nothing (instead of returning an error) if no change of the given type is found. Note the question mark could need protecting from the shell."),
 }
 
 var changeIDMixinArgDesc = []argDesc{{
 	// TRANSLATORS: This needs to be wrapped in <>s.
 	name: i18n.G("<change-id>"),
-	// TRANSLATORS: This should probably not start with a lowercase letter.
+	// TRANSLATORS: This should not start with a lowercase letter.
 	desc: i18n.G("Change ID"),
 }}
 
