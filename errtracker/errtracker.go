@@ -252,7 +252,7 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		return "", err
 	}
 	if err := db.MarkReported(dupSig); err != nil {
-		logger.Noticef("cannot mark %s as reported", oopsID)
+		logger.Noticef("cannot mark %s as reported: %s", oopsID, err)
 	}
 
 	return oopsID, nil
