@@ -54,7 +54,7 @@ type snapYaml struct {
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
 
-	// typeLayouts "layouts" exists to detect the incorrect plural form of "layout".
+	// typoLayouts "layouts" exists to detect the incorrect plural form of "layout".
 	TypoLayouts map[string]interface{} `yaml:"layouts,omitempty"`
 }
 
