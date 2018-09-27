@@ -35,6 +35,8 @@ var RunMain = run
 var (
 	Client = mkClient
 
+	PatchForSnapRun = patchForSnapRun
+
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
