@@ -481,7 +481,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := getFeatureFlagBool(tr, "experimental.layouts", false)
+		flag, err := getFeatureFlagBool(tr, "experimental.layouts", true)
 		if err != nil {
 			return err
 		}
