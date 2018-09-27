@@ -17,11 +17,11 @@
  *
  */
 
-package selftest
+package sanity
 
 var checks []func() error
 
-func Run() error {
+func Check() error {
 	for _, f := range checks {
 		if err := f(); err != nil {
 			return err
