@@ -3709,6 +3709,32 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
+func (s *apiSuite) TestInstall(c *check.C) {
+	var calledName string
+
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledName = name
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		// Install the snap in developer mode
+		DevMode: true,
+		Snaps:   []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledName, check.Equals, "fake")
+}
+
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
