@@ -1693,6 +1693,19 @@ layout:
 	})
 }
 
+func (s *YamlSuite) TestLayoutsWithTypo(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+layouts:
+  /usr/share/foo:
+    bind: $SNAP/usr/share/foo
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, "incorrect layout definition, please use singular form \\(layout\\)")
+	c.Assert(info, IsNil)
+}
+
 func (s *YamlSuite) TestSnapYamlAppTimer(c *C) {
 	y := []byte(`name: wat
 version: 42

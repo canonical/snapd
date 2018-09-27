@@ -53,6 +53,9 @@ type snapYaml struct {
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
+
+	// typeLayouts "layouts" exists to detect the incorrect plural form of "layout".
+	TypoLayouts map[string]interface{} `yaml:"layouts,omitempty"`
 }
 
 type appYaml struct {
@@ -182,6 +185,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 				User: user, Group: group, Mode: mode,
 			}
 		}
+	}
+
+	if y.TypoLayouts != nil {
+		return nil, fmt.Errorf("incorrect layout definition, please use singular form (layout)")
 	}
 
 	// Rename specific plugs on the core snap.
