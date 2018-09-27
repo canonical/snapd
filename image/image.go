@@ -377,8 +377,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 	}
 
-	// XXX: fetch device store assertion (and prereqs) if available
-
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
@@ -540,6 +538,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	if len(locals) > 0 {
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
+
+	// TODO: fetch device store assertion (and prereqs) if available
 
 	for _, aRef := range f.addedRefs {
 		var afn string
