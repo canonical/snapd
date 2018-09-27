@@ -1,4 +1,7 @@
-summary: Checks for parallel installation of sideloaded snaps
+summary: Checks parallel installation of snaps from local files
+
+restore:
+    snap set system experimental.parallel-instances=null
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
@@ -22,10 +25,12 @@ execute: |
 
         test -d "$SNAP_MOUNT_DIR/test-snapd-tools_$instance/x1"
 
-        # TODO parallel-install: this is expected to fail until the remaining
-        # bits land
-        ! su -l -c "test-snapd-tools_$instance.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
-        # MATCH "hello user data from test-snapd-tools_$instance" < "/home/test/snap/test-snapd-tools_$instance/x1/data"
+        #shellcheck disable=SC2016
+        "test-snapd-tools_$instance.cmd" sh -c 'echo hello data from $SNAP_INSTANCE_NAME > $SNAP_DATA/data'
+        MATCH "hello data from test-snapd-tools_$instance" < "/var/snap/test-snapd-tools_$instance/x1/data"
+
+        su -l -c "test-snapd-tools_$instance.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
+        MATCH "hello user data from test-snapd-tools_$instance" < "/home/test/snap/test-snapd-tools_$instance/x1/data"
     done
 
     echo "All snaps are listed"
@@ -38,5 +43,3 @@ execute: |
     test -d "$SNAP_MOUNT_DIR/test-snapd-tools_longname/x1"
     test -d "$SNAP_MOUNT_DIR/test-snapd-tools/x1"
 
-restore:
-    snap set system experimental.parallel-instances=null
