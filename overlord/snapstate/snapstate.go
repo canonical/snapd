@@ -608,6 +608,11 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeed(st); err != nil {
+		return nil, err
+	}
+
 	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
@@ -678,6 +683,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 	user, err := userFromUserID(st, userID)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeed(st); err != nil {
 		return nil, nil, err
 	}
 
@@ -1054,6 +1064,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	//        until we know what we want to do
 	if !snapst.Active {
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeed(st); err != nil {
+		return nil, err
 	}
 
 	if err := canSwitchChannel(st, name, channel); err != nil {
