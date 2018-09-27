@@ -1576,7 +1576,7 @@ func (s *imageSuite) TestBootstrapToRootDirMissingContentProvider(c *C) {
 	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
-	c.Check(s.stderr.String(), Equals, `WARNING: the "snap-req-content-provider" default content provider "gtk-common-themes" is not getting installed.`)
+	c.Check(s.stderr.String(), Equals, `WARNING: the default content provider "gtk-common-themes" requested by snap "snap-req-content-provider" is not getting installed.`)
 }
 
 type toolingAuthContextSuite struct {

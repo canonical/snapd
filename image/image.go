@@ -473,7 +473,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		// warn about missing default providers
 		for _, dp := range neededDefaultProviders(info) {
 			if !local.hasName(snaps, dp) {
-				fmt.Fprintf(Stderr, "WARNING: the %q default content provider %q is not getting installed.", info.InstanceName(), dp)
+				fmt.Fprintf(Stderr, "WARNING: the default content provider %q requested by snap %q is not getting installed.", dp, info.InstanceName())
 			}
 		}
 
