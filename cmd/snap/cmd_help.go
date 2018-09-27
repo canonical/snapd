@@ -140,9 +140,9 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("manage aliases"),
 		Commands:    []string{"alias", "aliases", "unalias", "prefer"},
 	}, {
-		Label:       i18n.G("Admin"),
+		Label:       i18n.G("Configuration"),
 		Description: i18n.G("system administration and configuration"),
-		Commands:    []string{"version", "warnings", "okay", "get", "set", "wait"},
+		Commands:    []string{"get", "set", "wait"},
 	}, {
 		Label:       i18n.G("Account"),
 		Description: i18n.G("authentication to snapd and the snap store"),
@@ -151,6 +151,10 @@ var helpCategories = []helpCategory{
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
 		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
+	}, {
+		Label:       i18n.G("Other"),
+		Description: i18n.G("miscelanea"),
+		Commands:    []string{"version", "warnings", "okay"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
@@ -174,6 +178,8 @@ func printHelpHeader() {
 	fmt.Fprintln(Stdout, longSnapDescription)
 	fmt.Fprintln(Stdout)
 	fmt.Fprintln(Stdout, snapUsage)
+	fmt.Fprintln(Stdout)
+	fmt.Fprintln(Stdout, snapHelpCategoriesIntro)
 	fmt.Fprintln(Stdout)
 }
 
@@ -221,7 +227,6 @@ func printLongHelp(parser *flags.Parser) {
 		cmdLookup[cmd.Name] = cmd
 	}
 
-	fmt.Fprintln(Stdout, snapHelpCategoriesIntro)
 	for _, categ := range helpCategories {
 		fmt.Fprintln(Stdout)
 		fmt.Fprintf(Stdout, "  %s (%s):\n", categ.Label, categ.Description)
