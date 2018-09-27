@@ -47,7 +47,7 @@ func (s *changeSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	// Mock and record system interactions.
 	s.sys = &testutil.SyscallRecorder{}
-	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
+	s.BaseTest.AddCleanup(osutil.MockSystemCalls(s.sys))
 	s.as = &update.Assumptions{}
 }
 

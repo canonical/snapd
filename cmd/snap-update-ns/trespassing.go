@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Assumptions track the assumptions about the state of the filesystem.
@@ -83,12 +85,12 @@ func (as *Assumptions) AddChange(change *Change) {
 //    places that may show up on the host, one of the examples being $SNAP_DATA.
 // 2) The directory is on a read-only filesystem.
 // 3) The directory is on a tmpfs created by snapd.
-func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, error) {
+func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	if !as.isRestricted(dirName) {
 		return true, nil
 	}
 	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
+	if err := osutil.SysFstatfs(dirFd, &fsData); err != nil {
 		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
 	}
 	// Writing to read only directories is allowed because EROFS is handled
@@ -107,78 +109,15 @@ func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, err
 }
 
 // RestrictionsFor computes restrictions for the desired path.
-func (as *Assumptions) RestrictionsFor(desiredPath string) *Restrictions {
+func (as *Assumptions) RestrictionsFor(desiredPath string) *osutil.Restrictions {
 	// Writing to a restricted path results in step-by-step validation of each
 	// directory, starting from the root of the file system. Unless writing is
 	// allowed a mimic must be constructed to ensure that writes are not visible in
 	// undesired locations of the host filesystem.
 	if as.isRestricted(desiredPath) {
-		return &Restrictions{assumptions: as, desiredPath: desiredPath, restricted: true}
+		return osutil.MakeRestrictions(as, desiredPath)
 	}
 	return nil
-}
-
-// Restrictions contains meta-data of a compound write operation.
-//
-// This structure helps functions that write to the filesystem to keep track of
-// the ultimate destination across several calls (e.g. the function that
-// creates a file needs to call helpers to create subsequent directories).
-// Keeping track of the desired path aids in constructing useful error
-// messages.
-//
-// In addition the structure keeps track of the restricted write mode flag which
-// is based on the full path of the desired object being constructed. This allows
-// various write helpers to avoid trespassing on host filesystem in places that
-// are not expected to be written to by snapd (e.g. outside of $SNAP_DATA).
-type Restrictions struct {
-	assumptions *Assumptions
-	desiredPath string
-	restricted  bool
-}
-
-// Check verifies whether writing to a directory would trespass on the host.
-//
-// The check is only performed in restricted mode. If the check fails a
-// TrespassingError is returned.
-func (rs *Restrictions) Check(dirFd int, dirName string) error {
-	if rs == nil || !rs.restricted {
-		return nil
-	}
-	// In restricted mode check the directory before attempting to write to it.
-	ok, err := rs.assumptions.canWriteToDirectory(dirFd, dirName)
-	if ok || err != nil {
-		return err
-	}
-	if dirName == "/" {
-		// If writing to / is not allowed then we are in a tough spot because
-		// we cannot construct a writable mimic over /. This should never
-		// happen in normal circumstances because the root filesystem is some
-		// kind of base snap.
-		return fmt.Errorf("cannot recover from trespassing over /")
-	}
-	return &TrespassingError{ViolatedPath: dirName, DesiredPath: rs.desiredPath}
-}
-
-// Lift lifts write restrictions for the desired path.
-//
-// This function should be called when, as subsequent components of a path are
-// either discovered or created, the conditions for using restricted mode are
-// no longer true.
-func (rs *Restrictions) Lift() {
-	if rs != nil {
-		rs.restricted = false
-	}
-}
-
-// TrespassingError is an error when filesystem operation would affect the host.
-type TrespassingError struct {
-	ViolatedPath string
-	DesiredPath  string
-}
-
-// Error returns a formatted error message.
-func (e *TrespassingError) Error() string {
-	return fmt.Sprintf("cannot write to %q because it would affect the host in %q", e.DesiredPath, e.ViolatedPath)
 }
 
 // isReadOnly checks whether the underlying filesystem is read only or is mounted as such.
