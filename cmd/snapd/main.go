@@ -32,12 +32,12 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/systemd"
 )
 
 var (
-	selftestRun = selftest.Run
+	sanityCheck = sanity.Check
 )
 
 func init() {
@@ -93,12 +93,6 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 
 var checkRunningConditionsRetryDelay = 300 * time.Second
 
-// FIXME: rename selftest package to reflect that its not about the selftest
-//        so much then it is about the environment that snapd runs in
-func checkRunningConditions() error {
-	return selftestRun()
-}
-
 func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
@@ -111,12 +105,12 @@ func run(ch chan os.Signal) error {
 		return err
 	}
 
-	// Run selftest now, if anything goes wrong with the selftest we go
-	// into "degraded" mode where we always report the given error to
-	// any snap client.
+	// Run sanity check now, if anything goes wrong with the
+	// check we go into "degraded" mode where we always report
+	// the given error to any snap client.
 	var checkTicker <-chan time.Time
 	var tic *time.Ticker
-	if err := checkRunningConditions(); err != nil {
+	if err := sanityCheck(); err != nil {
 		degradedErr := fmt.Errorf("system does not fully support snapd: %s", err)
 		logger.Noticef("%s", degradedErr)
 		d.SetDegradedMode(degradedErr)
@@ -148,7 +142,7 @@ out:
 			// something called Stop()
 			break out
 		case <-checkTicker:
-			if err := checkRunningConditions(); err == nil {
+			if err := sanityCheck(); err == nil {
 				d.SetDegradedMode(nil)
 				tic.Stop()
 			}

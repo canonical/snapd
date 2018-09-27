@@ -17,7 +17,7 @@
  *
  */
 
-package selftest
+package sanity
 
 import (
 	"fmt"
