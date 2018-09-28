@@ -204,7 +204,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 
 	for i, snapID := range snapIDs {
 		if snapID == "" {
-			// snapshotted snap was sideloaded, never mind
+			// snapshotted snap was unasserted, never mind
 			continue
 		}
 		snapst, ok := all[snapsFound[i]]
@@ -218,7 +218,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 			continue
 		}
 		if sideInfo.SnapID == "" {
-			// current snap is sideloaded, never mind then
+			// current snap is unasserted, never mind then
 			continue
 		}
 		if sideInfo.SnapID != snapID {
