@@ -244,9 +244,11 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
+		_, instanceKey := snap.SplitInstanceName(name)
 		info := &snap.Info{
 			SuggestedName: name,
 			Broken:        bse.Broken(),
+			InstanceKey:   instanceKey,
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -385,6 +387,13 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	writeSnapReadme()
 
 	return m, nil
+}
+
+func (m *SnapManager) CanStandby() bool {
+	if n, err := NumSnaps(m.state); err == nil && n == 0 {
+		return true
+	}
+	return false
 }
 
 func genRefreshRequestSalt(st *state.State) error {

@@ -220,6 +220,9 @@ mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
 mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}%{_bindir}/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}%{_bindir}/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
+# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+mv %{buildroot}%{_bindir}/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
 
 # Install all systemd and dbus units, and env files
 %make_install -C data BINDIR=%{_bindir} LIBEXECDIR=%{_libexecdir} \
@@ -376,6 +379,7 @@ fi
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snapctl
 %if %{with apparmor}
 %{_libexecdir}/snapd/snapd-apparmor
 %endif

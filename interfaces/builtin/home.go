@@ -65,9 +65,9 @@ owner @{HOME}/snap[^/]**          rwklix,
 owner @{HOME}/{s,sn,sna}{,/} rwklix,
 
 # Allow access to @{HOME}/snap/ to allow directory traversals from
-# @{HOME}/snap/@{SNAP_NAME} through @{HOME}/snap to @{HOME}. While this leaks
-# snap names, it fixes usability issues for snaps that require this
-# transitional interface.
+# @{HOME}/snap/@{SNAP_INSTANCE_NAME} through @{HOME}/snap to @{HOME}.
+# While this leaks snap names, it fixes usability issues for snaps
+# that require this transitional interface.
 owner @{HOME}/snap/ r,
 
 # Allow access to gvfs mounts for files owned by the user (including hidden

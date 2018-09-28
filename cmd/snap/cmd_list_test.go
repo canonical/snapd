@@ -44,9 +44,7 @@ indicates that the publisher has been verified.
           --unicode=[auto|never|always] Use a little bit of Unicode to improve
                                         legibility. (default: auto)
 `
-	rest, err := snap.Parser().ParseArgs([]string{"list", "--help"})
-	c.Assert(err.Error(), check.Equals, msg)
-	c.Assert(rest, check.DeepEquals, []string{})
+	s.testSubCommandHelp(c, "list", msg)
 }
 
 func (s *SnapSuite) TestList(c *check.C) {
@@ -64,7 +62,7 @@ func (s *SnapSuite) TestList(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Tracking +Publisher +Notes
@@ -88,7 +86,7 @@ func (s *SnapSuite) TestListAll(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list", "--all"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list", "--all"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Tracking +Publisher +Notes
@@ -111,7 +109,7 @@ func (s *SnapSuite) TestListEmpty(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "")
@@ -132,7 +130,7 @@ func (s *SnapSuite) TestListEmptyWithQuery(c *check.C) {
 
 		n++
 	})
-	_, err := snap.Parser().ParseArgs([]string{"list", "quux"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"list", "quux"})
 	c.Assert(err, check.ErrorMatches, `no matching snaps installed`)
 }
 
@@ -151,7 +149,7 @@ func (s *SnapSuite) TestListWithNoMatchingQuery(c *check.C) {
 
 		n++
 	})
-	_, err := snap.Parser().ParseArgs([]string{"list", "quux"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"list", "quux"})
 	c.Assert(err, check.ErrorMatches, "no matching snaps installed")
 }
 
@@ -170,7 +168,7 @@ func (s *SnapSuite) TestListWithQuery(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Tracking +Publisher +Notes
@@ -200,7 +198,7 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?ms)^Name +Version +Rev +Tracking +Publisher +Notes$`)
