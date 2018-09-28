@@ -786,7 +786,8 @@ func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*Co
 	return conns, nil
 }
 
-// HotplugSlotForDeviceKey returns all hotplug slots for given device key and interface name.
+// HotplugSlotForDeviceKey returns a hotplug slot for given device key and interface name or nil
+// if there is no slot.
 func (r *Repository) HotplugSlotForDeviceKey(deviceKey, ifaceName string) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
