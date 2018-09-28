@@ -337,6 +337,13 @@ type connState struct {
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
 	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
+	// Hotplug-related attributes: HotplugRemoved indicates a connection
+	// that disappeared because the device was removed, but may potentially
+	// be restored in the future if we see the device again.
+	// HotplugDeviceKey is the key of the associated device; it's empty for
+	// connections of regular slots.
+	HotplugRemoved   bool   `json:"hotplug-removed,omitempty"`
+	HotplugDeviceKey string `json:"hotplug-key,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -718,4 +725,42 @@ func ensureSystemSnapIsPresent(st *state.State) error {
 	defer st.Unlock()
 	_, err := snapstate.CoreInfo(st)
 	return err
+}
+
+func hotplugTaskSetAttrs(task *state.Task, deviceKey, ifaceName string) {
+	task.Set("device-key", deviceKey)
+	task.Set("interface", ifaceName)
+}
+
+func hotplugTaskGetAttrs(task *state.Task) (deviceKey, ifaceName string, err error) {
+	if err = task.Get("interface", &ifaceName); err != nil {
+		return "", "", fmt.Errorf("internal error: failed to get interface name: %s", err)
+	}
+	if err = task.Get("device-key", &deviceKey); err != nil {
+		return "", "", fmt.Errorf("internal error: failed to get device key: %s", err)
+	}
+	return deviceKey, ifaceName, err
+}
+
+type HotplugSlotDef struct {
+	Name             string                 `json:"name"`
+	Interface        string                 `json:"interface"`
+	StaticAttrs      map[string]interface{} `json:"static-attrs,omitempty"`
+	HotplugDeviceKey string                 `json:"device-key"`
+}
+
+func getHotplugSlots(st *state.State) (map[string]HotplugSlotDef, error) {
+	var slots map[string]HotplugSlotDef
+	err := st.Get("hotplug-slots", &slots)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		slots = make(map[string]HotplugSlotDef)
+	}
+	return slots, nil
+}
+
+func setHotplugSlots(st *state.State, slots map[string]HotplugSlotDef) {
+	st.Set("hotplug-slots", slots)
 }

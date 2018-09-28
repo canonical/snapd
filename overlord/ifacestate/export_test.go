@@ -33,6 +33,10 @@ var (
 	GetConns                     = getConns
 	SetConns                     = setConns
 	InSameChangeWaitChain        = inSameChangeWaitChain
+	HotplugTaskGetAttrs          = hotplugTaskGetAttrs
+	HotplugTaskSetAttrs          = hotplugTaskSetAttrs
+	GetHotplugSlots              = getHotplugSlots
+	SetHotplugSlots              = setHotplugSlots
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
