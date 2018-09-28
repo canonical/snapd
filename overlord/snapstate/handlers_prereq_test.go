@@ -52,7 +52,14 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 
+	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "privacy-key")
+	snapstate.SetDefaultModel()
+}
+
+func (s *prereqSuite) TearDownTest(c *C) {
+	s.reset()
+	snapstate.Model = nil
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
