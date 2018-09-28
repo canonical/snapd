@@ -12531,12 +12531,12 @@ func (s *modelPastSeedSuite) TestTooEarly(c *C) {
 	}
 
 	// not seeded, no model assertion
-	_, err := snapstate.ModelPastSeed(s.st)
+	_, err := snapstate.ModelPastSeeding(s.st)
 	c.Assert(err, DeepEquals, expectedErr)
 
 	// seeded, no model assertion
 	s.st.Set("seeded", true)
-	_, err = snapstate.ModelPastSeed(s.st)
+	_, err = snapstate.ModelPastSeeding(s.st)
 	c.Assert(err, DeepEquals, expectedErr)
 }
 
@@ -12549,7 +12549,7 @@ func (s *modelPastSeedSuite) TestReady(c *C) {
 
 	snapstate.SetDefaultModel()
 
-	modelAs, err := snapstate.ModelPastSeed(s.st)
+	modelAs, err := snapstate.ModelPastSeeding(s.st)
 	c.Assert(err, IsNil)
 	c.Check(modelAs.Model(), Equals, "baz-3000")
 }
