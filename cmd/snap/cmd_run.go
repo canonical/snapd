@@ -417,20 +417,6 @@ func isReexeced() bool {
 	return strings.HasPrefix(exe, dirs.SnapMountDir)
 }
 
-func isMountPoint(mountPoint string) bool {
-	mounts, err := osutil.LoadMountInfo("/proc/self/mountinfo")
-	if err != nil {
-		logger.Noticef("can not read /proc/self/mountinfo: %v", err)
-		return false
-	}
-	for _, mi := range mounts {
-		if mi.MountDir == mountPoint {
-			return true
-		}
-	}
-	return false
-}
-
 func migrateXauthority(info *snap.Info) (string, error) {
 	u, err := userCurrent()
 	if err != nil {
@@ -596,7 +582,9 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
 	// that the document portal is up and running.
 	expectedMountPoint := fmt.Sprintf("%s/%d/doc", dirs.XdgRuntimeDirBase, os.Getuid())
-	if isMountPoint(expectedMountPoint) {
+	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
+		logger.Noticef("Could not check document portal mount state: %s", err)
+	} else if mounted {
 		return nil
 	}
 
@@ -639,7 +627,9 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 			// We ignore errors here: if writing the file
 			// fails, we'll just try connecting to D-Bus
 			// again next time.
-			_ = ioutil.WriteFile(portalsUnavailableFile, []byte("no portals"), 0644)
+			if err = ioutil.WriteFile(portalsUnavailableFile, []byte("no portals"), 0644); err != nil {
+				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
+			}
 			return nil
 		}
 		return err
