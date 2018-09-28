@@ -36,7 +36,9 @@ execute: |
     fi
 
     # need to be seeded to allow snap install
-    snap wait system seed.loaded
+    if ! snap wait 2>&1|MATCH "unknown command" ; then
+        snap wait system seed.loaded
+    fi
 
     prevsnapdver=$(snap --version|grep "snapd ")
 
