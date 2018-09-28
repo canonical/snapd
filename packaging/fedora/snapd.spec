@@ -83,9 +83,14 @@
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
-# SELinux policy does not build on Amazon Linux 2 at the moment, fails with
-# checkmodule complaining about missing 'map' permission for 'file' class
+# Fedora selinux-policy includes 'map' permission on a 'file' class. However,
+# neither Amazon Linux 2 nor CentOS 7 have had the policy updated. According to
+# https://bugzilla.redhat.com/show_bug.cgi?id=1574383 RHEL 7.6 should have the
+# necessary updates. For now disable SELinux on the affected distros.
 %if 0%{?amzn2} == 1
+%global with_selinux 0
+%endif
+%if 0%{?centos} == 7
 %global with_selinux 0
 %endif
 
