@@ -44,7 +44,10 @@ type cmdSign struct {
 func init() {
 	cmd := addCommand("sign", shortSignHelp, longSignHelp, func() flags.Commander {
 		return &cmdSign{}
-	}, map[string]string{"k": i18n.G("Name of the key to use, otherwise use the default key")}, nil)
+	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"k": i18n.G("Name of the key to use, otherwise use the default key"),
+	}, nil)
 	cmd.hidden = true
 }
 

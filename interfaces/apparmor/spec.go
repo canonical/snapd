@@ -160,6 +160,27 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 	}
 }
 
+// AddOvername adds AppArmor snippets allowing remapping of snap
+// directories for parallel installed snaps
+//
+// Specifically snap-update-ns will apply the following bind mounts
+// - /snap/foo_bar -> /snap/foo
+// - /var/snap/foo_bar -> /var/snap/foo
+// - /home/joe/snap/foo_bar -> /home/joe/snap/foo
+func (spec *Specification) AddOvername(si *snap.Info) {
+	if si.InstanceKey == "" {
+		return
+	}
+	var buf bytes.Buffer
+
+	// /snap/foo_bar -> /snap/foo
+	fmt.Fprintf(&buf, "  # Allow parallel instance snap mount namespace adjustments\n")
+	fmt.Fprintf(&buf, "  mount options=(rw rbind) /snap/%s/ -> /snap/%s/,\n", si.InstanceName(), si.SnapName())
+	// /var/snap/foo_bar -> /var/snap/foo
+	fmt.Fprintf(&buf, "  mount options=(rw rbind) /var/snap/%s/ -> /var/snap/%s/,\n", si.InstanceName(), si.SnapName())
+	spec.AddUpdateNS(buf.String())
+}
+
 // isProbably writable returns true if the path is probably representing writable area.
 func isProbablyWritable(path string) bool {
 	return strings.HasPrefix(path, "/var/snap/") || strings.HasPrefix(path, "/home/") || strings.HasPrefix(path, "/root/")

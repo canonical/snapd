@@ -1,0 +1,39 @@
+summary: Check that snapd goes into socket activated mode if there are no snaps
+
+systems: [ubuntu-18.04-64]
+
+prepare: |
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    systemd_stop_units snapd.service snapd.socket
+    rm -f /var/lib/snapd/state.json
+
+execute: |
+    echo "Check that snapd initializes the system"
+    systemctl start snapd.service snapd.socket
+    for _ in $(seq 120); do
+        if snap changes | grep -q -E "Done.*Initialize system state"; then
+            break
+        fi
+        sleep 1
+    done
+    snap changes | MATCH "Done.*Initialize system state"
+
+    echo "And then goes into socket activation mode"
+    for _ in $(seq 120); do
+        if systemctl status snapd.service | grep -q -E "Active: inactive"; then
+            break
+        fi
+        sleep 1
+    done
+    systemctl status snapd.service | MATCH "Active: inactive"
+
+    echo "But the snap command keeps working"
+    snap list
+    snap find
+    echo "And install works as well"
+    snap install test-snapd-tools
+    test-snapd-tools.echo hello | MATCH hello
+
+    echo "And snapd is running"
+    systemctl status snapd.service | MATCH "Active: active"

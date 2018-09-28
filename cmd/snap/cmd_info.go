@@ -40,6 +40,7 @@ import (
 )
 
 type infoCmd struct {
+	clientMixin
 	colorMixin
 	timeMixin
 
@@ -66,6 +67,7 @@ func init() {
 		func() flags.Commander {
 			return &infoCmd{}
 		}, colorDescs.also(timeDescs).also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Include more details on the snap (expanded notes, base, etc.)"),
 		}), nil)
 }
@@ -319,14 +321,20 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap) {
+func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap, currentChannel string) {
 	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
 		for _, risk := range channelRisks {
+			maybeCaret := ""
 			chName := fmt.Sprintf("%s/%s", tr, risk)
+			style := esc.end
+			if chName == currentChannel || (tr == "latest" && risk == currentChannel) {
+				maybeCaret = "<"
+				style = esc.bold
+			}
 			ch, ok := remote.Channels[chName]
 			if tr == "latest" {
 				chName = risk
@@ -345,7 +353,7 @@ func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.S
 					version = esc.dash
 				}
 			}
-			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
+			fmt.Fprintf(w, chantpl, style+"  ", chName, version, revision, size, notes, maybeCaret, esc.end)
 		}
 	}
 }
@@ -359,8 +367,6 @@ func formatSummary(raw string) string {
 }
 
 func (x *infoCmd) Execute([]string) error {
-	cli := Client()
-
 	termWidth, _ := termSize()
 	termWidth -= 3
 	if termWidth > 100 {
@@ -386,8 +392,8 @@ func (x *infoCmd) Execute([]string) error {
 			noneOK = false
 			continue
 		}
-		remote, resInfo, _ := cli.FindOne(snapName)
-		local, _, _ := cli.Snap(snapName)
+		remote, resInfo, _ := x.client.FindOne(snapName)
+		local, _, _ := x.client.Snap(snapName)
 
 		both := coalesce(local, remote)
 
@@ -457,17 +463,20 @@ func (x *infoCmd) Execute([]string) error {
 			}
 		}
 
-		chantpl := "%s:\t%s %s %s %s\n"
+		chantpl := "%s%s:\t%s %s %s %s%s%s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
-
+			chantpl = "%s%s:\t%s\t%s\t%s\t%s\t%s%s\n"
+			var cur string
+			if local != nil {
+				cur = local.TrackingChannel
+			}
 			w.Flush()
-			displayChannels(w, chantpl, esc, remote)
+			displayChannels(w, chantpl, esc, remote, cur)
 		}
 		if local != nil {
 			revstr := fmt.Sprintf("(%s)", local.Revision)
 			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
+				esc.end, "installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes, "", "")
 		}
 
 	}
