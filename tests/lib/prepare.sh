@@ -230,6 +230,9 @@ prepare_classic() {
 
     # Snapshot the state including core.
     if ! is_snapd_state_saved; then
+        # need to be seeded to proceed with snap install
+        # also make sure the captured state is seeded
+        snap wait system seed.loaded
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -290,6 +293,9 @@ setup_reflash_magic() {
     distro_install_package kpartx busybox-static
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
+
+    # need to be seeded to proceed with snap install
+    snap wait system seed.loaded
 
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
