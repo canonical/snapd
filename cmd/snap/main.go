@@ -173,6 +173,19 @@ func (ch *clientMixin) setClient(cli *client.Client) {
 	ch.client = cli
 }
 
+func firstNonOptionIsRun() bool {
+	if len(os.Args) < 2 {
+		return false
+	}
+	for _, arg := range os.Args[1:] {
+		if len(arg) == 0 || arg[0] == '-' {
+			continue
+		}
+		return arg == "run"
+	}
+	return false
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
@@ -181,7 +194,11 @@ func Parser(cli *client.Client) *flags.Parser {
 		printVersions(cli)
 		panic(&exitStatus{0})
 	}
-	parser := flags.NewParser(&optionsData, flags.PassDoubleDash)
+	flagopts := flags.Options(flags.PassDoubleDash)
+	if firstNonOptionIsRun() {
+		flagopts |= flags.PassAfterNonOption
+	}
+	parser := flags.NewParser(&optionsData, flagopts)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
@@ -398,60 +415,11 @@ func main() {
 		}
 	}()
 
-	// work around for us wanting "snap run" to behave differently from the rest of our commands
-	// (and go-flags fixing the bug that let us do this before)
-	os.Args = patchForSnapRun(os.Args)
-
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
 		os.Exit(1)
 	}
-}
-
-func patchForSnapRun(args []string) []string {
-	// are we in 'snap run'?
-	var i int
-	b := false
-	for i = 1; i < len(args); i++ {
-		if strings.HasPrefix(args[i], "-") {
-			// not reached the first command yet
-			continue
-		}
-		if args[i] != "run" {
-			// reached the first command, and it's not "run"
-			return args
-		}
-		b = true
-		break
-	}
-	if !b {
-		return args
-	}
-	// args[i] is "run". Is there a "--" before the first non-option?
-	for i = i + 1; i < len(args); i++ {
-		if !strings.HasPrefix(args[i], "-") {
-			// reached first non-option without finding "--"
-			b = false
-			break
-		}
-		if args[i] == "--" {
-			// "--" was already there! we're done.
-			return args
-		}
-	}
-	if b {
-		// non non-options? this'll never work
-		return args
-	}
-
-	// args[i] is the first non-option, and there was no "--" before it
-	// insert a "--" at i
-	args = append(args, "")
-	copy(args[i+1:], args[i:])
-	args[i] = "--"
-
-	return args
 }
 
 type exitStatus struct {

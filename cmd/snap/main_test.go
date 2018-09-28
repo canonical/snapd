@@ -297,32 +297,34 @@ func (s *SnapSuite) TestResolveApp(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (s *SnapSuite) TestPatchForSnapRun(c *C) {
-	type T struct{ given, expected string }
-	ts := []T{
-		// these shouldn't change at all
-		{"", ""},
-		{"snap verb --flag arg", "snap verb --flag arg"},
-		{"snap verb arg --flag", "snap verb arg --flag"},
-		{"snap -g verb --flag arg", "snap -g verb --flag arg"},
-		{"snap -g verb arg --flag", "snap -g verb arg --flag"},
-
-		// snap run, but no non-options?
-		{"snap --global run --flag", "snap --global run --flag"},
-
-		// basic snap run usage
-		{"snap run --flag arg", "snap run --flag -- arg"},
-		{"snap run arg --flag", "snap run -- arg --flag"},
-		{"snap -g run --flag arg", "snap -g run --flag -- arg"},
-		{"snap -g run arg --flag", "snap -g run -- arg --flag"},
-
-		// user-provided "--"
-		{"snap -g run --flag -- arg", "snap -g run --flag -- arg"},
-		{"snap -g run -- --flag arg", "snap -g run -- --flag arg"},    // this one would result in an error either way
-		{"snap -g run arg -- --flag", "snap -g run -- arg -- --flag"}, // in this one the user-provided -- is for arg, not for us
+func (s *SnapSuite) TestFirstNonOptionIsRun(c *C) {
+	osArgs := os.Args
+	defer func() {
+		os.Args = osArgs
+	}()
+	for _, negative := range []string{
+		"",
+		"snap",
+		"snap verb",
+		"snap verb --flag arg",
+		"snap verb arg --flag",
+		"snap --global verb --flag arg",
+	} {
+		os.Args = strings.Fields(negative)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, false)
 	}
-	for _, t := range ts {
-		out := snap.PatchForSnapRun(strings.Fields(t.given))
-		c.Check(strings.Join(out, " "), Equals, t.expected, Commentf(t.expected))
+
+	for _, positive := range []string{
+		"snap run",
+		"snap run --flag",
+		"snap run --flag arg",
+		"snap run arg --flag",
+		"snap --global run",
+		"snap --global run --flag",
+		"snap --global run --flag arg",
+		"snap --global run arg --flag",
+	} {
+		os.Args = strings.Fields(positive)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, true)
 	}
 }
