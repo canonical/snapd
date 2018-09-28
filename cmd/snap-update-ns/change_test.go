@@ -22,6 +22,7 @@ package main_test
 import (
 	"errors"
 	"os"
+	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -367,6 +368,85 @@ func (s *changeSuite) TestNeededChangesParallelInstancesInsideMount(c *C) {
 		{Entry: osutil.MountEntry{Dir: "/foo/bar", Name: "/foo/bar_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Keep},
 		{Entry: osutil.MountEntry{Dir: "/foo/bar/baz"}, Action: update.Mount},
 	})
+}
+
+func mustReadProfile(profileStr string) *osutil.MountProfile {
+	profile, err := osutil.ReadMountProfile(strings.NewReader(profileStr))
+	if err != nil {
+		panic(err)
+	}
+	return profile
+}
+
+func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
+	// We start with a runtime shared from one snap to another and then exposed
+	// to /opt with a symbolic link. This is the initial state of the
+	// application in version v1.
+	initial := mustReadProfile("")
+	desired_v1 := mustReadProfile(
+		"none /opt/runtime none x-snapd.kind=symlink,x-snapd.symlink=/snap/app/x1/runtime,x-snapd.origin=layout 0 0\n" +
+			"/snap/runtime/x1/opt/runtime /snap/app/x1/runtime none bind,ro 0 0\n")
+	// The changes we compute are trivial, simply perform each operation in order.
+	changes := update.NeededChanges(initial, desired_v1)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: desired_v1.Entries[0], Action: update.Mount},
+		{Entry: desired_v1.Entries[1], Action: update.Mount},
+	})
+	// After performing both changes we have a new synthesized entry. We get an
+	// extra writable mimic over /opt so that we can add our symlink. The
+	// content sharing into $SNAP is applied as expected since the snap ships
+	// the required mount point.
+	current_v1 := mustReadProfile(
+		"/snap/runtime/x1/opt/runtime /snap/app/x1/runtime none bind,ro 0 0\n" +
+			"none /opt/runtime none x-snapd.kind=symlink,x-snapd.symlink=/snap/app/x1/runtime,x-snapd.origin=layout 0 0\n" +
+			"tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/runtime,mode=0755,uid=0,gid=0 0")
+
+	// We now proceed to replace app v1 with v2 which uses a bind mount instead
+	// of a symlink. First, let's start with the updated desired profile:
+	desired_v2 := mustReadProfile(
+		"/snap/app/x2/runtime /opt/runtime none rbind,rw,x-snapd.origin=layout 0 0\n" +
+			"/snap/runtime/x1/opt/runtime /snap/app/x2/runtime none bind,ro 0 0\n")
+
+	// Let's see what the update algorithm thinks.
+	changes = update.NeededChanges(current_v1, desired_v2)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// We are dropping the content interface bind mount because app changed revision
+		{Entry: current_v1.Entries[0], Action: update.Unmount},
+		// We are also dropping the symlink we had in /opt/runtime
+		{Entry: current_v1.Entries[1], Action: update.Unmount},
+		// But, we are keeping the /opt tmpfs because we still want /opt/runtime to exist (neat!)
+		{Entry: current_v1.Entries[2], Action: update.Keep},
+		// We are adding a new bind mount for /opt/runtime
+		{Entry: desired_v2.Entries[0], Action: update.Mount},
+		// We also adding the updated path of the content interface (for revision x2)
+		{Entry: desired_v2.Entries[1], Action: update.Mount},
+	})
+
+	// After performing all those changes this is the profile we observe.
+	current_v2 := mustReadProfile(
+		"tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/runtime,mode=0755,uid=0,gid=0 0 0\n" +
+			"/snap/app/x2/runtime /opt/runtime none rbind,rw,x-snapd.origin=layout 0 0\n" +
+			"/snap/runtime/x1/opt/runtime /snap/app/x2/runtime none bind,ro 0 0\n")
+
+	// So far so good. To trigger the issue we now revert or refresh to v1
+	// again. Let's see what happens here. The desired profiles are already
+	// known so let's see what the algorithm thinks now.
+	changes = update.NeededChanges(current_v2, desired_v1)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// We are, again, dropping the content interface bind mount because app changed revision
+		{Entry: current_v2.Entries[2], Action: update.Unmount},
+		// We are also dropping the bind mount from /opt/runtime since we want a symlink instead
+		{Entry: current_v2.Entries[1], Action: update.Unmount},
+		// Again, we reuse the tmpfs.
+		{Entry: current_v2.Entries[0], Action: update.Keep},
+		// We are providing a symlink /opt/runtime -> to $SNAP/runtime.
+		{Entry: desired_v1.Entries[0], Action: update.Mount},
+		// We are bind mounting the runtime from another snap into $SNAP/runtime
+		{Entry: desired_v1.Entries[1], Action: update.Mount},
+	})
+
+	// The problem is that the tmpfs contains leftovers from the things we
+	// created and those prevent the execution of this mount profile.
 }
 
 // ########################################
