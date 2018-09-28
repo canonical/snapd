@@ -1636,9 +1636,9 @@ plugs:
 }
 
 var (
-	model0 *asserts.Model
-	model1 *asserts.Model
-	model2 *asserts.Model
+	otherModel *asserts.Model
+	myModel1   *asserts.Model
+	myModel2   *asserts.Model
 )
 
 func init() {
@@ -1656,7 +1656,7 @@ AXNpZw==`))
 	if err != nil {
 		panic(err)
 	}
-	model0 = a.(*asserts.Model)
+	otherModel = a.(*asserts.Model)
 
 	a, err = asserts.Decode([]byte(`type: model
 authority-id: my-brand
@@ -1674,7 +1674,7 @@ AXNpZw==`))
 	if err != nil {
 		panic(err)
 	}
-	model1 = a.(*asserts.Model)
+	myModel1 = a.(*asserts.Model)
 
 	a, err = asserts.Decode([]byte(`type: model
 authority-id: my-brand-subbrand
@@ -1692,7 +1692,7 @@ AXNpZw==`))
 	if err != nil {
 		panic(err)
 	}
-	model2 = a.(*asserts.Model)
+	myModel2 = a.(*asserts.Model)
 }
 
 func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
@@ -1702,19 +1702,19 @@ func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
 		err   string // "" => no error
 	}{
 		{nil, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
-		{model0, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
-		{model1, "auto-plug-on-store1", ""},
-		{model2, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
-		{model0, "auto-plug-on-my-brand", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-brand" for "plug-snap" snap`},
-		{model1, "auto-plug-on-my-brand", ""},
-		{model2, "auto-plug-on-my-brand", ""},
-		{model0, "auto-plug-on-my-model2", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-model2" for "plug-snap" snap`},
-		{model1, "auto-plug-on-my-model2", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-model2" for "plug-snap" snap`},
-		{model2, "auto-plug-on-my-model2", ""},
+		{otherModel, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-store1", ""},
+		{myModel2, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{otherModel, "auto-plug-on-my-brand", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-brand" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-my-brand", ""},
+		{myModel2, "auto-plug-on-my-brand", ""},
+		{otherModel, "auto-plug-on-my-model2", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-model2" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-my-model2", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-model2" for "plug-snap" snap`},
+		{myModel2, "auto-plug-on-my-model2", ""},
 		// on-store/on-brand/on-model are ANDed for consistency!
-		{model0, "auto-plug-on-multi", `auto-connection not allowed by plug rule of interface "auto-plug-on-multi" for "plug-snap" snap`},
-		{model1, "auto-plug-on-multi", ""},
-		{model2, "auto-plug-on-multi", `auto-connection not allowed by plug rule of interface "auto-plug-on-multi" for "plug-snap" snap`},
+		{otherModel, "auto-plug-on-multi", `auto-connection not allowed by plug rule of interface "auto-plug-on-multi" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-multi", ""},
+		{myModel2, "auto-plug-on-multi", `auto-connection not allowed by plug rule of interface "auto-plug-on-multi" for "plug-snap" snap`},
 	}
 
 	for _, t := range tests {
@@ -1744,19 +1744,19 @@ func (s *policySuite) TestSlotDeviceScopeCheckAutoConnection(c *C) {
 		err   string // "" => no error
 	}{
 		{nil, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
-		{model0, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
-		{model1, "auto-slot-on-store1", ""},
-		{model2, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
-		{model0, "auto-slot-on-my-brand", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-brand" for "slot-snap" snap`},
-		{model1, "auto-slot-on-my-brand", ""},
-		{model2, "auto-slot-on-my-brand", ""},
-		{model0, "auto-slot-on-my-model2", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-model2" for "slot-snap" snap`},
-		{model1, "auto-slot-on-my-model2", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-model2" for "slot-snap" snap`},
-		{model2, "auto-slot-on-my-model2", ""},
+		{otherModel, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-store1", ""},
+		{myModel2, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{otherModel, "auto-slot-on-my-brand", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-brand" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-my-brand", ""},
+		{myModel2, "auto-slot-on-my-brand", ""},
+		{otherModel, "auto-slot-on-my-model2", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-model2" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-my-model2", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-model2" for "slot-snap" snap`},
+		{myModel2, "auto-slot-on-my-model2", ""},
 		// on-store/on-brand/on-model are ANDed for consistency!
-		{model0, "auto-slot-on-multi", `auto-connection not allowed by slot rule of interface "auto-slot-on-multi" for "slot-snap" snap`},
-		{model1, "auto-slot-on-multi", ""},
-		{model2, "auto-slot-on-multi", `auto-connection not allowed by slot rule of interface "auto-slot-on-multi" for "slot-snap" snap`},
+		{otherModel, "auto-slot-on-multi", `auto-connection not allowed by slot rule of interface "auto-slot-on-multi" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-multi", ""},
+		{myModel2, "auto-slot-on-multi", `auto-connection not allowed by slot rule of interface "auto-slot-on-multi" for "slot-snap" snap`},
 	}
 
 	for _, t := range tests {
@@ -1823,15 +1823,15 @@ slots:
 		err         string // "" => no error
 	}{
 		{nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{model0, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{model1, plugSnap, plugOnStore1, ""},
-		{model2, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{model0, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{model1, plugSnap, plugOnMulti, ""},
-		{model2, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{model0, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
-		{model1, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
-		{model2, slotSnap, slotOnStore2, ""},
+		{otherModel, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel1, plugSnap, plugOnStore1, ""},
+		{myModel2, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel1, plugSnap, plugOnMulti, ""},
+		{myModel2, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
+		{myModel1, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
+		{myModel2, slotSnap, slotOnStore2, ""},
 	}
 
 	for _, t := range tests {
