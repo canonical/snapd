@@ -609,7 +609,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeed(st); err != nil {
+	if _, err := ModelPastSeeding(st); err != nil {
 		return nil, err
 	}
 
@@ -687,7 +687,7 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeed(st); err != nil {
+	if _, err := ModelPastSeeding(st); err != nil {
 		return nil, nil, err
 	}
 
@@ -1067,7 +1067,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeed(st); err != nil {
+	if _, err := ModelPastSeeding(st); err != nil {
 		return nil, err
 	}
 
@@ -2076,11 +2076,11 @@ var (
 	Model func(st *state.State) (*asserts.Model, error)
 )
 
-// ModelPastSeed returns the device model assertion if available and
+// ModelPastSeeding returns the device model assertion if available and
 // the device is seeded, at that point the device store is known
 // and seeding done. Otherwise it returns a ChangeConflictError
 // about being too early.
-func ModelPastSeed(st *state.State) (*asserts.Model, error) {
+func ModelPastSeeding(st *state.State) (*asserts.Model, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
