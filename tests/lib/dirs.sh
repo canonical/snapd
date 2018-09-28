@@ -5,7 +5,7 @@ export LIBEXECDIR=/usr/lib
 export MEDIA_DIR=/media
 
 case "$SPREAD_SYSTEM" in
-    fedora-*|amazon-*)
+    fedora-*|amazon-*|centos-*)
         export SNAP_MOUNT_DIR=/var/lib/snapd/snap
         export LIBEXECDIR=/usr/libexec
         export MEDIA_DIR=/run/media
