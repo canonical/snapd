@@ -52,8 +52,8 @@ mksnap_fast() {
     snap="$2"
 
     case "$SPREAD_SYSTEM" in
-        ubuntu-14.04-*|amazon-*)
-            # trusty and AMZN2 do not support  -Xcompression-level 1
+        ubuntu-14.04-*|amazon-*|centos-*)
+            # trusty, AMZN2 and CentOS 7 do not support -Xcompression-level 1
             mksquashfs "$dir" "$snap" -comp gzip -no-fragments -no-progress
             ;;
         *)
@@ -79,7 +79,7 @@ is_classic_confinement_supported() {
         ubuntu-*|debian-*)
             return 0
             ;;
-        fedora-*)
+        fedora-*|centos-*)
             return 1
             ;;
         opensuse-*)
