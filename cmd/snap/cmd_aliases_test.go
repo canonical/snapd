@@ -43,9 +43,7 @@ An alias noted as undefined means it was explicitly enabled or disabled but is
 not defined in the current revision of the snap, possibly temporarily (e.g.
 because of a revert). This can cleared with 'snap alias --reset'.
 `
-	rest, err := Parser(Client()).ParseArgs([]string{"aliases", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "aliases", msg)
 }
 
 func (s *SnapSuite) TestAliases(c *C) {

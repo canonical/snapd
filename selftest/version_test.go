@@ -32,7 +32,7 @@ type versionSuite struct{}
 var _ = Suite(&versionSuite{})
 
 func (s *selftestSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
-	// Mock an Ubuntu 14.04 system running a 3.13 kernel
+	// Mock an Ubuntu 14.04 system running a 3.13.0 kernel
 	restore := release.MockOnClassic(true)
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
@@ -43,4 +43,18 @@ func (s *selftestSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	// Check for the given advice.
 	err := selftest.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "you need to reboot into a 4.4 kernel to start using snapd")
+}
+
+func (s *selftestSuite) TestRebootedOnTrusty(c *C) {
+	// Mock an Ubuntu 14.04 system running a 4.4.0 kernel
+	restore := release.MockOnClassic(true)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	restore = osutil.MockKernelVersion("4.4.0-112-generic")
+	defer restore()
+
+	// Check for the given advice.
+	err := selftest.CheckKernelVersion()
+	c.Assert(err, IsNil)
 }
