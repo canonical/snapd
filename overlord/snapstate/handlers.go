@@ -30,7 +30,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -45,11 +44,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
-)
-
-// hook setup by devicestate
-var (
-	Model func(st *state.State) (*asserts.Model, error)
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.

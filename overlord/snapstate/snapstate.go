@@ -30,6 +30,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -607,6 +608,11 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
+	}
+
 	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
@@ -677,6 +683,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 	user, err := userFromUserID(st, userID)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
 		return nil, nil, err
 	}
 
@@ -1053,6 +1064,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	//        until we know what we want to do
 	if !snapst.Active {
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
 	}
 
 	if err := canSwitchChannel(st, name, channel); err != nil {
@@ -2053,4 +2069,37 @@ func GadgetConnections(st *state.State) ([]snap.GadgetConnection, error) {
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+// hook setup by devicestate
+var (
+	Model func(st *state.State) (*asserts.Model, error)
+)
+
+// ModelPastSeeding returns the device model assertion if available and
+// the device is seeded, at that point the device store is known
+// and seeding done. Otherwise it returns a ChangeConflictError
+// about being too early.
+func ModelPastSeeding(st *state.State) (*asserts.Model, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	modelAs, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	// when seeded modelAs should not be nil except in the rare
+	// case of upgrades from a snapd before the introduction of
+	// the fallback generic/generic-classic model
+	if !seeded || modelAs == nil {
+		return nil, &ChangeConflictError{
+			Message: "too early for operation, device not yet" +
+				" seeded or device model not acknowledged",
+			ChangeKind: "seed",
+		}
+	}
+
+	return modelAs, nil
 }
