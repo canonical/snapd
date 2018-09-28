@@ -35,7 +35,7 @@ var RunMain = run
 var (
 	Client = mkClient
 
-	PatchForSnapRun = patchForSnapRun
+	FirstNonOptionIsRun = firstNonOptionIsRun
 
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
