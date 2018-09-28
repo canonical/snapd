@@ -313,6 +313,26 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
+	modelHdrs := map[string]interface{}{
+		"type":              "model",
+		"authority-id":      "canonical",
+		"series":            "16",
+		"brand-id":          "canonical",
+		"model":             "pc",
+		"architecture":      "amd64",
+		"gadget":            "gadget",
+		"kernel":            "kernel",
+		"timestamp":         "2018-01-01T08:00:00+00:00",
+		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+	}
+	a, err := asserts.Assemble(modelHdrs, nil, nil, []byte("AXNpZw=="))
+	c.Assert(err, check.IsNil)
+	model := a.(*asserts.Model)
+
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return model, nil
+	}
+
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
@@ -3687,6 +3707,32 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 
 	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{})
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestInstall(c *check.C) {
+	var calledName string
+
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledName = name
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		// Install the snap in developer mode
+		DevMode: true,
+		Snaps:   []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledName, check.Equals, "fake")
 }
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
