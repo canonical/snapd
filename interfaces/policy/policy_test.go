@@ -131,6 +131,14 @@ plugs:
           s: S2
         plug-attributes:
           p: P2
+  auto-plug-on-store1:
+    allow-auto-connection: false
+  auto-plug-on-my-brand:
+    allow-auto-connection: false
+  auto-plug-on-my-model2:
+    allow-auto-connection: false
+  auto-plug-on-multi:
+    allow-auto-connection: false
   install-plug-attr-ok:
     allow-installation:
       plug-attributes:
@@ -158,6 +166,8 @@ plugs:
       on-classic:
         - ubuntu
         - debian
+  install-plug-device-scope:
+    allow-installation: false
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -247,6 +257,14 @@ slots:
           s: S2
         plug-attributes:
           p: P2
+  auto-slot-on-store1:
+    allow-auto-connection: false
+  auto-slot-on-my-brand:
+    allow-auto-connection: false
+  auto-slot-on-my-model2:
+    allow-auto-connection: false
+  auto-slot-on-multi:
+    allow-auto-connection: false
   install-slot-coreonly:
     allow-installation:
       slot-snap-type:
@@ -278,6 +296,8 @@ slots:
       on-classic:
         - ubuntu
         - debian
+  install-slot-device-scope:
+    allow-installation: false
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -416,6 +436,11 @@ plugs:
      interface: auto-plug-or
      p: P2
 
+   auto-plug-on-store1:
+   auto-plug-on-my-brand:
+   auto-plug-on-my-model2:
+   auto-plug-on-multi:
+
    slot-or-p1-s1:
      interface: slot-or
      p: P1
@@ -439,6 +464,11 @@ plugs:
    auto-slot-or-p2-s1:
      interface: auto-slot-or
      p: P2
+
+   auto-slot-on-store1:
+   auto-slot-on-my-brand:
+   auto-slot-on-my-model2:
+   auto-slot-on-multi:
 
    slot-on-classic-true:
    slot-on-classic-distros:
@@ -571,6 +601,11 @@ slots:
      interface: auto-plug-or
      s: S1
 
+   auto-plug-on-store1:
+   auto-plug-on-my-brand:
+   auto-plug-on-my-model2:
+   auto-plug-on-multi:
+
    slot-or-p1-s1:
      interface: slot-or
      s: S1
@@ -594,6 +629,11 @@ slots:
    auto-slot-or-p2-s1:
      interface: auto-slot-or
      s: S1
+
+   auto-slot-on-store1:
+   auto-slot-on-my-brand:
+   auto-slot-on-my-model2:
+   auto-slot-on-multi:
 
    slot-on-classic-true:
    slot-on-classic-distros:
@@ -639,6 +679,30 @@ plugs:
   auto-snap-slot-deny-snap-plug-allow:
     deny-auto-connection: false
   auto-base-deny-snap-plug-allow: true
+  auto-plug-on-store1:
+    allow-auto-connection:
+      on-store:
+        - store1
+  auto-plug-on-my-brand:
+    allow-auto-connection:
+      on-brand:
+        - my-brand
+        - my-brand-subbrand
+  auto-plug-on-my-model2:
+    allow-auto-connection:
+      on-model:
+        - my-brand-subbrand/my-model2
+  auto-plug-on-multi:
+    allow-auto-connection:
+      on-brand:
+        - my-brand
+        - my-brand-subbrand
+      on-store:
+        - store1
+        - other-store
+      on-model:
+        - my-brand/my-model1
+        - my-brand-subbrand/my-model2
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -679,6 +743,30 @@ slots:
     deny-auto-connection: true
   auto-base-allow-snap-slot-not-allow:
     allow-auto-connection: false
+  auto-slot-on-store1:
+    allow-auto-connection:
+      on-store:
+        - store1
+  auto-slot-on-my-brand:
+    allow-auto-connection:
+      on-brand:
+        - my-brand
+        - my-brand-subbrand
+  auto-slot-on-my-model2:
+    allow-auto-connection:
+      on-model:
+        - my-brand-subbrand/my-model2
+  auto-slot-on-multi:
+    allow-auto-connection:
+      on-brand:
+        - my-brand
+        - my-brand-subbrand
+      on-store:
+        - store1
+        - other-store
+      on-model:
+        - my-brand/my-model1
+        - my-brand-subbrand/my-model2
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -1539,6 +1627,237 @@ plugs:
 			BaseDeclaration: s.baseDecl,
 		}
 		err := cand.Check()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+var (
+	otherModel *asserts.Model
+	myModel1   *asserts.Model
+	myModel2   *asserts.Model
+)
+
+func init() {
+	a, err := asserts.Decode([]byte(`type: model
+authority-id: other-brand
+series: 16
+brand-id: other-brand
+model: other-model
+classic: true
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	if err != nil {
+		panic(err)
+	}
+	otherModel = a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model1
+store: store1
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	if err != nil {
+		panic(err)
+	}
+	myModel1 = a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand-subbrand
+series: 16
+brand-id: my-brand-subbrand
+model: my-model2
+store: store2
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	if err != nil {
+		panic(err)
+	}
+	myModel2 = a.(*asserts.Model)
+}
+
+func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
+	tests := []struct {
+		model *asserts.Model
+		iface string
+		err   string // "" => no error
+	}{
+		{nil, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{otherModel, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-store1", ""},
+		{myModel2, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{otherModel, "auto-plug-on-my-brand", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-brand" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-my-brand", ""},
+		{myModel2, "auto-plug-on-my-brand", ""},
+		{otherModel, "auto-plug-on-my-model2", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-model2" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-my-model2", `auto-connection not allowed by plug rule of interface "auto-plug-on-my-model2" for "plug-snap" snap`},
+		{myModel2, "auto-plug-on-my-model2", ""},
+		// on-store/on-brand/on-model are ANDed for consistency!
+		{otherModel, "auto-plug-on-multi", `auto-connection not allowed by plug rule of interface "auto-plug-on-multi" for "plug-snap" snap`},
+		{myModel1, "auto-plug-on-multi", ""},
+		{myModel2, "auto-plug-on-multi", `auto-connection not allowed by plug rule of interface "auto-plug-on-multi" for "plug-snap" snap`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs[t.iface], nil, nil),
+			Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+
+			BaseDeclaration: s.baseDecl,
+
+			Model: t.model,
+		}
+		err := cand.CheckAutoConnect()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (s *policySuite) TestSlotDeviceScopeCheckAutoConnection(c *C) {
+	tests := []struct {
+		model *asserts.Model
+		iface string
+		err   string // "" => no error
+	}{
+		{nil, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{otherModel, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-store1", ""},
+		{myModel2, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{otherModel, "auto-slot-on-my-brand", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-brand" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-my-brand", ""},
+		{myModel2, "auto-slot-on-my-brand", ""},
+		{otherModel, "auto-slot-on-my-model2", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-model2" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-my-model2", `auto-connection not allowed by slot rule of interface "auto-slot-on-my-model2" for "slot-snap" snap`},
+		{myModel2, "auto-slot-on-my-model2", ""},
+		// on-store/on-brand/on-model are ANDed for consistency!
+		{otherModel, "auto-slot-on-multi", `auto-connection not allowed by slot rule of interface "auto-slot-on-multi" for "slot-snap" snap`},
+		{myModel1, "auto-slot-on-multi", ""},
+		{myModel2, "auto-slot-on-multi", `auto-connection not allowed by slot rule of interface "auto-slot-on-multi" for "slot-snap" snap`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs[t.iface], nil, nil),
+			Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+
+			BaseDeclaration: s.baseDecl,
+
+			Model: t.model,
+		}
+		err := cand.CheckAutoConnect()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (s *policySuite) TestDeviceScopeInstallation(c *C) {
+	const plugSnap = `name: install-snap
+version: 0
+plugs:
+  install-plug-device-scope:`
+
+	const slotSnap = `name: install-snap
+version: 0
+slots:
+  install-slot-device-scope:`
+
+	const plugOnStore1 = `plugs:
+  install-plug-device-scope:
+    allow-installation:
+      on-store:
+        - store1
+`
+	const plugOnMulti = `plugs:
+  install-plug-device-scope:
+    allow-installation:
+      on-brand:
+        - my-brand
+        - my-brand-subbrand
+      on-store:
+        - store1
+        - other-store
+      on-model:
+        - my-brand/my-model1
+        - my-brand-subbrand/my-model2
+`
+	const slotOnStore2 = `slots:
+  install-slot-device-scope:
+    allow-installation:
+      on-store:
+        - store2
+`
+
+	tests := []struct {
+		model       *asserts.Model
+		installYaml string
+		plugsSlots  string
+		err         string // "" => no error
+	}{
+		{nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel1, plugSnap, plugOnStore1, ""},
+		{myModel2, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel1, plugSnap, plugOnMulti, ""},
+		{myModel2, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
+		{myModel1, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
+		{myModel2, slotSnap, slotOnStore2, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
+		c.Assert(err, IsNil)
+		snapDecl := a.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: s.baseDecl,
+			Model:           t.model,
+		}
+		err = cand.Check()
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {

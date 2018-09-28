@@ -124,7 +124,8 @@ func init() {
 
 	// 1: plugs and slots
 	// 2: support for $SLOT()/$PLUG()/$MISSING
-	maxSupportedFormat[SnapDeclarationType.Name] = 2
+	// 3: support for on-store/on-brand/on-model device scope constraints
+	maxSupportedFormat[SnapDeclarationType.Name] = 3
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
