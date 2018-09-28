@@ -1859,11 +1859,13 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 
 	s.sys.InsertFault(`lstat "/etc/demo.conf"`, syscall.ENOENT)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`,
 		// On 1st call ext4, on 2nd call tmpfs
 		syscall.Statfs_t{Type: update.Ext4Magic},
 		syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertSysLstatResult(`lstat "/etc" <ptr>`, syscall.Stat_t{Mode: 0755})
 	otherConf := testutil.FakeFileInfo("other.conf", 0755)
 	s.sys.InsertReadDirResult(`readdir "/etc"`, []os.FileInfo{otherConf})
@@ -1898,10 +1900,12 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		{C: `lstat "/etc/demo.conf"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: 0x4000}},
 		{C: `close 4`},
 
 		// Create a writable mimic over /etc, scan the contents of /etc first.
@@ -2018,10 +2022,12 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: 0x4000}},
 		{C: `symlinkat "/oldname" 4 "demo.conf"`},
 		{C: `close 4`},
 	})
