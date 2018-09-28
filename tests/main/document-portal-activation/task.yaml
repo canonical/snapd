@@ -19,6 +19,9 @@ description: |
 # packages to run the test.
 systems: [ "-ubuntu-core-*", "-amazon-linux-2-*" ]
 
+environment:
+  XDG_RUNTIME_DIR: /run/user/$(id -u)
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -27,6 +30,7 @@ prepare: |
     install_local test-snapd-desktop
     install_local test-snapd-tools
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
+    mkdir -p "$XDG_RUNTIME_DIR"
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -37,6 +41,7 @@ restore: |
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     distro_purge_package python3-dbus python3-gi
     distro_auto_remove_packages
+    rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
 
 execute: |
     echo "No output on stderr when running without a session bus"
@@ -52,13 +57,24 @@ execute: |
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
     [ "$(wc -c < stderr.log)" -eq 0 ]
 
+    echo "The absence of the document portal service was recorded"
+    [ -f "$XDG_RUNTIME_DIR/.snap-portals-unavailable" ]
+
     echo "Make the fake document portal activatable"
     cat << EOF > /usr/share/dbus-1/services/fake-document-portal.service
     [D-BUS Service]
     Name=org.freedesktop.portal.Documents
     Exec=$(pwd)/fake-document-portal.py $(pwd)/doc-portal.log $(pwd)/report-error.txt
     EOF
+    : > doc-portal.log
     : > report-error.txt
+
+    echo "No attempt is made to activate the document portal due to the previous failure"
+    test-snapd-desktop.check-dirs "$user_data"
+    ! MATCH "GetMountPoint called" < doc-portal.log
+
+    echo "Remove the .snap-portals-unavailable file to force a recheck"
+    rm "$XDG_RUNTIME_DIR/.snap-portals-unavailable"
 
     echo "No output on stderr when running with a session bus and xdg-document-portal is present".
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log

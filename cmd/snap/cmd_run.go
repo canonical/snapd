@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -607,6 +608,22 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
+	u, err := userCurrent()
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+	}
+	portalsUnavailableFile := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".snap-portals-unavailable")
+
+	// We've previously tried to start the document portal and
+	// were told the service is unknown: don't bother connecting
+	// to the session bus again.
+	//
+	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
+	// full logout/login or reboot cycles.
+	if osutil.FileExists(portalsUnavailableFile) {
+		return nil
+	}
+
 	conn, err := dbus.SessionBus()
 	if err != nil {
 		return err
@@ -619,6 +636,10 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		// It is not considered an error if
 		// xdg-document-portal is not available on the system.
 		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
+			// We ignore errors here: if writing the file
+			// fails, we'll just try connecting to D-Bus
+			// again next time.
+			_ = ioutil.WriteFile(portalsUnavailableFile, []byte("no portals"), 0644)
 			return nil
 		}
 		return err
