@@ -35,7 +35,7 @@ type cmdInterfaces struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfacesHelp = i18n.G("List interfaces in the system")
+var shortInterfacesHelp = i18n.G("List interfaces' slots and plugs")
 var longInterfacesHelp = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
@@ -59,11 +59,12 @@ func init() {
 	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
 	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"i": i18n.G("Constrain listing to specific interfaces"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<snap>:<slot or plug>"),
-		// TRANSLATORS: This should probably not start with a lowercase letter.
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
 	}})
 }

@@ -44,9 +44,7 @@ indicates that the publisher has been verified.
           --unicode=[auto|never|always] Use a little bit of Unicode to improve
                                         legibility. (default: auto)
 `
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"list", "--help"})
-	c.Assert(err.Error(), check.Equals, msg)
-	c.Assert(rest, check.DeepEquals, []string{})
+	s.testSubCommandHelp(c, "list", msg)
 }
 
 func (s *SnapSuite) TestList(c *check.C) {

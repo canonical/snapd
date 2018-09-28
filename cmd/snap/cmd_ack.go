@@ -54,7 +54,7 @@ func init() {
 	}, nil, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<assertion file>"),
-		// TRANSLATORS: This should probably not start with a lowercase letter.
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Assertion file"),
 	}})
 }

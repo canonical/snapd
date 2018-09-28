@@ -99,7 +99,9 @@ func colorTable(mode string) escapes {
 }
 
 var colorDescs = mixinDescs{
-	"color":   i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"color": i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"unicode": i18n.G("Use a little bit of Unicode to improve legibility."),
 }
 
