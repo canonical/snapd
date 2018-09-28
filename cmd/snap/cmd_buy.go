@@ -43,13 +43,14 @@ type cmdBuy struct {
 }
 
 func init() {
-	addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
+	cmd := addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
 		return &cmdBuy{}
 	}, map[string]string{}, []argDesc{{
 		name: "<snap>",
-		// TRANSLATORS: This should probably not start with a lowercase letter.
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Snap name"),
 	}})
+	cmd.hidden = true
 }
 
 func (x *cmdBuy) Execute(args []string) error {

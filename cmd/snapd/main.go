@@ -56,6 +56,14 @@ func main() {
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	if err := run(ch); err != nil {
+		if err == daemon.ErrRestartSocket {
+			// Note that we don't prepend: "error: " here because
+			// ErrRestartSocket is not an error as such.
+			fmt.Fprintf(os.Stdout, "%v\n", err)
+			// the exit code must be in sync with
+			// data/systemd/snapd.service.in:SuccessExitStatus=
+			os.Exit(42)
+		}
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

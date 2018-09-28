@@ -1,5 +1,6 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,20 +16,12 @@
  *
  */
 
-#ifndef SNAPD_CMD_SNAP_UPDATE_NS_H
-#define SNAPD_CMD_SNAP_UPDATE_NS_H
+package standby
 
-#define _GNU_SOURCE
+import (
+	"time"
+)
 
-#include <stdbool.h>
-#include <unistd.h>
-
-extern int bootstrap_errno;
-extern const char *bootstrap_msg;
-
-void bootstrap(int argc, char **argv, char **envp);
-void process_arguments(int argc, char *const *argv, const char **snap_name_out,
-		       bool * should_setns_out, bool * process_user_fstab);
-int validate_instance_name(const char *instance_name);
-
-#endif
+func (m *StandbyOpinions) SetStartTime(t time.Time) {
+	m.startTime = t
+}

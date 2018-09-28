@@ -32,9 +32,9 @@ int main(int argc, char **argv)
 
 	char *path = getenv("PATH");
 	if (path == NULL || sc_streq(path, "")) {
-	       // do nothing, until systemd is fixed, see LP#1791691
-               return 0;
-        }
+		// do nothing, until systemd is fixed, see LP#1791691
+		return 0;
+	}
 	char buf[PATH_MAX + 1] = { 0 };
 	strncpy(buf, path, sizeof(buf) - 1);
 	char *s = buf;
