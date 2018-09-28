@@ -69,7 +69,7 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound, filenames []string, err error) {
+func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound, snapIDs, filenames []string, err error) {
 	sort.Strings(requested)
 	found := false
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
@@ -78,22 +78,23 @@ func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound, filen
 			if len(requested) == 0 || strutil.SortedListContains(requested, r.Snap) {
 				snapsFound = append(snapsFound, r.Snap)
 				filenames = append(filenames, r.Name())
+				snapIDs = append(snapIDs, r.SnapID)
 			}
 		}
 
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if !found {
-		return nil, nil, client.ErrSnapshotSetNotFound
+		return nil, nil, nil, client.ErrSnapshotSetNotFound
 	}
 	if len(snapsFound) == 0 {
-		return nil, nil, client.ErrSnapshotSnapsNotFound
+		return nil, nil, nil, client.ErrSnapshotSnapsNotFound
 	}
 
-	return snapsFound, filenames, nil
+	return snapsFound, snapIDs, filenames, nil
 }
 
 func taskGetErrMsg(task *state.Task, err error, what string) error {
@@ -181,7 +182,11 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 // Restore creates a taskset for restoring a snapshot's data.
 // Note that the state must be locked by the caller.
 func Restore(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
-	snapsFound, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	snapsFound, snapIDs, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	if err != nil {
+		return nil, nil, err
+	}
+	all, err := snapstateAll(st)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -196,6 +201,30 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	}
 
 	ts = state.NewTaskSet()
+
+	for i, snapID := range snapIDs {
+		if snapID == "" {
+			// snapshotted snap was sideloaded, never mind
+			continue
+		}
+		snapst, ok := all[snapsFound[i]]
+		if !ok {
+			// snap not installed
+			continue
+		}
+		sideInfo := snapst.CurrentSideInfo()
+		if sideInfo == nil {
+			// ... shouldn't happen (but also not installed)
+			continue
+		}
+		if sideInfo.SnapID == "" {
+			// current snap is sideloaded, never mind then
+			continue
+		}
+		if sideInfo.SnapID != snapID {
+			return nil, nil, fmt.Errorf("cannot restore snapshot over id change: %.7s… → %.7s…", snapID, sideInfo.SnapID)
+		}
+	}
 
 	for i, name := range snapsFound {
 		desc := fmt.Sprintf("Restore data of snap %q from snapshot set #%d", name, setID)
@@ -222,7 +251,7 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 		return nil, nil, err
 	}
 
-	snapsFound, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	snapsFound, _, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -253,7 +282,7 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 		return nil, nil, err
 	}
 
-	snapsFound, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	snapsFound, _, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
 	if err != nil {
 		return nil, nil, err
 	}
