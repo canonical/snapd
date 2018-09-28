@@ -429,7 +429,7 @@ func newConnectChecker(s *state.State) (*connectChecker, error) {
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
 	modelAs, err := devicestate.Model(c.st)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cannot get model assertion: %v", err)
 	}
 
 	var plugDecl *asserts.SnapDeclaration
