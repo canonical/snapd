@@ -212,6 +212,25 @@ func (e *Epoch) String() string {
 	return string(buf)
 }
 
+// CanRead checks whether this epoch can read the data written by the
+// other one.
+func (e *Epoch) CanRead(other *Epoch) bool {
+	// the intersection between e.Read and other.Write needs to be non-empty
+	// unless they're both empty (happens in tests)
+	if (e == nil || len(e.Read) == 0) && (other == nil || len(other.Write) == 0) {
+		return true
+	}
+	// see the note above about the O of this vs the allowed lengths of Read and Write
+	for _, r := range e.Read {
+		for _, w := range other.Write {
+			if r == w {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // EpochError tracks the details of a failed epoch parse or validation.
 type EpochError struct {
 	Message string
