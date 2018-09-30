@@ -250,9 +250,9 @@ if [ "$SPREAD" = 1 ]; then
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     if [ "${SPREAD_SYSTEM:-}" ]; then
-        spread "$SPREAD_SYSTEM"
+        spread $SPREAD_SYSTEM
     else
-        spread google: linode:
+        spread google:
     fi
 
     # cleanup the debian-ubuntu-14.04
