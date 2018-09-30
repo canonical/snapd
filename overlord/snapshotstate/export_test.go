@@ -32,18 +32,31 @@ import (
 )
 
 var (
-	NewSnapshotSetID          = newSnapshotSetID
-	AllActiveSnapNames        = allActiveSnapNames
-	SnapNamesInSnapshotSet    = snapNamesInSnapshotSet
-	CheckSnapshotTaskConflict = checkSnapshotTaskConflict
-	Filename                  = filename
-	DoSave                    = doSave
-	DoRestore                 = doRestore
-	UndoRestore               = undoRestore
-	CleanupRestore            = cleanupRestore
-	DoCheck                   = doCheck
-	DoForget                  = doForget
+	NewSnapshotSetID           = newSnapshotSetID
+	AllActiveSnapNames         = allActiveSnapNames
+	SnapSummariesInSnapshotSet = snapSummariesInSnapshotSet
+	CheckSnapshotTaskConflict  = checkSnapshotTaskConflict
+	Filename                   = filename
+	DoSave                     = doSave
+	DoRestore                  = doRestore
+	UndoRestore                = undoRestore
+	CleanupRestore             = cleanupRestore
+	DoCheck                    = doCheck
+	DoForget                   = doForget
 )
+
+func (shsums snapshotSnapSummaries) Asplode() []map[string]string {
+	out := make([]map[string]string, len(shsums))
+	for i, shsum := range shsums {
+		out[i] = map[string]string{
+			"snap":     shsum.snap,
+			"snapID":   shsum.snapID,
+			"filename": shsum.filename,
+			"epoch":    shsum.epoch.String(),
+		}
+	}
+	return out
+}
 
 func MockOsRemove(f func(string) error) (restore func()) {
 	old := osRemove
