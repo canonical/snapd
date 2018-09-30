@@ -415,7 +415,7 @@ distro_install_build_snapd(){
                 ;;
             fedora-*|amazon-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
+                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH%%:*}"/snapd*.rpm
                 ;;
             opensuse-*)
                 # shellcheck disable=SC2125
