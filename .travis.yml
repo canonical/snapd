@@ -14,9 +14,9 @@ jobs:
       name: go 1.6/trusty unit test suite
       go: 1.6
       before_install:
-        - sudo apt update
+        - sudo apt --quiet update
       install:
-        - sudo apt build-dep snapd
+        - sudo apt --quiet build-dep snapd
         - ./get-deps.sh
       script:
         - ./run-checks --unit
@@ -28,8 +28,8 @@ jobs:
         - brew install squashfs
         - ./get-deps.sh
         - go get golang.org/x/sys/unix
-        - ./mkversion.sh
       before_script:
+        - ./mkversion.sh
         - go build -o /tmp/snp ./cmd/snap
       script:
         - /tmp/snp download hello
