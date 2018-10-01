@@ -963,11 +963,6 @@ slots:
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
 
 	change.AddAll(ts)
 	s.state.Unlock()
