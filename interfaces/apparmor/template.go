@@ -672,6 +672,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # sharing and propagates mount events outside of the snap namespace.
   audit deny mount -> /media,
 
+  # Commonly needed permissions for writable mimics.
+  /tmp/ r,
+  /tmp/.snap/{,**} rw,
+
 ###SNIPPETS###
 }
 `
