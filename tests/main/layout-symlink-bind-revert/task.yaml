@@ -20,5 +20,5 @@ execute: |
     app 2>&1 | MATCH '/snap/app/x2/bin/app: 2: /snap/app/x2/bin/app: /opt/runtime/runner: not found'
 
     echo "The broken application is reverted"
-    snap revert app 2>&1 | MATCH 'cannot update snap namespace: cannot create symlink in "/opt/runtime": existing file in the way'
-    app 2>&1 | MATCH '/snap/app/x2/bin/app: 2: /snap/app/x2/bin/app: /opt/runtime/runner: not found'
+    snap revert app 2>&1 | MATCH 'app reverted to 1'
+    app 2>&1 | MATCH "RUNTIME: Hello from the app"
