@@ -52,4 +52,4 @@ execute: |
     systemctl show -p SubState snap.test-snapd-service-watchdog.$service | MATCH 'SubState=(failed|stop-sigabrt)'
     # reported differently by different systemd versions
     systemctl show -p Result snap.test-snapd-service-watchdog.$service | MATCH 'Result=(watchdog|signal|core-dump)'
-    journalctl -u snap.test-snapd-service-watchdog.$service | MATCH 'Watchdog timeout'
+    journalctl -u snap.test-snapd-service-watchdog.$service | MATCH "systemd.*: snap.test-snapd-service-watchdog.$service.service:? [Ww]atchdog timeout"

@@ -26,7 +26,7 @@ execute: |
     echo "Ensure that after classic exits no processes are left behind"
     classic "sleep 133713371337&"
     # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
-    if pgrep -f '[1]33713371337'; then
+    if pgrep -f 133713371337; then
         echo "The sleep process was not killed when classic exited"
         echo "Something is wrong with the cleanup"
         exit 1

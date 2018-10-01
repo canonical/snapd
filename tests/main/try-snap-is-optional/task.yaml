@@ -4,7 +4,8 @@ systems: [-ubuntu-core-*]
 
 execute: |
     echo "When try is executed inside a snap directory"
-    cd "$TESTSLIB"/snaps/test-snapd-tools || exit 1
+    # shellcheck disable=SC2164
+    cd "$TESTSLIB"/snaps/test-snapd-tools
     snap try
 
     echo "Then the snap is listed as installed with try in the notes"
