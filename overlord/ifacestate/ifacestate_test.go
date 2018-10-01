@@ -1002,11 +1002,6 @@ slots:
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
 
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -2929,6 +2924,37 @@ slots:
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeNoStore(c *C) {
+	s.mockModel(c, nil)
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-installation: true
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "3",
+		"slots": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, `installation not allowed.*`)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
