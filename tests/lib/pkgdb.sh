@@ -676,6 +676,7 @@ pkg_dependencies_arch(){
     udisks2
     xdg-user-dirs
     xfsprogs
+    apparmor
     "
 }
 
