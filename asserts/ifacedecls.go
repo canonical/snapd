@@ -405,6 +405,8 @@ func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
 }
 
 func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
+	// initial map size of 2: we expect usual cases to have just one of the
+	// constraints or rarely 2
 	deviceConstr := make(map[string][]string, 2)
 	for field, validRegexp := range deviceScopeConstraints {
 		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
