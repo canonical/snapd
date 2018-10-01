@@ -1,5 +1,6 @@
 snapd (2.35.2-1) UNRELEASED; urgency=medium
 
+  [ Michael Hudson-Doyle ]
   * New upstream version.
   * d/control: make myself Maintainer, use my Debian address, update Vcs-* to
     point to salsa.
@@ -10,6 +11,9 @@ snapd (2.35.2-1) UNRELEASED; urgency=medium
   * d/patches/upstram-bolt.patch: use upstream version of boltdb.
   * d/patches/systemd-activation-compat.patch: compatibility for the
     newer go-systemd in debian
+
+  [ Ondřej Nový ]
+  * d/copyright: Use https protocol in Format field
 
  -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 18 Sep 2018 09:38:33 +0200
 
