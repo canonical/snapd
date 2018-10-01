@@ -3,15 +3,8 @@ git:
   quiet: true
 jobs:
   include:
-    - stage: static
-      name: go 1.6/trusty static test suite
-      go: 1.6
-      install:
-        - ./get-deps.sh
-      script:
-        - ./run-checks --static
-    - stage: unit
-      name: go 1.6/trusty unit test suite
+    - stage: quick
+      name: go 1.6/trusty static and unit test suites
       go: 1.6
       before_install:
         - sudo apt --quiet update
@@ -19,8 +12,9 @@ jobs:
         - sudo apt --quiet build-dep snapd
         - ./get-deps.sh
       script:
+        - ./run-checks --static
         - ./run-checks --unit
-    - stage: unit
+    - stage: quick
       go: 1.10
       name: OSX build and minimal runtime sanity check
       os: osx
@@ -35,7 +29,7 @@ jobs:
         - /tmp/snp download hello
         - /tmp/snp version
         - /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
-    - stage: paperwork
+    - stage: quick
       name: CLA check
       if: type = pull_request
       language: bash
