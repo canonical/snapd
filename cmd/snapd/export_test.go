@@ -27,11 +27,11 @@ var (
 	Run = run
 )
 
-func MockSelftestRun(f func() error) (restore func()) {
-	oldSelftestRun := selftestRun
-	selftestRun = f
+func MockSanityCheck(f func() error) (restore func()) {
+	oldSanityCheck := sanityCheck
+	sanityCheck = f
 	return func() {
-		selftestRun = oldSelftestRun
+		sanityCheck = oldSanityCheck
 	}
 }
 
