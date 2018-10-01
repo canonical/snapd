@@ -28,7 +28,7 @@ execute: |
     
     echo "Check that powerkey handling works"
     snap set core system.power-key-action=reboot
-    cat /etc/systemd/logind.conf.d/00-snap-core.conf | MATCH HandlePowerKey=reboot
+    MATCH HandlePowerKey=reboot < /etc/systemd/logind.conf.d/00-snap-core.conf
     echo "Ensure unsetting cleans the file again"
     snap set core system.power-key-action=""
     if test -f /etc/systemd/logind.conf.d/00-snap-core.conf; then
@@ -42,9 +42,9 @@ execute: |
         cp /boot/uboot/config.txt config.txt.save
 
         snap set core pi-config.hdmi-mode=1
-        cat /boot/uboot/config.txt | MATCH ^hdmi_mode=1
+        MATCH ^hdmi_mode=1 < /boot/uboot/config.txt
         snap set core pi-config.hdmi-mode=""
-        cat /boot/uboot/config.txt | MATCH ^#hdmi_mode=1
+        MATCH ^#hdmi_mode=1 < /boot/uboot/config.txt
 
         echo "Ensure the config.txt are fully undo when an option is unset"
         if ! diff -u /boot/uboot/config.txt config.txt.save; then
@@ -56,9 +56,9 @@ execute: |
     echo "Check that the proxy config handling works"
     for proto in http https ftp; do
         snap set core proxy.${proto}=http://example.com:8021/
-        cat /etc/environment | MATCH "^${proto}_proxy=http://example.com:8021"
+        MATCH "^${proto}_proxy=http://example.com:8021" < /etc/environment
         snap set core proxy.${proto}=""
-        if cat /etc/environment | grep "^{proto}_proxy="; then
+        if grep "^{proto}_proxy=" /etc/environment; then
             echo "proxy setting was not properly cleaned up"
             cat /etc/environment
             exit 1
@@ -67,9 +67,9 @@ execute: |
 
     echo "Check that the no_proxy config handling works"
     snap set core proxy.no-proxy="example.com,bar.com"
-    cat /etc/environment | MATCH "^no_proxy=example.com,bar.com"
+    MATCH "^no_proxy=example.com,bar.com" < /etc/environment
     snap set core proxy.no-proxy=""
-    if cat /etc/environment | grep "^no_proxy="; then
+    if grep "^no_proxy=" /etc/environment ; then
         echo "proxy setting was not properly cleaned up"
         cat /etc/environment
         exit 1
