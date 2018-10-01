@@ -216,13 +216,25 @@ func (e *Epoch) String() string {
 // other one.
 func (e *Epoch) CanRead(other *Epoch) bool {
 	// the intersection between e.Read and other.Write needs to be non-empty
-	// unless they're both empty (happens in tests)
-	if (e == nil || len(e.Read) == 0) && (other == nil || len(other.Write) == 0) {
-		return true
+
+	// normalize (empty epoch should be treated like "0" here)
+	var rs, ws []uint32
+	if e != nil {
+		rs = e.Read
 	}
+	if other != nil {
+		ws = other.Write
+	}
+	if len(rs) == 0 {
+		rs = []uint32{0}
+	}
+	if len(ws) == 0 {
+		ws = []uint32{0}
+	}
+
 	// see the note above about the O of this vs the allowed lengths of Read and Write
-	for _, r := range e.Read {
-		for _, w := range other.Write {
+	for _, r := range rs {
+		for _, w := range ws {
 			if r == w {
 				return true
 			}

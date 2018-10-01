@@ -237,6 +237,7 @@ func (s *epochSuite) TestCanRead(c *check.C) {
 	}{
 		{ab: true, ba: true},                                     // nil should work (for tests!)
 		{a: &snap.Epoch{}, b: &snap.Epoch{}, ab: true, ba: true}, // test for empty epoch
+		{a: snap.E("0"), ab: true, ba: true},                     // hybrid empty / zero
 		{a: snap.E("0"), b: snap.E("1"), ab: false, ba: false},
 		{a: snap.E("0"), b: snap.E("1*"), ab: false, ba: true},
 		{a: snap.E("0"), b: snap.E("2*"), ab: false, ba: false},
