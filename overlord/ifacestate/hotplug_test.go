@@ -76,7 +76,7 @@ func (s *hotplugSuite) TestMakeSlotName(c *C) {
 		{"slot---", "slot"},
 		{"slot-(", "slot"},
 		{"Integrated_Webcam_HD", "integratedwebcamhd"},
-		{"Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers", "xeone3-1200v5e3-1500v5"},
+		{"Xeon E3-1200 v5/E3-1500 v5/6th Gen Core Processor Host Bridge/DRAM Registers", "xeone3-1200v5e3-1500"},
 	}
 	for _, name := range names {
 		c.Assert(ifacestate.MakeSlotName(name.proposedName), Equals, name.resultingName)
