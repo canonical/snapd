@@ -14,6 +14,7 @@ snapd (2.35.2-1) UNRELEASED; urgency=medium
 
   [ Ondřej Nový ]
   * d/copyright: Use https protocol in Format field
+  * d/changelog: Remove trailing whitespaces
 
  -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 18 Sep 2018 09:38:33 +0200
 
@@ -413,7 +414,7 @@ snapd (2.27.4-1) unstable; urgency=medium
 
 snapd (2.27.2-2) unstable; urgency=medium
 
-  * Fix re-exec test failure. 
+  * Fix re-exec test failure.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Fri, 18 Aug 2017 11:37:47 +1200
 
@@ -786,7 +787,7 @@ snapd (2.26.4) xenial; urgency=medium
     - Disable "mknod |N" in the default seccomp template
       reasons outline in https://forum.snapcraft.io/t/snapd-2-25-blocked-because-of-revert-race-condition
     - errtracker: include bits of snap-confine apparmor profile
-    - errtracker: report if snapd did re-execute itself 
+    - errtracker: report if snapd did re-execute itself
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Jun 2017 18:50:52 +0200
 
@@ -1229,7 +1230,7 @@ snapd (2.23.1) xenial; urgency=medium
     - interfaces: fix default content attribute value
     - tests: do not nuke the entire snapd.conf.d dir when changing
       store settings
-    - hookstate: run the right "snap" command in the hookmanager 
+    - hookstate: run the right "snap" command in the hookmanager
     - snapstate: revert PR#2958, run configure hook again everywhere
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Mar 2017 14:29:56 +0100
@@ -1263,7 +1264,7 @@ snapd (2.23) xenial; urgency=medium
     - cmd/snap-update-ns: move test data and helpers to new module
     - vet: fix vet error on mount test.
     - tests: empty init (systemd) failover test
-    - cmd: add .indent.pro file to the tree 
+    - cmd: add .indent.pro file to the tree
     - interfaces: specs for apparmor, seccomp, udev
     - wrappers/services: RemainAfterExit=yes for oneshot daemons w/ stop
       cmds
@@ -1280,7 +1281,7 @@ snapd (2.23) xenial; urgency=medium
     - interfaces/builtin: add /boot/uboot/config.txt access to core-
       support
     - release: assume higher version of supported distros will still
-      work 
+      work
     - cmd/snap-update-ns: add compare function for mount entries
     - tests: enable docker test
     - tests: bail out if core snap is not installed
@@ -1335,7 +1336,7 @@ snapd (2.23) xenial; urgency=medium
     - tests: nested image testing
     - tests: add basic test for docker
     - hookstate,ifacestate: support snapctl set/get slot and plug attrs
-      (step 3) 
+      (step 3)
     - cmd/snap: add shell completion to connect
     - cmd: add functions to load/save fstab-like files
     - snap run: create "current" symlink in user data dir
@@ -2216,7 +2217,7 @@ snapd (2.16-1) unstable; urgency=medium
   * New upstream release.
   * Import gopkg.in/cheggaaa/pb.v1 rather than github.com/cheggaaa/pb.
   * Switch to unconditional conflict against `snap` (Closes: #826884)
-  * Update Vcs-Git and Vcs-Browser to point to alioth. 
+  * Update Vcs-Git and Vcs-Browser to point to alioth.
 
   [ Steve Langasek ]
   * Remove govendor from gbp.conf, and import Ubuntu tarball as our
