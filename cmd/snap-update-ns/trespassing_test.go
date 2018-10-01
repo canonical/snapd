@@ -39,7 +39,7 @@ var _ = Suite(&trespassingSuite{})
 func (s *trespassingSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.sys = &testutil.SyscallRecorder{}
-	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
+	s.BaseTest.AddCleanup(osutil.MockSystemCalls(s.sys))
 }
 
 func (s *trespassingSuite) TearDownTest(c *C) {
@@ -194,8 +194,8 @@ func (s *trespassingSuite) TestRestrictionsForEtc(c *C) {
 	// Check reports trespassing error, restrictions may be lifted though.
 	err = rs.Check(fd, "/etc")
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/test.conf" because it would affect the host in "/etc"`)
-	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc")
-	c.Assert(err.(*update.TrespassingError).DesiredPath, Equals, "/etc/test.conf")
+	c.Assert(err.(*osutil.TrespassingError).ViolatedPath, Equals, "/etc")
+	c.Assert(err.(*osutil.TrespassingError).DesiredPath, Equals, "/etc/test.conf")
 
 	rs.Lift()
 	c.Assert(rs.Check(fd, "/etc"), IsNil)

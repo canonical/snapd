@@ -71,11 +71,11 @@ var changePerform func(*Change, *Assumptions) ([]*Change, error)
 // The returned path is the location where a mimic should be constructed.
 func mimicRequired(err error) (needsMimic bool, path string) {
 	switch err.(type) {
-	case *ReadOnlyFsError:
-		rofsErr := err.(*ReadOnlyFsError)
+	case *osutil.ReadOnlyFsError:
+		rofsErr := err.(*osutil.ReadOnlyFsError)
 		return true, rofsErr.Path
-	case *TrespassingError:
-		tErr := err.(*TrespassingError)
+	case *osutil.TrespassingError:
+		tErr := err.(*osutil.TrespassingError)
 		return true, tErr.ViolatedPath
 	}
 	return false, ""
@@ -110,11 +110,11 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	rs := as.RestrictionsFor(path)
 	switch kind {
 	case "":
-		err = MkdirAll(path, mode, uid, gid, rs)
+		err = osutil.MkdirAll(path, mode, uid, gid, rs)
 	case "file":
-		err = MkfileAll(path, mode, uid, gid, rs)
+		err = osutil.MkfileAll(path, mode, uid, gid, rs)
 	case "symlink":
-		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
+		err = osutil.MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
@@ -142,7 +142,7 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 	// processes are frozen but if the path is a directory controlled by the
 	// user (typically in /home) then we may still race with user processes
 	// that change it.
-	fi, err := osLstat(path)
+	fi, err := osutil.OsLstat(path)
 
 	if err == nil {
 		// If the element already exists we just need to ensure it is of
@@ -186,7 +186,7 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 
 	kind := c.Entry.XSnapdKind()
 	path := c.Entry.Name
-	fi, err := osLstat(path)
+	fi, err := osutil.OsLstat(path)
 
 	if err == nil {
 		// If the element already exists we just need to ensure it is of
@@ -291,9 +291,9 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
-				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+				err = osutil.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
 			} else {
-				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+				err = osutil.SysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			}
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 			if err == nil {
@@ -305,14 +305,14 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
-			err = osRemove(c.Entry.Dir)
+			err = osutil.OsRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
 			flags := umountNoFollow
 			if c.Entry.XSnapdDetach() {
 				flags |= syscall.MNT_DETACH
 			}
-			err = sysUnmount(c.Entry.Dir, flags)
+			err = osutil.SysUnmount(c.Entry.Dir, flags)
 			if err == nil {
 				as.AddChange(c)
 			}
