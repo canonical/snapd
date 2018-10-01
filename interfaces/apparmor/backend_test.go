@@ -1465,10 +1465,7 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 		{"opensuse-tumbleweed", "4.16.10-1-default", false},
 		{"opensuse-tumbleweed", "4.14.1-default", true},
 		{"arch", "4.18.2.a-1-hardened", false},
-		{"arch", "4.18.5-arch1-1-ARCH", true},
-		{"arch", "4.17.4-hardened", false},
-		{"arch", "4.17.4-1-ARCH", true},
-		{"arch", "4.18.6-arch1-1-ARCH", true},
+		{"arch", "4.18.8-arch1-1-ARCH", false},
 	} {
 		c.Logf("trying: %+v", tc)
 		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})

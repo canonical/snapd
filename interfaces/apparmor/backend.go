@@ -458,14 +458,9 @@ func downgradeConfinement() bool {
 			return false
 		}
 	case release.DistroLike("arch"):
-		if strings.HasSuffix(kver, "-hardened") {
-			if cmp, _ := strutil.VersionCompare(kver, "4.17.4"); cmp >= 0 {
-				// The linux-hardened 4.17.4+ package has
-				// apparmor enabled, do not downgrade the
-				// confinement template.
-				return false
-			}
-		}
+		// The default kernel has AppArmor enabled since 4.18.8, the
+		// hardened one since 4.17.4
+		return false
 	}
 	return true
 }
