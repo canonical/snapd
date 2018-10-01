@@ -548,10 +548,12 @@ install -d -p %{buildroot}%{_datadir}/selinux/packages
 install -p -m 0755 bin/snap %{buildroot}%{_bindir}
 install -p -m 0755 bin/snap-exec %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-failure %{buildroot}%{_libexecdir}/snapd
-install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
+# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
 
 %if 0%{?with_selinux}
 # Install SELinux module
@@ -675,6 +677,7 @@ popd
 %{_bindir}/snapctl
 %{_environmentdir}/990-snapd.conf
 %dir %{_libexecdir}/snapd
+%{_libexecdir}/snapd/snapctl
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-failure

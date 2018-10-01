@@ -84,6 +84,8 @@ var (
 	ValidateFeatureFlags   = validateFeatureFlags
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
+
+	HasOtherInstances = hasOtherInstances
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

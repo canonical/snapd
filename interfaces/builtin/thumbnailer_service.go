@@ -127,7 +127,8 @@ func (iface *thumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.S
 func (iface *thumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
-	// TODO parallel-install: use of proper instance/store name
+	// parallel-installs: PLUG_SNAP_NAME is used in the context of dbus
+	// mediation rules, need to use the actual instance name
 	new := plug.Snap().InstanceName()
 	snippet = strings.Replace(snippet, old, new, -1)
 

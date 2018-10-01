@@ -107,14 +107,14 @@ update_core_snap_for_classic_reexec() {
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs -no-progress "$snap"
     # clean the old snapd binaries, just in case
-    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
+    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
-    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
     if [ ! -L squashfs-root/usr/bin/snapctl ]; then
-        mv squashfs-root/usr/bin/snapctl squashfs-root/usr/lib/snapd
+        rm -f squashfs-root/usr/bin/snapctl
         ln -s ../lib/snapd/snapctl squashfs-root/usr/bin/snapctl
     fi
 
@@ -230,6 +230,9 @@ prepare_classic() {
 
     # Snapshot the state including core.
     if ! is_snapd_state_saved; then
+        # need to be seeded to proceed with snap install
+        # also make sure the captured state is seeded
+        snap wait system seed.loaded
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -290,6 +293,9 @@ setup_reflash_magic() {
     distro_install_package kpartx busybox-static
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
+
+    # need to be seeded to proceed with snap install
+    snap wait system seed.loaded
 
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"

@@ -34,7 +34,10 @@ import (
 type InstallCandidate struct {
 	Snap            *snap.Info
 	SnapDeclaration *asserts.SnapDeclaration
+
 	BaseDeclaration *asserts.BaseDeclaration
+
+	Model *asserts.Model
 }
 
 func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule, snapRule bool) error {
@@ -42,10 +45,10 @@ func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.Slo
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
 	}
-	if checkSlotInstallationConstraints(slot, rule.DenyInstallation) == nil {
+	if checkSlotInstallationConstraints(ic, slot, rule.DenyInstallation) == nil {
 		return fmt.Errorf("installation denied by %q slot rule of interface %q%s", slot.Name, slot.Interface, context)
 	}
-	if checkSlotInstallationConstraints(slot, rule.AllowInstallation) != nil {
+	if checkSlotInstallationConstraints(ic, slot, rule.AllowInstallation) != nil {
 		return fmt.Errorf("installation not allowed by %q slot rule of interface %q%s", slot.Name, slot.Interface, context)
 	}
 	return nil
@@ -56,10 +59,10 @@ func (ic *InstallCandidate) checkPlugRule(plug *snap.PlugInfo, rule *asserts.Plu
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
 	}
-	if checkPlugInstallationConstraints(plug, rule.DenyInstallation) == nil {
+	if checkPlugInstallationConstraints(ic, plug, rule.DenyInstallation) == nil {
 		return fmt.Errorf("installation denied by %q plug rule of interface %q%s", plug.Name, plug.Interface, context)
 	}
-	if checkPlugInstallationConstraints(plug, rule.AllowInstallation) != nil {
+	if checkPlugInstallationConstraints(ic, plug, rule.AllowInstallation) != nil {
 		return fmt.Errorf("installation not allowed by %q plug rule of interface %q%s", plug.Name, plug.Interface, context)
 	}
 	return nil
@@ -123,6 +126,8 @@ type ConnectCandidate struct {
 	SlotSnapDeclaration *asserts.SnapDeclaration
 
 	BaseDeclaration *asserts.BaseDeclaration
+
+	Model *asserts.Model
 }
 
 func nestedGet(which string, attrs interfaces.Attrer, path string) (interface{}, error) {

@@ -3,53 +3,22 @@ summary: create ubuntu-core image and execute the suite in a nested qemu instanc
 systems: [ubuntu-16.04-64, ubuntu-16.04-32]
 
 prepare: |
-    # FIXME: until https://github.com/snapcore/snapd/pull/3263 is available from
-    # the archive we need to build snapd from branch so that it can be used by
-    # ubuntu-image
-
-    # first, remove snapd, in the prepare stage of the nested suite ubuntu-image is installed,
-    # before building snapd from the branch we check that the core is not present
-    apt remove -y --purge snapd
-
-    . "$TESTSLIB/prepare.sh"
-    prepare_classic
-    prepare_each_classic
-
-    snap install --classic --beta ubuntu-image
-
-    # determine arch related vars
-    case "$NESTED_ARCH" in
-    amd64)
-        QEMU="$(which qemu-system-x86_64)"
-        ;;
-    i386)
-        QEMU="$(which qemu-system-i386)"
-        ;;
-    *)
-        echo "unsupported architecture"
-        exit 1
-        ;;
-    esac
-
-    # create ubuntu-core image
-    mkdir -p /tmp/work-dir
-
+    # download core and save it as extra snap
+    mkdir -p extra-snaps
     snap download core
-    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img --extra-snaps core_*.snap
-    mv ubuntu-core.img /tmp/work-dir
+    mv core_*.snap extra-snaps/
 
     . "$TESTSLIB/nested.sh"
-    create_assertions_disk
-    start_nested_vm
+    create_nested_core_vm
 
 restore: |
+    rm -rf extra-snaps
+
     . "$TESTSLIB/nested.sh"
     destroy_nested_core_vm
 
 execute: |
     . "$TESTSLIB/nested.sh"
-    wait_for_ssh
-    prepare_ssh
 
     echo "Wait for first boot to be done"
     while ! execute_remote "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
