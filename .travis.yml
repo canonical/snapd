@@ -39,7 +39,6 @@ jobs:
             python-launchpadlib
       script:
         - ./tests/lib/cla_check.py
-        - for i in `seq 120`; do echo wasting time $i; sleep 15; done
     - stage: integration
       name: spread
       os: linux
