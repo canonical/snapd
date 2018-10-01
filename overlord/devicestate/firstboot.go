@@ -291,6 +291,11 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if release.OnClassic && os.IsNotExist(err) {
 		// on classic seeding is optional
+		// set the fallback model
+		err := setClassicFallbackModel(st, device)
+		if err != nil {
+			return nil, err
+		}
 		return nil, errNothingToDo
 	}
 	if err != nil {

@@ -56,9 +56,9 @@ apps:
 		Name:      "removable-media",
 		Interface: "removable-media",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	s.plugInfo = consumingSnapInfo.Plugs["removable-media"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *RemovableMediaInterfaceSuite) TestName(c *C) {

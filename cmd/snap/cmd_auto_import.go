@@ -127,7 +127,7 @@ func queueFile(src string) error {
 	return osutil.CopyFile(src, dst, osutil.CopyFlagOverwrite)
 }
 
-func autoImportFromSpool() (added int, err error) {
+func autoImportFromSpool(cli *client.Client) (added int, err error) {
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
 	if os.IsNotExist(err) {
 		return 0, nil
@@ -138,7 +138,7 @@ func autoImportFromSpool() (added int, err error) {
 
 	for _, fi := range files {
 		cand := filepath.Join(dirs.SnapAssertsSpoolDir, fi.Name())
-		if err := ackFile(cand); err != nil {
+		if err := ackFile(cli, cand); err != nil {
 			logger.Noticef("error: cannot import %s: %s", cand, err)
 			continue
 		} else {
@@ -154,7 +154,7 @@ func autoImportFromSpool() (added int, err error) {
 	return added, nil
 }
 
-func autoImportFromAllMounts() (int, error) {
+func autoImportFromAllMounts(cli *client.Client) (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
 		return 0, err
@@ -162,7 +162,7 @@ func autoImportFromAllMounts() (int, error) {
 
 	added := 0
 	for _, cand := range cands {
-		err := ackFile(cand)
+		err := ackFile(cli, cand)
 		// the server is not ready yet
 		if _, ok := err.(client.ConnectionError); ok {
 			logger.Noticef("queuing for later %s", cand)
@@ -214,6 +214,7 @@ func doUmount(mp string) error {
 }
 
 type cmdAutoImport struct {
+	clientMixin
 	Mount []string `long:"mount" arg-name:"<device path>"`
 
 	ForceClassic bool `long:"force-classic"`
@@ -241,15 +242,19 @@ func init() {
 		func() flags.Commander {
 			return &cmdAutoImport{}
 		}, map[string]string{
-			"mount":         i18n.G("Temporarily mount device before inspecting"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"mount": i18n.G("Temporarily mount device before inspecting"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"force-classic": i18n.G("Force import on classic systems"),
 		}, nil)
 	cmd.hidden = true
 }
 
-func autoAddUsers() error {
+func (x *cmdAutoImport) autoAddUsers() error {
 	cmd := cmdCreateUser{
-		Known: true, Sudoer: true,
+		clientMixin: x.clientMixin,
+		Known:       true,
+		Sudoer:      true,
 	}
 	return cmd.Execute(nil)
 }
@@ -282,18 +287,18 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		defer doUmount(mp)
 	}
 
-	added1, err := autoImportFromSpool()
+	added1, err := autoImportFromSpool(x.client)
 	if err != nil {
 		return err
 	}
 
-	added2, err := autoImportFromAllMounts()
+	added2, err := autoImportFromAllMounts(x.client)
 	if err != nil {
 		return err
 	}
 
 	if added1+added2 > 0 {
-		return autoAddUsers()
+		return x.autoAddUsers()
 	}
 
 	return nil

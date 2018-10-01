@@ -119,26 +119,27 @@ func (snapshotSuite) TestSnapnamesInSnapshotSet(c *check.C) {
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
 			// wanted
-			Snapshot: client.Snapshot{SetID: setID, Snap: "a-snap"},
+			Snapshot: client.Snapshot{SetID: setID, Snap: "a-snap", SnapID: "a-id"},
 			File:     shotfileA,
 		}), check.IsNil)
 		c.Assert(f(&backend.Reader{
 			// not wanted (bad set id)
-			Snapshot: client.Snapshot{SetID: setID + 1, Snap: "a-snap"},
+			Snapshot: client.Snapshot{SetID: setID + 1, Snap: "a-snap", SnapID: "a-id"},
 			File:     shotfileA,
 		}), check.IsNil)
 		c.Assert(f(&backend.Reader{
 			// wanted
-			Snapshot: client.Snapshot{SetID: setID, Snap: "b-snap"},
+			Snapshot: client.Snapshot{SetID: setID, Snap: "b-snap", SnapID: "b-id"},
 			File:     shotfileB,
 		}), check.IsNil)
 		return nil
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
+	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(snaps, check.DeepEquals, []string{"a-snap", "b-snap"})
+	c.Check(ids, check.DeepEquals, []string{"a-id", "b-id"})
 	c.Check(files, check.DeepEquals, []string{shotfileA.Name(), shotfileB.Name()})
 }
 
@@ -150,26 +151,27 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetSnaps(c *check.C) {
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
 			// wanted
-			Snapshot: client.Snapshot{SetID: setID, Snap: "a-snap"},
+			Snapshot: client.Snapshot{SetID: setID, Snap: "a-snap", SnapID: "a-id"},
 			File:     shotfile,
 		}), check.IsNil)
 		c.Assert(f(&backend.Reader{
 			// not wanted (bad set id)
-			Snapshot: client.Snapshot{SetID: setID + 1, Snap: "a-snap"},
+			Snapshot: client.Snapshot{SetID: setID + 1, Snap: "a-snap", SnapID: "a-id"},
 			File:     shotfile,
 		}), check.IsNil)
 		c.Assert(f(&backend.Reader{
 			// not wanted (bad snap name)
-			Snapshot: client.Snapshot{SetID: setID, Snap: "c-snap"},
+			Snapshot: client.Snapshot{SetID: setID, Snap: "c-snap", SnapID: "c-id"},
 			File:     shotfile,
 		}), check.IsNil)
 		return nil
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, []string{"a-snap"})
+	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, []string{"a-snap"})
 	c.Assert(err, check.IsNil)
 	c.Check(snaps, check.DeepEquals, []string{"a-snap"})
+	c.Check(ids, check.DeepEquals, []string{"a-id"})
 	c.Check(files, check.DeepEquals, []string{shotfile.Name()})
 }
 
@@ -190,9 +192,10 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetErrors(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
+	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
 	c.Assert(err, check.Equals, errBad)
 	c.Check(snaps, check.IsNil)
+	c.Check(ids, check.IsNil)
 	c.Check(files, check.IsNil)
 }
 
@@ -212,9 +215,10 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetNotFound(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
+	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
 	c.Assert(err, check.Equals, client.ErrSnapshotSetNotFound)
 	c.Check(snaps, check.IsNil)
+	c.Check(ids, check.IsNil)
 	c.Check(files, check.IsNil)
 }
 
@@ -222,9 +226,10 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetEmptyNotFound(c *check.C) {
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error { return nil }
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, files, err := snapshotstate.SnapNamesInSnapshotSet(42, nil)
+	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(42, nil)
 	c.Assert(err, check.Equals, client.ErrSnapshotSetNotFound)
 	c.Check(snaps, check.IsNil)
+	c.Check(ids, check.IsNil)
 	c.Check(files, check.IsNil)
 }
 
@@ -244,9 +249,10 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetSnapNotFound(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, []string{"b-snap"})
+	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, []string{"b-snap"})
 	c.Assert(err, check.Equals, client.ErrSnapshotSnapsNotFound)
 	c.Check(snaps, check.IsNil)
+	c.Check(ids, check.IsNil)
 	c.Check(files, check.IsNil)
 }
 
@@ -788,6 +794,41 @@ func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
 
 	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
+}
+
+func (snapshotSuite) TestRestoreChecksChangesToSnapID(c *check.C) {
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	c.Assert(err, check.IsNil)
+	defer shotfile.Close()
+	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+		return map[string]*snapstate.SnapState{
+			"a-snap": {
+				Active: true,
+				Sequence: []*snap.SideInfo{
+					{RealName: "a-snap", Revision: snap.R(1), SnapID: "1234567890"},
+				},
+				Current: snap.R(1),
+			},
+		}, nil
+	}
+	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			// not wanted
+			Snapshot: client.Snapshot{SetID: 42, Snap: "a-snap", SnapID: "0987654321"},
+			File:     shotfile,
+		}), check.IsNil)
+
+		return nil
+	}
+	defer snapshotstate.MockBackendIter(fakeIter)()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
+	c.Assert(err, check.ErrorMatches, `cannot restore snapshot over id change: 0987654… → 1234567…`)
 }
 
 func (snapshotSuite) TestRestore(c *check.C) {
