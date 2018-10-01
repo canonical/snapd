@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -313,28 +314,29 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
+	// realistic model setup
 	modelHdrs := map[string]interface{}{
-		"type":              "model",
-		"authority-id":      "canonical",
-		"series":            "16",
-		"brand-id":          "canonical",
-		"model":             "pc",
-		"architecture":      "amd64",
-		"gadget":            "gadget",
-		"kernel":            "kernel",
-		"timestamp":         "2018-01-01T08:00:00+00:00",
-		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		"type":         "model",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"brand-id":     "can0nical",
+		"model":        "pc",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	a, err := asserts.Assemble(modelHdrs, nil, nil, []byte("AXNpZw=="))
+	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, modelHdrs, nil, "")
 	c.Assert(err, check.IsNil)
 	model := a.(*asserts.Model)
 
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return model, nil
-	}
+	snapstate.Model = devicestate.Model
+
+	err = assertstate.Add(st, model)
+	c.Assert(err, check.IsNil)
 
 	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "canonical",
+		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
 	})
@@ -5557,6 +5559,10 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
+	st.Lock()
+	auth.SetDevice(st, nil)
+	st.Unlock()
+
 	email := "foo@example.com"
 
 	username, opts, err := getUserDetailsFromAssertion(st, email)
