@@ -7,9 +7,9 @@ jobs:
       name: go 1.6/trusty static and unit test suites
       go: 1.6
       before_install:
-        - sudo apt --quiet update
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
-        - sudo apt --quiet build-dep snapd
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
         - ./get-deps.sh
       script:
         - ./run-checks --static
@@ -39,6 +39,7 @@ jobs:
             python-launchpadlib
       script:
         - ./tests/lib/cla_check.py
+        - for i in `seq 120`; do echo wasting time $i; sleep 15; done
     - stage: integration
       name: spread
       os: linux

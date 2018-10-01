@@ -57,6 +57,7 @@ def main():
     print("Logging into Launchpad...")
     lp = Launchpad.login_anonymously("check CLA", "production")
     cla_folks = lp.people["contributor-agreement-canonical"].participants
+    snappers = lp.people["snappy-dev"].participants
 
     print("Amount of emails to check the CLA for {}".format(len(emails)))
     for email in emails:
@@ -69,7 +70,9 @@ def main():
             sys.exit("The contributor does not have a Launchpad account.")
 
         print("Contributor account for {}: {}".format(email, contributor))
-        if contributor in cla_folks:
+        if contributor in snappers:
+            print("The contributor is a snappy developer.")
+        elif contributor in cla_folks:
             print("The contributor has signed the CLA.")
         else:
             sys.exit("The contributor {} has not signed the CLA.".format(email))
