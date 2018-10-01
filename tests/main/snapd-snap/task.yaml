@@ -12,5 +12,5 @@ restore: |
 execute: |
     echo "Installing snapscraft"
     apt install -y snapcraft
-    cd $PROJECT_PATH
+    cd "$PROJECT_PATH" || exit
     snapcraft
