@@ -109,24 +109,19 @@ var nameAttrs = []string{"NAME", "ID_MODEL_FROM_DATABASE", "ID_MODEL"}
 // name from. The name created from attributes is sanitized to ensure it's a
 // valid slot name. The fallbackName is typically the name of the interface.
 func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) string {
-	var candidates []string
+	var shortestName string
 	for _, attr := range nameAttrs {
 		name, ok := devinfo.Attribute(attr)
 		if ok {
-			name = makeSlotName(name)
-			if name != "" {
-				candidates = append(candidates, name)
+			if name := makeSlotName(name); name != "" {
+				if shortestName == "" || len(name) < len(shortestName) {
+					shortestName = name
+				}
 			}
 		}
 	}
-	if len(candidates) == 0 {
+	if len(shortestName) == 0 {
 		return fallbackName
-	}
-	shortestName := candidates[0]
-	for _, cand := range candidates[1:] {
-		if len(cand) < len(shortestName) {
-			shortestName = cand
-		}
 	}
 	return shortestName
 }
