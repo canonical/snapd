@@ -84,16 +84,10 @@ execute: |
     test-snapd-content-advanced-plug.sh -c "$(printf 'test -f $%s/target/canary' "$VAR")"
 
     # Without discarding the namespace disconnect the content interface. This
-    # should undo the bind mounts but keep the directories around. The canary
-    # file is thus no longer accessible but all the directories are in place
-    # because we never remove them explicitly.
+    # should undo the bind mounts and remove the placeholder files and
+    # directories.
     snap disconnect "$PLUG" "$SLOT"
-
-    if [ "$VAR" != "SNAP" ]; then
-        test-snapd-content-advanced-plug.sh -c "$(printf 'test -d $%s/target' "$VAR")"
-    else
-        test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -d $%s/target' "$VAR")"
-    fi
+    test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -d $%s/target' "$VAR")"
     test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target/canary' "$VAR")"
     test-snapd-content-advanced-slot.sh -c "$(printf 'test -d $%s/source' "$VAR")"
     test-snapd-content-advanced-slot.sh -c "$(printf 'test -e $%s/source/canary' "$VAR")"
