@@ -115,6 +115,9 @@ func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, err
 		if as.verifiedDevices == nil {
 			as.verifiedDevices = make(map[uint64]bool)
 		}
+		// Don't record 0:0 as those are all to easy to add in tests and would
+		// skew tests using zero-initialized structures. Real device numbers
+		// are not zero either so this is not a test-only conditional.
 		if fileData.Dev != 0 {
 			as.verifiedDevices[fileData.Dev] = true
 		}
