@@ -69,8 +69,7 @@ func IsRootWritableOverlay() (string, error) {
 					continue
 				}
 
-				// Make sure trailing slashes are predicatably
-				// missing
+				// Make sure trailing slashes are predictably missing
 				return dir, nil
 			}
 		}

@@ -308,15 +308,71 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
+			// Detach the mount point instead of unmounting it if requested.
 			flags := umountNoFollow
 			if c.Entry.XSnapdDetach() {
 				flags |= syscall.MNT_DETACH
 			}
+
+			// Perform the raw unmount operation.
 			err = sysUnmount(c.Entry.Dir, flags)
 			if err == nil {
 				as.AddChange(c)
 			}
 			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
+			if err != nil {
+				return err
+			}
+
+			// Open a path of the file we are considering the removal of.
+			path := c.Entry.Dir
+			var fd int
+			fd, err = OpenPath(path)
+			if err != nil {
+				return err
+			}
+			defer sysClose(fd)
+
+			// Don't attempt to remove anything from squashfs.
+			var statfsBuf syscall.Statfs_t
+			err = sysFstatfs(fd, &statfsBuf)
+			if err != nil {
+				return err
+			}
+			if statfsBuf.Type == SquashfsMagic {
+				return nil
+			}
+
+			if kind == "file" {
+				// Don't attempt to remove non-empty files.
+				var statBuf syscall.Stat_t
+				err = sysFstat(fd, &statBuf)
+				if err != nil {
+					return err
+				}
+				if statBuf.Size != 0 {
+					return nil
+				}
+			}
+			// Remove the file or directory while using the full path. There's
+			// no way to avoid a race here since there's no way to unlink a
+			// file solely by file descriptor.
+			err = osRemove(path)
+			if err != nil {
+				logger.Debugf("error from osRemove: %T %v", err, err)
+			}
+			// Unpack the error that osRemove wraps.
+			if packed, ok := err.(*os.PathError); ok {
+				err = packed.Err
+				logger.Debugf("packed error from osRemove: %T %v", err, err)
+			}
+			// If we were removing a directory but it was not empty then just
+			// ignore the error. This is the equivalent of the non-empty file
+			// check we do above. The "busy" error is more interesting, I don't
+			// know why it is needed yet.
+			if kind == "" && (err == syscall.ENOTEMPTY || err == syscall.EEXIST || err == syscall.EBUSY || err == syscall.EROFS) {
+				return nil
+			}
 		}
 		return err
 	case Keep:
