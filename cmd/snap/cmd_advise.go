@@ -61,24 +61,29 @@ func init() {
 	cmd := addCommand("advise-snap", shortAdviseSnapHelp, longAdviseSnapHelp, func() flags.Commander {
 		return &cmdAdviseSnap{}
 	}, map[string]string{
-		"command":  i18n.G("Advise on snaps that provide the given command"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"command": i18n.G("Advise on snaps that provide the given command"),
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"from-apt": i18n.G("Advise will talk to apt via an apt hook"),
-		"format":   i18n.G("Use the given output format"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"format": i18n.G("Use the given output format"),
 	}, []argDesc{
-		{name: "<command or pkg>"},
+		// TRANSLATORS: This needs to be wrapped in <>s.
+		{name: i18n.G("<command or pkg>")},
 	})
 	cmd.hidden = true
 }
 
 func outputAdviseExactText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, "\n")
+	// TRANSLATORS: %q is a command name (like "gimp" or "loimpress")
 	fmt.Fprintf(Stdout, i18n.G("Command %q not found, but can be installed with:\n"), command)
 	fmt.Fprintf(Stdout, "\n")
 	for _, snap := range result {
 		fmt.Fprintf(Stdout, "sudo snap install %s\n", snap.Snap)
 	}
 	fmt.Fprintf(Stdout, "\n")
-	fmt.Fprintf(Stdout, "See 'snap info <snap name>' for additional versions.\n")
+	fmt.Fprintln(Stdout, i18n.G("See 'snap info <snap name>' for additional versions."))
 	fmt.Fprintf(Stdout, "\n")
 	return nil
 }
@@ -88,10 +93,10 @@ func outputAdviseMisspellText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("Command %q not found, did you mean:\n"), command)
 	fmt.Fprintf(Stdout, "\n")
 	for _, snap := range result {
-		fmt.Fprintf(Stdout, " command %q from snap %q\n", snap.Command, snap.Snap)
+		fmt.Fprintf(Stdout, i18n.G(" command %q from snap %q\n"), snap.Command, snap.Snap)
 	}
 	fmt.Fprintf(Stdout, "\n")
-	fmt.Fprintf(Stdout, "See 'snap info <snap name>' for additional versions.\n")
+	fmt.Fprintln(Stdout, i18n.G("See 'snap info <snap name>' for additional versions."))
 	fmt.Fprintf(Stdout, "\n")
 	return nil
 }

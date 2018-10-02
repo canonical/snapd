@@ -65,7 +65,9 @@ sufficient time has passed.
 
 func init() {
 	addCommand("warnings", shortWarningsHelp, longWarningsHelp, func() flags.Commander { return &cmdWarnings{} }, timeDescs.also(map[string]string{
-		"all":     i18n.G("Show all warnings"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"all": i18n.G("Show all warnings"),
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"verbose": i18n.G("Show more information"),
 	}), nil)
 	addCommand("okay", shortOkayHelp, longOkayHelp, func() flags.Commander { return &cmdOkay{} }, nil, nil)
