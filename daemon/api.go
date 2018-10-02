@@ -1424,6 +1424,8 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	flags.RemoveSnapPath = true
 
+	flags.Unaliased = isTrue(form, "unaliased")
+
 	// find the file for the "snap" form field
 	var snapBody multipart.File
 	var origPath string
