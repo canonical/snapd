@@ -107,7 +107,7 @@ func (snapshotSuite) TestAllActiveSnapNamesError(c *check.C) {
 	c.Check(names, check.IsNil)
 }
 
-func (snapshotSuite) TestSnapnamesInSnapshotSet(c *check.C) {
+func (snapshotSuite) TestSnapSummariesInSnapshotSet(c *check.C) {
 	shotfileA, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
 	defer shotfileA.Close()
@@ -119,7 +119,7 @@ func (snapshotSuite) TestSnapnamesInSnapshotSet(c *check.C) {
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
 			// wanted
-			Snapshot: client.Snapshot{SetID: setID, Snap: "a-snap", SnapID: "a-id"},
+			Snapshot: client.Snapshot{SetID: setID, Snap: "a-snap", SnapID: "a-id", Epoch: snap.Epoch{Read: []uint32{42}, Write: []uint32{17}}},
 			File:     shotfileA,
 		}), check.IsNil)
 		c.Assert(f(&backend.Reader{
@@ -136,14 +136,15 @@ func (snapshotSuite) TestSnapnamesInSnapshotSet(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
+	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
 	c.Assert(err, check.IsNil)
-	c.Check(snaps, check.DeepEquals, []string{"a-snap", "b-snap"})
-	c.Check(ids, check.DeepEquals, []string{"a-id", "b-id"})
-	c.Check(files, check.DeepEquals, []string{shotfileA.Name(), shotfileB.Name()})
+	c.Assert(summaries.AsMaps(), check.DeepEquals, []map[string]string{
+		{"snap": "a-snap", "snapID": "a-id", "filename": shotfileA.Name(), "epoch": `{"read":[42],"write":[17]}`},
+		{"snap": "b-snap", "snapID": "b-id", "filename": shotfileB.Name(), "epoch": "0"},
+	})
 }
 
-func (snapshotSuite) TestSnapnamesInSnapshotSetSnaps(c *check.C) {
+func (snapshotSuite) TestSnapSummariesInSnapshotSetSnaps(c *check.C) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
@@ -168,14 +169,14 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetSnaps(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, []string{"a-snap"})
+	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"a-snap"})
 	c.Assert(err, check.IsNil)
-	c.Check(snaps, check.DeepEquals, []string{"a-snap"})
-	c.Check(ids, check.DeepEquals, []string{"a-id"})
-	c.Check(files, check.DeepEquals, []string{shotfile.Name()})
+	c.Check(summaries.AsMaps(), check.DeepEquals, []map[string]string{
+		{"snap": "a-snap", "snapID": "a-id", "filename": shotfile.Name(), "epoch": "0"},
+	})
 }
 
-func (snapshotSuite) TestSnapnamesInSnapshotSetErrors(c *check.C) {
+func (snapshotSuite) TestSnapSummariesInSnapshotSetErrors(c *check.C) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
@@ -192,14 +193,12 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetErrors(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
+	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
 	c.Assert(err, check.Equals, errBad)
-	c.Check(snaps, check.IsNil)
-	c.Check(ids, check.IsNil)
-	c.Check(files, check.IsNil)
+	c.Check(summaries, check.IsNil)
 }
 
-func (snapshotSuite) TestSnapnamesInSnapshotSetNotFound(c *check.C) {
+func (snapshotSuite) TestSnapSummariesInSnapshotSetNotFound(c *check.C) {
 	setID := uint64(42)
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
@@ -215,25 +214,21 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetNotFound(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, nil)
+	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
 	c.Assert(err, check.Equals, client.ErrSnapshotSetNotFound)
-	c.Check(snaps, check.IsNil)
-	c.Check(ids, check.IsNil)
-	c.Check(files, check.IsNil)
+	c.Check(summaries, check.IsNil)
 }
 
-func (snapshotSuite) TestSnapnamesInSnapshotSetEmptyNotFound(c *check.C) {
+func (snapshotSuite) TestSnapSummariesInSnapshotSetEmptyNotFound(c *check.C) {
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error { return nil }
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(42, nil)
+	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(42, nil)
 	c.Assert(err, check.Equals, client.ErrSnapshotSetNotFound)
-	c.Check(snaps, check.IsNil)
-	c.Check(ids, check.IsNil)
-	c.Check(files, check.IsNil)
+	c.Check(summaries, check.IsNil)
 }
 
-func (snapshotSuite) TestSnapnamesInSnapshotSetSnapNotFound(c *check.C) {
+func (snapshotSuite) TestSnapSummariesInSnapshotSetSnapNotFound(c *check.C) {
 	setID := uint64(42)
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
@@ -249,11 +244,9 @@ func (snapshotSuite) TestSnapnamesInSnapshotSetSnapNotFound(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	snaps, ids, files, err := snapshotstate.SnapNamesInSnapshotSet(setID, []string{"b-snap"})
+	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"b-snap"})
 	c.Assert(err, check.Equals, client.ErrSnapshotSnapsNotFound)
-	c.Check(snaps, check.IsNil)
-	c.Check(ids, check.IsNil)
-	c.Check(files, check.IsNil)
+	c.Check(summaries, check.IsNil)
 }
 
 func (snapshotSuite) TestCheckConflict(c *check.C) {
