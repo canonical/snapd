@@ -11,7 +11,7 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-ssh-keys
+    install_local test-snapd-sh
 
     if [ -d "$KEYSDIR" ]; then
         cp -rf "$KEYSDIR" "$KEYSDIR".old
@@ -30,28 +30,28 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i ssh-keys | MATCH -- '^- +test-snapd-ssh-keys:ssh-keys'
+    snap interfaces -i ssh-keys | MATCH -- '^- +test-snapd-sh:ssh-keys'
 
     echo "When the interface is connected"
-    snap connect test-snapd-ssh-keys:ssh-keys
+    snap connect test-snapd-sh:ssh-keys
 
     echo "Then the snap is able to check the ssh version"
-    test-snapd-ssh-keys.sh -c "ssh -V"
+    test-snapd-sh.with-ssh-keys-plug -c "ssh -V"
 
     echo "And the snap is able to read public/private keys and ssh configuration files as well"
-    test-snapd-ssh-keys.sh -c "cat $TESTKEY"
-    test-snapd-ssh-keys.sh -c "cat $TESTKEY.pub"
-    test-snapd-ssh-keys.sh -c "cat /etc/ssh/ssh_config"
+    test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY"
+    test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY.pub"
+    test-snapd-sh.with-ssh-keys-plug -c "cat /etc/ssh/ssh_config"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-ssh-keys:ssh-keys
+    snap disconnect test-snapd-sh:ssh-keys
 
     echo "Then the snap is not able to read a ssh private key"
-    if test-snapd-ssh-keys.sh -c "cat $TESTKEY" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to ssh"
         exit 1
     fi

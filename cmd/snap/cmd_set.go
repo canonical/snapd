@@ -55,12 +55,12 @@ func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, waitDescs, []argDesc{
 		{
 			name: "<snap>",
-			// TRANSLATORS: This should probably not start with a lowercase letter.
+			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("The snap to configure (e.g. hello-world)"),
 		}, {
 			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<conf value>"),
-			// TRANSLATORS: This should probably not start with a lowercase letter.
+			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Configuration value (key=value)"),
 		},
 	})
@@ -83,13 +83,12 @@ func (x *cmdSet) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	cli := Client()
-	id, err := cli.SetConf(snapName, patchValues)
+	id, err := x.client.SetConf(snapName, patchValues)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, id); err != nil {
+	if _, err := x.wait(id); err != nil {
 		if err == noWait {
 			return nil
 		}

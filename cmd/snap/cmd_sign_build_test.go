@@ -38,7 +38,7 @@ type SnapSignBuildSuite struct {
 var _ = Suite(&SnapSignBuildSuite{})
 
 func (s *SnapSignBuildSuite) TestSignBuildMandatoryFlags(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"sign-build", "foo_1_amd64.snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", "foo_1_amd64.snap"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "the required flags `--developer-id' and `--snap-id' were not specified")
 	c.Check(s.Stdout(), Equals, "")
@@ -46,7 +46,7 @@ func (s *SnapSignBuildSuite) TestSignBuildMandatoryFlags(c *C) {
 }
 
 func (s *SnapSignBuildSuite) TestSignBuildMissingSnap(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"sign-build", "foo_1_amd64.snap", "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", "foo_1_amd64.snap", "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot compute snap \"foo_1_amd64.snap\" digest: open foo_1_amd64.snap: no such file or directory")
 	c.Check(s.Stdout(), Equals, "")
@@ -63,7 +63,7 @@ func (s *SnapSignBuildSuite) TestSignBuildMissingKey(c *C) {
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser().ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot use \"default\" key: cannot find key named \"default\" in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
@@ -87,7 +87,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorks(c *C) {
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser().ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, IsNil)
 
 	assertion, err := asserts.Decode([]byte(s.Stdout()))
@@ -122,7 +122,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorksDevelGrade(c *C) {
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser().ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
 	c.Assert(err, IsNil)
 	assertion, err := asserts.Decode([]byte(s.Stdout()))
 	c.Assert(err, IsNil)

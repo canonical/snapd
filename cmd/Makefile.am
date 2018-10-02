@@ -15,7 +15,15 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim snapd-generator snapd-env-generator
+subdirs = \
+		  libsnap-confine-private \
+		  snap-confine \
+		  snap-discard-ns \
+		  snap-gdb-shim \
+		  snap-update-ns \
+		  snapd-env-generator \
+		  snapd-generator \
+		  system-shutdown
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later

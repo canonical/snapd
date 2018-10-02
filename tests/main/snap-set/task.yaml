@@ -8,7 +8,7 @@ prepare: |
     install_local basic
 
     echo "Build failing hooks package"
-    snap pack $TESTSLIB/snaps/failing-config-hooks
+    snap pack "$TESTSLIB"/snaps/failing-config-hooks
 
     echo "Build package with hook to run snapctl set"
     install_local snapctl-hooks

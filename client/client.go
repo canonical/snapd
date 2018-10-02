@@ -77,6 +77,9 @@ type Client struct {
 	interactive bool
 
 	maintenance error
+
+	warningCount     int
+	warningTimestamp time.Time
 }
 
 // New returns a new instance of Client
@@ -115,6 +118,13 @@ func New(config *Config) *Client {
 // Maintenance returns an error reflecting the daemon maintenance status or nil.
 func (client *Client) Maintenance() error {
 	return client.maintenance
+}
+
+// WarningsSummary returns the number of warnings that are ready to be shown to
+// the user, and the timestamp of the most recently added warning (useful for
+// silencing the warning alerts, and OKing the returned warnings).
+func (client *Client) WarningsSummary() (count int, timestamp time.Time) {
+	return client.warningCount, client.warningTimestamp
 }
 
 func (client *Client) WhoAmI() (string, error) {
@@ -306,6 +316,9 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 		}
 	}
 
+	client.warningCount = rsp.WarningCount
+	client.warningTimestamp = rsp.WarningTimestamp
+
 	return &rsp.ResultInfo, nil
 }
 
@@ -371,6 +384,9 @@ type response struct {
 	StatusCode int             `json:"status-code"`
 	Type       string          `json:"type"`
 	Change     string          `json:"change"`
+
+	WarningCount     int       `json:"warning-count"`
+	WarningTimestamp time.Time `json:"warning-timestamp"`
 
 	ResultInfo
 
