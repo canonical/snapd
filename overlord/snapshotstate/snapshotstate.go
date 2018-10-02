@@ -74,10 +74,10 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 // snapshot set when deciding whether to check/forget/restore it.
 type snapshotSnapSummaries []*snapshotSnapSummary
 
-func (shsums snapshotSnapSummaries) snapNames() []string {
-	names := make([]string, len(shsums))
-	for i, shsum := range shsums {
-		names[i] = shsum.snap
+func (summaries snapshotSnapSummaries) snapNames() []string {
+	names := make([]string, len(summaries))
+	for i, summary := range summaries {
+		names[i] = summary.snap
 	}
 	return names
 }

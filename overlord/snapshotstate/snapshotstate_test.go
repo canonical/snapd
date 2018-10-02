@@ -138,7 +138,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSet(c *check.C) {
 
 	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
 	c.Assert(err, check.IsNil)
-	c.Assert(summaries.Asplode(), check.DeepEquals, []map[string]string{
+	c.Assert(summaries.AsMaps(), check.DeepEquals, []map[string]string{
 		{"snap": "a-snap", "snapID": "a-id", "filename": shotfileA.Name(), "epoch": `{"read":[42],"write":[17]}`},
 		{"snap": "b-snap", "snapID": "b-id", "filename": shotfileB.Name(), "epoch": "0"},
 	})
@@ -171,7 +171,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetSnaps(c *check.C) {
 
 	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"a-snap"})
 	c.Assert(err, check.IsNil)
-	c.Check(summaries.Asplode(), check.DeepEquals, []map[string]string{
+	c.Check(summaries.AsMaps(), check.DeepEquals, []map[string]string{
 		{"snap": "a-snap", "snapID": "a-id", "filename": shotfile.Name(), "epoch": "0"},
 	})
 }
