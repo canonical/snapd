@@ -358,12 +358,20 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// no way to avoid a race here since there's no way to unlink a
 			// file solely by file descriptor.
 			err = osRemove(path)
-
+			if err != nil {
+				logger.Debugf("error from osRemove: %T %v", err, err)
+			}
+			// Unpack the error that osRemove wraps.
+			if packed, ok := err.(*os.PathError); ok {
+				err = packed.Err
+				logger.Debugf("packed error from osRemove: %T %v", err, err)
+			}
 			// If we were removing a directory but it was not empty then just
 			// ignore the error. This is the equivalent of the non-empty file
-			// check we do above.
-			if kind == "" && (err == syscall.ENOTEMPTY || err == syscall.EEXIST) {
-				err = nil
+			// check we do above. The "busy" error is more interesting, I don't
+			// know why it is needed yet.
+			if kind == "" && (err == syscall.ENOTEMPTY || err == syscall.EEXIST || err == syscall.EBUSY || err == syscall.EROFS) {
+				return nil
 			}
 		}
 		return err
