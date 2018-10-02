@@ -56,7 +56,7 @@ func (s *userdSuite) TearDownTest(c *C) {
 }
 
 func (s *userdSuite) TestUserdBadCommandline(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"userd", "extra-arg"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "extra-arg"})
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
@@ -81,7 +81,7 @@ func (s *userdSuite) TestUserd(c *C) {
 		c.Fatalf("%s does not appeared on the bus", needle)
 	}()
 
-	rest, err := snap.Parser().ParseArgs([]string{"userd"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
 	c.Assert(err, IsNil)
 	c.Check(rest, DeepEquals, []string{})
 	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")

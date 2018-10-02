@@ -415,7 +415,7 @@ distro_install_build_snapd(){
                 ;;
             fedora-*|amazon-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
+                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH%%:*}"/snapd*.rpm
                 ;;
             opensuse-*)
                 # shellcheck disable=SC2125
@@ -504,6 +504,7 @@ pkg_dependencies_ubuntu_classic(){
         gnome-keyring
         jq
         man
+        nfs-kernel-server
         printer-driver-cups-pdf
         python3-yaml
         upower
@@ -531,7 +532,6 @@ pkg_dependencies_ubuntu_classic(){
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
-                nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
@@ -595,6 +595,7 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
+        nfs-utils
         python3-yaml
         redhat-lsb-core
         rpm-build
@@ -615,6 +616,7 @@ pkg_dependencies_amazon(){
         man
         mock
         net-tools
+        nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
@@ -636,6 +638,7 @@ pkg_dependencies_opensuse(){
         jq
         lsb-release
         man
+        nfs-kernel-server
         python3-yaml
         netcat-openbsd
         osc
@@ -662,6 +665,7 @@ pkg_dependencies_arch(){
     libcap
     libx11
     net-tools
+    nfs-utils
     openbsd-netcat
     python
     python-docutils

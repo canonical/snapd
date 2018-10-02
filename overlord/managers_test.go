@@ -169,6 +169,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 	// registered
+	err = assertstate.Add(st, sysdb.GenericClassicModel())
+	c.Assert(err, IsNil)
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",

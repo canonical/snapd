@@ -61,6 +61,8 @@ type fakeOp struct {
 	rmAliases []*backend.Alias
 
 	userID int
+
+	otherInstances bool
 }
 
 type fakeOps []fakeOp
@@ -355,13 +357,13 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		panic("fake SnapAction unexpectedly called with more than 3 actions")
 	}
 
-	curByID := make(map[string]*store.CurrentSnap, len(currentSnaps))
+	curByInstanceName := make(map[string]*store.CurrentSnap, len(currentSnaps))
 	curSnaps := make(byName, len(currentSnaps))
 	for i, cur := range currentSnaps {
 		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
-		curByID[cur.SnapID] = cur
+		curByInstanceName[cur.InstanceName] = cur
 		curSnaps[i] = *cur
 	}
 	sort.Sort(curSnaps)
@@ -431,7 +433,10 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 		// refresh
 
-		cur := curByID[a.SnapID]
+		cur := curByInstanceName[a.InstanceName]
+		if cur == nil {
+			return nil, fmt.Errorf("internal error: no matching current snap for %q", a.InstanceName)
+		}
 		channel := a.Channel
 		if channel == "" {
 			channel = cur.TrackingChannel
@@ -619,12 +624,18 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	case "gadget":
 		snapType = snap.TypeGadget
 	}
+	if instanceName == "borken-in-setup" {
+		return snapType, fmt.Errorf("cannot install snap %q", instanceName)
+	}
 	return snapType, nil
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
+	}
+	if name == "borken-undo-setup" && si.Revision == snap.R(2) {
+		return nil, errors.New(`cannot read info for "borken-undo-setup" snap`)
 	}
 	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
@@ -769,6 +780,9 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p pro
 		path:  s.MountDir(),
 		stype: typ,
 	})
+	if s.InstanceName() == "borken-undo-setup" {
+		return errors.New(`cannot undo setup of "borken-undo-setup" snap`)
+	}
 	return nil
 }
 
@@ -817,6 +831,26 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
+	f.ops = append(f.ops, fakeOp{
+		op:             "remove-snap-data-dir",
+		name:           info.InstanceName(),
+		path:           snap.BaseDataDir(info.SnapName()),
+		otherInstances: otherInstances,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
+	f.ops = append(f.ops, fakeOp{
+		op:             "remove-snap-dir",
+		name:           s.InstanceName(),
+		path:           snap.BaseDir(s.SnapName()),
+		otherInstances: otherInstances,
 	})
 	return nil
 }
