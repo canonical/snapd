@@ -905,6 +905,20 @@ func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
 }
 
+func (s *SnapSuite) TestRefreshListLessOptions(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("expected to get 0 requests")
+	})
+
+	for _, flag := range []string{"--beta", "--channel=potato", "--classic"} {
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag})
+		c.Assert(err, check.ErrorMatches, "--list does not take mode nor channel flags")
+
+		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag, "some-snap"})
+		c.Assert(err, check.ErrorMatches, "--list does not accept positional arguments")
+	}
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
