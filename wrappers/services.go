@@ -129,45 +129,95 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 		}(app)
 
-		if len(app.Sockets) == 0 && app.Timer == nil {
-			// check if the service is disabled, if so don't start it up
-			// this could happen for example if the service was disabled in
-			// the install hook by snapctl
-			isEnabled, err := sysd.IsEnabled(app.ServiceName())
-			if err != nil {
-				return err
-			}
-			if isEnabled {
-				services = append(services, app.ServiceName())
-			}
+		// check if the service is disabled, if so don't start it up
+		// this could happen for example if the service was disabled in
+		// the install hook by snapctl
+		isServiceEnabled, err := sysd.IsEnabled(app.ServiceName())
+		if err != nil {
+			return err
 		}
 
-		for _, socket := range app.Sockets {
-			socketService := filepath.Base(socket.File())
-			// enable the socket
-			if err := sysd.Enable(socketService); err != nil {
-				return err
+		// if this service has sockets, then we need to check if the sockets are disabled
+		// because if a service has sockets, then it's status is always reported as "static"
+		// because the service is socket-activated and systemd can't say if the service is "enabled"
+		// so we base the decision on whether to start the service/sockets off whether the *sockets*
+		// are all disabled or not
+		// it's currently unclear what is the right thing to have happen if only some of the
+		// sockets are disabled, in that case it's still probably better to do nothing as
+		// the alternative is that we accidentally started a service we should have, which
+		// can break the install if the service was really intended to be disabled from the
+		// install hook, etc.
+		switch {
+		case len(app.Sockets) == 0 && isServiceEnabled:
+			// start the service normally by adding the service name to the list of services to start up
+			services = append(services, app.ServiceName())
+
+			// also if there's a timer we start that too - note that the standard status's of enabled/disabled
+			// apply to the timer service as well, so if the main service is enabled, we will just ignore if the
+			// timer was enabled before this point and just re-enable it, any normal configuration should have
+			// disabled the service as well as the timer, otherwise the timer would just bring the service back
+			// up again
+
+			if app.Timer != nil {
+				timerService := filepath.Base(app.Timer.File())
+				// enable the timer
+				if err := sysd.Enable(timerService); err != nil {
+					return err
+				}
+
+				if err := sysd.Start(timerService); err != nil {
+					return err
+				}
+			}
+		case len(app.Sockets) > 0:
+			// there are sockets for this service, check if any of them are enabled
+			sockNames := make([]string, 0)
+			for _, sock := range app.Sockets {
+				socketService := filepath.Base(sock.File())
+				sockNames = append(sockNames, socketService)
+				isSockEnabled, err := sysd.IsEnabled(socketService)
+				if err != nil {
+					return err
+				}
+
+				if !isSockEnabled {
+					// then at least one of the sockets isn't activated, so just exit
+					goto exit
+				}
+			}
+			// we got to the end of the loop and all of the sockets were enabled, so we should start up
+			// the service + sockets
+			services = append(services, app.ServiceName())
+			for _, socketService := range sockNames {
+				// enable the socket
+				if err := sysd.Enable(socketService); err != nil {
+					return err
+				}
+
+				if err := sysd.Start(socketService); err != nil {
+					return err
+				}
 			}
 
-			if err := sysd.Start(socketService); err != nil {
-				return err
+			// also start up the timer if it exists, though the case where a service has both a timer
+			// and a socket seems unlikely
+			if app.Timer != nil {
+				timerService := filepath.Base(app.Timer.File())
+				// enable the timer
+				if err := sysd.Enable(timerService); err != nil {
+					return err
+				}
+
+				if err := sysd.Start(timerService); err != nil {
+					return err
+				}
 			}
+		exit:
+			break
 		}
-
-		if app.Timer != nil {
-			timerService := filepath.Base(app.Timer.File())
-			// enable the timer
-			if err := sysd.Enable(timerService); err != nil {
-				return err
-			}
-
-			if err := sysd.Start(timerService); err != nil {
-				return err
-			}
-		}
-
 	}
 
+	// start up the services formally, any timers/sockets would have been handled above
 	if len(services) > 0 {
 		if err := sysd.Start(services...); err != nil {
 			// cleanup was set up by iterating over apps
