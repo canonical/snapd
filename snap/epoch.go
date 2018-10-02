@@ -162,16 +162,8 @@ func (e *Epoch) Validate() error {
 		return &EpochError{Message: epochListNotSorted}
 	}
 
-	// O(𝑚𝑛) instead of O(𝑚log𝑛) for the binary search we could do, but
-	// 𝑚 and 𝑛 <10 per above, so the simple solution is good enough (and if
-	// that alone makes you nervous, know that it is ~2× faster in the
-	// worst case; bisect starts being faster at ~50 entries).
-	for _, r := range e.Read {
-		for _, w := range e.Write {
-			if r == w {
-				return nil
-			}
-		}
+	if intersect(e.Read, e.Write) {
+		return nil
 	}
 	return &EpochError{Message: noEpochIntersection}
 }
@@ -232,7 +224,14 @@ func (e *Epoch) CanRead(other *Epoch) bool {
 		ws = []uint32{0}
 	}
 
-	// see the note above about the O of this vs the allowed lengths of Read and Write
+	return intersect(rs, ws)
+}
+
+func intersect(rs, ws []uint32) bool {
+	// O(𝑚𝑛) instead of O(𝑚log𝑛) for the binary search we could do, but
+	// 𝑚 and 𝑛 < 10, so the simple solution is good enough (and if that
+	// alone makes you nervous, know that it is ~2× faster in the worst
+	// case; bisect starts being faster at ~50 entries).
 	for _, r := range rs {
 		for _, w := range ws {
 			if r == w {
