@@ -45,14 +45,14 @@ var (
 	DoForget                   = doForget
 )
 
-func (shsums snapshotSnapSummaries) Asplode() []map[string]string {
-	out := make([]map[string]string, len(shsums))
-	for i, shsum := range shsums {
+func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
+	out := make([]map[string]string, len(summaries))
+	for i, summary := range summaries {
 		out[i] = map[string]string{
-			"snap":     shsum.snap,
-			"snapID":   shsum.snapID,
-			"filename": shsum.filename,
-			"epoch":    shsum.epoch.String(),
+			"snap":     summary.snap,
+			"snapID":   summary.snapID,
+			"filename": summary.filename,
+			"epoch":    summary.epoch.String(),
 		}
 	}
 	return out
