@@ -579,9 +579,15 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
+	u, err := userCurrent()
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+	}
+	xdgRuntimeDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
+
 	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
 	// that the document portal is up and running.
-	expectedMountPoint := fmt.Sprintf("%s/%d/doc", dirs.XdgRuntimeDirBase, os.Getuid())
+	expectedMountPoint := filepath.Join(xdgRuntimeDir, "doc")
 	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
 		logger.Noticef("Could not check document portal mount state: %s", err)
 	} else if mounted {
@@ -596,18 +602,13 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	u, err := userCurrent()
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
-	}
-	portalsUnavailableFile := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".snap-portals-unavailable")
-
 	// We've previously tried to start the document portal and
 	// were told the service is unknown: don't bother connecting
 	// to the session bus again.
 	//
 	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
 	// full logout/login or reboot cycles.
+	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".snap-portals-unavailable")
 	if osutil.FileExists(portalsUnavailableFile) {
 		return nil
 	}
