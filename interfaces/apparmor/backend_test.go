@@ -1404,10 +1404,30 @@ func (s *backendSuite) TestNsProfile(c *C) {
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
-	restore := apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "support-level:full", "policy:default"})
+}
+
+func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
+	defer restore()
+	restore = osutil.MockKernelVersion("4.16.10-1-default")
+	defer restore()
+	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "support-level:partial", "policy:default"})
+
+	restore = osutil.MockKernelVersion("4.14.1-default")
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "support-level:partial", "policy:downgraded"})
 }
 
 func (s *backendSuite) TestParallelInstanceSetupSnapUpdateNS(c *C) {

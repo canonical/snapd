@@ -168,6 +168,7 @@ capability setuid,
 /etc/resolvconf/update.d/* ix,
 
 # wpa_suplicant
+/{,var/}run/wpa_supplicant/ w,
 /{,var/}run/wpa_supplicant/** rw,
 /etc/wpa_supplicant/{,**} ixr,
 

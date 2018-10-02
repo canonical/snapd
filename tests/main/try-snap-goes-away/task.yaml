@@ -9,38 +9,39 @@ environment:
     TRYDIR: $(pwd)/trydir
 
 restore: |
-    rm -rf $TRYDIR
+    rm -rf "$TRYDIR"
 
 execute: |
-    mkdir -p $TRYDIR
+    mkdir -p "$TRYDIR"
 
-    cp -ar  $TESTSLIB/snaps/$SNAP_NAME/* $TRYDIR
+    cp -ar  "$TESTSLIB"/snaps/"$SNAP_NAME"/* "$TRYDIR"
 
     echo Trying a snap
-    snap try $TRYDIR
-    snap list |MATCH $SNAP_NAME
+    snap try "$TRYDIR"
+    snap list |MATCH "$SNAP_NAME"
 
     echo Removing a snap try dir does not break everything
-    rm -rf $TRYDIR
+    rm -rf "$TRYDIR"
     snap list |MATCH core
 
     echo A snap in broken state can be removed
-    snap remove $SNAP_NAME
+    snap remove "$SNAP_NAME"
 
     echo And is gone afterwards
-    snap list |MATCH -v $SNAP_NAME
+    snap list |MATCH -v "$SNAP_NAME"
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo And all its binaries
-    N="$(ls $SNAP_MOUNT_DIR/bin/$SNAP_NAME*|wc -l)"
+    N="$(find $SNAP_MOUNT_DIR/bin -name "$SNAP_NAME*"|wc -l)"
     if [ "$N" -ne 0 ]; then
        echo "Some binaries are not cleaned"
        exit 1
     fi
 
     echo And all its services
-    N="$(ls /etc/systemd/system/snap.$SNAP_NAME.*|wc -l)"
+    N="$(find /etc/systemd/system -name "snap.$SNAP_NAME*" |wc -l)"
     if [ "$N" -ne 0 ]; then
        echo "Some services are not cleaned"
        exit 1
