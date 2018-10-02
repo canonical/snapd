@@ -11,15 +11,8 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    devmode=
-    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-        # TODO parallel-install: disable devmode once AppArmor profile updates
-        # are in
-        devmode=--devmode
-    fi
-
     install_local test-snapd-tools
-    install_local_as test-snapd-tools test-snapd-tools_foo $devmode
+    install_local_as test-snapd-tools test-snapd-tools_foo
 
     su -l -c '! test -d ~/snap/test-snapd-tools' test
     su -l -c '! test -d ~/snap/test-snapd-tools_foo' test

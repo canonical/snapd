@@ -17,7 +17,7 @@
  *
  */
 
-package selftest_test
+package sanity_test
 
 import (
 	"os"
@@ -25,16 +25,16 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/sanity"
 )
 
-func (s *selftestSuite) TestApparmorUsable(c *C) {
+func (s *sanitySuite) TestCheckApparmorUsable(c *C) {
 	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := selftest.MockAppArmorProfilesPath(epermProfilePath)
+	restore := sanity.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()
 	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
 	c.Assert(err, IsNil)
 
-	err = selftest.ApparmorUsable()
+	err = sanity.CheckApparmorUsable()
 	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
 }

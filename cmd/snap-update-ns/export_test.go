@@ -146,7 +146,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
@@ -172,6 +172,10 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 
 func (as *Assumptions) IsRestricted(path string) bool {
 	return as.isRestricted(path)
+}
+
+func (as *Assumptions) PastChanges() []*Change {
+	return as.pastChanges
 }
 
 func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {

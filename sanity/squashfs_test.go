@@ -17,17 +17,17 @@
  *
  */
 
-package selftest_test
+package sanity_test
 
 import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/testutil"
 )
 
-func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
+func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
@@ -38,7 +38,7 @@ func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	err := selftest.TrySquashfsMount()
+	err := sanity.CheckSquashfsMount()
 	c.Check(err, IsNil)
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -54,7 +54,7 @@ func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
 	})
 }
 
-func (s *selftestSuite) TestTrySquasfsMountNotHappy(c *C) {
+func (s *sanitySuite) TestCheckSquashfsMountNotHappy(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
@@ -64,7 +64,7 @@ func (s *selftestSuite) TestTrySquasfsMountNotHappy(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	err := selftest.TrySquashfsMount()
+	err := sanity.CheckSquashfsMount()
 	c.Check(err, ErrorMatches, "cannot mount squashfs image using.*")
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -77,7 +77,7 @@ func (s *selftestSuite) TestTrySquasfsMountNotHappy(c *C) {
 	})
 }
 
-func (s *selftestSuite) TestTrySquasfsMountWrongContent(c *C) {
+func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
@@ -87,7 +87,7 @@ func (s *selftestSuite) TestTrySquasfsMountWrongContent(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	err := selftest.TrySquashfsMount()
+	err := sanity.CheckSquashfsMount()
 	c.Check(err, ErrorMatches, `unexpected squashfs canary content: "wrong content\\n"`)
 
 	c.Check(mockMount.Calls(), HasLen, 1)

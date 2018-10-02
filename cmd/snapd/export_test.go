@@ -17,26 +17,28 @@
  *
  */
 
-package selftest
+package main
 
-var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
-	ApparmorUsable     = apparmorUsable
+import (
+	"time"
 )
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
+var (
+	Run = run
+)
+
+func MockSanityCheck(f func() error) (restore func()) {
+	oldSanityCheck := sanityCheck
+	sanityCheck = f
 	return func() {
-		checks = oldChecks
+		sanityCheck = oldSanityCheck
 	}
 }
 
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
+func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
+	oldCheckRunningConditionsRetryDelay := checkRunningConditionsRetryDelay
+	checkRunningConditionsRetryDelay = d
 	return func() {
-		apparmorProfilesPath = old
+		checkRunningConditionsRetryDelay = oldCheckRunningConditionsRetryDelay
 	}
 }

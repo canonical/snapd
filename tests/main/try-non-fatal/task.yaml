@@ -6,14 +6,14 @@ execute: |
     echo "Given a tried snap"
     base_dir=$(mktemp -d)
     chmod 0755 "$base_dir"
-    cp -R $TESTSLIB/snaps/test-snapd-tools/* $base_dir
-    snap try $base_dir
+    cp -R "$TESTSLIB"/snaps/test-snapd-tools/* "$base_dir"
+    snap try "$base_dir"
 
     echo "Then it is listed as installed"
     snap list | grep -Pq "^test-snapd-tools +.*?try"
 
     echo "When its base directory is removed"
-    rm -rf $base_dir
+    rm -rf "$base_dir"
 
     echo "Then the snap is listed as a broken install"
     snap list | grep -Pq "^test-snapd-tools +.*?broken"

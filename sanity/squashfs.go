@@ -17,7 +17,7 @@
  *
  */
 
-package selftest
+package sanity
 
 import (
 	"bytes"
@@ -35,6 +35,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
+
+func init() {
+	checks = append(checks, checkSquashfsMount)
+}
 
 /* This image was created using:
 
@@ -64,14 +68,14 @@ INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
 bAEA+f+YuAAQAAA=
 `)
 
-func trySquashfsMount() error {
-	tmpSquashfsFile, err := ioutil.TempFile("", "selftest-squashfs-")
+func checkSquashfsMount() error {
+	tmpSquashfsFile, err := ioutil.TempFile("", "sanity-squashfs-")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmpSquashfsFile.Name())
 
-	tmpMountDir, err := ioutil.TempDir("", "selftest-mountpoint-")
+	tmpMountDir, err := ioutil.TempDir("", "sanity-mountpoint-")
 	if err != nil {
 		return err
 	}
@@ -101,7 +105,7 @@ func trySquashfsMount() error {
 	defer func() {
 		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
 			// os.RemoveAll(tmpMountDir) will fail here if umount fails
-			logger.Noticef("cannot unmount selftest squashfs image: %v", osutil.OutputErr(output, err))
+			logger.Noticef("cannot unmount sanity check squashfs image: %v", osutil.OutputErr(output, err))
 		}
 	}()
 

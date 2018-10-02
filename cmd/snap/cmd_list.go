@@ -54,6 +54,7 @@ type cmdList struct {
 func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
 		colorDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"all": i18n.G("Show all revisions"),
 		}), nil)
 }

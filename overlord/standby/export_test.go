@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -17,19 +16,12 @@
  *
  */
 
-package selftest
+package standby
 
-var checks = []func() error{
-	trySquashfsMount,
-	apparmorUsable,
-}
+import (
+	"time"
+)
 
-func Run() error {
-	for _, f := range checks {
-		if err := f(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+func (m *StandbyOpinions) SetStartTime(t time.Time) {
+	m.startTime = t
 }
