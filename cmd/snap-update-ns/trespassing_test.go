@@ -126,7 +126,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfs(c *C) {
 	c.Assert(ok, Equals, false)
 }
 
-// We allowed allowed to write to tmpfs that was mounted by snapd.
+// We are allowed to write to tmpfs that was mounted by snapd.
 func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
@@ -147,7 +147,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	c.Assert(ok, Equals, true)
 }
 
-// We allowed allowed to write to directory beneath a tmpfs that was mounted by snapd.
+// We are allowed to write to directory beneath a tmpfs that was mounted by snapd.
 func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
@@ -183,7 +183,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C)
 	c.Assert(ok, Equals, true)
 }
 
-// We allowed allowed to write to directory which is a bind mount of something, beneath a tmpfs that was mounted by snapd.
+// We are allowed to write to directory which is a bind mount of something, beneath a tmpfs that was mounted by snapd.
 func (s *trespassingSuite) TestCanWriteToDirectoryUnderReboundTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
@@ -220,7 +220,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnderReboundTmpfsMountedBySnap
 	c.Assert(ok, Equals, false)
 }
 
-// We allowed allowed to write to an unrestricted path.
+// We are allowed to write to an unrestricted path.
 func (s *trespassingSuite) TestCanWriteToDirectoryUnrestricted(c *C) {
 	a := &update.Assumptions{}
 
