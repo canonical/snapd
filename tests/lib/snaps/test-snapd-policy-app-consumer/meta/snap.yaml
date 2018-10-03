@@ -77,6 +77,9 @@ apps:
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
+  device-buttons:
+    command: bin/run
+    plugs: [ device-buttons ]
   docker:
     command: bin/run
     plugs: [ docker ]
