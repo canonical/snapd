@@ -80,8 +80,12 @@ static void test_sc_load_facts__too_big(void)
 
 static void test_sc_load_facts__cannot_open(void)
 {
-	const char *fname = "facts.test";
+	if (getegid() == 0 || getgid() == 0) {
+		g_test_skip("this test cannot run as root");
+		return;
+	}
 
+	const char *fname = "facts.test";
 	g_test_queue_destroy(remove_file, (gpointer) fname);
 
 	if (g_test_subprocess()) {
