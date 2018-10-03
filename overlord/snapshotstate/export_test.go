@@ -114,7 +114,7 @@ func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
 	}
 }
 
-func MockBackendRestore(f func(*backend.Reader, context.Context, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
+func MockBackendRestore(f func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
 	old := backendRestore
 	backendRestore = f
 	return func() {
