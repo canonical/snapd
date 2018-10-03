@@ -24,18 +24,19 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
-const gpioKeysSummary = `allows access to gpio keys events`
+const deviceButtonsSummary = `allows access to device buttons as input events`
 
-const gpioKeysBaseDeclarationSlots = `
-  gpio-keys:
+const deviceButtonsBaseDeclarationSlots = `
+  device-buttons:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const gpioKeysConnectedPlugAppArmor = `
-# Description: Allow reading and writing events to gpio keys devices
+const deviceButtonsConnectedPlugAppArmor = `
+# Description: Allow reading and writing events to device buttons exposed as
+#              input events.
 
 #
 # evdev-based interface
@@ -56,34 +57,34 @@ const gpioKeysConnectedPlugAppArmor = `
 /sys/devices/**/input[0-9]*/capabilities/* r,
 `
 
-// Add the gpio keys devices. They come up with ENV{ID_PATH} set to
-// "platform-gpio-keys" value.
+// Add the device buttons realized in terms of GPIO. They come up with
+// ENV{ID_PATH} set to "platform-gpio-keys" value.
 //
 // Because of the unconditional /dev/input/event[0-9]* AppArmor rule, we need
 // to ensure that the device cgroup is in effect even when there are no
 // gpio keys present so that we don't give away all input to the snap.
-var gpioKeysConnectedPlugUDev = []string{
+var deviceButtonsConnectedPlugUDev = []string{
 	`KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_PATH}=="platform-gpio-keys"`,
 }
 
-type gpioKeysInterface struct {
+type deviceButtonsInterface struct {
 	commonInterface
 }
 
-func (iface *gpioKeysInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *deviceButtonsInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.TriggerSubsystem("input")
 	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
 }
 
 func init() {
-	registerIface(&gpioKeysInterface{commonInterface{
-		name:                  "gpio-keys",
-		summary:               gpioKeysSummary,
+	registerIface(&deviceButtonsInterface{commonInterface{
+		name:                  "device-buttons",
+		summary:               deviceButtonsSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  gpioKeysBaseDeclarationSlots,
-		connectedPlugAppArmor: gpioKeysConnectedPlugAppArmor,
-		connectedPlugUDev:     gpioKeysConnectedPlugUDev,
+		baseDeclarationSlots:  deviceButtonsBaseDeclarationSlots,
+		connectedPlugAppArmor: deviceButtonsConnectedPlugAppArmor,
+		connectedPlugUDev:     deviceButtonsConnectedPlugUDev,
 		reservedForOS:         true,
 	}})
 }
