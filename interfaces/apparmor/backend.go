@@ -435,6 +435,9 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		case "###SNAP_INSTANCE_NAME###":
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
+			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
+				snippets += strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+			}
 			return snippets
 		}
 		return ""
