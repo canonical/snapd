@@ -6591,3 +6591,110 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
 	c.Assert(results, IsNil)
 }
+
+func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo-2",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "foo-2-id",
+     "name": "foo-2",
+     "snap": {
+       "snap-id": "foo-2-id",
+       "name": "foo-2",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  },{
+      "error": {
+        "code": "duplicated-snap",
+         "message": "The Snap is present more than once in the request."
+      },
+      "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
+      "name": null,
+      "result": "error",
+      "snap": null,
+      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo-2",
+		},
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(err, DeepEquals, &store.SnapActionError{
+		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
+	})
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "foo-2")
+	c.Assert(results[0].SnapID, Equals, "foo-2-id")
+}
