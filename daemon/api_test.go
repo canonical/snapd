@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -313,8 +314,29 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
+	// realistic model setup
+	modelHdrs := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"brand-id":     "can0nical",
+		"model":        "pc",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, modelHdrs, nil, "")
+	c.Assert(err, check.IsNil)
+	model := a.(*asserts.Model)
+
+	snapstate.Model = devicestate.Model
+
+	err = assertstate.Add(st, model)
+	c.Assert(err, check.IsNil)
+
 	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "canonical",
+		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
 	})
@@ -398,12 +420,14 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 	return df
 }
 
-func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
-	snapID := name + "-id"
+func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+
+	snapID := snapName + "-id"
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:   snapID,
-		RealName: name,
+		RealName: snapName,
 		Revision: revision,
 		Channel:  "stable",
 	}
@@ -412,14 +436,15 @@ func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, deve
 	yamlText := fmt.Sprintf(`
 name: %s
 version: %s
-%s`, name, version, extraYaml)
+%s`, snapName, version, extraYaml)
 
 	// Mock the snap on disk
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, yamlText, sideInfo)
 	if active {
 		dir, rev := filepath.Split(snapInfo.MountDir())
 		c.Assert(os.Symlink(rev, dir+"current"), check.IsNil)
 	}
+	c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -448,7 +473,7 @@ version: %s
 		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 			"series":       "16",
 			"snap-id":      snapID,
-			"snap-name":    name,
+			"snap-name":    snapName,
 			"publisher-id": devAcct.AccountID(),
 			"timestamp":    time.Now().Format(time.RFC3339),
 		}, nil, "")
@@ -476,13 +501,14 @@ version: %s
 		c.Assert(err, check.IsNil)
 
 		var snapst snapstate.SnapState
-		snapstate.Get(st, name, &snapst)
+		snapstate.Get(st, instanceName, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
 		snapst.Channel = "stable"
+		snapst.InstanceKey = instanceKey
 
-		snapstate.Set(st, name, &snapst)
+		snapstate.Set(st, instanceName, &snapst)
 	}
 
 	return snapInfo
@@ -1532,18 +1558,29 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(2), false, "")
 	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(3), true, "")
+	s.mkInstalledInState(c, d, "local_foo", "foo", "v4", snap.R(4), true, "")
+	brokenInfo := s.mkInstalledInState(c, d, "local_bar", "foo", "v5", snap.R(5), true, "")
+	// make sure local_bar is 'broken'
+	err := os.Remove(filepath.Join(brokenInfo.MountDir(), "meta", "snap.yaml"))
+	c.Assert(err, check.IsNil)
 
+	expectedHappy := map[string]bool{
+		"local":     true,
+		"local_foo": true,
+		"local_bar": true,
+	}
 	for _, t := range []struct {
 		q        string
 		numSnaps int
 		typ      ResponseType
 	}{
-		{"?select=enabled", 1, "sync"},
-		{`?select=`, 1, "sync"},
-		{"", 1, "sync"},
-		{"?select=all", 3, "sync"},
+		{"?select=enabled", 3, "sync"},
+		{`?select=`, 3, "sync"},
+		{"", 3, "sync"},
+		{"?select=all", 5, "sync"},
 		{"?select=invalid-field", 0, "error"},
 	} {
+		c.Logf("trying: %v", t)
 		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/snaps%s", t.q), nil)
 		c.Assert(err, check.IsNil)
 		rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
@@ -1552,7 +1589,11 @@ func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
 		if rsp.Type != "error" {
 			snaps := snapList(rsp.Result)
 			c.Assert(snaps, check.HasLen, t.numSnaps)
-			c.Assert(snaps[0]["name"], check.Equals, "local")
+			seen := map[string]bool{}
+			for _, s := range snaps {
+				seen[s["name"].(string)] = true
+			}
+			c.Assert(seen, check.DeepEquals, expectedHappy)
 		}
 	}
 }
@@ -3670,6 +3711,32 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
+func (s *apiSuite) TestInstall(c *check.C) {
+	var calledName string
+
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledName = name
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		// Install the snap in developer mode
+		DevMode: true,
+		Snaps:   []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledName, check.Equals, "fake")
+}
+
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
@@ -3898,27 +3965,27 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
-					"snap":      "CONSUMER",
+					"snap":      "consumer",
 					"plug":      "plug",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "PRODUCER", "slot": "slot"},
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "PRODUCER",
+					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "CONSUMER", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
@@ -3963,7 +4030,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 				"name": "test",
 				"plugs": []interface{}{
 					map[string]interface{}{
-						"snap":  "CONSUMER",
+						"snap":  "consumer",
 						"plug":  "plug",
 						"label": "label",
 						"attrs": map[string]interface{}{
@@ -3972,7 +4039,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 					}},
 				"slots": []interface{}{
 					map[string]interface{}{
-						"snap":  "PRODUCER",
+						"snap":  "producer",
 						"slot":  "slot",
 						"label": "label",
 						"attrs": map[string]interface{}{
@@ -5492,6 +5559,10 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
+	st.Lock()
+	auth.SetDevice(st, nil)
+	st.Unlock()
+
 	email := "foo@example.com"
 
 	username, opts, err := getUserDetailsFromAssertion(st, email)
@@ -5880,6 +5951,16 @@ func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
+}
+
+func (s *postCreateUserSuite) TestSysInfoWorksDegraded(c *check.C) {
+	s.d.SetDegradedMode(fmt.Errorf("some error"))
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
 }
 
 // aliases
@@ -6445,6 +6526,28 @@ func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Unaliased, check.Equals, true)
+}
+
+func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"unaliased\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	// try a multipart/form-data upload
+	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
+	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
 func (s *apiSuite) TestSplitQS(c *check.C) {

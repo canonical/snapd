@@ -128,9 +128,17 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
-				info, err = snap.ReadInfo(seq.RealName, seq)
+				info, err = snap.ReadInfo(name, seq)
 				if err != nil {
-					break
+					// single revision may be broken
+					_, instanceKey := snap.SplitInstanceName(name)
+					info = &snap.Info{
+						SideInfo:    *seq,
+						InstanceKey: instanceKey,
+						Broken:      err.Error(),
+					}
+					// clear the error
+					err = nil
 				}
 				publisher, err = publisherAccount(st, info)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})

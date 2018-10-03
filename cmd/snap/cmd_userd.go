@@ -49,6 +49,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdUserd{}
 		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"autostart": i18n.G("Autostart user applications"),
 		}, nil)
 	cmd.hidden = true

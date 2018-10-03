@@ -292,6 +292,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
 
+	// Add snippets for parallel snap installation mapping
+	spec.(*Specification).AddOvername(snapInfo)
+
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddLayout(snapInfo)
 
@@ -429,8 +432,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
-		case "###SNAP_NAME###":
-			// TODO parallel-install: use of proper instance/store name
+		case "###SNAP_INSTANCE_NAME###":
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
 			return snippets
@@ -579,6 +581,10 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.
 func (b *Backend) SandboxFeatures() []string {
+	if release.AppArmorLevel() == release.NoAppArmor {
+		return nil
+	}
+
 	features := kernelFeatures()
 	tags := make([]string, 0, len(features))
 	for _, feature := range features {
@@ -586,5 +592,18 @@ func (b *Backend) SandboxFeatures() []string {
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
 	}
+
+	level := "full"
+	policy := "default"
+	if release.AppArmorLevel() == release.PartialAppArmor {
+		level = "partial"
+
+		if downgradeConfinement() {
+			policy = "downgraded"
+		}
+	}
+	tags = append(tags, fmt.Sprintf("support-level:%s", level))
+	tags = append(tags, fmt.Sprintf("policy:%s", policy))
+
 	return tags
 }

@@ -36,6 +36,7 @@ components used by snapd on a given system.
 `)
 
 type cmdSandboxFeatures struct {
+	clientMixin
 	Required []string `long:"required" arg-name:"<backend feature>"`
 }
 
@@ -52,8 +53,7 @@ func (cmd cmdSandboxFeatures) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-	sysInfo, err := cli.SysInfo()
+	sysInfo, err := cmd.client.SysInfo()
 	if err != nil {
 		return err
 	}
