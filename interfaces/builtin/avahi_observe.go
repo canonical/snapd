@@ -45,6 +45,10 @@ const avahiObserveBaseDeclarationSlots = `
 const avahiObservePermanentSlotAppArmor = `
 network netlink,
 
+# Allow access to deamon to create socket
+/{,var/}run/avahi-daemon/  w,
+/{,var/}run/avahi-daemon/{pid,socket} rw,
+
 # Description: Allow operating as the avahi service. This gives
 # privileged access to the system.
 #include <abstractions/dbus-strict>
@@ -231,6 +235,8 @@ const avahiObservePermanentSlotDBus = `
 const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain, record, service, and service type browsing
 # as well as address, host and service resolving
+
+/{,var/}run/avahi-daemon/socket rw,
 
 #include <abstractions/dbus-strict>
 dbus (send)

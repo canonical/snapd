@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -371,6 +372,11 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	modelAs, err := devicestate.Model(c.st)
+	if err != nil {
+		return false, err
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -398,6 +404,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
+		Model:               modelAs,
 	}
 
 	return ic.CheckAutoConnect() == nil, nil
@@ -420,6 +427,11 @@ func newConnectChecker(s *state.State) (*connectChecker, error) {
 }
 
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	modelAs, err := devicestate.Model(c.st)
+	if err != nil {
+		return false, fmt.Errorf("cannot get model assertion: %v", err)
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -445,6 +457,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
+		Model:               modelAs,
 	}
 
 	// if either of plug or slot snaps don't have a declaration it
@@ -589,9 +602,10 @@ type SnapMapper interface {
 	// re-map functions for loading and saving objects in the state.
 	RemapSnapFromState(snapName string) string
 	RemapSnapToState(snapName string) string
-	// re-map functions for API requests/responses.
+	// RamapSnapFromRequest can replace snap names in API requests.
+	// There is no corresponding mapping function for API responses anymore.
+	// The API responses always reflect the real system state.
 	RemapSnapFromRequest(snapName string) string
-	RemapSnapToResponse(snapName string) string
 }
 
 // IdentityMapper implements SnapMapper and performs no transformations at all.
@@ -609,11 +623,6 @@ func (m *IdentityMapper) RemapSnapToState(snapName string) string {
 
 // RemapSnapFromRequest  doesn't change the snap name in any way.
 func (m *IdentityMapper) RemapSnapFromRequest(snapName string) string {
-	return snapName
-}
-
-// RemapSnapToResponse doesn't change the snap name in any way.
-func (m *IdentityMapper) RemapSnapToResponse(snapName string) string {
 	return snapName
 }
 
@@ -635,18 +644,6 @@ type CoreCoreSystemMapper struct {
 func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" {
 		return "core"
-	}
-	return snapName
-}
-
-// RemapSnapToResponse renames the "core" snap to the "system" snap.
-//
-// This allows us to make all the implicitly defined slots, that are really
-// associated with the "core" snap to seemingly occupy the "system" snap
-// instead.
-func (m *CoreCoreSystemMapper) RemapSnapToResponse(snapName string) string {
-	if snapName == "core" {
-		return "system"
 	}
 	return snapName
 }
@@ -696,19 +693,6 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
-// RemapSnapToResponse renames the "snapd" snap to the "system" snap.
-//
-// This allows us to make all the implicitly defined slots, that are really
-// associated with the "snapd" snap to seemingly occupy the "system" snap
-// instead. This ties into the concept of using "system" as a nickname (e.g. in
-// gadget snap connections).
-func (m *CoreSnapdSystemMapper) RemapSnapToResponse(snapName string) string {
-	if snapName == "snapd" {
-		return "system"
-	}
-	return snapName
-}
-
 // mapper contains the currently active snap mapper.
 var mapper SnapMapper = &CoreCoreSystemMapper{}
 
@@ -729,14 +713,9 @@ func RemapSnapToState(snapName string) string {
 	return mapper.RemapSnapToState(snapName)
 }
 
-// RemapSnapFromRequest  renames a snap as received from an API request according to the current mapper.
+// RemapSnapFromRequest renames a snap as received from an API request according to the current mapper.
 func RemapSnapFromRequest(snapName string) string {
 	return mapper.RemapSnapFromRequest(snapName)
-}
-
-// RemapSnapToResponse renames a snap as about to be sent from an API response according to the current mapper.
-func RemapSnapToResponse(snapName string) string {
-	return mapper.RemapSnapToResponse(snapName)
 }
 
 func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
@@ -745,4 +724,11 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 		return nil, fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", t.Summary())
 	}
 	return []string{plugRef.Snap, slotRef.Snap}, nil
+}
+
+func ensureSystemSnapIsPresent(st *state.State) error {
+	st.Lock()
+	defer st.Unlock()
+	_, err := snapstate.CoreInfo(st)
+	return err
 }

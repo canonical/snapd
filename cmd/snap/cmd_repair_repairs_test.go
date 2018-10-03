@@ -45,7 +45,7 @@ func (s *SnapSuite) TestSnapShowRepair(c *C) {
 	mockSnapRepair := mockSnapRepair(c)
 	defer mockSnapRepair.Restore()
 
-	_, err := snap.Parser().ParseArgs([]string{"repair", "canonical-1"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repair", "canonical-1"})
 	c.Assert(err, IsNil)
 	c.Check(mockSnapRepair.Calls(), DeepEquals, [][]string{
 		{"snap-repair", "show", "canonical-1"},
@@ -59,7 +59,7 @@ func (s *SnapSuite) TestSnapListRepairs(c *C) {
 	mockSnapRepair := mockSnapRepair(c)
 	defer mockSnapRepair.Restore()
 
-	_, err := snap.Parser().ParseArgs([]string{"repairs"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repairs"})
 	c.Assert(err, IsNil)
 	c.Check(mockSnapRepair.Calls(), DeepEquals, [][]string{
 		{"snap-repair", "list"},

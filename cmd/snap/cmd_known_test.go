@@ -78,7 +78,7 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 		n++
 	}))
 
-	rest, err := snap.Parser().ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -86,7 +86,7 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 }
 
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
 	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
 }
 

@@ -1,7 +1,9 @@
 summary: Check that snapd builds with gccgo
 
 # Only check that gccgo is vaguely happy once.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*]
+# FIXME: currently dh-golang and gccgo don't work together in 18.04!
+#systems: [ubuntu-16.04-*, ubuntu-18.04-*]
+systems: [ubuntu-16.04-*]
 
 # Start before anything else as it takes a long time.
 priority: 1000
