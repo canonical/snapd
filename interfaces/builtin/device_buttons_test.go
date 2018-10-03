@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type GpioKeysInterfaceSuite struct {
+type DeviceButtonsInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,69 +38,69 @@ type GpioKeysInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&GpioKeysInterfaceSuite{
-	iface: builtin.MustInterface("gpio-keys"),
+var _ = Suite(&DeviceButtonsInterfaceSuite{
+	iface: builtin.MustInterface("device-buttons"),
 })
 
 const gpioKeysConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [gpio-keys]
+  plugs: [device-buttons]
 `
 
 const gpioKeysCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  gpio-keys:
+  device-buttons:
 `
 
-func (s *GpioKeysInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, gpioKeysConsumerYaml, nil, "gpio-keys")
-	s.slot, s.slotInfo = MockConnectedSlot(c, gpioKeysCoreYaml, nil, "gpio-keys")
+func (s *DeviceButtonsInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, gpioKeysConsumerYaml, nil, "device-buttons")
+	s.slot, s.slotInfo = MockConnectedSlot(c, gpioKeysCoreYaml, nil, "device-buttons")
 }
 
-func (s *GpioKeysInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio-keys")
+func (s *DeviceButtonsInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "device-buttons")
 }
 
-func (s *GpioKeysInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *DeviceButtonsInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "gpio-keys",
-		Interface: "gpio-keys",
+		Name:      "device-buttons",
+		Interface: "device-buttons",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"gpio-keys slots are reserved for the core snap")
+		"device-buttons slots are reserved for the core snap")
 }
 
-func (s *GpioKeysInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *DeviceButtonsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *GpioKeysInterfaceSuite) TestUDevSpec(c *C) {
+func (s *DeviceButtonsInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets(), testutil.Contains, `# gpio-keys
+	c.Assert(spec.Snippets(), testutil.Contains, `# device-buttons
 KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_PATH}=="platform-gpio-keys", TAG+="snap_consumer_app"`)
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 
-func (s *GpioKeysInterfaceSuite) TestStaticInfo(c *C) {
+func (s *DeviceButtonsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to gpio keys events`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "gpio-keys")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "device-buttons")
 }
 
-func (s *GpioKeysInterfaceSuite) TestAutoConnect(c *C) {
+func (s *DeviceButtonsInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
-func (s *GpioKeysInterfaceSuite) TestInterfaces(c *C) {
+func (s *DeviceButtonsInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
