@@ -20,7 +20,7 @@ description: |
 systems: [ "-ubuntu-core-*", "-amazon-linux-2-*" ]
 
 environment:
-  XDG_RUNTIME_DIR: /run/user/$(id -u)
+    XDG_RUNTIME_DIR: /run/user/$(id -u)
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -31,6 +31,7 @@ prepare: |
     install_local test-snapd-tools
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     mkdir -p "$XDG_RUNTIME_DIR"
+    rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -58,7 +59,7 @@ execute: |
     [ "$(wc -c < stderr.log)" -eq 0 ]
 
     echo "The absence of the document portal service was recorded"
-    [ -f "$XDG_RUNTIME_DIR/.snap-portals-unavailable" ]
+    [ -f "$XDG_RUNTIME_DIR/.portals-unavailable" ]
 
     echo "Make the fake document portal activatable"
     cat << EOF > /usr/share/dbus-1/services/fake-document-portal.service
@@ -73,8 +74,8 @@ execute: |
     test-snapd-desktop.check-dirs "$user_data"
     ! MATCH "GetMountPoint called" < doc-portal.log
 
-    echo "Remove the .snap-portals-unavailable file to force a recheck"
-    rm "$XDG_RUNTIME_DIR/.snap-portals-unavailable"
+    echo "Remove the .portals-unavailable file to force a recheck"
+    rm "$XDG_RUNTIME_DIR/.portals-unavailable"
 
     echo "No output on stderr when running with a session bus and xdg-document-portal is present".
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
