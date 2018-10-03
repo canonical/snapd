@@ -629,18 +629,14 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.Time {
 		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+			return errors.New(i18n.G("--time does not take mode or channel flags"))
 		}
 		return x.showRefreshTimes()
 	}
 
 	if x.List {
-		if len(x.Positional.Snaps) > 0 {
-			return errors.New(i18n.G("--list does not accept positional arguments"))
-		}
-
-		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--list does not take mode nor channel flags"))
+		if len(x.Positional.Snaps) > 0 || x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--list does not accept additional arguments"))
 		}
 
 		return x.listRefresh()
@@ -936,7 +932,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Refresh to the given revision, to which you must have developer access"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"list": i18n.G("Show the snaps that would be updated on refresh, but do not perform the refresh"),
+			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"time": i18n.G("Show auto refresh information but do not perform a refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
