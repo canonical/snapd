@@ -237,10 +237,12 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 				return nil, nil, fmt.Errorf("unexpected error while reading snap info: %v", err)
 			}
 			if !info.Epoch.CanRead(&summary.epoch) {
-				return nil, nil, fmt.Errorf("cannot restore snapshot to incompatible epoch: %s → %s", &summary.epoch, &info.Epoch)
+				const tpl = "cannot restore snapshot for %q: current snap (epoch %s) cannot read snapshot data (epoch %s)"
+				return nil, nil, fmt.Errorf(tpl, summary.snap, &info.Epoch, &summary.epoch)
 			}
 			if summary.snapID != "" && info.SnapID != "" && info.SnapID != summary.snapID {
-				return nil, nil, fmt.Errorf("cannot restore snapshot over id change: %.7s… → %.7s…", summary.snapID, info.SnapID)
+				const tpl = "cannot restore snapshot for %q: current snap (ID %.7s…) does not match snapshot (ID %.7s…)"
+				return nil, nil, fmt.Errorf(tpl, summary.snap, info.SnapID, summary.snapID)
 			}
 		}
 
