@@ -55,7 +55,13 @@ type snapYaml struct {
 	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
-	TypoLayouts interface{} `yaml:"layouts,omitempty"`
+	TypoLayouts layoutsUnmarshalError `yaml:"layouts,omitempty"`
+}
+
+type layoutsUnmarshalError struct{}
+
+func (*layoutsUnmarshalError) UnmarshalYAML(func(interface{}) error) error {
+	return fmt.Errorf(`cannot use "layouts" (plural), please use singular "layout" instead`)
 }
 
 type appYaml struct {
@@ -185,10 +191,6 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 				User: user, Group: group, Mode: mode,
 			}
 		}
-	}
-
-	if y.TypoLayouts != nil {
-		return nil, fmt.Errorf(`cannot use "layouts" (plural), please use singular "layout" instead`)
 	}
 
 	// Rename specific plugs on the core snap.
