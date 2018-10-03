@@ -11,6 +11,8 @@ version: set-by-version-script-thxbye
 version-script: |
   ./mkversion.sh --output-only
 grade: devel
+# FIXME: enable once the store was updated
+#type: snapd
 
 parts:
   snapd:

@@ -26,7 +26,7 @@ import (
 )
 
 func (s *SnapSuite) TestCreateKeyInvalidCharacters(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"create-key", "a b"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-key", "a b"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "key name \"a b\" is not valid; only ASCII letters, digits, and hyphens are allowed")
 	c.Check(s.Stdout(), Equals, "")

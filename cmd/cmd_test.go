@@ -44,8 +44,8 @@ type cmdSuite struct {
 	lastExecArgv  []string
 	lastExecEnvv  []string
 	fakeroot      string
-	newCore       string
-	oldCore       string
+	snapdPath     string
+	corePath      string
 }
 
 var _ = Suite(&cmdSuite{})
@@ -59,8 +59,8 @@ func (s *cmdSuite) SetUpTest(c *C) {
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
 	dirs.SetRootDir(s.fakeroot)
-	s.newCore = filepath.Join(dirs.SnapMountDir, "/core/42")
-	s.oldCore = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/21")
+	s.snapdPath = filepath.Join(dirs.SnapMountDir, "/snapd/42")
+	s.corePath = filepath.Join(dirs.SnapMountDir, "/core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
@@ -95,7 +95,7 @@ func (s *cmdSuite) mockReExecingEnv() func() {
 	restore := []func(){
 		release.MockOnClassic(true),
 		release.MockReleaseInfo(&release.OS{ID: "ubuntu"}),
-		cmd.MockCorePaths(s.oldCore, s.newCore),
+		cmd.MockCoreSnapdPaths(s.corePath, s.snapdPath),
 		cmd.MockVersion("2"),
 	}
 
@@ -163,41 +163,41 @@ func (s *cmdSuite) TestCoreSupportsReExecNoInfo(c *C) {
 
 func (s *cmdSuite) TestCoreSupportsReExecBadInfo(c *C) {
 	// can't read snapd/info if it's a directory
-	p := s.newCore + "/usr/lib/snapd/info"
+	p := s.snapdPath + "/usr/lib/snapd/info"
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 
-	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, false)
+	c.Check(cmd.CoreSupportsReExec(s.snapdPath), Equals, false)
 }
 
 func (s *cmdSuite) TestCoreSupportsReExecBadInfoContent(c *C) {
 	// can't understand snapd/info if all it holds are potatoes
-	p := s.newCore + "/usr/lib/snapd"
+	p := s.snapdPath + "/usr/lib/snapd"
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(p+"/info", []byte("potatoes"), 0644), IsNil)
 
-	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, false)
+	c.Check(cmd.CoreSupportsReExec(s.snapdPath), Equals, false)
 }
 
 func (s *cmdSuite) TestCoreSupportsReExecBadVersion(c *C) {
 	// can't understand snapd/info if all its version is gibberish
-	s.fakeCoreVersion(c, s.newCore, "0:")
+	s.fakeCoreVersion(c, s.snapdPath, "0:")
 
-	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, false)
+	c.Check(cmd.CoreSupportsReExec(s.snapdPath), Equals, false)
 }
 
 func (s *cmdSuite) TestCoreSupportsReExecOldVersion(c *C) {
 	// can't re-exec if core version is too old
 	defer cmd.MockVersion("2")()
-	s.fakeCoreVersion(c, s.newCore, "0")
+	s.fakeCoreVersion(c, s.snapdPath, "0")
 
-	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, false)
+	c.Check(cmd.CoreSupportsReExec(s.snapdPath), Equals, false)
 }
 
 func (s *cmdSuite) TestCoreSupportsReExec(c *C) {
 	defer cmd.MockVersion("2")()
-	s.fakeCoreVersion(c, s.newCore, "9999")
+	s.fakeCoreVersion(c, s.snapdPath, "9999")
 
-	c.Check(cmd.CoreSupportsReExec(s.newCore), Equals, true)
+	c.Check(cmd.CoreSupportsReExec(s.snapdPath), Equals, true)
 }
 
 func (s *cmdSuite) TestInternalToolPathNoReexec(c *C) {
@@ -210,13 +210,13 @@ func (s *cmdSuite) TestInternalToolPathNoReexec(c *C) {
 }
 
 func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
-	s.fakeInternalTool(c, s.newCore, "potato")
+	s.fakeInternalTool(c, s.snapdPath, "potato")
 	restore := cmd.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(s.newCore, "/usr/lib/snapd/snapd"), nil
+		return filepath.Join(s.snapdPath, "/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/potato"))
+	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.SnapMountDir, "snapd/42/usr/lib/snapd/potato"))
 }
 
 func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
@@ -228,80 +228,80 @@ func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
 	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd, got: /usr/bin/potato")
 }
 
-func (s *cmdSuite) TestExecInCoreSnap(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
+func (s *cmdSuite) TestExecInSnapdOrCoreSnap(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
-	c.Check(cmd.ExecInCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
+	c.Check(cmd.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
 	c.Check(s.execCalled, Equals, 1)
-	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.newCore, "/usr/lib/snapd/potato"))
+	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.snapdPath, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
 }
 
 func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
-	defer s.mockReExecFor(c, s.oldCore, "potato")()
+	defer s.mockReExecFor(c, s.corePath, "potato")()
 
-	c.Check(cmd.ExecInCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
+	c.Check(cmd.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
 	c.Check(s.execCalled, Equals, 1)
-	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.oldCore, "/usr/lib/snapd/potato"))
+	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.corePath, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
 }
 
-func (s *cmdSuite) TestExecInCoreSnapBailsNoCoreSupport(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
+func (s *cmdSuite) TestExecInSnapdOrCoreSnapBailsNoCoreSupport(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
 	// no "info" -> no core support:
-	c.Assert(os.Remove(filepath.Join(s.newCore, "/usr/lib/snapd/info")), IsNil)
+	c.Assert(os.Remove(filepath.Join(s.snapdPath, "/usr/lib/snapd/info")), IsNil)
 
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }
 
-func (s *cmdSuite) TestExecInCoreSnapMissingExe(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
+func (s *cmdSuite) TestExecInSnapdOrCoreSnapMissingExe(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
 	// missing exe:
-	c.Assert(os.Remove(filepath.Join(s.newCore, "/usr/lib/snapd/potato")), IsNil)
+	c.Assert(os.Remove(filepath.Join(s.snapdPath, "/usr/lib/snapd/potato")), IsNil)
 
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }
 
-func (s *cmdSuite) TestExecInCoreSnapBadSelfExe(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
+func (s *cmdSuite) TestExecInSnapdOrCoreSnapBadSelfExe(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
 	// missing self/exe:
 	c.Assert(os.Remove(filepath.Join(s.fakeroot, "proc/self/exe")), IsNil)
 
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }
 
-func (s *cmdSuite) TestExecInCoreSnapBailsNoDistroSupport(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
+func (s *cmdSuite) TestExecInSnapdOrCoreSnapBailsNoDistroSupport(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
 	// no distro support:
 	defer release.MockOnClassic(false)()
 
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }
 
-func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
+func (s *cmdSuite) TestExecInSnapdOrCoreSnapNoDouble(c *C) {
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
 	c.Assert(err, IsNil)
 	cmd.MockSelfExe(selfExe)
 
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }
 
-func (s *cmdSuite) TestExecInCoreSnapDisabled(c *C) {
-	defer s.mockReExecFor(c, s.newCore, "potato")()
+func (s *cmdSuite) TestExecInSnapdOrCoreSnapDisabled(c *C) {
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
 	os.Setenv("SNAP_REEXEC", "0")
 	defer os.Unsetenv("SNAP_REEXEC")
 
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }

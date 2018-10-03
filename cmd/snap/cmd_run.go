@@ -35,6 +35,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -55,11 +56,11 @@ var (
 )
 
 type cmdRun struct {
-	Command          string `long:"command" hidden:"yes"`
-	HookName         string `long:"hook" hidden:"yes"`
-	Revision         string `short:"r" default:"unset" hidden:"yes"`
-	Shell            bool   `long:"shell" `
-	SkipCommandChain bool   `long:"skip-command-chain"`
+	clientMixin
+	Command  string `long:"command" hidden:"yes"`
+	HookName string `long:"hook" hidden:"yes"`
+	Revision string `short:"r" default:"unset" hidden:"yes"`
+	Shell    bool   `long:"shell" `
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -83,19 +84,25 @@ and environment.
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command":            i18n.G("Alternative command to run"),
-			"hook":               i18n.G("Hook to run"),
-			"r":                  i18n.G("Use a specific snap revision when running hook"),
-			"shell":              i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"skip-command-chain": i18n.G("Do not run the command chain (useful for debugging)"),
-			"strace":             i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
-			"gdb":                i18n.G("Run the command with gdb"),
-			"timer":              i18n.G("Run as a timer service with given schedule"),
-			"parser-ran":         "",
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"command": i18n.G("Alternative command to run"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"hook": i18n.G("Hook to run"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"r": i18n.G("Use a specific snap revision when running hook"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"shell": i18n.G("Run a shell instead of the command (useful for debugging)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"strace": i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"gdb": i18n.G("Run the command with gdb"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"timer":      i18n.G("Run as a timer service with given schedule"),
+			"parser-ran": "",
 		}, nil)
 }
 
-func maybeWaitForSecurityProfileRegeneration() error {
+func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, err := interfaces.SystemKeyMismatch()
@@ -128,7 +135,6 @@ func maybeWaitForSecurityProfileRegeneration() error {
 		}
 	}
 
-	cli := Client()
 	for i := 0; i < timeout; i++ {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
@@ -166,7 +172,7 @@ func (x *cmdRun) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
 
-	if err := maybeWaitForSecurityProfileRegeneration(); err != nil {
+	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
 	}
 
@@ -760,9 +766,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	if x.Command != "" {
 		cmd = append(cmd, "--command="+x.Command)
-	}
-	if x.SkipCommandChain {
-		cmd = append(cmd, "--skip-command-chain")
 	}
 
 	if hook != "" {

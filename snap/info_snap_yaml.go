@@ -92,9 +92,10 @@ type appYaml struct {
 }
 
 type hookYaml struct {
-	PlugNames   []string           `yaml:"plugs,omitempty"`
-	SlotNames   []string           `yaml:"slots,omitempty"`
-	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+	PlugNames    []string           `yaml:"plugs,omitempty"`
+	SlotNames    []string           `yaml:"slots,omitempty"`
+	Environment  strutil.OrderedMap `yaml:"environment,omitempty"`
+	CommandChain []string           `yaml:"command-chain,omitempty"`
 }
 
 type layoutYaml struct {
@@ -205,6 +206,11 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	// TODO: once we have epochs transition to the snapd type for real
+	if y.Name == "snapd" {
+		typ = TypeSnapd
+	}
+
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
@@ -390,9 +396,10 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap:        snap,
-			Name:        hookName,
-			Environment: yHook.Environment,
+			Snap:         snap,
+			Name:         hookName,
+			Environment:  yHook.Environment,
+			CommandChain: yHook.CommandChain,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)

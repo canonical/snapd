@@ -14,11 +14,12 @@ prepare: |
             exit 1
     fi
     echo "Create a ramdisk with the testrootorg-store.account-key assertion"
+    #shellcheck source=tests/lib/ramdisk.sh
     . "$TESTSLIB/ramdisk.sh"
     setup_ramdisk
     mkfs.vfat /dev/ram0
     mount /dev/ram0 /mnt
-    cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /mnt/auto-import.assert
     sync
 
 restore: |
@@ -33,6 +34,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    echo "`snap auto-import` imports assertions from the mounted ramdisk"
+    echo "$(snap auto-import) imports assertions from the mounted ramdisk"
     snap auto-import
     snap known account-key | MATCH "name: test-store"

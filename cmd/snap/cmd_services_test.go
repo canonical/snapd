@@ -83,7 +83,7 @@ func (s *appOpSuite) args(op string, names []string, extra []string, noWait bool
 
 func (s *appOpSuite) testOpNoArgs(c *check.C, op string) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser().ParseArgs([]string{op})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{op})
 	c.Assert(err, check.ErrorMatches, `.* required argument .* not provided`)
 }
 
@@ -105,7 +105,7 @@ func (s *appOpSuite) testOpErrorResponse(c *check.C, op string, names []string, 
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs(s.args(op, names, extra, noWait))
+	_, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, extra, noWait))
 	c.Assert(err, check.ErrorMatches, "error")
 	c.Check(n, check.Equals, 1)
 }
@@ -135,7 +135,7 @@ func (s *appOpSuite) testOp(c *check.C, op, summary string, names []string, extr
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs(s.args(op, names, extra, noWait))
+	rest, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, extra, noWait))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")

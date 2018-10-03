@@ -2,4 +2,5 @@
 
 export CHAIN_2_RAN=1
 printf "chain2 "
+printf "chain2 " >> "$SNAP_DATA/breadcrumb"
 exec "$@"
