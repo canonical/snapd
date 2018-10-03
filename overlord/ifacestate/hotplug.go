@@ -63,18 +63,19 @@ var deviceKeyVersion = len(attrGroups) - 1
 func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) string {
 	var key bytes.Buffer
 	found := 0
-	attrs := attrGroups[keyVersion]
-	for i, group := range attrs {
+	for _, group := range attrGroups[keyVersion] {
 		for _, attr := range group {
 			if val, ok := devinfo.Attribute(attr); ok && val != "" {
+				if key.Len() > 0 {
+					key.Write([]byte{0})
+				}
+				key.Write([]byte(attr))
+				// attribute name and value are separated by null character
+				key.Write([]byte{0})
 				key.Write([]byte(val))
 				found++
 				break
 			}
-		}
-		if i < len(attrs)-1 {
-			// values that compose the key are separated by null character
-			key.Write([]byte{0})
 		}
 	}
 	if found < 2 {
