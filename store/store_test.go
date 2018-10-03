@@ -2300,9 +2300,10 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 	c.Assert(result, IsNil)
 }
 
-/* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
-Add base and prices.
+/* acquired via looking at the query snapd does for "snap find 'hello-world of snaps' --narrow" (on core) and adding size=1:
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?confinement=strict&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Clicense%2Cbase%2Cmedia%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello-world+of+snaps&size=1' | python -m json.tool | xsel -b
+
+And then add base and prices, and remove the _links dict
 */
 const MockSearchJSON = `{
     "_embedded": {
@@ -2325,10 +2326,18 @@ const MockSearchJSON = `{
                 "developer_validation": "verified",
                 "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
                 "download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
-                "epoch": "0",
-                "icon_url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
                 "last_updated": "2016-07-12T16:37:23.960632+00:00",
                 "license": "MIT",
+                "media": [
+                    {
+                        "type": "icon",
+                        "url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png"
+                    },
+                    {
+                        "type": "screenshot",
+                        "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                    }
+                ],
                 "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {"EUR": 2.99, "USD": 3.49},
@@ -2336,9 +2345,6 @@ const MockSearchJSON = `{
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
                 "revision": 27,
-                "screenshot_urls": [
-                    "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
-                ],
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "The 'hello-world' of snaps",
                 "support_url": "",
@@ -2346,11 +2352,6 @@ const MockSearchJSON = `{
                 "version": "6.3"
             }
         ]
-    },
-    "_links": {
-        "self": {
-            "href": "http://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello"
-        }
     }
 }
 `

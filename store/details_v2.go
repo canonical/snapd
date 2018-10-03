@@ -285,8 +285,22 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	}
 
 	// media
-	screenshots := make([]snap.ScreenshotInfo, 0, len(d.Media))
-	for _, mediaObj := range d.Media {
+	addMedia(info, d.Media)
+
+	return info, nil
+}
+
+func addMedia(info *snap.Info, media []storeSnapMedia) {
+	if len(media) == 0 {
+		return
+	}
+	screenshots := make([]snap.ScreenshotInfo, 0, len(media))
+	info.Media = make(snap.MediaInfos, len(media))
+	for i, mediaObj := range media {
+		info.Media[i].Type = mediaObj.Type
+		info.Media[i].URL = mediaObj.URL
+		info.Media[i].Width = mediaObj.Width
+		info.Media[i].Height = mediaObj.Height
 		switch mediaObj.Type {
 		case "icon":
 			if info.IconURL == "" {
@@ -303,6 +317,4 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	if len(screenshots) > 0 {
 		info.Screenshots = screenshots
 	}
-
-	return info, nil
 }

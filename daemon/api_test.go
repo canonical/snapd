@@ -1926,14 +1926,16 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Type:    snap.TypeApp,
 		Version: "v2",
-		Screenshots: []snap.ScreenshotInfo{
+		Media: []snap.MediaInfo{
 			{
+				Type:   "screenshot",
 				URL:    "http://example.com/screenshot.png",
 				Width:  800,
 				Height: 1280,
 			},
 			{
-				URL: "http://example.com/screenshot2.png",
+				Type: "screenshot",
+				URL:  "http://example.com/screenshot2.png",
 			},
 		},
 		MustBuy: true,
