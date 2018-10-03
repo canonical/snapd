@@ -230,6 +230,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	ts = state.NewTaskSet()
 
 	for _, summary := range summaries {
+		var current snap.Revision
 		if snapst, ok := all[summary.snap]; ok {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
@@ -244,6 +245,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 				const tpl = "cannot restore snapshot for %q: current snap (ID %.7s…) does not match snapshot (ID %.7s…)"
 				return nil, nil, fmt.Errorf(tpl, summary.snap, info.SnapID, summary.snapID)
 			}
+			current = snapst.Current
 		}
 
 		desc := fmt.Sprintf("Restore data of snap %q from snapshot set #%d", summary.snap, setID)
@@ -253,6 +255,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 			Snap:     summary.snap,
 			Users:    users,
 			Filename: summary.filename,
+			Current:  current,
 		}
 		task.Set("snapshot-setup", &snapshot)
 		// see the note about snapshots not using lanes, above.
