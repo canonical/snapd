@@ -827,7 +827,7 @@ func (snapshotSuite) TestRestoreChecksChangesToSnapID(c *check.C) {
 	defer st.Unlock()
 
 	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
-	c.Assert(err, check.ErrorMatches, `cannot restore snapshot over id change: 0987654… → 1234567…`)
+	c.Assert(err, check.ErrorMatches, `cannot restore snapshot for "a-snap": current snap \(ID 1234567…\) does not match snapshot \(ID 0987654…\)`)
 }
 
 func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
@@ -868,7 +868,7 @@ func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
 	defer st.Unlock()
 
 	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
-	c.Assert(err, check.ErrorMatches, `cannot restore snapshot to incompatible epoch: 42 → 17`)
+	c.Assert(err, check.ErrorMatches, `cannot restore snapshot for "a-snap": current snap \(epoch 17\) cannot read snapshot data \(epoch 42\)`)
 }
 
 func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
