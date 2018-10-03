@@ -42,9 +42,12 @@ execute: |
     	Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo
     EOF
 
+    #shellcheck source=tests/lib/strings.sh
+    . "$TESTSLIB"/strings.sh
+
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
-    ( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 || true ) | MATCH "$expected"
+    str_to_one_line "$( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 )" | MATCH "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
     expected="test-snapd-devmode 1.0 installed"
