@@ -65,7 +65,7 @@ static void test_sc_load_facts__too_big(void)
 
 	if (g_test_subprocess()) {
 		/* The facts file cannot be larger than 16KB */
-		char buf[16 * 1024];
+		char buf[16 * 1024 + 1];
 		memset(buf, 'x', sizeof buf);
 		g_assert_true(g_file_set_contents(fname, buf, -1, NULL));
 		(void)sc_load_facts(fname);
