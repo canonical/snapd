@@ -1,0 +1,26 @@
+summary: Test that snapd reexecs itself into the snapd snap
+
+# Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+
+restore: |
+    umount /snap/snapd/current/usr/lib/snapd/info || true
+
+execute: |
+    if [ "${SNAP_REEXEC:-}" = "0" ]; then
+        echo "skipping test when SNAP_REEXEC is disabled"
+        exit 0
+    fi
+
+    echo "Enable installing the snapd snap"
+    snap set core experimental.snapd-snap=true
+    snap install --edge snapd
+    # We need to pretend the version of snapd in the snapd snap is the same
+    # as the installed one so that it re-execs. We use a higher version in
+    # the local snap and "tweak" the core snap to get re-exec but this will
+    # only work with core re-exec not snapd-reexec.
+    mount -o bind /usr/lib/snapd/info /snap/snapd/current/usr/lib/snapd/info
+
+    echo "Ensure we re-exec by default"
+    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH 'DEBUG: restarting into "/snap/snapd/current/usr/bin/snap"'
+

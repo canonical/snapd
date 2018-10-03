@@ -74,17 +74,17 @@ plugs:
     bad-interface-plug: other-interface
 `, nil)
 	s.gadgetGpioSlotInfo = gadgetInfo.Slots["my-pin"]
-	s.gadgetGpioSlot = interfaces.NewConnectedSlot(s.gadgetGpioSlotInfo, nil)
+	s.gadgetGpioSlot = interfaces.NewConnectedSlot(s.gadgetGpioSlotInfo, nil, nil)
 	s.gadgetMissingNumberSlotInfo = gadgetInfo.Slots["missing-number"]
-	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, nil)
+	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, nil, nil)
 	s.gadgetBadNumberSlotInfo = gadgetInfo.Slots["bad-number"]
-	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, nil)
+	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, nil, nil)
 	s.gadgetBadInterfaceSlotInfo = gadgetInfo.Slots["bad-interface-slot"]
-	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, nil)
+	s.gadgetBadInterfaceSlot = interfaces.NewConnectedSlot(s.gadgetBadInterfaceSlotInfo, nil, nil)
 	s.gadgetPlugInfo = gadgetInfo.Plugs["plug"]
-	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, nil)
+	s.gadgetPlug = interfaces.NewConnectedPlug(s.gadgetPlugInfo, nil, nil)
 	s.gadgetBadInterfacePlugInfo = gadgetInfo.Plugs["bad-interface-plug"]
-	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, nil)
+	s.gadgetBadInterfacePlug = interfaces.NewConnectedPlug(s.gadgetBadInterfacePlugInfo, nil, nil)
 
 	osInfo := snaptest.MockInfo(c, `
 name: my-core
@@ -97,7 +97,7 @@ slots:
         direction: out
 `, nil)
 	s.osGpioSlotInfo = osInfo.Slots["my-pin"]
-	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, nil)
+	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, nil, nil)
 
 	appInfo := snaptest.MockInfo(c, `
 name: my-app
@@ -109,7 +109,7 @@ slots:
         direction: out
 `, nil)
 	s.appGpioSlotInfo = appInfo.Slots["my-pin"]
-	s.appGpioSlot = interfaces.NewConnectedSlot(s.appGpioSlotInfo, nil)
+	s.appGpioSlot = interfaces.NewConnectedSlot(s.appGpioSlotInfo, nil, nil)
 }
 
 func (s *GpioInterfaceSuite) TestName(c *C) {

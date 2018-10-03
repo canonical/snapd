@@ -20,13 +20,11 @@
 package httputil
 
 import (
-	"crypto/tls"
 	"errors"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/snapcore/snapd/logger"
 )
@@ -86,33 +84,6 @@ func (tr *LoggedTransport) getFlags() debugflag {
 	}
 
 	return debugflag(flags)
-}
-
-type ClientOpts struct {
-	Timeout    time.Duration
-	TLSConfig  *tls.Config
-	MayLogBody bool
-}
-
-// NewHTTPCLient returns a new http.Client with a LoggedTransport, a
-// Timeout and preservation of range requests across redirects
-func NewHTTPClient(opts *ClientOpts) *http.Client {
-	if opts == nil {
-		opts = &ClientOpts{}
-	}
-
-	transport := newDefaultTransport()
-	transport.TLSClientConfig = opts.TLSConfig
-
-	return &http.Client{
-		Transport: &LoggedTransport{
-			Transport: transport,
-			Key:       "SNAPD_DEBUG_HTTP",
-			body:      opts.MayLogBody,
-		},
-		Timeout:       opts.Timeout,
-		CheckRedirect: checkRedirect,
-	}
 }
 
 func checkRedirect(req *http.Request, via []*http.Request) error {

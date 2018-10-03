@@ -61,10 +61,10 @@ apps:
 `
 	slotSnap := snaptest.MockInfo(c, mockCoreSlotSnapInfoYaml, nil)
 	s.slotInfo = slotSnap.Slots["maliit"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["maliit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *MaliitInterfaceSuite) TestName(c *C) {
@@ -83,7 +83,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Name:      "maliit",
 		Interface: "maliit",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -105,7 +105,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Name:      "maliit",
 		Interface: "maliit",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -132,7 +132,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Name:      "maliit",
 		Interface: "maliit",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -153,7 +153,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 		Name:      "maliit",
 		Interface: "maliit",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -175,7 +175,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 		Name:      "maliit",
 		Interface: "maliit",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	c.Assert(s.slot, NotNil)
@@ -196,7 +196,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 		Name:      "maliit",
 		Interface: "maliit",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)

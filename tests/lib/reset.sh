@@ -104,7 +104,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | README)
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | README)
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
@@ -112,7 +112,7 @@ reset_all_snap() {
                     systemctl start snapd.service snapd.socket
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
-                    if snap info "$snap" | egrep '^type: +(base|core)'; then
+                    if snap info "$snap" | grep -E '^type: +(base|core)'; then
                         remove_bases="$remove_bases $snap"
                     else
                         snap remove "$snap"

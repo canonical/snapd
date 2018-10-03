@@ -27,6 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -179,10 +181,17 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
+
+	s.st.Set("seeded", true)
+	s.st.Set("refresh-privacy-key", "privacy-key")
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return sysdb.GenericClassicModel(), nil
+	}
 }
 
 func (s *servicectlSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
+	snapstate.Model = nil
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -351,7 +360,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("update many change", "update change")
-	installed, tts, err := snapstate.UpdateMany(context.TODO(), s.st, []string{"test-snap", "other-snap"}, 0)
+	installed, tts, err := snapstate.UpdateMany(context.TODO(), s.st, []string{"test-snap", "other-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})

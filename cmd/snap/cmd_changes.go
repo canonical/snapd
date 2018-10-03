@@ -41,6 +41,7 @@ change.
 `)
 
 type cmdChanges struct {
+	clientMixin
 	timeMixin
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
@@ -100,8 +101,7 @@ func (c *cmdChanges) Execute(args []string) error {
 		Selector: client.ChangesAll,
 	}
 
-	cli := Client()
-	changes, err := queryChanges(cli, &opts)
+	changes, err := queryChanges(c.client, &opts)
 	if err != nil {
 		return err
 	}
@@ -131,8 +131,7 @@ func (c *cmdChanges) Execute(args []string) error {
 }
 
 func (c *cmdTasks) Execute([]string) error {
-	cli := Client()
-	chid, err := c.GetChangeID(cli)
+	chid, err := c.GetChangeID()
 	if err != nil {
 		if err == noChangeFoundOK {
 			return nil
@@ -140,7 +139,7 @@ func (c *cmdTasks) Execute([]string) error {
 		return err
 	}
 
-	return c.showChange(cli, chid)
+	return c.showChange(chid)
 }
 
 func queryChange(cli *client.Client, chid string) (*client.Change, error) {
@@ -154,8 +153,8 @@ func queryChange(cli *client.Client, chid string) (*client.Change, error) {
 	return chg, nil
 }
 
-func (c *cmdTasks) showChange(cli *client.Client, chid string) error {
-	chg, err := queryChange(cli, chid)
+func (c *cmdTasks) showChange(chid string) error {
+	chg, err := queryChange(c.client, chid)
 	if err != nil {
 		return err
 	}

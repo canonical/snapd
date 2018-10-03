@@ -40,9 +40,7 @@ argument is a snap name.
           --no-wait          Do not wait for the operation to finish but just
                              print the change id.
 `
-	rest, err := Parser().ParseArgs([]string{"unalias", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "unalias", msg)
 }
 
 func (s *SnapSuite) TestUnalias(c *C) {
@@ -63,7 +61,7 @@ func (s *SnapSuite) TestUnalias(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"unalias", "alias1"})
+	rest, err := Parser(Client()).ParseArgs([]string{"unalias", "alias1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+

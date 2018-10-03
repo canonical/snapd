@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 var opts struct {
@@ -88,29 +89,29 @@ func run() error {
 	return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
 }
 
-func applyFstab(snapName string, fromSnapConfine bool) error {
+func applyFstab(instanceName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
-	lock, err := mount.OpenLock(snapName)
+	lock, err := mount.OpenLock(instanceName)
 	if err != nil {
-		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
 	}
 	defer func() {
-		logger.Debugf("unlocking mount namespace of snap %q", snapName)
+		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
 		lock.Close()
 	}()
 
-	logger.Debugf("locking mount namespace of snap %q", snapName)
+	logger.Debugf("locking mount namespace of snap %q", instanceName)
 	if fromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
-			return fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", snapName)
+			return fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
 		}
 	} else {
 		if err := lock.Lock(); err != nil {
-			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
+			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
 		}
 	}
 
@@ -119,22 +120,47 @@ func applyFstab(snapName string, fromSnapConfine bool) error {
 	// symlinks or perform other malicious activity (such as attempting to
 	// introduce a symlink that would cause us to mount something other
 	// than what we expected).
-	logger.Debugf("freezing processes of snap %q", snapName)
-	if err := freezeSnapProcesses(opts.Positionals.SnapName); err != nil {
+	logger.Debugf("freezing processes of snap %q", instanceName)
+	if err := freezeSnapProcesses(instanceName); err != nil {
 		return err
 	}
 	defer func() {
-		logger.Debugf("thawing processes of snap %q", snapName)
-		thawSnapProcesses(opts.Positionals.SnapName)
+		logger.Debugf("thawing processes of snap %q", instanceName)
+		thawSnapProcesses(instanceName)
 	}()
 
-	// TODO: configure the secure helper and inform it about directories that
-	// can be created without trespassing.
-	sec := &Secure{}
-	return computeAndSaveChanges(snapName, sec)
+	// Allow creating directories related to this snap name.
+	//
+	// Note that we allow /var/snap instead of /var/snap/$SNAP_NAME because
+	// content interface connections can readily create missing mount points on
+	// both sides of the interface connection.
+	//
+	// We scope /snap/$SNAP_NAME because only one side of the connection can be
+	// created, as snaps are read-only, the mimic construction will kick-in and
+	// create the missing directory but this directory is only visible from the
+	// snap that we are operating on (either plug or slot side, the point is,
+	// the mount point is not universally visible).
+	//
+	// /snap/$SNAP_NAME needs to be there as the code that creates such mount
+	// points must traverse writable host filesystem that contains /snap/*/ and
+	// normally such access is off-limits. This approach allows /snap/foo
+	// without allowing /snap/bin, for example.
+	//
+	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
+	// remapping for parallel installs only when the snap has an instance key
+	//
+	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
+	// allow defining layout items that refer to SNAP_USER_DATA and
+	// SNAP_USER_COMMON.
+	as := &Assumptions{}
+	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
+	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
+		as.AddUnrestrictedPaths("/snap/" + snapName)
+	}
+	return computeAndSaveChanges(instanceName, as)
 }
 
-func computeAndSaveChanges(snapName string, sec *Secure) error {
+func computeAndSaveChanges(snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -151,8 +177,12 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
+	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
+	for _, entry := range currentBefore.Entries {
+		as.AddChange(&Change{Action: Mount, Entry: entry})
+	}
 
-	currentAfter, err := applyProfile(snapName, currentBefore, desired, sec)
+	currentAfter, err := applyProfile(snapName, currentBefore, desired, as)
 	if err != nil {
 		return err
 	}
@@ -164,7 +194,7 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 	return nil
 }
 
-func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, sec *Secure) (*osutil.MountProfile, error) {
+func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -175,7 +205,7 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change, sec)
+		synthesised, err := changePerform(change, as)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -184,9 +214,11 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 			}
 		}
 		if err != nil {
-			// NOTE: we may have done something even if Perform itself has failed.
-			// We need to collect synthesized changes and store them.
-			if change.Entry.XSnapdOrigin() == "layout" {
+			// We may have done something even if Perform itself has
+			// failed. We need to collect synthesized changes and
+			// store them.
+			origin := change.Entry.XSnapdOrigin()
+			if origin == "layout" || origin == "overname" {
 				return nil, err
 			} else if err != ErrIgnoredMissingMount {
 				logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
@@ -253,7 +285,7 @@ func applyUserFstab(snapName string) error {
 
 	// TODO: configure the secure helper and inform it about directories that
 	// can be created without trespassing.
-	sec := &Secure{}
-	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, sec)
+	as := &Assumptions{}
+	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }

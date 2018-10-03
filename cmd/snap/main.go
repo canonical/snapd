@@ -22,8 +22,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -159,24 +161,29 @@ func lintArg(cmdName, optName, desc, origDesc string) {
 	}
 }
 
+type clientSetter interface {
+	setClient(*client.Client)
+}
+
+type clientMixin struct {
+	client *client.Client
+}
+
+func (ch *clientMixin) setClient(cli *client.Client) {
+	ch.client = cli
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
-func Parser() *flags.Parser {
+func Parser(cli *client.Client) *flags.Parser {
 	optionsData.Version = func() {
-		printVersions()
+		printVersions(cli)
 		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
-	parser.LongDescription = i18n.G(`
-Install, configure, refresh and remove snap packages. Snaps are
-'universal' packages that work across many different Linux systems,
-enabling secure distribution of the latest apps and utilities for
-cloud, servers, desktops and the internet of things.
-
-This is the CLI for snapd, a background service that takes care of
-snaps on the system. Start with 'snap list' to see installed snaps.`)
+	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
 	parser.Usage = ""
 	if version := parser.FindOptionByLongName("version"); version != nil {
@@ -189,6 +196,9 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	// Add all regular commands
 	for _, c := range commands {
 		obj := c.builder()
+		if x, ok := obj.(clientSetter); ok {
+			x.setClient(cli)
+		}
 		if x, ok := obj.(parserSetter); ok {
 			x.setParser(parser)
 		}
@@ -244,7 +254,11 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	}
 	// Add all the sub-commands of the debug command
 	for _, c := range debugCommands {
-		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		obj := c.builder()
+		if x, ok := obj.(clientSetter); ok {
+			x.setClient(cli)
+		}
+		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
 			logger.Panicf("cannot add debug command %q: %v", c.name, err)
 		}
@@ -297,8 +311,19 @@ var ClientConfig = client.Config{
 }
 
 // Client returns a new client using ClientConfig as configuration.
-func Client() *client.Client {
-	return client.New(&ClientConfig)
+// commands should (in general) not use this, and instead use clientMixin.
+func mkClient() *client.Client {
+	cli := client.New(&ClientConfig)
+	if runtime.GOOS != "linux" {
+		cli.Hijack(func(*http.Request) (*http.Response, error) {
+			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
+This command has been left available for documentation purposes only.
+`), runtime.GOOS)
+			os.Exit(1)
+			panic("execution continued past call to exit")
+		})
+	}
+	return cli
 }
 
 func init() {
@@ -320,7 +345,7 @@ func resolveApp(snapApp string) (string, error) {
 }
 
 func main() {
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
@@ -354,6 +379,7 @@ func main() {
 			os.Exit(46)
 		}
 		cmd := &cmdRun{}
+		cmd.client = mkClient()
 		args := []string{snapApp}
 		args = append(args, os.Args[1:]...)
 		// this will call syscall.Exec() so it does not return
@@ -402,18 +428,19 @@ var wrongDashes = string([]rune{
 })
 
 func run() error {
-	parser := Parser()
+	cli := mkClient()
+	parser := Parser(cli)
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
-			if e.Type == flags.ErrHelp || e.Type == flags.ErrCommandRequired {
-				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
-					parser.Command.Active = nil
-				}
+			switch e.Type {
+			case flags.ErrCommandRequired:
+				printShortHelp()
+				return nil
+			case flags.ErrHelp:
 				parser.WriteHelp(Stdout)
 				return nil
-			}
-			if e.Type == flags.ErrUnknownCommand {
+			case flags.ErrUnknownCommand:
 				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
 			}
 		}
@@ -437,7 +464,10 @@ fixed-width fonts, so it can be hard to tell.
 		}
 
 		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
+
+	maybePresentWarnings(cli.WarningsSummary())
 
 	return nil
 }

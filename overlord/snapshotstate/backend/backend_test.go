@@ -337,6 +337,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 			Snapshot: client.Snapshot{
 				SetID:    id,
 				Snap:     snapname,
+				SnapID:   "id-for-" + snapname,
 				Version:  "v1.0-" + snapname,
 				Revision: snap.R(int(id)),
 			},
@@ -380,6 +381,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 				nShots++
 				fn := fmt.Sprintf(fnTpl, snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision)
 				c.Check(backend.Filename(snapshot), check.Equals, fn, comm)
+				c.Check(snapshot.SnapID, check.Equals, "id-for-"+snapshot.Snap)
 			}
 		}
 		c.Check(nShots, check.Equals, t.numShots)
@@ -436,9 +438,12 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
 	logger.SimpleSetup()
 
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42)}, Version: "v1.33"}
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33"}
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
@@ -446,6 +451,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
+	c.Check(shw.SnapID, check.Equals, info.SnapID)
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
@@ -455,19 +461,23 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	shs, err := backend.List(context.TODO(), 0, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(shs, check.HasLen, 1)
+	c.Assert(shs[0].Snapshots, check.HasLen, 1)
 
 	shr, err := backend.Open(backend.Filename(shw))
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
-	c.Check(shr.SetID, check.Equals, shID)
-	c.Check(shr.Snap, check.Equals, info.InstanceName())
-	c.Check(shr.Version, check.Equals, info.Version)
-	c.Check(shr.Revision, check.Equals, info.Revision)
-	c.Check(shr.Conf, check.DeepEquals, cfg)
+	for label, sh := range map[string]*client.Snapshot{"open": &shr.Snapshot, "list": shs[0].Snapshots[0]} {
+		comm := check.Commentf("%q", label)
+		c.Check(sh.SetID, check.Equals, shID, comm)
+		c.Check(sh.Snap, check.Equals, info.InstanceName(), comm)
+		c.Check(sh.SnapID, check.Equals, info.SnapID, comm)
+		c.Check(sh.Version, check.Equals, info.Version, comm)
+		c.Check(sh.Revision, check.Equals, info.Revision, comm)
+		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
+		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
+	}
 	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
-	c.Check(shr.SHA3_384, check.DeepEquals, shw.SHA3_384)
-
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
 
 	newroot := c.MkDir()
