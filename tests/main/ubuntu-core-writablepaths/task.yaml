@@ -4,7 +4,8 @@ systems: [ubuntu-core-16-*]
 
 execute: |
     echo "Ensure everything in writable-paths is actually writable"
-    while read -r line; do
+    #shellcheck disable=SC2002
+    cat /etc/system-image/writable-paths | while read -r line; do
         line=$(echo "$line" | sed -e '/\s*#.*$/d')
         if [ -z "$line" ]; then
             continue;
@@ -21,7 +22,7 @@ execute: |
             echo "$dir_or_file" >> broken
         fi
         rm -f "$dir_or_file"/random-name-that-I-made-up
-    done < /etc/system-image/writable-paths
+    done
 
     if [ -s "broken" ]; then
         echo "The following writable paths are not writable:"
