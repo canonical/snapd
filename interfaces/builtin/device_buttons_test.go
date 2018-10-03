@@ -85,7 +85,7 @@ func (s *DeviceButtonsInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets(), testutil.Contains, `# device-buttons
-KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_PATH}=="platform-gpio-keys", TAG+="snap_consumer_app"`)
+KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_KEY}=="1", ENV{ID_INPUT_KEYBOARD}!="1", TAG+="snap_consumer_app"`)
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 
@@ -93,7 +93,7 @@ func (s *DeviceButtonsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to gpio keys events`)
+	c.Assert(si.Summary, Equals, `allows access to device buttons as input event`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "device-buttons")
 }
 

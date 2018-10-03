@@ -64,7 +64,7 @@ const deviceButtonsConnectedPlugAppArmor = `
 // to ensure that the device cgroup is in effect even when there are no
 // gpio keys present so that we don't give away all input to the snap.
 var deviceButtonsConnectedPlugUDev = []string{
-	`KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_PATH}=="platform-gpio-keys"`,
+	`KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_KEY}=="1", ENV{ID_INPUT_KEYBOARD}!="1"`,
 }
 
 type deviceButtonsInterface struct {
