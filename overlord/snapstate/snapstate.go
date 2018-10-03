@@ -563,6 +563,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+		return nil, nil, err
+	}
 	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, nil, err
 	}
