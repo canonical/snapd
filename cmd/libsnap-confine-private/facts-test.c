@@ -26,8 +26,10 @@
 static void remove_file(gpointer data)
 {
 	const char *fname = (const char *)data;
-	g_assert_cmpint(chmod(fname, 0644), ==, 0);
-	g_assert_cmpint(unlink(fname), ==, 0);
+	if (access(fname, F_OK) == 0) {
+		g_assert_cmpint(chmod(fname, 0644), ==, 0);
+		g_assert_cmpint(unlink(fname), ==, 0);
+	}
 }
 
 static void test_sc_load_facts(void)
