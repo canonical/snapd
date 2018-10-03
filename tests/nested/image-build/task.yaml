@@ -13,8 +13,7 @@ restore: |
     destroy_nested_core_vm
 
 execute: |
-    #shellcheck disable=SC2164
-    cd "$SPREAD_PATH" || exit 1
+    cd "$SPREAD_PATH"
 
     tmp=$(mktemp -d)
     trap 'rm -rf $tmp' EXIT
