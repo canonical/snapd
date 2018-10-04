@@ -237,14 +237,12 @@ type Info struct {
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
-	IconURL string
 	Prices  map[string]float64
 	MustBuy bool
 
 	Publisher StoreAccount
 
-	Screenshots []ScreenshotInfo
-	Media       MediaInfos
+	Media MediaInfos
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -756,14 +754,6 @@ type MediaInfo struct {
 	Height int64  `json:"height,omitempty"`
 }
 
-func (mi MediaInfo) Screenshot() ScreenshotInfo {
-	return ScreenshotInfo{
-		URL:    mi.URL,
-		Width:  mi.Width,
-		Height: mi.Height,
-	}
-}
-
 type MediaInfos []MediaInfo
 
 func (mis MediaInfos) Screenshots() []ScreenshotInfo {
@@ -772,7 +762,11 @@ func (mis MediaInfos) Screenshots() []ScreenshotInfo {
 		if mi.Type != "screenshot" {
 			continue
 		}
-		shots = append(shots, mi.Screenshot())
+		shots = append(shots, ScreenshotInfo{
+			URL:    mi.URL,
+			Width:  mi.Width,
+			Height: mi.Height,
+		})
 	}
 	return shots
 }

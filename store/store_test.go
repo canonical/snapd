@@ -1796,9 +1796,13 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(result.License, Equals, "MIT")
 	c.Check(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Check(result.Paid, Equals, true)
-	c.Check(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+	c.Check(result.Media, DeepEquals, snap.MediaInfos{
 		{
-			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type: "icon",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
@@ -2676,9 +2680,13 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Check(snp.License, Equals, "MIT")
 	c.Assert(snp.Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
 	c.Assert(snp.Paid, Equals, true)
-	c.Assert(snp.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+	c.Assert(snp.Media, DeepEquals, snap.MediaInfos{
 		{
-			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type: "icon",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
 	c.Check(snp.MustBuy, Equals, true)
