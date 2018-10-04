@@ -25,6 +25,7 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     distro_install_package python3-dbus python3-gi
     install_local test-snapd-desktop
