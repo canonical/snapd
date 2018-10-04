@@ -18,6 +18,8 @@ import logging
 import os
 import subprocess
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count
 
 import yaml
 
@@ -30,6 +32,8 @@ NO_FAIL = os.getenv('NO_FAIL')
 D = os.getenv('D')
 # set to non-empty to enable verbose logging
 V = os.getenv('V')
+# set to a number to use these many threads
+N = int(os.getenv('N') or cpu_count())
 # file with list of files that can fail validation
 CAN_FAIL = os.getenv('CAN_FAIL')
 
@@ -160,7 +164,7 @@ def checkpath(loc):
         locations = [loc]
 
     failed = []
-    for entry in locations:
+    def check1path(entry):
         try:
             checkfile(entry)
         except ShellcheckError as serr:
@@ -170,6 +174,9 @@ def checkpath(loc):
             for section, error in serr.sectionerrors.items():
                 logging.error("%s: section '%s':\n%s", entry, section, error)
             failed.append(entry)
+
+    with ThreadPoolExecutor(max_workers=N) as executor:
+        executor.map(check1path, locations)
 
     if failed:
         raise ShellcheckFailures(failures=failed)
