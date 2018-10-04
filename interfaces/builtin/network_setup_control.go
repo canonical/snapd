@@ -34,6 +34,9 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 /etc/netplan/{,**} rw,
 /etc/network/{,**} rw,
+
+# allow "netplan generate" and "netplan apply" after changing the config
+/{,usr/}{,s}bin/netplan ixr,
 `
 
 func init() {
