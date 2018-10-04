@@ -1347,6 +1347,8 @@ func (s *backendSuite) TestNFSAndOverlaySnippets(c *C) {
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		c.Check(profile, testutil.FileContains, scenario.overlaySnippet)
 		c.Check(profile, testutil.FileContains, scenario.nfsSnippet)
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+		c.Check(updateNSProfile, testutil.FileContains, scenario.overlaySnippet)
 		s.RemoveSnap(c, snapInfo)
 	}
 }
