@@ -109,6 +109,7 @@ network sna,
 /{,usr/}{,s}bin/ip ixr,
 /{,usr/}{,s}bin/ipmaddr ixr,
 /{,usr/}{,s}bin/iptunnel ixr,
+/{,usr/}{,s}bin/iw ixr,
 /{,usr/}{,s}bin/nameif ixr,
 /{,usr/}{,s}bin/netstat ixr,              # -p not supported
 /{,usr/}{,s}bin/nstat ixr,
