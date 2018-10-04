@@ -434,6 +434,26 @@ func (s *interfaceManagerSuite) TestConnectDoesConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 }
 
+func (s *interfaceManagerSuite) TestConnectBecomeOperationalNoConflict(c *C) {
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("become-operational", "...")
+	hooksup := &hookstate.HookSetup{
+		Snap: "producer",
+		Hook: "prepare-device",
+	}
+	t := hookstate.HookTask(s.state, "prep", hooksup, nil)
+	chg.AddTask(t)
+
+	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+}
+
 func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDifferentSnap(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
