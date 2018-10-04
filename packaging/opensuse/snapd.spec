@@ -115,6 +115,13 @@ Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
 
+# Old versions of xdg-document-portal can expose data belonging to
+# other confied apps.  Older OpenSUSE releases are unlikely to change,
+# so for now limit this to Tumbleweed.
+%if 0%{?suse_version} >= 1550
+Conflicts:      xdg-desktop-portal < 0.11
+%endif
+
 %{?systemd_requires}
 
 # TODO strip the C executables but don't strip the go executables
