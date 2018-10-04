@@ -16,7 +16,9 @@ execute: |
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Remove snapd and snap-confine"
