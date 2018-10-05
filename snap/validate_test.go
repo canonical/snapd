@@ -731,7 +731,7 @@ plugs:
 	c.Assert(err, IsNil)
 	c.Assert(info.Plugs, HasLen, 1)
 	err = Validate(info)
-	c.Assert(err, ErrorMatches, `invalid interface name: "i--face"`)
+	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for plug "plug"`)
 
 	const yaml4 = `
 name: invalid-slots-iface
@@ -744,7 +744,7 @@ slots:
 	c.Assert(err, IsNil)
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
-	c.Assert(err, ErrorMatches, `invalid interface name: "i--face"`)
+	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for slot "slot"`)
 }
 
 type testConstraint string

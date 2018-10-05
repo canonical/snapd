@@ -457,7 +457,7 @@ func plugsSlotsInterfacesNames(info *Info) error {
 			return err
 		}
 		if err := ValidateInterfaceName(plug.Interface); err != nil {
-			return err
+			return fmt.Errorf("invalid interface name %q for plug %q", plug.Interface, plugName)
 		}
 	}
 	for slotName, slot := range info.Slots {
@@ -465,7 +465,7 @@ func plugsSlotsInterfacesNames(info *Info) error {
 			return err
 		}
 		if err := ValidateInterfaceName(slot.Interface); err != nil {
-			return err
+			return fmt.Errorf("invalid interface name %q for slot %q", slot.Interface, slotName)
 		}
 	}
 	return nil
