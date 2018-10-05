@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type connStatePatch61 struct {
+type connStatePatch6_1 struct {
 	Auto             bool                   `json:"auto,omitempty"`
 	ByGadget         bool                   `json:"by-gadget,omitempty"`
 	Interface        string                 `json:"interface,omitempty"`
@@ -39,7 +39,7 @@ type connStatePatch61 struct {
 // processConns updates conns map and augments it with plug-static and slot-static attributes from current snap info.
 // NOTE: missing snap or missing plugs/slots are ignored and not reported as errors as we might have stale connections
 // and ifacemgr deals with them (i.e. discards) on startup; we want to process all good slots and plugs here.
-func processConns(conns map[string]connStatePatch61, infos map[string]*snap.Info) (bool, error) {
+func processConns(conns map[string]connStatePatch6_1, infos map[string]*snap.Info) (bool, error) {
 	var updated bool
 	for id, conn := range conns {
 		// static attributes already present
@@ -94,9 +94,9 @@ func processConns(conns map[string]connStatePatch61, infos map[string]*snap.Info
 	return updated, nil
 }
 
-// patch61:
+// patch6_1:
 //  - add static plug and slot attributes to connections that miss them. Attributes are read from current snap info.
-func patch61(st *state.State) error {
+func patch6_1(st *state.State) error {
 	infos := make(map[string]*snap.Info)
 
 	// update all pending "discard-conns" tasks as they may keep connection data in "removed".
@@ -105,7 +105,7 @@ func patch61(st *state.State) error {
 			continue
 		}
 
-		var removed map[string]connStatePatch61
+		var removed map[string]connStatePatch6_1
 		if task.Kind() == "discard-conns" {
 			err := task.Get("removed", &removed)
 			if err == state.ErrNoState {
@@ -127,7 +127,7 @@ func patch61(st *state.State) error {
 	}
 
 	// update conns
-	var conns map[string]connStatePatch61
+	var conns map[string]connStatePatch6_1
 	err := st.Get("conns", &conns)
 	if err == state.ErrNoState {
 		// no connections to process
