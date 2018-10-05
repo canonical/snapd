@@ -33,25 +33,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
-
-// LoadProfile loads an apparmor profile from the given file.
-//
-// If no such profile was previously loaded then it is simply added to the kernel.
-// If there was a profile with the same name before, that profile is replaced.
-func LoadProfile(fname string) error {
-	return loadProfile(fname, dirs.AppArmorCacheDir, 0)
-}
-
-// UnloadProfile removes the named profile from the running kernel.
-//
-// The operation is done with: apparmor_parser --remove $name
-// The binary cache file is removed from /var/cache/apparmor
-func UnloadProfile(name string) error {
-	return unloadProfile(name, dirs.AppArmorCacheDir)
-}
 
 type aaParserFlags int
 
@@ -64,7 +47,15 @@ const (
 	skipReadCache aaParserFlags = 1 << iota
 )
 
-func loadProfile(fname, cacheDir string, flags aaParserFlags) error {
+// loadProfiles loads apparmor profiles from the given files.
+//
+// If no such profiles were previously loaded then they are simply added to the kernel.
+// If there were some profiles with the same name before, those profiles are replaced.
+func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
+	if len(fnames) == 0 {
+		return nil
+	}
+
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if flags&skipReadCache != 0 {
@@ -73,24 +64,36 @@ func loadProfile(fname, cacheDir string, flags aaParserFlags) error {
 	if !osutil.GetenvBool("SNAPD_DEBUG") {
 		args = append(args, "--quiet")
 	}
-	args = append(args, fname)
+	args = append(args, fnames...)
 
 	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
+		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
 	}
 	return nil
 }
 
-func unloadProfile(name, cacheDir string) error {
-	output, err := exec.Command("apparmor_parser", "--remove", name).CombinedOutput()
+// UnloadProfiles removes the named profiles from the running kernel.
+//
+// The operation is done with: apparmor_parser --remove $names...
+// The binary cache file is removed from /var/cache/apparmor
+func unloadProfiles(names []string, cacheDir string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	args := []string{"--remove"}
+	args = append(args, names...)
+	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
-	err = os.Remove(filepath.Join(cacheDir, name))
-	// It is not an error if the cache file wasn't there to remove.
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
+	for _, name := range names {
+		err = os.Remove(filepath.Join(cacheDir, name))
+		// It is not an error if the cache file wasn't there to remove.
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
+		}
 	}
 	return nil
 }
