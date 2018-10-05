@@ -10,16 +10,16 @@ environment:
     GADGET: /home/test/tmp/gadget
 
 prepare: |
-    mkdir -p $ROOT
-    chown test:test $ROOT
+    mkdir -p "$ROOT"
+    chown test:test "$ROOT"
 
 restore: |
-    rm -rf $ROOT
+    rm -rf "$ROOT"
 
 execute: |
     # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
     echo Creating model assertion
-    cat > $ROOT/model.assertion <<EOF
+    cat > "$ROOT/model.assertion" <<EOF
     type: model
     series: 16
     authority-id: my-brand
@@ -41,24 +41,24 @@ execute: |
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $ROOT/model.assertion $ROOT" test
 
     echo Verifying the result
-    ls -lR $IMAGE
+    ls -lR "$IMAGE"
     for f in pi2 pi2-kernel core snapweb; do
-        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
+        ls "$IMAGE/var/lib/snapd/seed/snaps/${f}"*.snap
     done
-    MATCH snap_core=core < $IMAGE/boot/uboot/uboot.env
-    MATCH snap_kernel=pi2-kernel < $IMAGE/boot/uboot/uboot.env
+    MATCH snap_core=core < "$IMAGE/boot/uboot/uboot.env"
+    MATCH snap_kernel=pi2-kernel < "$IMAGE/boot/uboot/uboot.env"
 
     echo Verify that the kernel is available unpacked
-    ls $IMAGE/boot/uboot/pi2-kernel_*.snap/kernel.img
-    ls $IMAGE/boot/uboot/pi2-kernel_*.snap/initrd.img
-    ls $IMAGE/boot/uboot/pi2-kernel_*.snap/dtbs/
+    ls "$IMAGE"/boot/uboot/pi2-kernel_*.snap/kernel.img
+    ls "$IMAGE"/boot/uboot/pi2-kernel_*.snap/initrd.img
+    ls "$IMAGE"/boot/uboot/pi2-kernel_*.snap/dtbs/
 
     echo Verify the unpacked gadget
-    ls -lR $GADGET
-    ls $GADGET/meta/snap.yaml
+    ls -lR "$GADGET"
+    ls "$GADGET/meta/snap.yaml"
 
     echo Verify that we have valid looking seed.yaml
-    cat $IMAGE/var/lib/snapd/seed/seed.yaml
+    cat "$IMAGE/var/lib/snapd/seed/seed.yaml"
     # snap-id of core
     if [ "$REMOTE_STORE" = staging ]; then
         core_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
@@ -66,12 +66,12 @@ execute: |
         core_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
     fi
 
-    MATCH "snap-id: $core_id" < $IMAGE/var/lib/snapd/seed/seed.yaml
+    MATCH "snap-id: $core_id" < "$IMAGE/var/lib/snapd/seed/seed.yaml"
     for snap in pi2 pi2-kernel core; do
-      MATCH "name: $snap" < $IMAGE/var/lib/snapd/seed/seed.yaml
+      MATCH "name: $snap" < "$IMAGE/var/lib/snapd/seed/seed.yaml"
     done
 
     echo "Verify that we got some snap assertions"
     for name in pi2 pi2-kernel core; do
-        cat $IMAGE/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
+        cat "$IMAGE"/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
     done

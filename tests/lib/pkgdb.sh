@@ -38,6 +38,9 @@ fedora_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -70,6 +73,13 @@ opensuse_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-dbus)
+                # In OpenSUSE Leap 15, this is renamed to python3-dbus-python
+                echo "dbus-1-python3"
+                ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -94,6 +104,12 @@ arch_name_package() {
             ;;
         man)
             echo "man-db"
+            ;;
+        python3-dbus)
+            echo "python-dbus"
+            ;;
+        python3-gi)
+            echo "python-gobject"
             ;;
         *)
             echo "$1"
@@ -415,7 +431,7 @@ distro_install_build_snapd(){
                 ;;
             fedora-*|amazon-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH}"/snapd*.rpm
+                packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH%%:*}"/snapd*.rpm
                 ;;
             opensuse-*)
                 # shellcheck disable=SC2125
@@ -490,6 +506,7 @@ pkg_dependencies_ubuntu_generic(){
         pkg-config
         python3-docutils
         udev
+        udisks2
         upower
         uuid-runtime
         "
@@ -503,6 +520,7 @@ pkg_dependencies_ubuntu_classic(){
         gnome-keyring
         jq
         man
+        nfs-kernel-server
         printer-driver-cups-pdf
         python3-yaml
         upower
@@ -517,6 +535,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-32)
             echo "
+                gccgo-6
                 evolution-data-server
                 gnome-online-accounts
                 "
@@ -529,7 +548,6 @@ pkg_dependencies_ubuntu_classic(){
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
-                nfs-kernel-server
                 qemu
                 x11-utils
                 xvfb
@@ -541,6 +559,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
+                gccgo-8
                 evolution-data-server
                 "
             ;;
@@ -592,9 +611,11 @@ pkg_dependencies_fedora(){
         man
         mock
         net-tools
+        nfs-utils
         python3-yaml
         redhat-lsb-core
         rpm-build
+        udisks2
         xdg-user-dirs
         "
 }
@@ -611,11 +632,13 @@ pkg_dependencies_amazon(){
         man
         mock
         net-tools
+        nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
         grub2-tools
         nc
+        udisks2
         "
 }
 
@@ -631,9 +654,11 @@ pkg_dependencies_opensuse(){
         jq
         lsb-release
         man
+        nfs-kernel-server
         python3-yaml
         netcat-openbsd
         osc
+        udisks2
         uuidd
         xdg-utils
         xdg-user-dirs
@@ -656,6 +681,7 @@ pkg_dependencies_arch(){
     libcap
     libx11
     net-tools
+    nfs-utils
     openbsd-netcat
     python
     python-docutils
@@ -663,6 +689,7 @@ pkg_dependencies_arch(){
     squashfs-tools
     shellcheck
     strace
+    udisks2
     xdg-user-dirs
     xfsprogs
     "

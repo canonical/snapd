@@ -10,10 +10,12 @@ execute: |
         while ! snap changes | grep -Pq "$expected"; do sleep 1; done
     }
 
-    . $TESTSLIB/systemd.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
 
     echo "Given a snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
     echo "And its mount point is kept busy"
@@ -23,7 +25,7 @@ execute: |
     MARKER=/var/snap/test-snapd-tools/current/block-running
     rm -f $MARKER
 
-    systemd_create_and_start_unit unmount-blocker "$(which test-snapd-tools.block)"
+    systemd_create_and_start_unit unmount-blocker "$(command -v test-snapd-tools.block)"
 
     wait_for_service unmount-blocker active
     while [ ! -f $MARKER ]; do sleep 1; done

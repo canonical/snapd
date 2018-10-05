@@ -15,6 +15,8 @@ EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 WatchdogSec=5m
 Type=notify
+SuccessExitStatus=42
+RestartPreventExitStatus=42
 
 [Install]
 WantedBy=multi-user.target

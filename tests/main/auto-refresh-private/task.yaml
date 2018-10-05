@@ -80,7 +80,6 @@ execute: |
     snap list|MATCH 'test-snapd-public +1\.0'
 
     echo "Force auto-refresh to happen with expired creds"
-
     M="$SPREAD_STORE_EXPIRED_MACAROON"
     D="$SPREAD_STORE_EXPIRED_DISCHARGE"
 

@@ -6,14 +6,6 @@ details: |
     This test ensures that snap configuration is mainted per snap revision
     and is restored on revert.
 
-prepare: |
-    snap pack "$TESTSLIB"/snaps/config-versions
-    snap pack "$TESTSLIB"/snaps/config-versions-v2
-
-restore: |
-    rm -f config-versions_1.0_all.snap
-    rm -f config-versions_2.0_all.snap
-
 execute: |
     verify_config_value() {
       expected="$1"
@@ -24,14 +16,17 @@ execute: |
       fi
     }
 
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
     echo "Install test snap"
-    snap install --dangerous config-versions_1.0_all.snap
+    install_local config-versions
 
     echo "Setting config value affecting rev 1"
     snap set config-versions value=100
 
     echo "Install a new version of the test snap"
-    snap install --dangerous config-versions_2.0_all.snap
+    install_local config-versions-v2
 
     echo "Expecting config value to be carried over to the new version 2"
     verify_config_value 100

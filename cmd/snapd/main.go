@@ -32,8 +32,12 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/systemd"
+)
+
+var (
+	sanityCheck = sanity.Check
 )
 
 func init() {
@@ -47,8 +51,19 @@ func init() {
 }
 
 func main() {
-	cmd.ExecInCoreSnap()
-	if err := run(); err != nil {
+	cmd.ExecInSnapdOrCoreSnap()
+
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	if err := run(ch); err != nil {
+		if err == daemon.ErrRestartSocket {
+			// Note that we don't prepend: "error: " here because
+			// ErrRestartSocket is not an error as such.
+			fmt.Fprintf(os.Stdout, "%v\n", err)
+			// the exit code must be in sync with
+			// data/systemd/snapd.service.in:SuccessExitStatus=
+			os.Exit(42)
+		}
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
@@ -84,16 +99,11 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 	return wt, nil
 }
 
-func run() error {
+var checkRunningConditionsRetryDelay = 300 * time.Second
+
+func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
-
-	if err := selftest.Run(); err != nil {
-		return fmt.Errorf("cannot start snapd: %v", err)
-	}
-
-	ch := make(chan os.Signal, 2)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -102,6 +112,20 @@ func run() error {
 	if err := d.Init(); err != nil {
 		return err
 	}
+
+	// Run sanity check now, if anything goes wrong with the
+	// check we go into "degraded" mode where we always report
+	// the given error to any snap client.
+	var checkTicker <-chan time.Time
+	var tic *time.Ticker
+	if err := sanityCheck(); err != nil {
+		degradedErr := fmt.Errorf("system does not fully support snapd: %s", err)
+		logger.Noticef("%s", degradedErr)
+		d.SetDegradedMode(degradedErr)
+		tic = time.NewTicker(checkRunningConditionsRetryDelay)
+		checkTicker = tic.C
+	}
+
 	d.Version = cmd.Version
 
 	d.Start()
@@ -116,11 +140,21 @@ func run() error {
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
-	select {
-	case sig := <-ch:
-		logger.Noticef("Exiting on %s signal.\n", sig)
-	case <-d.Dying():
-		// something called Stop()
+out:
+	for {
+		select {
+		case sig := <-ch:
+			logger.Noticef("Exiting on %s signal.\n", sig)
+			break out
+		case <-d.Dying():
+			// something called Stop()
+			break out
+		case <-checkTicker:
+			if err := sanityCheck(); err == nil {
+				d.SetDegradedMode(nil)
+				tic.Stop()
+			}
+		}
 	}
 
 	return d.Stop(ch)

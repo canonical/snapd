@@ -17,7 +17,8 @@ prepare: |
     fi
 
     echo "Given a snap declaring a plug on framebuffer is installed in jailmode"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local_jailmode test-devmode-cgroup
 
 restore: |
@@ -26,7 +27,8 @@ restore: |
     fi
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "And the framebuffer plug is connected"
     snap connect test-devmode-cgroup:framebuffer

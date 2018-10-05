@@ -31,12 +31,31 @@ var _ = Suite(&bootstrapSuite{})
 
 // Check that ValidateSnapName rejects "/" and "..".
 func (s *bootstrapSuite) TestValidateSnapName(c *C) {
-	c.Assert(update.ValidateSnapName("hello-world"), Equals, 0)
-	c.Assert(update.ValidateSnapName("hello/world"), Equals, -1)
-	c.Assert(update.ValidateSnapName("hello..world"), Equals, -1)
-	c.Assert(update.ValidateSnapName("INVALID"), Equals, -1)
-	c.Assert(update.ValidateSnapName("-invalid"), Equals, -1)
-	c.Assert(update.ValidateSnapName(""), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello-world"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_01234567890"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello/world"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello..world"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello-world_foo"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("foo_0123456789"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("foo_1234abcd"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789"), Equals, 0)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789"), Equals, 0)
+
+	c.Assert(update.ValidateInstanceName("INVALID"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("-invalid"), Equals, -1)
+	c.Assert(update.ValidateInstanceName(""), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello-world_"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("_foo"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo_01234567890"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo_123_456"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo__456"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo_"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("hello-world_foo_foo"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo01234567890012345678900123456789001234567890"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("foo01234567890012345678900123456789001234567890_foo"), Equals, -1)
+	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789_"), Equals, -1)
 }
 
 // Test various cases of command line handling.
@@ -56,6 +75,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0"}, "", false, false, "snap name not provided"},
 		// Snap name is parsed correctly.
 		{[]string{"argv0", "snapname"}, "snapname", true, false, ""},
+		{[]string{"argv0", "snapname_instance"}, "snapname_instance", true, false, ""},
 		// Onlye one snap name is allowed.
 		{[]string{"argv0", "snapone", "snaptwo"}, "", false, false, "too many positional arguments"},
 		// Snap name is validated correctly.
@@ -64,6 +84,8 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "invalid-"}, "", false, false, "snap name cannot end with a dash"},
 		{[]string{"argv0", "@invalid"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
 		{[]string{"argv0", "INVALID"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
+		{[]string{"argv0", "foo_01234567890"}, "", false, false, "instance key must be shorter than 10 characters"},
+		{[]string{"argv0", "foo_0123456_2"}, "", false, false, "snap instance name can contain only one underscore"},
 		// The option --from-snap-confine disables setns.
 		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, ""},
 		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, ""},
@@ -75,6 +97,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, false, "unsupported option"},
 	}
 	for _, tc := range cases {
+		update.ClearBootstrapError()
 		snapName, shouldSetNs, userFstab := update.ProcessArguments(tc.cmdline)
 		err := update.BootstrapError()
 		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",

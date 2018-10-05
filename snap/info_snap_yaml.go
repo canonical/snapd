@@ -53,12 +53,24 @@ type snapYaml struct {
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
+
+	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
+	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
+}
+
+type typoDetector struct {
+	Hint string
+}
+
+func (td *typoDetector) UnmarshalYAML(func(interface{}) error) error {
+	return fmt.Errorf("typo detected: %s", td.Hint)
 }
 
 type appYaml struct {
 	Aliases []string `yaml:"aliases,omitempty"`
 
-	Command string `yaml:"command"`
+	Command      string   `yaml:"command"`
+	CommandChain []string `yaml:"command-chain,omitempty"`
 
 	Daemon string `yaml:"daemon"`
 
@@ -91,9 +103,10 @@ type appYaml struct {
 }
 
 type hookYaml struct {
-	PlugNames   []string           `yaml:"plugs,omitempty"`
-	SlotNames   []string           `yaml:"slots,omitempty"`
-	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+	PlugNames    []string           `yaml:"plugs,omitempty"`
+	SlotNames    []string           `yaml:"slots,omitempty"`
+	Environment  strutil.OrderedMap `yaml:"environment,omitempty"`
+	CommandChain []string           `yaml:"command-chain,omitempty"`
 }
 
 type layoutYaml struct {
@@ -114,6 +127,8 @@ type socketsYaml struct {
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
 func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
+	// Customize hints for the typo detector.
+	y.TypoLayouts.Hint = `use singular "layout" instead of plural "layouts"`
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
@@ -204,6 +219,11 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	// TODO: once we have epochs transition to the snapd type for real
+	if y.Name == "snapd" {
+		typ = TypeSnapd
+	}
+
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
@@ -294,6 +314,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Name:            appName,
 			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
+			CommandChain:    yApp.CommandChain,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
@@ -388,9 +409,10 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap:        snap,
-			Name:        hookName,
-			Environment: yHook.Environment,
+			Snap:         snap,
+			Name:         hookName,
+			Environment:  yHook.Environment,
+			CommandChain: yHook.CommandChain,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)
