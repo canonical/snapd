@@ -165,8 +165,8 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot find system apparmor profile for snap-confine")
 	}
 
-	// We are not using apparmor.LoadProfile() because it uses other cache.
-	if err := loadProfile(profilePath, dirs.SystemApparmorCacheDir, skipReadCache); err != nil {
+	// We are not using apparmor.LoadProfiles() because it uses other cache.
+	if err := loadProfiles([]string{profilePath}, dirs.SystemApparmorCacheDir, skipReadCache); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
@@ -250,7 +250,11 @@ func setupSnapConfineReexec(info *snap.Info) error {
 			changed = append(changed, fname)
 		}
 	}
-	errReload := reloadProfiles(changed, dir, cache)
+	pathnames := make([]string, len(changed))
+	for i, profile := range changed {
+		pathnames[i] = filepath.Join(dir, profile)
+	}
+	errReload := loadProfiles(pathnames, cache, 0)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
@@ -361,11 +365,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// the cache (since we know those changed for sure).  This allows us to
 	// work despite time being wrong (e.g. in the past). For more details see
 	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
-	errReloadChanged := reloadChangedProfiles(changed, dir, cache)
+	pathnames := make([]string, len(changed))
+	for i, profile := range changed {
+		pathnames[i] = filepath.Join(dir, profile)
+	}
+	errReloadChanged := loadProfiles(pathnames, cache, skipReadCache)
 	// Load all unchanged profiles anyway. This ensures those are correct in
 	// the kernel even if the files on disk were not changed. We rely on
 	// apparmor cache to make this performant.
-	errReloadOther := reloadProfiles(unchanged, dir, cache)
+	pathnames = make([]string, len(unchanged))
+	for i, profile := range unchanged {
+		pathnames[i] = filepath.Join(dir, profile)
+	}
+	errReloadOther := loadProfiles(pathnames, cache, 0)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
@@ -546,35 +558,6 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		Content: []byte(policy),
 		Mode:    0644,
 	}
-}
-
-func reloadProfiles(profiles []string, profileDir, cacheDir string) error {
-	for _, profile := range profiles {
-		err := loadProfile(filepath.Join(profileDir, profile), cacheDir, 0)
-		if err != nil {
-			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
-		}
-	}
-	return nil
-}
-
-func reloadChangedProfiles(profiles []string, profileDir, cacheDir string) error {
-	for _, profile := range profiles {
-		err := loadProfile(filepath.Join(profileDir, profile), cacheDir, skipReadCache)
-		if err != nil {
-			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
-		}
-	}
-	return nil
-}
-
-func unloadProfiles(profiles []string, cacheDir string) error {
-	for _, profile := range profiles {
-		if err := unloadProfile(profile, cacheDir); err != nil {
-			return fmt.Errorf("cannot unload apparmor profile %q: %s", profile, err)
-		}
-	}
-	return nil
 }
 
 // NewSpecification returns a new, empty apparmor specification.
