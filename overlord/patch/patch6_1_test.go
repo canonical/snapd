@@ -37,7 +37,7 @@ type patch61Suite struct{}
 
 var _ = Suite(&patch61Suite{})
 
-var statePatch61JSON = []byte(`
+var statePatch6_1JSON = []byte(`
 {
 	"last-task-id": 999,
 	"last-change-id": 99,
@@ -188,7 +188,7 @@ func (s *patch61Suite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch61JSON, 0644)
+	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch6_1JSON, 0644)
 	c.Assert(err, IsNil)
 
 	snap.MockSanitizePlugsSlots(func(*snap.Info) {})
