@@ -10,6 +10,7 @@ details: |
 systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*, -amazon-*]
 
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
@@ -18,6 +19,7 @@ restore: |
     distro_purge_package snapd-xdg-open || true
 
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
     # Original version of snapd-xdg-open in 16.04 which was not
@@ -36,7 +38,7 @@ execute: |
 
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    distro_install_local_package --allow-downgrades $GOHOME/snapd*.deb
+    distro_install_local_package --allow-downgrades "$GOHOME"/snapd*.deb
 
     snapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
     [ "$snapdxdgver" != "$prevsnapdxdgver" ]

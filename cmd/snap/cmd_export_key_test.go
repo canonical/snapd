@@ -30,7 +30,7 @@ import (
 )
 
 func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"export-key", "nonexistent"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "nonexistent"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot find key named \"nonexistent\" in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
@@ -38,7 +38,7 @@ func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 }
 
 func (s *SnapKeysSuite) TestExportKeyDefault(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"export-key"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
@@ -48,7 +48,7 @@ func (s *SnapKeysSuite) TestExportKeyDefault(c *C) {
 }
 
 func (s *SnapKeysSuite) TestExportKeyNonDefault(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"export-key", "another"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "another"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
@@ -61,7 +61,7 @@ func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
 	storeSigning := assertstest.NewStoreStack("canonical", nil)
 	manager := asserts.NewGPGKeypairManager()
 	assertstest.NewAccount(storeSigning, "developer1", nil, "")
-	rest, err := snap.Parser().ParseArgs([]string{"export-key", "another", "--account=developer1"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "another", "--account=developer1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	assertion, err := asserts.Decode(s.stdout.Bytes())

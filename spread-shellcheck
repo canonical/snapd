@@ -95,6 +95,9 @@ class ShellcheckFailures(Exception):
 
 
 def checksection(data):
+    # spread shell snippets are executed under 'set -e' shell, make sure
+    # shellcheck knows about that
+    data = 'set -e\n' + data
     proc = subprocess.Popen("shellcheck -s {} -x -".format(SHELLCHECK_SHELL),
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,

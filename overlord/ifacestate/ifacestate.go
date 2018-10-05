@@ -30,16 +30,12 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
-
-var noConflictOnConnectTasks = func(task *state.Task) bool {
-	// TODO: reconsider this check with regard to interface hooks
-	return task.Kind() != "connect" && task.Kind() != "disconnect"
-}
 
 var connectRetryTimeout = time.Second * 5
 
@@ -363,6 +359,11 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 		return nil
 	}
 
+	modelAs, err := devicestate.Model(st)
+	if err != nil {
+		return err
+	}
+
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
@@ -377,6 +378,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 		Snap:            snapInfo,
 		SnapDeclaration: snapDecl,
 		BaseDeclaration: baseDecl,
+		Model:           modelAs,
 	}
 
 	return ic.Check()

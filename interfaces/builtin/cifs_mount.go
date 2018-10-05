@@ -43,13 +43,17 @@ const cifsMountConnectedPlugAppArmor = `
 capability sys_admin,
 
 # Allow mounts to our snap-specific writable directories
-mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
-mount fstype=cifs //** -> /var/snap/@{SNAP_NAME}/common/{,**},
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
+# completeness allow SNAP_INSTANCE_NAME too
+mount fstype=cifs //** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**},
+mount fstype=cifs //** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**},
 
 # NOTE: due to LP: #1613403, fstype is not mediated and as such, these rules
 # allow, for example, unmounting bind mounts from the content interface
-umount /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**},
-umount /var/snap/@{SNAP_NAME}/common/{,**},
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
+# completeness allow SNAP_INSTANCE_NAME too
+umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**},
+umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**},
 
 # Due to an unsolved issue with namespace awareness of libmount the unmount tries to access
 # /run/mount/utab but fails. The resulting apparmor warning can be ignored. The log warning

@@ -57,10 +57,10 @@ func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
 		Name:      "classic-support",
 		Interface: "classic-support",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, classicSupportMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["classic-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
