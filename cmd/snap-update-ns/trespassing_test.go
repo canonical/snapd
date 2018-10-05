@@ -85,6 +85,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryWritableExt4(c *C) {
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	ok, err := a.CanWriteToDirectory(fd, path)
 	c.Assert(err, IsNil)
@@ -101,6 +102,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryReadOnlyExt4(c *C) {
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic, Flags: update.StReadOnly})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	ok, err := a.CanWriteToDirectory(fd, path)
 	c.Assert(err, IsNil)
@@ -117,13 +119,14 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfs(c *C) {
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	ok, err := a.CanWriteToDirectory(fd, path)
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, false)
 }
 
-// We allowed allowed to write to tmpfs that was mounted by snapd.
+// We are allowed to write to tmpfs that was mounted by snapd.
 func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
@@ -133,6 +136,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	a.AddChange(&update.Change{
 		Action: update.Mount,
@@ -143,7 +147,80 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	c.Assert(ok, Equals, true)
 }
 
-// We allowed allowed to write to an unrestricted path.
+// We are allowed to write to directory beneath a tmpfs that was mounted by snapd.
+func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C) {
+	a := &update.Assumptions{}
+
+	fd, err := s.sys.Open("/etc", syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{Dev: 0x42})
+
+	a.AddChange(&update.Change{
+		Action: update.Mount,
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: "/etc"}})
+
+	ok, err := a.CanWriteToDirectory(fd, "/etc")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	// Now we have primed the assumption state with knowledge of 0x42 device as
+	// a verified tmpfs.  We can now exploit it by trying to write to
+	// /etc/conf.d and seeing that is allowed even though /etc/conf.d itself is
+	// not a mount point representing tmpfs.
+
+	fd2, err := s.sys.Open("/etc/conf.d", syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd2)
+
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Dev: 0x42})
+
+	ok, err = a.CanWriteToDirectory(fd2, "/etc/conf.d")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+}
+
+// We are allowed to write to directory which is a bind mount of something, beneath a tmpfs that was mounted by snapd.
+func (s *trespassingSuite) TestCanWriteToDirectoryUnderReboundTmpfsMountedBySnapd(c *C) {
+	a := &update.Assumptions{}
+
+	fd, err := s.sys.Open("/etc", syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	c.Assert(fd, Equals, 3)
+	defer s.sys.Close(fd)
+
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{Dev: 0x42})
+
+	a.AddChange(&update.Change{
+		Action: update.Mount,
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: "/etc"}})
+
+	ok, err := a.CanWriteToDirectory(fd, "/etc")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	// Now we have primed the assumption state with knowledge of 0x42 device as
+	// a verified tmpfs. Unlike in the test above though the directory
+	// /etc/conf.d is a bind mount from another tmpfs that we know nothing
+	// about.
+	fd2, err := s.sys.Open("/etc/conf.d", syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	c.Assert(fd2, Equals, 4)
+	defer s.sys.Close(fd2)
+
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Dev: 0xdeadbeef})
+
+	ok, err = a.CanWriteToDirectory(fd2, "/etc/conf.d")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+}
+
+// We are allowed to write to an unrestricted path.
 func (s *trespassingSuite) TestCanWriteToDirectoryUnrestricted(c *C) {
 	a := &update.Assumptions{}
 
@@ -153,6 +230,7 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnrestricted(c *C) {
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	a.AddUnrestrictedPaths(path)
 
@@ -161,8 +239,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnrestricted(c *C) {
 	c.Assert(ok, Equals, true)
 }
 
-// Errors are propagated to the caller.
-func (s *trespassingSuite) TestCanWriteToDirectoryErrors(c *C) {
+// Errors from fstatfs are propagated to the caller.
+func (s *trespassingSuite) TestCanWriteToDirectoryErrorsFstatfs(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
@@ -174,6 +252,23 @@ func (s *trespassingSuite) TestCanWriteToDirectoryErrors(c *C) {
 
 	ok, err := a.CanWriteToDirectory(fd, path)
 	c.Assert(err, ErrorMatches, `cannot fstatfs "/etc": testing`)
+	c.Assert(ok, Equals, false)
+}
+
+// Errors from fstat are propagated to the caller.
+func (s *trespassingSuite) TestCanWriteToDirectoryErrorsFstat(c *C) {
+	a := &update.Assumptions{}
+
+	path := "/etc"
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{})
+	s.sys.InsertFault(`fstat 3 <ptr>`, errTesting)
+
+	ok, err := a.CanWriteToDirectory(fd, path)
+	c.Assert(err, ErrorMatches, `cannot fstat "/etc": testing`)
 	c.Assert(ok, Equals, false)
 }
 
@@ -190,6 +285,7 @@ func (s *trespassingSuite) TestRestrictionsForEtc(c *C) {
 	c.Assert(err, IsNil)
 	defer s.sys.Close(fd)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	// Check reports trespassing error, restrictions may be lifted though.
 	err = rs.Check(fd, "/etc")
@@ -242,6 +338,7 @@ func (s *trespassingSuite) TestRestrictionsForRootfsEntries(c *C) {
 	c.Assert(err, IsNil)
 	defer s.sys.Close(fd)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
 	// Nil restrictions have working Check and Lift methods.
 	c.Assert(rs.Check(fd, "/"), ErrorMatches, `cannot recover from trespassing over /`)
@@ -276,7 +373,8 @@ func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdNotATmpfs(c *C) {
 	path := "/some/path"
 	// An ext4 (which is not a tmpfs) is not a private tmpfs.
 	statfs := &syscall.Statfs_t{Type: update.Ext4Magic}
-	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, nil)
+	stat := &syscall.Stat_t{}
+	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, nil)
 	c.Assert(result, Equals, false)
 }
 
@@ -284,7 +382,8 @@ func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdNotTrusted(c *C) {
 	path := "/some/path"
 	// A tmpfs is not private if it doesn't come from a change we made.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, nil)
+	stat := &syscall.Stat_t{}
+	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, nil)
 	c.Assert(result, Equals, false)
 }
 
@@ -292,22 +391,23 @@ func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdViaChanges(c *C) {
 	path := "/some/path"
 	// A tmpfs is private because it was mounted by snap-update-ns.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
+	stat := &syscall.Stat_t{}
 
 	// A tmpfs was mounted in the past so it is private.
-	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, []*update.Change{
+	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 	})
 	c.Assert(result, Equals, true)
 
 	// A tmpfs was mounted but then it was unmounted so it is not private anymore.
-	result = update.IsPrivateTmpfsCreatedBySnapd(path, statfs, []*update.Change{
+	result = update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 	})
 	c.Assert(result, Equals, false)
 
 	// Finally, after the mounting and unmounting the tmpfs was mounted again.
-	result = update.IsPrivateTmpfsCreatedBySnapd(path, statfs, []*update.Change{
+	result = update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: path, Type: "tmpfs"}},
@@ -320,7 +420,8 @@ func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdDeeper(c *C) {
 	// A tmpfs is not private beyond the exact mount point from a change.
 	// That is, sub-directories of a private tmpfs are not recognized as private.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, []*update.Change{
+	stat := &syscall.Stat_t{}
+	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/some/path", Type: "tmpfs"}},
 	})
 	c.Assert(result, Equals, false)
@@ -331,6 +432,7 @@ func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdViaVarLib(c *C) {
 	// A tmpfs in /var/lib is private because it is a special
 	// quirk applied by snap-confine, without having a change record.
 	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
-	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, nil)
+	stat := &syscall.Stat_t{}
+	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, nil)
 	c.Assert(result, Equals, true)
 }

@@ -162,16 +162,8 @@ func (e *Epoch) Validate() error {
 		return &EpochError{Message: epochListNotSorted}
 	}
 
-	// O(𝑚𝑛) instead of O(𝑚log𝑛) for the binary search we could do, but
-	// 𝑚 and 𝑛 <10 per above, so the simple solution is good enough (and if
-	// that alone makes you nervous, know that it is ~2× faster in the
-	// worst case; bisect starts being faster at ~50 entries).
-	for _, r := range e.Read {
-		for _, w := range e.Write {
-			if r == w {
-				return nil
-			}
-		}
+	if intersect(e.Read, e.Write) {
+		return nil
 	}
 	return &EpochError{Message: noEpochIntersection}
 }
@@ -210,6 +202,44 @@ func (e *Epoch) String() string {
 		return "-1"
 	}
 	return string(buf)
+}
+
+// CanRead checks whether this epoch can read the data written by the
+// other one.
+func (e *Epoch) CanRead(other *Epoch) bool {
+	// the intersection between e.Read and other.Write needs to be non-empty
+
+	// normalize (empty epoch should be treated like "0" here)
+	var rs, ws []uint32
+	if e != nil {
+		rs = e.Read
+	}
+	if other != nil {
+		ws = other.Write
+	}
+	if len(rs) == 0 {
+		rs = []uint32{0}
+	}
+	if len(ws) == 0 {
+		ws = []uint32{0}
+	}
+
+	return intersect(rs, ws)
+}
+
+func intersect(rs, ws []uint32) bool {
+	// O(𝑚𝑛) instead of O(𝑚log𝑛) for the binary search we could do, but
+	// 𝑚 and 𝑛 < 10, so the simple solution is good enough (and if that
+	// alone makes you nervous, know that it is ~2× faster in the worst
+	// case; bisect starts being faster at ~50 entries).
+	for _, r := range rs {
+		for _, w := range ws {
+			if r == w {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // EpochError tracks the details of a failed epoch parse or validation.

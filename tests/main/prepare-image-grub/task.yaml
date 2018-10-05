@@ -47,6 +47,7 @@ execute: |
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image
+    #shellcheck disable=SC2086
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result

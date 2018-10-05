@@ -1,0 +1,2 @@
+#!/bin/sh
+/opt/runtime/runner "Hello from the app"

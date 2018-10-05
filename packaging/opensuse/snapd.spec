@@ -115,6 +115,13 @@ Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
 
+# Old versions of xdg-document-portal can expose data belonging to
+# other confied apps.  Older OpenSUSE releases are unlikely to change,
+# so for now limit this to Tumbleweed.
+%if 0%{?suse_version} >= 1550
+Conflicts:      xdg-desktop-portal < 0.11
+%endif
+
 %{?systemd_requires}
 
 # TODO strip the C executables but don't strip the go executables
@@ -230,8 +237,8 @@ ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
                       SNAP_MOUNT_DIR=%{snap_mount_dir}
 
 # Generate and install man page for snap command
-install -m 755 -d %{buildroot}%{_mandir}/man1
-%{buildroot}%{_bindir}/snap help --man >  %{buildroot}%{_mandir}/man1/snap.1
+install -m 755 -d %{buildroot}%{_mandir}/man8
+%{buildroot}%{_bindir}/snap help --man >  %{buildroot}%{_mandir}/man8/snap.8
 
 # TODO: enable gosrc
 # TODO: enable gofilelist
@@ -356,9 +363,9 @@ fi
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
-%{_mandir}/man1/snap-confine.1.*
-%{_mandir}/man5/snap-discard-ns.5.*
-%{_mandir}/man7/snapd-env-generator.7*
+%{_mandir}/man8/snap-confine.8*
+%{_mandir}/man8/snap-discard-ns.8*
+%{_mandir}/man8/snapd-env-generator.8*
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
@@ -390,7 +397,7 @@ fi
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_prefix}/lib/systemd/system-generators/snapd-generator
-%{_mandir}/man1/snap.1.*
+%{_mandir}/man8/snap.8*
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
