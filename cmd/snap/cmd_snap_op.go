@@ -45,7 +45,8 @@ var (
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snaps in the system.
+The install command installs the named snaps in the system under a given
+instance name.
 
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
@@ -56,10 +57,13 @@ store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
+
+Instance key can be appended to the snap name after an underscore. Use --name
+to set instance name when installing directly from snap file.
 `)
 
 var longRemoveHelp = i18n.G(`
-The remove command removes the named snap from the system.
+The remove command removes the named snap instance from the system.
 
 By default all the snap revisions are removed, including their data and the
 common data directory. When a --revision option is passed only the specified
@@ -348,7 +352,7 @@ type cmdInstall struct {
 
 	Unaliased bool `long:"unaliased"`
 
-	Name string `long:"name" hidden:"yes"`
+	Name string `long:"name"`
 
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
@@ -923,7 +927,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"name": i18n.G("Install the snap file under given snap name"),
+			"name": i18n.G("Install the snap file under given instance name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
