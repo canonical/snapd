@@ -860,7 +860,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	return updated, tasksets, nil
 }
 
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Refresh aliases for snap %q")
@@ -868,20 +868,20 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		kind = "prune-auto-aliases"
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
-	for snapName, aliases := range delta {
-		if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	for instanceName, aliases := range delta {
+		if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
-				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
 				continue
 			}
 			return nil, err
 		}
 
+		snapName, instanceKey := snap.SplitInstanceName(instanceName)
 		snapsup := &SnapSetup{
-			SideInfo: &snap.SideInfo{RealName: snapName},
-			// TODO parallel-install: review and update the aliases
-			// code in the context of parallel installs
+			SideInfo:    &snap.SideInfo{RealName: snapName},
+			InstanceKey: instanceKey,
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
@@ -889,7 +889,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 			alias.Set("aliases", aliases)
 		}
 		ts := state.NewTaskSet(alias)
-		linkTs(snapName, ts)
+		linkTs(instanceName, ts)
 		applyTs.AddAll(ts)
 	}
 	return applyTs, nil

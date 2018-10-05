@@ -529,26 +529,27 @@ func (m *SnapManager) ensureAliasesV2() error {
 }
 
 // Alias sets up a manual alias from alias to app in snapName.
-func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error) {
+func Alias(st *state.State, instanceName, app, alias string) (*state.TaskSet, error) {
 	if err := snap.ValidateAlias(alias); err != nil {
 		return nil, err
 	}
 
 	var snapst SnapState
-	err := Get(st, snapName, &snapst)
+	err := Get(st, instanceName, &snapst)
 	if err == state.ErrNoState {
-		return nil, &snap.NotInstalledError{Snap: snapName}
+		return nil, &snap.NotInstalledError{Snap: instanceName}
 	}
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 		return nil, err
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	snapsup := &SnapSetup{
-		// TODO parallel-install: verify use of instance name
-		SideInfo: &snap.SideInfo{RealName: snapName},
+		SideInfo:    &snap.SideInfo{RealName: snapName},
+		InstanceKey: instanceKey,
 	}
 
 	manualAlias := st.NewTask("alias", fmt.Sprintf(i18n.G("Setup manual alias %q => %q for snap %q"), alias, app, snapsup.InstanceName()))
@@ -589,51 +590,54 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 }
 
 // DisableAllAliases disables all aliases of a snap, removing all manual ones.
-func DisableAllAliases(st *state.State, snapName string) (*state.TaskSet, error) {
+func DisableAllAliases(st *state.State, instanceName string) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, snapName, &snapst)
+	err := Get(st, instanceName, &snapst)
 	if err == state.ErrNoState {
-		return nil, &snap.NotInstalledError{Snap: snapName}
+		return nil, &snap.NotInstalledError{Snap: instanceName}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 		return nil, err
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	snapsup := &SnapSetup{
-		// TODO parallel-install: verify use of instance name
-		SideInfo: &snap.SideInfo{RealName: snapName},
+		SideInfo:    &snap.SideInfo{RealName: snapName},
+		InstanceKey: instanceKey,
 	}
 
-	disableAll := st.NewTask("disable-aliases", fmt.Sprintf(i18n.G("Disable aliases for snap %q"), snapName))
+	disableAll := st.NewTask("disable-aliases", fmt.Sprintf(i18n.G("Disable aliases for snap %q"), instanceName))
 	disableAll.Set("snap-setup", &snapsup)
 
 	return state.NewTaskSet(disableAll), nil
 }
 
 // RemoveManualAlias removes a manual alias.
-func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, snapName string, err error) {
-	snapName, err = findSnapOfManualAlias(st, alias)
+func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, instanceName string, err error) {
+	instanceName, err = findSnapOfManualAlias(st, alias)
 	if err != nil {
 		return nil, "", err
 	}
 
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 		return nil, "", err
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	snapsup := &SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: snapName},
+		SideInfo:    &snap.SideInfo{RealName: snapName},
+		InstanceKey: instanceKey,
 	}
 
-	unalias := st.NewTask("unalias", fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), alias, snapName))
+	unalias := st.NewTask("unalias", fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), alias, instanceName))
 	unalias.Set("alias", alias)
 	unalias.Set("snap-setup", &snapsup)
 
-	return state.NewTaskSet(unalias), snapName, nil
+	return state.NewTaskSet(unalias), instanceName, nil
 }
 
 func findSnapOfManualAlias(st *state.State, alias string) (snapName string, err error) {
@@ -687,9 +691,10 @@ func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
+	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := &SnapSetup{
-		// TODO parallel-install: verify use of instance name
-		SideInfo: &snap.SideInfo{RealName: name},
+		SideInfo:    &snap.SideInfo{RealName: snapName},
+		InstanceKey: instanceKey,
 	}
 
 	prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), name))
