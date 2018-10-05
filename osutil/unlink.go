@@ -22,6 +22,8 @@ package osutil
 import (
 	"os"
 	"syscall"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // UnlinkMany removes multiple files from a single directory.
@@ -36,7 +38,7 @@ import (
 //
 // Errors are *os.PathError, for convenience
 func UnlinkMany(dirname string, filenames []string) error {
-	dirfd, err := syscall.Open(dirname, syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_DIRECTORY|0x200000, 0)
+	dirfd, err := syscall.Open(dirname, syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_DIRECTORY|sys.O_PATH, 0)
 	if err != nil {
 		return &os.PathError{
 			Op:   "open",
