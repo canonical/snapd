@@ -380,7 +380,12 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// ensure that plug and slot have unique names
+	// Ensure that plugs and slots have appropriate names.
+	if err := plugsSlotsNames(info); err != nil {
+		return err
+	}
+
+	// Ensure that plug and slot have unique names.
 	if err := plugsSlotsUniqueNames(info); err != nil {
 		return err
 	}
@@ -446,6 +451,19 @@ func ValidateLayoutAll(info *Info) error {
 	return nil
 }
 
+func plugsSlotsNames(info *Info) error {
+	for plugName := range info.Plugs {
+		if err := ValidatePlugName(plugName); err != nil {
+			return err
+		}
+	}
+	for slotName := range info.Slots {
+		if err := ValidateSlotName(slotName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func plugsSlotsUniqueNames(info *Info) error {
 	// we could choose the smaller collection if we wanted to optimize this check
 	for plugName := range info.Plugs {
