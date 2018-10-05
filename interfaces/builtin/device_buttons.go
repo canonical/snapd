@@ -46,8 +46,9 @@ const deviceButtonsConnectedPlugAppArmor = `
 # devices, including keyboards and mice, which allows input sniffing and
 # injection. Until we have inode tagging of devices, we use a glob rule here
 # and rely on udev tagging to only add evdev devices to the snap's device
-# cgroup that are marked with ENV{ID_PATH}=="platform-gpio-keys". As such,
-# even though AppArmor allows all evdev, the device cgroup does not.
+# cgroup that are marked with ENV{ID_INPUT_KEY}=="1" and are not marked with
+# ENV{ID_INPUT_KEYBOARD}. As such, even though AppArmor allows all evdev,
+# the device cgroup does not.
 /dev/input/event[0-9]* rw,
 
 # Allow reading for supported event reports for all input devices. See
@@ -58,7 +59,8 @@ const deviceButtonsConnectedPlugAppArmor = `
 `
 
 // Add the device buttons realized in terms of GPIO. They come up with
-// ENV{ID_PATH} set to "platform-gpio-keys" value.
+// ENV{ID_INPUT_KEY} set to "1" value and at the same time make sure these are
+// not a keyboard.
 //
 // Because of the unconditional /dev/input/event[0-9]* AppArmor rule, we need
 // to ensure that the device cgroup is in effect even when there are no
