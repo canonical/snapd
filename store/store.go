@@ -2296,7 +2296,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					if a == nil {
 						// got an error for a snap that was not part of an 'action'
 						otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, fmt.Sprintf("snap %q: %s", cur.InstanceName, res.Error.Message), nil))
-						logger.Debugf("unexpected error for snap %q, instance key %v: %v %v", cur.InstanceName, res.InstanceKey, res.Error.Code, res.Error.Message)
+						logger.Debugf("Unexpected error for snap %q, instance key %v: [%v] %v", cur.InstanceName, res.InstanceKey, res.Error.Code, res.Error.Message)
 						continue
 					}
 					channel := a.Channel
