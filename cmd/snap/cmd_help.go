@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -87,12 +88,30 @@ func (cmd *cmdHelp) setParser(parser *flags.Parser) {
 	cmd.parser = parser
 }
 
+// manfixer is a hackish way to get the generated manpage into section 8
+// (go-flags doesn't have an option for this; I'll be proposing something
+// there soon, but still waiting on some other PRs to make it through)
+type manfixer struct {
+	done bool
+}
+
+func (w *manfixer) Write(buf []byte) (int, error) {
+	if !w.done {
+		w.done = true
+		if bytes.HasPrefix(buf, []byte(".TH snap 1 ")) {
+			buf[9] = '8'
+		}
+	}
+	return Stdout.Write(buf)
+}
+
 func (cmd cmdHelp) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 	if cmd.Manpage {
-		cmd.parser.WriteManPage(Stdout)
+
+		cmd.parser.WriteManPage(&manfixer{})
 		return nil
 	}
 	if cmd.All {
