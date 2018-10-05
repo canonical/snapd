@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -17,24 +16,12 @@
  *
  */
 
-package selftest_test
+package standby
 
 import (
-	"os"
-	"path/filepath"
-
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/selftest"
+	"time"
 )
 
-func (s *selftestSuite) TestCheckApparmorUsable(c *C) {
-	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := selftest.MockAppArmorProfilesPath(epermProfilePath)
-	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
-
-	err = selftest.CheckApparmorUsable()
-	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
+func (m *StandbyOpinions) SetStartTime(t time.Time) {
+	m.startTime = t
 }

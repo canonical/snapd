@@ -435,6 +435,9 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		case "###SNAP_INSTANCE_NAME###":
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
+			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
+				snippets += strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+			}
 			return snippets
 		}
 		return ""
@@ -581,6 +584,10 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.
 func (b *Backend) SandboxFeatures() []string {
+	if release.AppArmorLevel() == release.NoAppArmor {
+		return nil
+	}
+
 	features := kernelFeatures()
 	tags := make([]string, 0, len(features))
 	for _, feature := range features {
@@ -588,5 +595,18 @@ func (b *Backend) SandboxFeatures() []string {
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
 	}
+
+	level := "full"
+	policy := "default"
+	if release.AppArmorLevel() == release.PartialAppArmor {
+		level = "partial"
+
+		if downgradeConfinement() {
+			policy = "downgraded"
+		}
+	}
+	tags = append(tags, fmt.Sprintf("support-level:%s", level))
+	tags = append(tags, fmt.Sprintf("policy:%s", policy))
+
 	return tags
 }

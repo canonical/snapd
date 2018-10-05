@@ -154,7 +154,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user3, err = auth.NewUser(s.state, "username3", "email2@test.com", "", nil)
 	c.Assert(err, IsNil)
 
+	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
+	snapstate.SetDefaultModel()
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
@@ -168,9 +170,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
-		return nil, nil
-	}
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
 		return nil, nil
 	}
 }
@@ -736,6 +735,24 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", nil)
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0, nil)
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
@@ -1550,6 +1567,17 @@ func (s *snapmgrTestSuite) TestInstallRevision(c *C) {
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
 }
 
+func (s *snapmgrTestSuite) TestInstallTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", nil)
+
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
+}
+
 func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1644,6 +1672,18 @@ func (s *snapmgrTestSuite) TestInstallPathSnapIDRevisionUnset(c *C) {
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "snapididid"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap id set to install %q but revision is unset`, mockSnap))
+}
+
+func (s *snapmgrTestSuite) TestInstallPathValidateFlags(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+confinement: devmode
+`)
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `.* requires devmode or confinement override`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
@@ -1907,6 +1947,24 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "edge")
+}
+
+func (s *snapmgrTestSuite) TestUpdateTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", nil)
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
@@ -8031,10 +8089,14 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	// special policy only on classic
 	r := release.MockOnClassic(true)
 	defer r()
+	// set at not seeded yet
+	st := s.state
+	st.Lock()
+	st.Set("seeded", nil)
+	st.Unlock()
 
 	s.snapmgr.Ensure()
 
-	st := s.state
 	st.Lock()
 	defer st.Unlock()
 
@@ -8056,7 +8118,6 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 
 func makeTestRefreshConfig(st *state.State) {
 	// avoid special at seed policy
-	st.Set("seeded", true)
 	now := time.Now()
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
@@ -8419,7 +8480,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	// avoid special at seed policy
-	s.state.Set("seeded", true)
 	s.state.Set("last-refresh", time.Time{})
 	autoRefreshAssertionsCalled := 0
 	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
@@ -9208,6 +9268,7 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	snapstate.Model = nil
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -12431,4 +12492,76 @@ connections:
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []snap.GadgetConnection{
 		{Plug: snap.GadgetConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: snap.GadgetConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
+}
+
+func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no snaps -> can standby
+	s.state.Set("snaps", nil)
+	c.Assert(s.snapmgr.CanStandby(), Equals, true)
+
+	// snaps installed -> can *not* standby
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	c.Assert(s.snapmgr.CanStandby(), Equals, false)
+}
+
+type modelPastSeedSuite struct {
+	st *state.State
+}
+
+var _ = Suite(&modelPastSeedSuite{})
+
+func (s *modelPastSeedSuite) SetUpTest(c *C) {
+	s.st = state.New(nil)
+}
+
+func (s *modelPastSeedSuite) TearDownTest(c *C) {
+	snapstate.Model = nil
+}
+
+func (s *modelPastSeedSuite) TestTooEarly(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return nil, state.ErrNoState
+	}
+
+	expectedErr := &snapstate.ChangeConflictError{
+		Message: "too early for operation, device not yet seeded or" +
+			" device model not acknowledged",
+		ChangeKind: "seed",
+	}
+
+	// not seeded, no model assertion
+	_, err := snapstate.ModelPastSeeding(s.st)
+	c.Assert(err, DeepEquals, expectedErr)
+
+	// seeded, no model assertion
+	s.st.Set("seeded", true)
+	_, err = snapstate.ModelPastSeeding(s.st)
+	c.Assert(err, DeepEquals, expectedErr)
+}
+
+func (s *modelPastSeedSuite) TestReady(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// seeded and model assertion
+	s.st.Set("seeded", true)
+
+	snapstate.SetDefaultModel()
+
+	modelAs, err := snapstate.ModelPastSeeding(s.st)
+	c.Assert(err, IsNil)
+	c.Check(modelAs.Model(), Equals, "baz-3000")
 }

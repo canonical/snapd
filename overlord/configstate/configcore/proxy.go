@@ -106,9 +106,13 @@ func validateProxyStore(tr Conf) error {
 	st := tr.State()
 	st.Lock()
 	defer st.Unlock()
-	_, err = assertstate.Store(st, proxyStore)
+
+	store, err := assertstate.Store(st, proxyStore)
 	if asserts.IsNotFound(err) {
 		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
+	}
+	if err == nil && store.URL() == nil {
+		return fmt.Errorf("cannot set proxy.store to %q with a matching store assertion with url unset", proxyStore)
 	}
 	return err
 }

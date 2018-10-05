@@ -389,6 +389,13 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	return m, nil
 }
 
+func (m *SnapManager) CanStandby() bool {
+	if n, err := NumSnaps(m.state); err == nil && n == 0 {
+		return true
+	}
+	return false
+}
+
 func genRefreshRequestSalt(st *state.State) error {
 	var refreshPrivacyKey string
 

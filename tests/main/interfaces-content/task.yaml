@@ -24,6 +24,7 @@ prepare: |
     systemd_stop_units snapd.service
     rm -f /var/lib/snapd/state.json
     systemctl start snapd
+    snap wait system seed.loaded
 
 execute: |
     echo "When a snap declaring a content sharing plug is installed"

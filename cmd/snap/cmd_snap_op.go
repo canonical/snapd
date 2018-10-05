@@ -36,10 +36,10 @@ import (
 )
 
 var (
-	shortInstallHelp = i18n.G("Install a snap to the system")
-	shortRemoveHelp  = i18n.G("Remove a snap from the system")
-	shortRefreshHelp = i18n.G("Refresh a snap in the system")
-	shortTryHelp     = i18n.G("Test a snap in the system")
+	shortInstallHelp = i18n.G("Install snaps on the system")
+	shortRemoveHelp  = i18n.G("Remove snaps from the system")
+	shortRefreshHelp = i18n.G("Refresh snaps in the system")
+	shortTryHelp     = i18n.G("Test an unpacked snap in the system")
 	shortEnableHelp  = i18n.G("Enable a snap in the system")
 	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
@@ -211,15 +211,15 @@ func (mxd mixinDescs) also(m map[string]string) mixinDescs {
 }
 
 var channelDescs = mixinDescs{
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"channel": i18n.G("Use this channel instead of stable"),
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"beta": i18n.G("Install from the beta channel"),
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"edge": i18n.G("Install from the edge channel"),
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"candidate": i18n.G("Install from the candidate channel"),
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"stable": i18n.G("Install from the stable channel"),
 }
 
@@ -306,11 +306,11 @@ type modeMixin struct {
 }
 
 var modeDescs = mixinDescs{
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"classic": i18n.G("Put snap in classic mode and disable security confinement"),
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"devmode": i18n.G("Put snap in development mode and disable security confinement"),
-	// TRANSLATORS: this should start with an upper case character (if they exist)
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }
 
@@ -629,14 +629,14 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.Time {
 		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+			return errors.New(i18n.G("--time does not take mode or channel flags"))
 		}
 		return x.showRefreshTimes()
 	}
 
 	if x.List {
-		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--list does not take mode nor channel flags"))
+		if len(x.Positional.Snaps) > 0 || x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--list does not accept additional arguments"))
 		}
 
 		return x.listRefresh()
@@ -932,7 +932,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Refresh to the given revision, to which you must have developer access"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"list": i18n.G("Show available snaps for refresh but do not perform a refresh"),
+			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"time": i18n.G("Show auto refresh information but do not perform a refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
