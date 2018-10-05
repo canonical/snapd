@@ -719,6 +719,32 @@ slots:
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
 	c.Assert(err, ErrorMatches, `invalid slot name: "s--lot"`)
+
+	const yaml3 = `
+name: invalid-plugs-iface
+version: 1
+plugs:
+  plug:
+    interface: i--face
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid interface name: "i--face"`)
+
+	const yaml4 = `
+name: invalid-slots-iface
+version: 1
+slots:
+  slot:
+    interface: i--face
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Slots, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid interface name: "i--face"`)
 }
 
 type testConstraint string

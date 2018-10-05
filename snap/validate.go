@@ -380,8 +380,8 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// Ensure that plugs and slots have appropriate names.
-	if err := plugsSlotsNames(info); err != nil {
+	// Ensure that plugs and slots have appropriate names and interface names.
+	if err := plugsSlotsInterfacesNames(info); err != nil {
 		return err
 	}
 
@@ -451,14 +451,20 @@ func ValidateLayoutAll(info *Info) error {
 	return nil
 }
 
-func plugsSlotsNames(info *Info) error {
-	for plugName := range info.Plugs {
+func plugsSlotsInterfacesNames(info *Info) error {
+	for plugName, plug := range info.Plugs {
 		if err := ValidatePlugName(plugName); err != nil {
 			return err
 		}
+		if err := ValidateInterfaceName(plug.Interface); err != nil {
+			return err
+		}
 	}
-	for slotName := range info.Slots {
+	for slotName, slot := range info.Slots {
 		if err := ValidateSlotName(slotName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(slot.Interface); err != nil {
 			return err
 		}
 	}
