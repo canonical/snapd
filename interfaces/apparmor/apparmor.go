@@ -30,7 +30,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -88,12 +87,8 @@ func unloadProfiles(names []string, cacheDir string) error {
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
-	for _, name := range names {
-		err = os.Remove(filepath.Join(cacheDir, name))
-		// It is not an error if the cache file wasn't there to remove.
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
-		}
+	if err := osutil.UnlinkMany(cacheDir, names); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
 	}
 	return nil
 }
