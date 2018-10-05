@@ -170,7 +170,7 @@ if [ "$STATIC" = 1 ]; then
                 find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
-            xargs --verbose shellcheck
+            xargs shellcheck
         regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
         if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
