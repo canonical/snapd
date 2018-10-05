@@ -54,11 +54,8 @@ func validatePaths(attrName string, paths []interface{}) error {
 		if !ok {
 			return fmt.Errorf("%q must be a list of strings", attrName)
 		}
-		// filepath.Clean() will remove trailing "/" but we allow this
-		// to differentiate between files or dirs
-		last := len(np)
-		if np[last-1] == '/' {
-			np = np[:last-1]
+		if strings.HasSuffix(np, "/") {
+			return fmt.Errorf(`%q cannot end with "/"`, np)
 		}
 		if !strings.HasPrefix(np, "/") && !strings.HasPrefix(np, "$HOME/") {
 			return fmt.Errorf(`%q must start with "/" or "$HOME"`, np)
@@ -109,10 +106,12 @@ func formatPath(ip interface{}) (string, error) {
 	}
 	prefix := ""
 	if strings.Count(p, "$HOME") > 0 {
-		p = strings.Replace(p, "$HOME", "@${HOME}", 1)
+		p = strings.Replace(p, "$HOME", "@{HOME}", 1)
 		prefix = "owner "
 	}
-	return prefix + filepath.Clean(p), nil
+	p += "{,/,/**}"
+
+	return fmt.Sprintf("%s%q", prefix, filepath.Clean(p)), nil
 }
 
 func addSnippet(spec *apparmor.Specification, perm string, paths []interface{}) error {
@@ -121,11 +120,7 @@ func addSnippet(spec *apparmor.Specification, perm string, paths []interface{}) 
 		if err != nil {
 			return err
 		}
-		if strings.HasSuffix(p, "/") {
-			spec.AddSnippet(fmt.Sprintf("%s/** %s", p, perm))
-		} else {
-			spec.AddSnippet(fmt.Sprintf("%s %s", p, perm))
-		}
+		spec.AddSnippet(fmt.Sprintf("%s %s", p, perm))
 	}
 	return nil
 }
@@ -137,7 +132,7 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
-	if err := addSnippet(spec, "rkl,", reads); err != nil {
+	if err := addSnippet(spec, "rk,", reads); err != nil {
 		return fmt.Errorf(errPrefix+"%v", err)
 	}
 	if err := addSnippet(spec, "rwkl,", writes); err != nil {
