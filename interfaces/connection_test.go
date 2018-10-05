@@ -339,8 +339,8 @@ func (s *connSuite) TestNewConnectedPlugExplicitStaticAttrs(c *C) {
 	}
 	plug := NewConnectedPlug(s.plug, staticAttrs, dynAttrs)
 	c.Assert(plug, NotNil)
-	c.Assert(plug.StaticAttrs(), DeepEquals, staticAttrs)
-	c.Assert(plug.DynamicAttrs(), DeepEquals, dynAttrs)
+	c.Assert(plug.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
+	c.Assert(plug.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
 func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
@@ -352,6 +352,6 @@ func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
 	}
 	slot := NewConnectedSlot(s.slot, staticAttrs, dynAttrs)
 	c.Assert(slot, NotNil)
-	c.Assert(slot.StaticAttrs(), DeepEquals, staticAttrs)
-	c.Assert(slot.DynamicAttrs(), DeepEquals, dynAttrs)
+	c.Assert(slot.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
+	c.Assert(slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
 }
