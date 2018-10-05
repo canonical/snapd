@@ -695,6 +695,32 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidatePlugSlotName(c *C) {
+	const yaml1 = `
+name: invalid-plugs
+version: 1
+plugs:
+  p--lug: null
+`
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid plug name: "p--lug"`)
+
+	const yaml2 = `
+name: invalid-slots
+version: 1
+slots:
+  s--lot: null
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Slots, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid slot name: "s--lot"`)
+}
+
 type testConstraint string
 
 func (constraint testConstraint) IsOffLimits(path string) bool {
