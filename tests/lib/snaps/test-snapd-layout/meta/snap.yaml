@@ -30,3 +30,10 @@ layout:
   # Layout can refer to non-existing source path.
   /bin/very/weird/place:
     bind: $SNAP/bin/very/weird/place
+  # Layout can safely construct a path underneath a mimic established by
+  # another layout item. Here a writable mimic of /bin is established and both
+  # of the layout items using it can write to deeply nested entires therein
+  # (not directly under the tmpfs mount point). This takes advantage of the
+  # improved tmpfs detection and tracking logic in snap-update-ns.
+  /bin/very/weird/space:
+    bind: $SNAP/bin/very/weird/space
