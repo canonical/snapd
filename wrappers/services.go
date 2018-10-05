@@ -515,23 +515,21 @@ WantedBy={{.SocketsTarget}}
 	socket := appInfo.Sockets[socketName]
 	listenStream := renderListenStream(socket)
 	wrapperData := struct {
-		App                *snap.AppInfo
-		ServiceFileName    string
-		PrerequisiteTarget string
-		SocketsTarget      string
-		MountUnit          string
-		SocketName         string
-		SocketInfo         *snap.SocketInfo
-		ListenStream       string
+		App             *snap.AppInfo
+		ServiceFileName string
+		SocketsTarget   string
+		MountUnit       string
+		SocketName      string
+		SocketInfo      *snap.SocketInfo
+		ListenStream    string
 	}{
-		App:                appInfo,
-		ServiceFileName:    filepath.Base(appInfo.ServiceFile()),
-		SocketsTarget:      systemd.SocketsTarget,
-		PrerequisiteTarget: systemd.PrerequisiteTarget,
-		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
-		SocketName:         socketName,
-		SocketInfo:         socket,
-		ListenStream:       listenStream,
+		App:             appInfo,
+		ServiceFileName: filepath.Base(appInfo.ServiceFile()),
+		SocketsTarget:   systemd.SocketsTarget,
+		MountUnit:       filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
+		SocketName:      socketName,
+		SocketInfo:      socket,
+		ListenStream:    listenStream,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
