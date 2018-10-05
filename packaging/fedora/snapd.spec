@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35.3
+Version:        2.35.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -794,6 +794,11 @@ fi
 %endif
 
 %changelog
+* Fri Oct 05 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.4
+  - wrappers: do not depend on network.taget in socket units, tweak
+    generated units
+
 * Fri Oct 05 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.35.3
  - overlord: don't make become-operational interfere with user

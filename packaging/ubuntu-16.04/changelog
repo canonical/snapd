@@ -1,3 +1,11 @@
+snapd (2.35.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1786438
+    - wrappers: do not depend on network.taget in socket units, tweak
+      generated units
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 05 Oct 2018 14:41:33 +0200
+
 snapd (2.35.3) xenial; urgency=medium
 
   * New upstream release, LP: #1786438
