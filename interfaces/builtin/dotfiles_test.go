@@ -49,8 +49,8 @@ func (s *dotfilesInterfaceSuite) SetUpTest(c *C) {
 version: 1.0
 plugs:
  dotfiles:
-  read: [$HOME/.read-dir1/, /etc/read-dir2, $HOME/.read-file2, /etc/read-file2]
-  write:  [$HOME/.write-dir1/, /etc/write-dir2, $HOME/.write-file2, /etc/write-file2]
+  read: [$HOME/.read-dir1, /etc/read-dir2, $HOME/.read-file2, /etc/read-file2]
+  write:  [$HOME/.write-dir1, /etc/write-dir2, $HOME/.write-file2, /etc/write-file2]
 apps:
  app:
   command: foo
@@ -80,14 +80,14 @@ func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 # Description: Can access specific files or directories.
 # This is restricted because it gives file access to arbitrary locations.
 
-/etc/read-dir2 rkl,
-/etc/read-file2 rkl,
-/etc/write-dir2 rwkl,
-/etc/write-file2 rwkl,
-owner @${HOME}/.read-dir1 rkl,
-owner @${HOME}/.read-file2 rkl,
-owner @${HOME}/.write-dir1 rwkl,
-owner @${HOME}/.write-file2 rwkl,`)
+"/etc/read-dir2{,/,/**}" rk,
+"/etc/read-file2{,/,/**}" rk,
+"/etc/write-dir2{,/,/**}" rwkl,
+"/etc/write-file2{,/,/**}" rwkl,
+owner "@{HOME}/.read-dir1{,/,/**}" rk,
+owner "@{HOME}/.read-file2{,/,/**}" rk,
+owner "@{HOME}/.write-dir1{,/,/**}" rwkl,
+owner "@{HOME}/.write-file2{,/,/**}" rwkl,`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -111,7 +111,7 @@ version: 1.0
 plugs:
  dotfiles:
   read: ["$HOME/.file1"]
-  write: ["$HOME/.dir1/"]
+  write: ["$HOME/.dir1"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["dotfiles"]
