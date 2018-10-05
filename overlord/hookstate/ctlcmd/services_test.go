@@ -27,6 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -175,11 +177,16 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
+	s.st.Set("seeded", true)
 	s.st.Set("refresh-privacy-key", "privacy-key")
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return sysdb.GenericClassicModel(), nil
+	}
 }
 
 func (s *servicectlSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
+	snapstate.Model = nil
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {

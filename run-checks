@@ -133,7 +133,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking formatting
     fmt=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -s -l "$dir")"
+        s="$(gofmt -s -l "$dir" | grep -v /vendor/ || true)"
         if [ -n "$s" ]; then
             fmt="$s\\n$fmt"
         fi
@@ -170,11 +170,12 @@ if [ "$STATIC" = 1 ]; then
                 find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
-            xargs shellcheck
+            xargs --verbose shellcheck
         regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
-        if grep -qPr --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"; then
+        if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
             grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"
+            echo "Use GOHOME, or {GOPATH%%:*}, instead."
             exit 1
         fi
         unset regexp

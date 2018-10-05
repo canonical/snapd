@@ -905,6 +905,20 @@ func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
 }
 
+func (s *SnapSuite) TestRefreshListLessOptions(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("expected to get 0 requests")
+	})
+
+	for _, flag := range []string{"--beta", "--channel=potato", "--classic"} {
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag})
+		c.Assert(err, check.ErrorMatches, "--list does not accept additional arguments")
+
+		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag, "some-snap"})
+		c.Assert(err, check.ErrorMatches, "--list does not accept additional arguments")
+	}
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -1018,12 +1032,6 @@ func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time"})
 	c.Assert(err, check.ErrorMatches, `internal error: both refresh.timer and refresh.schedule are empty`)
-}
-
-func (s *SnapSuite) TestRefreshListErr(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", "--beta"})
-	c.Check(err, check.ErrorMatches, "--list does not take .* flags")
 }
 
 func (s *SnapOpSuite) TestRefreshOne(c *check.C) {

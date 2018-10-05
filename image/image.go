@@ -539,6 +539,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
 
+	// TODO: fetch device store assertion (and prereqs) if available
+
 	for _, aRef := range f.addedRefs {
 		var afn string
 		// the names don't matter in practice as long as they don't conflict

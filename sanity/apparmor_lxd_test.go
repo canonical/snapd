@@ -17,16 +17,24 @@
  *
  */
 
-package selftest
+package sanity_test
 
-var checks []func() error
+import (
+	"os"
+	"path/filepath"
 
-func Run() error {
-	for _, f := range checks {
-		if err := f(); err != nil {
-			return err
-		}
-	}
+	. "gopkg.in/check.v1"
 
-	return nil
+	"github.com/snapcore/snapd/sanity"
+)
+
+func (s *sanitySuite) TestCheckApparmorUsable(c *C) {
+	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
+	restore := sanity.MockAppArmorProfilesPath(epermProfilePath)
+	defer restore()
+	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
+	c.Assert(err, IsNil)
+
+	err = sanity.CheckApparmorUsable()
+	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
 }

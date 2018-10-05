@@ -35,7 +35,7 @@ type cmdInterfaces struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfacesHelp = i18n.G("List interfaces in the system")
+var shortInterfacesHelp = i18n.G("List interfaces' slots and plugs")
 var longInterfacesHelp = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
