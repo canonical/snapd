@@ -1,3 +1,15 @@
+snapd (2.35.3~14.04) trusty; urgency=medium
+
+    - overlord: don't make become-operational interfere with user
+      requests
+    - docker_support.go: add rules to read apparmor macros
+    - interfaces/apparmor: handle overlayfs snippet for snap-update-
+      nsFixes:
+    - snapcraft.yaml: add workaround to fix snapcraft build
+    - interfaces/opengl: misc accesses for VA-API
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 05 Oct 2018 09:32:00 +0200
+
 snapd (2.35.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1786438
