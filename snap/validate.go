@@ -212,6 +212,14 @@ func ValidateHook(hook *HookInfo) error {
 	if !valid {
 		return fmt.Errorf("invalid hook name: %q", hook.Name)
 	}
+
+	// Also validate the command chain
+	for _, value := range hook.CommandChain {
+		if !commandChainContentWhitelist.MatchString(value) {
+			return fmt.Errorf("hook command-chain contains illegal %q (legal: '%s')", value, commandChainContentWhitelist)
+		}
+	}
+
 	return nil
 }
 
@@ -584,8 +592,10 @@ func validateAppTimer(app *AppInfo) error {
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
-// will get confused.
+// will get confused. chainContentWhitelist is the same, but for the
+// command-chain, which also doesn't allow whitespace.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
+var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
@@ -619,6 +629,13 @@ func ValidateApp(app *AppInfo) error {
 
 	for name, value := range checks {
 		if err := validateField(name, value, appContentWhitelist); err != nil {
+			return err
+		}
+	}
+
+	// Also validate the command chain
+	for _, value := range app.CommandChain {
+		if err := validateField("command-chain", value, commandChainContentWhitelist); err != nil {
 			return err
 		}
 	}

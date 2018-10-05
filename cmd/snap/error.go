@@ -155,6 +155,10 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)
 	case client.ErrorKindSnapNeedsDevMode:
+		if opts.Dangerous {
+			msg = i18n.G("snap %q requires devmode or confinement override")
+			break
+		}
 		msg = i18n.G(`
 The publisher of snap %q has indicated that they do not consider this revision
 to be of production quality and that it is only meant for development or testing

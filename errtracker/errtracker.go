@@ -435,7 +435,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 		"HostSnapdBuildID":   hostBuildID,
 		"CoreSnapdBuildID":   coreBuildID,
 		"Date":               timeNow().Format(time.ANSIC),
-		"KernelVersion":      release.KernelVersion(),
+		"KernelVersion":      osutil.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
 

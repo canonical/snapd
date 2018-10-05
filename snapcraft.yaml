@@ -9,9 +9,10 @@ description: |
  Start with 'snap list' to see installed snaps.
 version: set-by-version-script-thxbye
 version-script: |
-  # extract the version from the debian/changelog
-  dpkg-parsechangelog -Sversion
-grade: devel
+  ./mkversion.sh --output-only
+#FIXME: enable once snapcraft understands this
+#type: snapd
+grade: stable
 
 parts:
   snapd:

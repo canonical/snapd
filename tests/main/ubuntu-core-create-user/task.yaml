@@ -1,5 +1,7 @@
 summary: Ensure that snap create-user works in ubuntu-core
+
 systems: [ubuntu-core-16-*]
+
 restore: |
     # meh, deluser has no --extrausers support
     sed -i '/^mvo/d' /var/lib/extrausers/passwd
@@ -7,6 +9,7 @@ restore: |
     sed -i '/^mvo/d' /var/lib/extrausers/group
     rm -rf /home/mvo
     rm -f create.error
+
 execute: |
     if [ "$MANAGED_DEVICE" = "true" ]; then
         if snap create-user --sudoer mvo@ubuntu.com 2>create.error; then

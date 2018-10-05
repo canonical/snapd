@@ -52,7 +52,7 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	return makeSnapInDir(c, cur, manifest, data)
 }
 
-func makeSnapInDir(c *C, dir, manifest, data string) *Snap {
+func makeSnapContents(c *C, manifest, data string) string {
 	tmp := c.MkDir()
 	err := os.MkdirAll(filepath.Join(tmp, "meta", "hooks", "dir"), 0755)
 	c.Assert(err, IsNil)
@@ -79,9 +79,14 @@ func makeSnapInDir(c *C, dir, manifest, data string) *Snap {
 	err = ioutil.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
+	return tmp
+}
+
+func makeSnapInDir(c *C, dir, manifest, data string) *Snap {
+	tmp := makeSnapContents(c, manifest, data)
 	// build it
 	snap := New(filepath.Join(dir, "foo.snap"))
-	err = snap.Build(tmp)
+	err := snap.Build(tmp)
 	c.Assert(err, IsNil)
 
 	return snap
@@ -383,6 +388,19 @@ squashfs-root/data.bin
 squashfs-root/random
 squashfs-root/random/dir
 `)
+}
+
+func (s *SquashfsTestSuite) TestBuildReportsFailures(c *C) {
+	mockUnsquashfs := testutil.MockCommand(c, "mksquashfs", `
+echo Yeah, nah. >&2
+exit 1
+`)
+	defer mockUnsquashfs.Restore()
+
+	data := "mock kernel snap"
+	dir := makeSnapContents(c, "", data)
+	snap := New("foo.snap")
+	c.Check(snap.Build(dir), ErrorMatches, `mksquashfs call failed: Yeah, nah.`)
 }
 
 func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {

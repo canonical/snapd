@@ -52,13 +52,13 @@ apps:
     plugs: [shutdown]
 `, nil)
 	s.plugInfo = consumingSnapInfo.Plugs["shutdown"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 		Name:      "shutdown",
 		Interface: "shutdown",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *ShutdownInterfaceSuite) TestName(c *C) {

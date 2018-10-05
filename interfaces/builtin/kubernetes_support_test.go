@@ -57,10 +57,10 @@ func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
 		Name:      "kubernetes-support",
 		Interface: "kubernetes-support",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, k8sMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["kubernetes-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestName(c *C) {

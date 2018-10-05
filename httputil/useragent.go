@@ -58,13 +58,14 @@ func SetUserAgentFromVersion(version string, extraProds ...string) (restore func
 		extraProdStr = " " + strings.Join(extraProds, " ")
 	}
 	origUserAgent := userAgent
+
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
 	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s) linux/%s", version,
 		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
 		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
-		sanitizeKernelVersion(release.KernelVersion()))
+		sanitizeKernelVersion(osutil.KernelVersion()))
 	return func() {
 		userAgent = origUserAgent
 	}

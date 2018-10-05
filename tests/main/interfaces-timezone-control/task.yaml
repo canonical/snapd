@@ -11,7 +11,8 @@ details: |
 systems: [-ubuntu-core-18-*]
 
 prepare: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     # Install a snap declaring a plug on timezone-control
     install_local test-snapd-timedate-control-consumer
@@ -26,7 +27,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i timezone-control | MATCH "\- +test-snapd-timedate-control-consumer:timezone-control"
+    snap interfaces -i timezone-control | MATCH -- '^- +test-snapd-timedate-control-consumer:timezone-control'
 
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timezone-control
@@ -44,11 +45,11 @@ execute: |
     fi
 
     # Set the timezone1 as timezone and check the status
-    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone $timezone1
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone1"
     [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1" ]
 
     # Set the timezone2 as timezone and check the status
-    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone $timezone2
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone2"
     [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
@@ -57,7 +58,7 @@ execute: |
 
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:timezone-control
-    if test-snapd-timedate-control-consumer.timedatectl-timezone status 2>${PWD}/call.error; then
+    if test-snapd-timedate-control-consumer.timedatectl-timezone status 2>"${PWD}"/call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi

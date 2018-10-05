@@ -1,3 +1,275 @@
+snapd (2.36~pre1) xenial; urgency=medium
+
+  * New upstream release, LP: #1795590
+    - overlord/snapshotstate: small refactor of internal helpers
+    - interfaces/builtin: adding missing permission to create
+      /run/wpa_supplicant directory
+    - interfaces/builtin: avahi interface update
+    - client, daemon: support passing of 'unaliased' option when
+      installing from local files
+    - selftest: rename selftest.Run() to sanity.Check()
+    - interfaces/apparmor: report apparmor support level and policy
+    - ifacestate: helpers for generating slot names for hotplug
+    - overlord/ifacestate: make sure to pass in the Model assertion when
+      enforcing policies
+    - overlord/snapshotstate: store the SnapID in snapshot, block
+      restore if changed
+    - interfaces: generalize writable mimic profile
+    - asserts,interfaces/policy: add support for on-store/on-brand/on-
+      model plug/slot rule constraints
+    - many: fetch the device store assertion together and in the context
+      of interpreting snap-declarations
+    - tests: disable gccgo tests on 18.04 for now, until dh-golang vs
+      gccgo is fixed
+    - tests/main/parallel-install-services: add spread test for snaps
+      with services
+    - tests/main/snap-env: extend to cover parallel installations of
+      snaps
+    - tests/main/parallel-install-local: rename from *-sideload, extend
+      to run snaps
+    - cmd/snapd,daemon,overlord: without snaps, stop and wait for socket
+    - cmd/snap: tame the help zoo
+    - tests/main/parallel-install-store: run installed snap
+    - cmd/snap: add a bunch of TRANSLATORS notes (and a little more
+      i18n)
+    - cmd: fix C formatting
+    - tests: remove unneeded cleanup from layout tests
+    - image: warn on missing default-providers
+    - selftest: add test to ensure selftest.checks is up-to-date
+    - interfaces/apparmor, interfaces/builtin: tweaks for parallel snap
+      installs
+    - userd: extend the list of supported XDG Desktop properties when
+      autostarting user applications
+    - cmd/snap-update-ns: enforce trespassing checks
+    - selftest: actually run the kernel version selftest
+    - snapd: go into degraded mode when the selftest fails
+    - tests: add test that runs snapctl with a core18 snap
+    - tests: add snap install hook with base: core18
+    - overlord/{snapstate,assertstate}: parallel instances and
+      refresh validation
+    - interfaces/docker-support: add rules to read apparmor macros
+    - tests: make nfs test available for more systems
+    - tests: cleanup copy/paste dup in interfaces-network-setup-control
+    - tests: using single sh snap in interface tests
+    - overlord/snapstate: improve cleaup in mount-snap handler
+    - tests: don't fail interfaces-bluez test if bluez is already
+      installed
+    - tests: find snaps just for edge and beta channels
+    - daemon, snapstate: consistent snap list [--all] output with broken
+      snaps
+    - tests: fix listing to allow extra things in the notes column
+    - cmd/snap: improve UX when removing specific snap revision
+    - cmd/snap, tests/main/snap-info: highlight the current channel
+    - interfaces/testiface: added TestHotplugInterface
+    - snap: tweak commands
+    - interfaces/hotplug: hotplug spec takes one slot definition
+    - overlord/snapstate, snap: handle shared snap directories when
+      installing/remove snaps with instance key
+    - interfaces/opengl: misc accesses for VA-API
+    - client, cmd/snap: expose warnings to the world
+    - cmd/snap-update-ns: introduce trespassing state tracking
+    - cmd/snap: commands no longer build their own client
+    - tests: try to build cmd/snap for darwin
+    - daemon: make error responders not printf when called with 1
+      argument
+    - many: return real snap name in API response
+    - overlord/state: return latest LastAdded time in WarningsSummary
+    - many: mount namespace mapping for parallel installs of snaps
+    - ifacestate/autoconnect: do not self-conflict on setup-profiles if
+      core-phase-2
+    - client, cmd/snap: on !linux, exit when the client tries to Do
+      something
+    - tests: refactor for nested suite and tests fixed
+    - tests: use lxd's waitready instead of polling lxd socket
+    - ifacestate: don't initialize udev monitor until we have a system
+      snap
+    - interfaces: extra argument for static attrs in
+      NewConnectedPlug/NewConnectedSlot
+    - packaging/arch: sync packaging with AUR
+    - snapstate/tests: serialize all appends in fake backend
+    - snap-confine: make /lib/modules optional
+    - cmd/snap: handle "snap interfaces core" better
+    - store: move download tests into downloadSuite
+    - tests,interfaces: run interfaces-account-control on UC18
+    - tests: fix install snaps test by adding link to /snap
+    - tests: fix for nested test suite
+    - daemon: fix snap list --all with parallel snap instances
+    - snapstate: refactor tests to use SetModel*
+    - wrappers: fix snap services order in tests
+    - many: provide salt for generating instance-key in store requests
+    - ifacestate: fix hang when retrying content providers
+    - snapd-env-generator: fix when PATH is empty or unset
+    - overlord/assertstate: propagate TaskSnapSetup error
+    - client: catch and expose logs errors
+    - overlord: integrate device enumeration with udev monitor
+    - daemon, overlord/state: warnings pipeline
+    - tests: add publisher regex to fix the snap-info test pass on sru
+    - cmd: use systemdsystemgeneratorsdir, cleanup automake complaints,
+      tweaks
+    - cmd/snap-update-ns: remove the unused Secure type
+    - osutil, o/snapshotstate, o/sss/backend: quick fixes
+    - tests: update the listing expression to support core from
+      different channels
+    - store: use stable instance key in store refresh requests
+    - cmd/snap-update-ns: detach Mk{Prefix,{File,Dir,Symlink{,All}}}
+    - overlord/patch: support for sublevel patches
+    - tests: update prepare/restore for nightly suite
+    - cmd/snap-update-ns: detach BindMount from the Secure type
+    - cmd/snap-update-ns: re-factor pair of helpers to call fstatfs once
+    - ifacestate: retry on "discard-snap" in autoconnect conflict check
+    - cmd/snap-update-ns: separate OpenPath from the Secure struct
+    - wrappers: remove Wants=network-online.target
+    - tests: add new core16-base test
+    - store: refactor tests so that they work as store_test package
+    - many: add refresh.rate-limit core option
+    - tests: run account-control test with different bases
+    - tests: port proxy test to use python tinyproxy
+    - overlord: introduce snapshotstate.
+    - testutil: allow Fstatfs results to vary over time
+    - snap-update-ns: add comments about the "deadcode" in bootstrap.go
+    - overlord: add chg.Err() in testUpdateWithAutoconnectRetry
+    - many: remove deadcode
+    - tests: also run unit/gccgo in 18.04
+    - tests: introduce a helper for installing local snaps with --name
+    - tests: avoid removing core snap on reset
+    - snap: use snap.SideInfo in test to fix build with gccgo
+    - partition: remove unused runCommand
+    - image: fix incorrect error when using local bases
+    - overlord/snapstate: fix format
+    - cmd: fix format
+    - tests: setting "storage: preserve-size" just for amazon-linux
+      system
+    - tests: test for the hostname interface
+    - interfaces/modem-manager: allow access to more USB strings
+    - overlord: instantiate UDevMonitor
+    - interfaces/apparmor: tweak naming, rename to AddLayout()
+    - interfaces: take instance name in ifacetest.InstallSnap
+    - snapcraft: do not use --dirty in mkversion
+    - cmd: add systemd environment generator
+    - devicestate: support getting (http) proxy from core config
+    - many: rename ClientOpts to ClientOptions
+    - prepare-image-grub-core18: remove image root in restore
+    - overlord/ifacestate: remove "old-conn" from connect/undo connect
+      handlers
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+    - image: handle errors when downloadedSnapsInfoForBootConfig has no
+      data
+    - tests: use official core18 model assertion in tests
+    - snap-confine: map /var/lib/extrausers into snaps mount-namespace
+    - overlord,store: support proxy settings internally too
+    - cmd/snap: bring back 'snap version'
+    - interfaces/mount: tweak naming of things
+    - strutil: fix MatchCounter to also work with buffer reuse
+    - cmd,interfaces,tests: add /mnt to removable-media interface
+    - systemd: do not run "snapd.snap-repair.service.in on firstboot
+      bootstrap
+    - snap/snapenv: drop some instance specific variables, use instance-
+      specific ones for user locations
+    - firstboot: sort by type when installing the firstboot snaps
+    - cmd, cmd/snap: better support for non-linux
+    - strutil: add new ParseByteSize
+    - image: detect and error if bases are missing
+    - interfaces/apparmor: do not downgrade confinement on arch with
+      linux-hardened 4.17.4+
+    - daemon: add pokeStateLock helper to the daemon tests
+    - snap/squashfs: improve error message from Build on mksquashfs
+      failure
+    - tests: remove /etc/alternatives from dirs-not-shared-with-host
+    - cmd: support re-exec into the "snapd" snap
+    - spdx: remove "Other Open Source" from the support licenses
+    - snap: add new type "TypeSnapd" and attach to the snapd snap
+    - interfaces: retain order of inserted security backends
+    - tests: spread test for parallel-installs desktop file handling
+    - overlord/devicestate: use OpenSSL's PEM format when generating
+      keys
+    - cmd: remove --skip-command-chain from snap run and snap-exec
+      (#5723)
+    - selftest: detect if apparmor is unusable and error
+    - snap,snap-exec: support command-chain for hooks
+    - tests: significantly reduce execution time for managers test
+    - snapstate: use new "snap.ByType" sorting
+    - overlord/snapstate: fix UpdateMany() to work with parallel
+      instances
+    - testutil: have File* checker produce more useful error output
+    - overlord/ifacestate: introduce connectOpts
+    - interfaces: parallel instances support, extend unit tests
+    - tests: normalize tests
+    - snapstate: make InstallPath() return *snap.Info too
+    - snap: add ByType sorting
+    - interfaces: add cifs-mount interface
+    - tests: use file based markers in snap-service-stop-mode
+    - osutil: reorg and stub out things to get it building on darwin
+    - tests/main/layout: cleanup after the test
+    - osutil/sys: small tweaks to let it build on darwin
+    - daemon, overlord/snapstate: set instance name when installing from
+      snap file
+    - many: move Uname to osutil, for more DRY and easier porting.
+    - cmd/snap: create snap user directory when running parallel
+      installed snaps
+    - cmd/snap-confine: switch to validation of SNAP_INSTANCE_NAME
+    - tests: basic test for parallel installs from the store
+    - image: download the gadget from the model.GadgetTrack()
+    - snapstate: add support for gadget tracks in model assertion
+    - image: add support for "gadget=track"
+    - overlord: handle sigterm during shutdown better
+    - tests: add the original function to fix the errors on new kernels
+    - tests/main/lxd: pull lxd from candidate; reënable i386
+    - wayland: add extra sockets that are used by older toolkits (e.g.
+      gtk3)
+    - asserts: add support for gadget tracks in the model assertion
+    - overlord/snapstate: improve feature flag validation
+    - tests/main/lxd: run ubuntu-16.04 only on 64 bit variant
+    - interfaces: workaround for activated services and newer DBus
+    - tests: get the linux-image-extra available for the current kernel
+    - interfaces: add new "sysfs-name" to i2c interfaces code
+    - interfaces: disconnect hooks
+    - cmd/libsnap: unify detection of core/classic with go
+    - tests: fix autopkgtest failures in cosmic
+    - snap: fix advice json
+    - overlord/snapstate: parallel snap install
+    - store: backward compatible instance-key handling for non-instance
+      snaps
+    - interfaces: add screencast-legacy for video and audio recording
+    - tests: skip unsupported architectures for fedora-base-smoke test
+    - tests: avoid using the journalctl cursor when it has not been
+      created yet
+    - snapstate: ensure normal snaps wait for the "snapd" snap on
+      refresh
+    - tests: enable lxd again everywhere
+    - tests: new test for udisks2 interface
+    - interfaces: add cpu-control for setting CPU tunables
+    - overlord/devicestate: fix tests, set seeded in registration
+      through proxy tests
+    - debian: add missing breaks on cosmic
+    - devicestate: only run device-hook when fully seeded
+    - seccomp: conditionally add socketcall() based on system and base
+    - tests: new test for juju client observe interface
+    - overlord/devicestate: DTRT w/a snap proxy to reach a serial vault
+    - snapcraft: set version information for the snapd snap
+    - cmd/snap, daemon: error out if trying to install a snap using
+      empty name
+    - hookstate: simplify some hook tests
+    - cmd/snap-confine: extend security tag validation to cover instance
+      names
+    - snap: fix mocking of systemkey in snap-run tests
+    - packaging/opensuse: fix static build of snap-update-ns and snap-
+      exec
+    - interfaces/builtin: addtl network-manager resolved DBus fix
+    - udev: skip TestParseUdevEvent on ppc
+    - interfaces: miscellaneous policy updates
+    - debian: add tzdata to build-dep to ensure snapd builds correctly
+    - cmd/libsnap-confine-private: intoduce helpers for validating snap
+      instance name and instance key
+    - snap,snap-exec: support command-chain for app
+    - interfaces/builtin: network-manager resolved DBus changes
+    - snap: tweak `snap wait` command
+    - cmd/snap-update-ns: introduce validation of snap instance names
+    - cmd/snap: fix some corner-case test setup weirdness
+    - cmd,dirs: fix various issues discovered by a Fedora base snap
+    - tests/lib/prepare: fix extra snaps test
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 02 Oct 2018 10:38:11 +0200
+
 snapd (2.35.4) xenial; urgency=medium
 
   * New upstream release, LP: #1786438

@@ -53,3 +53,23 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 		}
 	}
 }
+
+func (s *backendsSuite) TestEssentialOrdering(c *C) {
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
+	all := backends.Backends()
+	aaIndex := -1
+	sdIndex := -1
+	for i, backend := range all {
+		switch backend.Name() {
+		case "apparmor":
+			aaIndex = i
+		case "systemd":
+			sdIndex = i
+		}
+	}
+	c.Assert(aaIndex, testutil.IntNotEqual, -1)
+	c.Assert(sdIndex, testutil.IntNotEqual, -1)
+	c.Assert(sdIndex, testutil.IntLessThan, aaIndex)
+}

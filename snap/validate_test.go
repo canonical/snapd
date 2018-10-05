@@ -223,6 +223,7 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 		{Name: "aa-a"},
 		{Name: "a-aa"},
 		{Name: "a-b-c"},
+		{Name: "valid", CommandChain: []string{"valid"}},
 	}
 	for _, hook := range validHooks {
 		err := ValidateHook(hook)
@@ -242,6 +243,14 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 	for _, hook := range invalidHooks {
 		err := ValidateHook(hook)
 		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
+	}
+	invalidHooks = []*HookInfo{
+		{Name: "valid", CommandChain: []string{"in'valid"}},
+		{Name: "valid", CommandChain: []string{"in valid"}},
+	}
+	for _, hook := range invalidHooks {
+		err := ValidateHook(hook)
+		c.Assert(err, ErrorMatches, `hook command-chain contains illegal.*`)
 	}
 }
 
@@ -439,10 +448,13 @@ func (s *ValidateSuite) TestAppWhitelistWithVars(c *C) {
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "test'me"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar'baz"}}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar baz"}}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
