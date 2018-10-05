@@ -38,6 +38,7 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
+	clientMixin
 	Positional struct {
 		Email string
 	} `positional-args:"yes"`
@@ -51,14 +52,18 @@ type cmdCreateUser struct {
 func init() {
 	cmd := addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} },
 		map[string]string{
-			"json":          i18n.G("Output results in JSON format"),
-			"sudoer":        i18n.G("Grant sudo access to the created user"),
-			"known":         i18n.G("Use known assertions for user creation"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"json": i18n.G("Output results in JSON format"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"sudoer": i18n.G("Grant sudo access to the created user"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"known": i18n.G("Use known assertions for user creation"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"force-managed": i18n.G("Force adding the user, even if the device is already managed"),
 		}, []argDesc{{
 			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 			name: i18n.G("<email>"),
-			// TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
+			// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
 			desc: i18n.G("An email of a user on login.ubuntu.com"),
 		}})
 	cmd.hidden = true
@@ -68,8 +73,6 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
-	cli := Client()
 
 	options := client.CreateUserOptions{
 		Email:        x.Positional.Email,
@@ -83,9 +86,9 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	var err error
 
 	if options.Email == "" && options.Known {
-		results, err = cli.CreateUsers([]*client.CreateUserOptions{&options})
+		results, err = x.client.CreateUsers([]*client.CreateUserOptions{&options})
 	} else {
-		result, err = cli.CreateUser(&options)
+		result, err = x.client.CreateUser(&options)
 		if err == nil {
 			results = append(results, result)
 		}

@@ -37,10 +37,12 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
@@ -69,6 +71,7 @@ type Overlord struct {
 	ensureTimer *time.Timer
 	ensureNext  time.Time
 	pruneTicker *time.Ticker
+	numEnsure   uint64
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
@@ -80,6 +83,7 @@ type Overlord struct {
 	hookMgr   *hookstate.HookManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
+	shotMgr   *snapshotstate.SnapshotManager
 }
 
 var storeNew = store.New
@@ -141,6 +145,7 @@ func New() (*Overlord, error) {
 	o.addManager(deviceMgr)
 
 	o.addManager(cmdstate.Manager(s, o.runner))
+	o.addManager(snapshotstate.Manager(s, o.runner))
 
 	configstateInit(hookMgr)
 
@@ -150,8 +155,11 @@ func New() (*Overlord, error) {
 	s.Lock()
 	defer s.Unlock()
 	// setting up the store
+	proxyConf := proxyconf.New(s)
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	sto := storeNew(nil, authContext)
+	cfg := store.DefaultConfig()
+	cfg.Proxy = proxyConf.Conf
+	sto := storeNew(cfg, authContext)
 	sto.SetCacheDownloads(defaultCachedDownloads)
 
 	snapstate.ReplaceStore(s, sto)
@@ -177,6 +185,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *snapshotstate.SnapshotManager:
+		o.shotMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -267,6 +277,7 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
+			o.numEnsure++
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -281,12 +292,16 @@ func (o *Overlord) Loop() {
 	})
 }
 
+func (o *Overlord) CanStandby() bool {
+	return o.numEnsure > 0
+}
+
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
 	o.loopTomb.Kill(nil)
-	err1 := o.loopTomb.Wait()
+	err := o.loopTomb.Wait()
 	o.stateEng.Stop()
-	return err1
+	return err
 }
 
 func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
@@ -426,6 +441,11 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 // jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// SnapshotManager returns the manager responsible for snapshots.
+func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
+	return o.shotMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend

@@ -69,6 +69,26 @@ func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 	return user, err
 }
 
+func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.RefreshOptions, error) {
+	var opts store.RefreshOptions
+
+	if origOpts != nil {
+		if origOpts.PrivacyKey != "" {
+			// nothing to add
+			return origOpts, nil
+		}
+		opts = *origOpts
+	}
+
+	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
+	}
+	if opts.PrivacyKey == "" {
+		return nil, fmt.Errorf("internal error: request salt is unset")
+	}
+	return &opts, nil
+}
+
 func installInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
 	// TODO: support ignore-validation?
 
@@ -87,6 +107,11 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 		channel = ""
 	}
 
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	action := &store.SnapAction{
 		Action:       "install",
 		InstanceName: name,
@@ -98,7 +123,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
@@ -110,6 +135,11 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 	}
 
 	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshOpts, err := refreshOptions(st, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +171,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, refreshOpts)
 	st.Lock()
 
 	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
@@ -219,6 +249,11 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		return nil, err
 	}
 
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	action := &store.SnapAction{
 		Action:       "refresh",
 		SnapID:       curInfo.SnapID,
@@ -229,7 +264,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
 	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
@@ -239,6 +274,11 @@ func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(snapStates) == 0 {
+		// no snaps installed, do not bother any further
+		return nil, nil
 	}
 
 	curSnaps := collectCurrentSnaps(snapStates, nil)
@@ -292,6 +332,11 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		return nil, nil, nil, err
 	}
 
+	opts, err = refreshOptions(st, opts)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	// check if we have this name at all
 	for _, name := range names {
 		if _, ok := snapStates[name]; !ok {
@@ -311,7 +356,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 
 	actionsByUserID := make(map[int][]*store.SnapAction)
 	stateByInstanceName := make(map[string]*SnapState, len(snapStates))
-	ignoreValidation := make(map[string]bool)
+	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) {
@@ -346,7 +391,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			InstanceName: installed.InstanceName,
 		})
 		if snapst.IgnoreValidation {
-			ignoreValidation[installed.SnapID] = true
+			ignoreValidationByInstanceName[installed.InstanceName] = true
 		}
 		nCands++
 	}
@@ -401,5 +446,5 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		updates = append(updates, updatesForUser...)
 	}
 
-	return updates, stateByInstanceName, ignoreValidation, nil
+	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
 }

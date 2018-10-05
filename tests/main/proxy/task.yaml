@@ -1,0 +1,30 @@
+summary: Ensure that the core.proxy.* settings are honored
+
+# ubuntu-14.04 does not have systemd-run
+systems: [-ubuntu-14.04-*]
+
+restore: |
+    snap set core proxy.https=
+    systemctl stop tinyproxy || true
+
+execute: |
+    if ! command -v python3; then
+       echo "SKIP: need python3"
+       exit 0
+    fi
+
+    systemd-run --unit tinyproxy -- python3 "$(pwd)/tinyproxy.py"
+    # shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    wait_for_service tinyproxy
+
+    echo "Setup proxy config"
+    snap set core proxy.https=http://localhost:3128
+
+    echo "Check that the commands go through the proxy"
+    snap find test-snapd-tools | MATCH test-snapd-tools
+
+    # check unit output
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+    check_journalctl_log 'CONNECT api.snapcraft.io' -u tinyproxy

@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -169,23 +168,19 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
-	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
-		// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
-		// inside the mount namespace snap-confine creates and there we will
-		// always have a /snap directory available regardless if the system
-		// we're running on supports this or not.
-		// TODO parallel-install: use of proper instance/store name
-		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.InstanceName(), snapInfo.Revision.String()), 1)
+	// Content cannot be mounted at arbitrary locations, validate the path
+	// for extra safety.
+	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
+		// The path starts with $ and ValidatePathVariables() ensures
+		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
+		// other $VARs are present. It is ok to use
+		// ExpandSnapVariables() since it only expands $SNAP, $SNAP_DATA
+		// and $SNAP_COMMON
+		return snapInfo.ExpandSnapVariables(path)
 	}
-	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
-		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
-	}
-	if strings.HasPrefix(path, "$SNAP_COMMON/") || path == "$SNAP_COMMON" {
-		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
-	}
-	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
-	// TODO parallel-install: use of proper instance/store name
-	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.InstanceName(), snapInfo.Revision.String()), path)
+	// Always prefix with $SNAP if nothing else is provided or the path
+	// contains invalid variables.
+	return snapInfo.ExpandSnapVariables(filepath.Join("$SNAP", path))
 }
 
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
@@ -235,8 +230,12 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(&buf, "  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
-			apparmor.WritableProfile(&buf, source)
-			apparmor.WritableProfile(&buf, target)
+			// TODO: The assumed prefix depth could be optimized to be more
+			// precise since content sharing can only take place in a fixed
+			// list of places with well-known paths (well, constrained set of
+			// paths). This can be done when the prefix is actually consumed.
+			apparmor.WritableProfile(&buf, source, 1)
+			apparmor.WritableProfile(&buf, target, 1)
 			spec.AddUpdateNS(buf.String())
 		}
 	}
@@ -258,8 +257,9 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
 			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
-			apparmor.WritableProfile(&buf, source)
-			apparmor.WritableProfile(&buf, target)
+			// Look at the TODO comment above.
+			apparmor.WritableProfile(&buf, source, 1)
+			apparmor.WritableProfile(&buf, target, 1)
 			spec.AddUpdateNS(buf.String())
 		}
 	}

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -46,8 +47,8 @@ const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -80,8 +81,8 @@ var (
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=%s-xkcd\x2dwebserver-44.mount
-Wants=network-online.target
-After=%s-xkcd\x2dwebserver-44.mount network-online.target
+Wants=network.target
+After=%s-xkcd\x2dwebserver-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -250,13 +251,46 @@ apps:
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
+	const sock1ExpectedFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Socket sock1 for snap application some-snap.app
+Requires=%s-some\x2dsnap-44.mount
+After=%s-some\x2dsnap-44.mount
+X-Snappy=yes
+
+[Socket]
+Service=snap.some-snap.app.service
+FileDescriptorName=sock1
+ListenStream=%s/sock1.socket
+SocketMode=0666
+
+[Install]
+WantedBy=sockets.target
+`
+	const sock2ExpectedFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Socket sock2 for snap application some-snap.app
+Requires=%s-some\x2dsnap-44.mount
+After=%s-some\x2dsnap-44.mount
+X-Snappy=yes
+
+[Socket]
+Service=snap.some-snap.app.service
+FileDescriptorName=sock2
+ListenStream=%s/sock2.socket
+
+[Install]
+WantedBy=sockets.target
+`
+
+	si := &snap.Info{
+		SuggestedName: "some-snap",
+		Version:       "1.0",
+		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+	}
 	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SuggestedName: "xkcd-webserver",
-			Version:       "0.3.4",
-			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
-		},
-		Name:    "xkcd-webserver",
+		Snap:    si,
+		Name:    "app",
 		Command: "bin/foo start",
 		Daemon:  "simple",
 		Plugs:   map[string]*snap.PlugInfo{"network-bind": {}},
@@ -266,13 +300,33 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
 				ListenStream: "$SNAP_DATA/sock1.socket",
 				SocketMode:   0666,
 			},
+			"sock2": {
+				Name:         "sock2",
+				ListenStream: "$SNAP_DATA/sock2.socket",
+			},
 		},
 	}
+	service.Sockets["sock1"].App = service
+	service.Sockets["sock2"].App = service
+
+	sock1Path := filepath.Join(dirs.SnapServicesDir, "snap.some-snap.app.sock1.socket")
+	sock2Path := filepath.Join(dirs.SnapServicesDir, "snap.some-snap.app.sock2.socket")
+	sock1Expected := fmt.Sprintf(sock1ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
+	sock2Expected := fmt.Sprintf(sock2ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(generatedWrapper), "[Install]"), Equals, false)
 	c.Assert(strings.Contains(string(generatedWrapper), "WantedBy=multi-user.target"), Equals, false)
+
+	generatedSockets, err := wrappers.GenerateSnapSocketFiles(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedSockets, Not(IsNil))
+	c.Assert(*generatedSockets, HasLen, 2)
+	c.Assert(*generatedSockets, DeepEquals, map[string][]byte{
+		sock1Path: []byte(sock1Expected),
+		sock2Path: []byte(sock2Expected),
+	})
 }
 
 func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
@@ -280,8 +334,8 @@ func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service
+Wants=network.target
+After=%s-snap-44.mount network.target snap.snap.bar.service snap.snap.zed.service
 Before=snap.snap.foo.service
 X-Snappy=yes
 
@@ -404,8 +458,8 @@ func (s *servicesWrapperGenSuite) TestServiceTimerServiceUnit(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -564,8 +618,8 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]

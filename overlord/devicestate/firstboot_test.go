@@ -109,6 +109,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
+	ovld.InterfaceManager().DisableUDevMonitor()
 	s.overlord = ovld
 
 	// don't actually try to talk to the store on snapstate.Ensure
@@ -158,6 +159,24 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
+
+	// already set the fallback model
+
+	// verify that the model was added
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "generic",
+		"model":    "generic-classic",
+	})
+	c.Assert(err, IsNil)
+	_, ok := as.(*asserts.Model)
+	c.Check(ok, Equals, true)
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "generic")
+	c.Check(ds.Model, Equals, "generic-classic")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
@@ -1253,8 +1272,8 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	c.Assert(err, ErrorMatches, "need a model assertion")
 }
 
-func (s *FirstBootTestSuite) makeCore18Snaps(c *C) (core18Fn, snapdFn string) {
-	files := [][]string{{"meta/hooks/configure", ""}}
+func (s *FirstBootTestSuite) makeCore18Snaps(c *C) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+	files := [][]string{}
 
 	core18Yaml := `name: core18
 version: 1.0
@@ -1268,7 +1287,29 @@ version: 1.0
 	snapdFname, snapdDecl, snapdRev := s.makeAssertedSnap(c, snapdYaml, nil, snap.R(2), "canonical")
 	writeAssertionsToFile("snapd.asserts", []asserts.Assertion{snapdRev, snapdDecl})
 
-	return core18Fname, snapdFname
+	kernelYaml := `name: pc-kernel
+version: 1.0
+type: kernel`
+	kernelFname, kernelDecl, kernelRev := s.makeAssertedSnap(c, kernelYaml, files, snap.R(1), "canonical")
+
+	writeAssertionsToFile("kernel.asserts", []asserts.Assertion{kernelRev, kernelDecl})
+
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+	gaYaml := `name: pc
+version: 1.0
+type: gadget
+base: core18
+`
+	gadgetFname, gadgetDecl, gadgetRev := s.makeAssertedSnap(c, gaYaml, files, snap.R(1), "canonical")
+
+	writeAssertionsToFile("gadget.asserts", []asserts.Assertion{gadgetRev, gadgetDecl})
+
+	return core18Fname, snapdFname, kernelFname, gadgetFname
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
@@ -1287,8 +1328,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 		"snap_kernel": "pc-kernel_1.snap",
 	})
 
-	_, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
-	core18Fname, snapdFname := s.makeCore18Snaps(c)
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
@@ -1415,4 +1455,232 @@ snaps:
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOrdering(c *C) {
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err := ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
+
+	snapYaml := `name: snap-req-other-base
+version: 1.0
+base: other-base
+`
+	snapFname, snapDecl, snapRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	writeAssertionsToFile("snap-req-other-base.asserts", []asserts.Assertion{devAcct, snapRev, snapDecl})
+	baseYaml := `name: other-base
+version: 1.0
+type: base
+`
+	baseFname, baseDecl, baseRev := s.makeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
+	writeAssertionsToFile("other-base.asserts", []asserts.Assertion{devAcct, baseRev, baseDecl})
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: snap-req-other-base
+   file: %s
+ - name: other-base
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+
+	// the first taskset installs snapd and waits for noone
+	i := 0
+	tSnapd := tsAll[i].Tasks()[0]
+	c.Check(tSnapd.WaitTasks(), HasLen, 0)
+	// the next installs the core18 and that will wait for snapd
+	i++
+	tCore18 := tsAll[i].Tasks()[0]
+	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
+	// the next installs the kernel and will wait for the core18
+	i++
+	tKernel := tsAll[i].Tasks()[0]
+	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
+	// the next installs the gadget and will wait for the kernel
+	i++
+	tGadget := tsAll[i].Tasks()[0]
+	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+	// the next installs the base and waits for the gadget
+	i++
+	tOtherBase := tsAll[i].Tasks()[0]
+	c.Check(tOtherBase.WaitTasks(), testutil.Contains, tGadget)
+	// and finally the app
+	i++
+	tSnap := tsAll[i].Tasks()[0]
+	c.Check(tSnap.WaitTasks(), testutil.Contains, tOtherBase)
+}
+
+func (s *FirstBootTestSuite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err := ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	core18Fname, snapdFname, kernelFname, _ := s.makeCore18Snaps(c)
+	// take the gadget without "base: core18"
+	_, _, gadgetFname := s.makeCoreSnaps(c, "")
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	// a snap that uses content providers
+	snapYaml := `name: gnome-calculator
+version: 1.0
+plugs:
+ gtk-3-themes:
+  interface: content
+  default-provider: gtk-common-themes
+  target: $SNAP/data-dir/themes
+`
+	calcFname, calcDecl, calcRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+
+	writeAssertionsToFile("calc.asserts", []asserts.Assertion{devAcct, calcRev, calcDecl})
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: gtk-common-themes
+version: 1.0
+slots:
+ gtk-3-themes:
+  interface: content
+  source:
+   read:
+    - $SNAP/share/themes/Adawaita
+`
+	themesFname, themesDecl, themesRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(65), "developerid")
+
+	writeAssertionsToFile("themes.asserts", []asserts.Assertion{devAcct, themesDecl, themesRev})
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
+	writeAssertionsToFile("model.asserts", assertsChain)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: core
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: gnome-calculator
+   file: %s
+ - name: gtk-common-themes
+   file: %s
+`, coreFname, kernelFname, gadgetFname, calcFname, themesFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
+
+	// verify the result
+	var conns map[string]interface{}
+	err = st.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 1)
+	conn, hasConn := conns["gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes"]
+	c.Check(hasConn, Equals, true)
+	c.Check(conn.(map[string]interface{})["auto"], Equals, true)
+	c.Check(conn.(map[string]interface{})["interface"], Equals, "content")
 }

@@ -20,3 +20,6 @@ execute: |
         echo "The build-id of snapd must not be empty."
         exit 1
     fi
+
+    echo "Ensure passwd/group is available for snaps"
+    test-snapd-tools-core18.cat /var/lib/extrausers/passwd | MATCH test

@@ -1174,6 +1174,17 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
+
+	info.InstanceKey = "instance"
+	// Despite setting the instance key the variables expand to the same
+	// value as before. This is because they are used from inside the mount
+	// namespace of the instantiated snap where the mount backend will
+	// ensure that the regular (non-instance) paths contain
+	// instance-specific code and data.
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
@@ -1337,7 +1348,8 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 	core := &snap.Info{Type: snap.TypeOS}
 	base := &snap.Info{Type: snap.TypeBase}
 	app := &snap.Info{Type: snap.TypeApp}
-	snapd := &snap.Info{SideInfo: snap.SideInfo{RealName: "snapd"}}
+	snapd := &snap.Info{}
+	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
 
 	byType := func(snaps ...*snap.Info) []*snap.Info {
 		sort.Stable(snap.ByType(snaps))
@@ -1352,4 +1364,35 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 
 	c.Check(byType(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
 	c.Check(byType(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
+}
+
+func (s *infoSuite) TestMedia(c *C) {
+	c.Check(snap.MediaInfos{}.Screenshots(), HasLen, 0)
+	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type:   "screenshot",
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	}
+
+	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
+	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
+		{
+			URL: "https://example.com/shot1.svg",
+		}, {
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	})
 }
