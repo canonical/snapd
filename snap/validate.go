@@ -84,8 +84,6 @@ func ValidateInstanceName(instanceName string) error {
 		return err
 	}
 	if !validInstanceKey.MatchString(instanceKey) {
-		// TODO parallel-install: extend the error message once snap
-		// install help has been updated
 		return fmt.Errorf("invalid instance key: %q", instanceKey)
 	}
 	return nil
@@ -282,8 +280,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
-	// TODO parallel-install: use of proper instance/store name, discuss socket activation in parallel install world
-	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.InstanceName())
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.SnapName())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
 	}
