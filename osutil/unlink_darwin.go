@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,32 +17,13 @@
  *
  */
 
-package wrappers
+package osutil
 
 import (
-	"time"
+	"golang.org/x/sys/unix"
 )
 
-// some internal helper exposed for testing
-var (
-	// services
-	GenerateSnapServiceFile = generateSnapServiceFile
-	GenerateSnapSocketFiles = generateSnapSocketFiles
-	GenerateSnapTimerFile   = generateSnapTimerFile
-
-	// desktop
-	SanitizeDesktopFile    = sanitizeDesktopFile
-	RewriteExecLine        = rewriteExecLine
-	IsValidDesktopFileLine = isValidDesktopFileLine
-
-	// timers
-	GenerateOnCalendarSchedules = generateOnCalendarSchedules
-)
-
-func MockKillWait(wait time.Duration) (restore func()) {
-	oldKillWait := killWait
-	killWait = wait
-	return func() {
-		killWait = oldKillWait
-	}
+// sys/unix _does_ expose flags, so we need to wrap it
+func sysUnlinkat(dirfd int, path string) error {
+	return unix.Unlinkat(dirfd, path, 0)
 }
