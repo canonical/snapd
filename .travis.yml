@@ -1,20 +1,56 @@
 language: go
+git:
+  quiet: true
 jobs:
   include:
-    - name: osx
+    - stage: quick
+      name: go 1.6/trusty static and unit test suites
+      go: 1.6
+      before_install:
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
+      install:
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
+        - ./get-deps.sh
+      script:
+        - ./run-checks --static
+        - ./run-checks --unit
+    - stage: quick
+      go: 1.10
+      name: OSX build and minimal runtime sanity check
       os: osx
       install:
         - brew install squashfs
         - ./get-deps.sh
         - go get golang.org/x/sys/unix
+      before_script:
         - ./mkversion.sh
         - go build -o /tmp/snp ./cmd/snap
       script:
         - /tmp/snp download hello
         - /tmp/snp version
         - /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
-    - name: spread
+    - stage: quick
+      name: CLA check
+      if: type = pull_request
+      language: bash
+      addons:
+        apt:
+          packages:
+            python-launchpadlib
+      script:
+        - ./tests/lib/cla_check.py
+    - stage: integration
+      name: spread
       os: linux
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread
       env:
         global:
           # SPREAD_LINODE_KEY
@@ -25,17 +61,3 @@ jobs:
           - secure: "Le4CMhklfadi4aBQIEaEMbsFIB608GOvSHjVUxkDxkkUAVwl/Ov4Dni5d0Tn4e/xcxPkcm+pPg64dn0Jxzwx6XfWlxhWC10vYh+/GjpZW1znahtb/Gf9CNZOJJEy5LSeI7/uJ3LYcFd0FU0EJSerNeQJc5d8jmJH8UnuqObHOk29YD//XILiLRa1XALEimwXeQyGQePBmDTxPQQv1VLFjgfaJa5Xy55Us7AKTML2V7lhaeKCSEIp3x9liLAtnKlJhyXaXO/e4b3ZJTgXwYh+vENK1E2pxalpjBNPaJNkvtbsjFtYNXJoXca+hBVs5Sq1PCBhkEGxqFUsD8VLQd+MEXp4MYOF5fBhxIa3qOSjtuR+WmZ9G6fEysEBV6Y3F3D6HYWTpNkcHNXJCwdtOM+n92zNEBDIrufwzTPpyJXpoxZCCXrk3HHRdyDktvJYLrHdn1bM19mgYguesMZHTC5xMD6ifwdRoylmApjImXOvVxf2HdQiNvNLDqvaHgmYwNfl0+KbaVz+O2EDPCRnT5wOCpSeSUet47EPITdjr5OnTwLpOVaY+iSvn90EUB/8+ZU01TRYgc+6VNPHokLVjuiQJSrE4yTx/c2MnY9eRaOosVXngYfoS/L3XwDwZiQoeLZs04bScvxzGQIGCJ+CBzNPENtZ4AUh55Yl/vVNReZJeaY="
           # SPREAD_GOOGLE_KEY
           - secure: "dIA2HrartowFL2Gl5jXiVMd9hIJyIeummYwxeBL9MzO48E/BIJyIGHudEOo8oCnZ5a0yb8TqYgND2FCgJU1V5I2LyxH6T9kizHjtmIGgeM4qlEGKRlptb2v7DFkaHeW4Mpp4gLk8hYIeWyq9OR+SlK6f0Jj049LLKfQoX6GzTPug5+MMEQOJs55OJ6f6gvCv2o3oj6WFybaohMCO4GbNYQSPLwheyTSkT0efnW9QqTN0w62pDMqscVURO90/CUeZyCcXw2uOBegwPNTBoo/+4+nZsfSNeupV8wX4vVYL0ZFL6IO3mViDoZBD4SGTNF/9x8Lc1WeKm9HlELzy5krdLqsvdV/fQSWhBzwkdykKVA3Aae5dAMIGRt7e5bJaUg+/HdtOgA5jr+qey/c/BN11MyaSOMNPNGjRuv9NAcEjxoN2JkiDXfpA3lE9kjd7TBTexGe4RJGJLJjT9s8XxdKufBfruC/yhVGdVkRoc2tsAJPZ72Ds9qH0FH28zNFAgAitCLDfInjhPMPvZJhb3Bqx5P/0DE5zUbduE9kYK0iiZRJ4AaytQy+R4nJCXE42mWv5cxoE84opVqO9cBu1TPCC8gTRQFWpJt1rP+DvwjaFiswvptG8obxNpHmkhcItPGmRVN9P9Yjd9nHvegS83tsbrd2KOyMmCk3/1KWhLufisHE="
-
-      git:
-          quiet: true
-
-      install:
-          - true
-
-      script:
-          - ./run-checks --spread
-
-      addons:
-        apt:
-          packages:
-          - xdelta3
