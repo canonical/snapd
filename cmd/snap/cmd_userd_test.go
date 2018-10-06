@@ -69,16 +69,15 @@ func (s *userdSuite) TestUserd(c *C) {
 		}()
 
 		needle := "io.snapcraft.Launcher"
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 100; i++ {
 			for _, objName := range s.SessionBus.Names() {
 				if objName == needle {
 					return
 				}
-				time.Sleep(1 * time.Second)
 			}
-
+			time.Sleep(10 * time.Millisecond)
 		}
-		c.Fatalf("%s does not appeared on the bus", needle)
+		c.Fatalf("%s has not appeared on the bus", needle)
 	}()
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
