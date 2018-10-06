@@ -21,23 +21,11 @@ package systemd
 
 import (
 	"io"
-	"time"
 )
 
 var (
 	Jctl = jctl
 )
-
-func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
-	oldCheckDelay := stopCheckDelay
-	oldNotifyDelay := stopNotifyDelay
-	stopCheckDelay = checkDelay
-	stopNotifyDelay = notifyDelay
-	return func() {
-		stopCheckDelay = oldCheckDelay
-		stopNotifyDelay = oldNotifyDelay
-	}
-}
 
 func MockOsGetenv(f func(string) string) func() {
 	oldOsGetenv := osGetenv
