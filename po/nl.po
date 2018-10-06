@@ -556,7 +556,7 @@ msgid ""
 "for it, meaning it was not verified and could be dangerous (--devmode "
 "implies this)"
 msgstr ""
-"installeer het opgegeven snapbestand zelfs indien er geen vooraf erkende "
+"Installeer het opgegeven snapbestand zelfs indien er geen vooraf erkende "
 "handtekeningen voor zijn, hetgeen betekent dat het niet werd geverifieerd en "
 "dus gevaarlijk zou kunnen zijn (--devmode impliceert dit)"
 
@@ -660,7 +660,7 @@ msgstr ""
 "'default' als sleutelnaam)"
 
 msgid "Name of the key to use, otherwise use the default key"
-msgstr "naam van de te gebruiken sleutel, gebruik anders de standaardsleutel"
+msgstr "Naam van de te gebruiken sleutel, gebruik anders de standaardsleutel"
 
 msgid "Name\tSHA3-384"
 msgstr "Naam\tSHA3-384"

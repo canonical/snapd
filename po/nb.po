@@ -111,7 +111,7 @@ msgstr ""
 
 #. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion file>"
-msgstr "forutsetningsfil>"
+msgstr "<forutsetningsfil>"
 
 #. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion type>"
