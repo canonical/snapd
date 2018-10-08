@@ -69,6 +69,19 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	}
 }
 
+// MockStopDelays is used from tests so that Stop can be less
+// forgiving there.
+func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
+	oldCheckDelay := stopCheckDelay
+	oldNotifyDelay := stopNotifyDelay
+	stopCheckDelay = checkDelay
+	stopNotifyDelay = notifyDelay
+	return func() {
+		stopCheckDelay = oldCheckDelay
+		stopNotifyDelay = oldNotifyDelay
+	}
+}
+
 func Available() error {
 	_, err := systemctlCmd("--version")
 	return err
