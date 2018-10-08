@@ -166,6 +166,34 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	c.Check(model.RequiredSnaps(), HasLen, 0)
 }
 
+func (mods *modelSuite) TestDecodeValidSnapNames(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo_bar\n  - bar\n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(a, IsNil)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "foo_bar"`)
+
+	encoded = strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo\n  - bar-;;''\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(a, IsNil)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "bar-;;''"`)
+
+	encoded = strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux_instance\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(a, IsNil)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "baz-linux_instance"`)
+
+	encoded = strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget_instance\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(a, IsNil)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "brand-gadget_instance"`)
+
+	encoded = strings.Replace(withTimestamp, "base: core18\n", "base: core18_instance\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(a, IsNil)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "core18_instance"`)
+}
+
 func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, sysUserAuths, "", 1)
