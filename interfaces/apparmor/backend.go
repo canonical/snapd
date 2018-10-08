@@ -525,10 +525,10 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
-			if release.AppArmorLevel() == release.PartialAppArmor {
-				return fmt.Sprintf("change_profile,")
+			if release.AppArmorLevel() == release.FullAppArmor {
+				return fmt.Sprintf("change_profile unsafe /**,")
 			}
-			return fmt.Sprintf("change_profile unsafe /**,")
+			return fmt.Sprintf("change_profile,")
 		case "###SNIPPETS###":
 			var tagSnippets string
 			if opts.Classic && opts.JailMode {
