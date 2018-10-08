@@ -87,7 +87,6 @@ backends:
 
             - opensuse-42.3-64:
                 workers: 4
-                manual: true
             - arch-linux-64:
                 workers: 4
 

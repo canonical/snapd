@@ -38,6 +38,7 @@ type InstallCandidate struct {
 	BaseDeclaration *asserts.BaseDeclaration
 
 	Model *asserts.Model
+	Store *asserts.Store
 }
 
 func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule, snapRule bool) error {
@@ -128,6 +129,7 @@ type ConnectCandidate struct {
 	BaseDeclaration *asserts.BaseDeclaration
 
 	Model *asserts.Model
+	Store *asserts.Store
 }
 
 func nestedGet(which string, attrs interfaces.Attrer, path string) (interface{}, error) {
