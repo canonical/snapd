@@ -509,7 +509,7 @@ var classicTemplate = `
   /** pix,
 
   capability,
-  change_profile unsafe /**,
+  ###CHANGEPROFILE_RULE###
   dbus,
   network,
   mount,
