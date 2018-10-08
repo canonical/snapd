@@ -102,6 +102,18 @@ func (s *systemUserSuite) TestDecodePasswd(c *C) {
 	}
 }
 
+func (s *systemUserSuite) TestDecodeForcePasswdChange(c *C) {
+
+	old := "password: $6$salt$hash\n"
+	new := "password: $6$salt$hash\nforce-password-change: true\n"
+
+	valid := strings.Replace(s.systemUserStr, old, new, 1)
+	a, err := asserts.Decode([]byte(valid))
+	c.Check(err, IsNil)
+	systemUser := a.(*asserts.SystemUser)
+	c.Check(systemUser.ForcePasswordChange(), Equals, true)
+}
+
 func (s *systemUserSuite) TestValidAt(c *C) {
 	a, err := asserts.Decode([]byte(s.systemUserStr))
 	c.Assert(err, IsNil)
@@ -164,6 +176,8 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"password: $6$salt$hash\n", "password: $8$rounds=xxx$salt$hash\n", `"password" header has invalid number of rounds:.*`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=1$salt$hash\n", `"password" header rounds parameter out of bounds: 1`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=1999999999$salt$hash\n", `"password" header rounds parameter out of bounds: 1999999999`},
+		{"password: $6$salt$hash\n", "force-password-change: true\n", `cannot use "force-password-change" with an empty "password"`},
+		{"password: $6$salt$hash\n", "password: $6$salt$hash\nforce-password-change: xxx\n", `"force-password-change" header must be 'true' or 'false'`},
 		{s.sinceLine, "since: \n", `"since" header should not be empty`},
 		{s.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{s.untilLine, "until: \n", `"until" header should not be empty`},
