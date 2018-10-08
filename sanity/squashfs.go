@@ -17,7 +17,7 @@
  *
  */
 
-package selftest
+package sanity
 
 import (
 	"bytes"
@@ -69,13 +69,13 @@ bAEA+f+YuAAQAAA=
 `)
 
 func checkSquashfsMount() error {
-	tmpSquashfsFile, err := ioutil.TempFile("", "selftest-squashfs-")
+	tmpSquashfsFile, err := ioutil.TempFile("", "sanity-squashfs-")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmpSquashfsFile.Name())
 
-	tmpMountDir, err := ioutil.TempDir("", "selftest-mountpoint-")
+	tmpMountDir, err := ioutil.TempDir("", "sanity-mountpoint-")
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func checkSquashfsMount() error {
 	defer func() {
 		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
 			// os.RemoveAll(tmpMountDir) will fail here if umount fails
-			logger.Noticef("cannot unmount selftest squashfs image: %v", osutil.OutputErr(output, err))
+			logger.Noticef("cannot unmount sanity check squashfs image: %v", osutil.OutputErr(output, err))
 		}
 	}()
 

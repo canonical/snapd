@@ -46,7 +46,7 @@ type servicesTestSuite struct {
 
 	sysdLog [][]string
 
-	restorer func()
+	systemctlRestorer, delaysRestorer func()
 }
 
 var _ = Suite(&servicesTestSuite{})
@@ -56,15 +56,18 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.sysdLog = nil
 	dirs.SetRootDir(s.tempdir)
 
-	s.restorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
+	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.restorer()
+	s.systemctlRestorer()
+	s.delaysRestorer()
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
@@ -140,7 +143,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 }
 
 func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
-	restore := wrappers.MockKillWait(200 * time.Millisecond)
+	restore := wrappers.MockKillWait(time.Millisecond)
 	defer restore()
 
 	var sysdLog [][]string
@@ -159,7 +162,7 @@ version: 42
 apps:
  wat:
    command: wat
-   stop-timeout: 250ms
+   stop-timeout: 20ms
    daemon: forking
 `, &snap.SideInfo{Revision: snap.R(11)})
 

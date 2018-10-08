@@ -56,8 +56,8 @@ ensure_file_exists_backup_real() {
         mv "$file" "$file.back"
     fi
     # ensure the parent dir is available
-    if [ ! -d "$(dirname $file)" ]; then
-        mkdir -p "$(dirname $file)"
+    if [ ! -d "$(dirname "$file")" ]; then
+        mkdir -p "$(dirname "$file")"
     fi
     touch "$file"
     touch "$file.fake"

@@ -11,14 +11,10 @@ set -e
 #echo "mkauthors.sh run from: $0"
 #echo "pwd: $(pwd)"
 
-# we have two directories we need to care about:
-# - our toplevel pkg builddir which is where "mkauthors.sh" is located
-#   and where "snap-confine" expects its cmd/VERSION file
-# - the GO_GENERATE_BUILDDIR which may be the toplevel pkg dir. but
-#   during "dpkg-buildpackage" it will become a different _build/ dir
-#   that dh-golang creates and that only contains a subset of the
-#   files of the toplevel buildir.
-PKG_BUILDDIR=$(dirname "$0")
+# GO_GENERATE_BUILDDIR may be the toplevel pkg dir, but during
+# "dpkg-buildpackage" it will become a different _build/ dir that
+# dh-golang creates and that only contains a subset of the files of
+# the toplevel buildir.
 GO_GENERATE_BUILDDIR="$(pwd)"
 
 # run from "go generate" adjust path
@@ -53,4 +49,4 @@ func init() {
 }
 EOF
 
-go fmt $GO_GENERATE_BUILDDIR/cmd/snap/cmd_blame_generated.go >/dev/null
+go fmt "$GO_GENERATE_BUILDDIR/cmd/snap/cmd_blame_generated.go" >/dev/null

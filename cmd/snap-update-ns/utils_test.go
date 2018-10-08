@@ -139,7 +139,9 @@ func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
 // Ensure that writes to /etc/demo are interrupted if /etc is restricted.
 func (s *utilsSuite) TestSecureMkdirAllWithRestrictedEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/etc/demo")
 	err := update.MkdirAll("/etc/demo", 0755, 123, 456, rs)
@@ -150,11 +152,13 @@ func (s *utilsSuite) TestSecureMkdirAllWithRestrictedEtc(c *C) {
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		// we are inspecting the type of the filesystem we are about to perform operation on.
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		// ext4 is writable, refuse further operations.
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `close 4`},
 	})
 }
@@ -707,7 +711,9 @@ func (s *utilsSuite) TestSecureMksymlinkAllInSnapData(c *C) {
 // We want to create a symlink in /etc but the host filesystem would be affected.
 func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/etc/symlink")
 	err := update.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname", rs)
@@ -715,10 +721,12 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `close 4`},
 	})
 }
@@ -727,7 +735,9 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 // This just shows that we pick the right place to construct the mimic
 func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/etc/some/other/stuff/symlink")
 	err := update.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname", rs)
@@ -736,9 +746,11 @@ func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `close 4`},
 		{C: `close 3`},
 	})
@@ -747,7 +759,9 @@ func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 // We want to create a file in /etc but the host filesystem would be affected.
 func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/etc/file")
 	err := update.MkfileAll("/etc/file", 0755, 0, 0, rs)
@@ -755,10 +769,12 @@ func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `close 4`},
 	})
 }
@@ -766,7 +782,9 @@ func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 // We want to create a directory in /etc but the host filesystem would be affected.
 func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/etc/dir")
 	err := update.MkdirAll("/etc/dir", 0755, 0, 0, rs)
@@ -774,10 +792,12 @@ func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `close 4`},
 	})
 }
@@ -820,21 +840,27 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
 	// Because /etc is not on a list of unrestricted paths the write to
 	// /etc/symlink must be validated with step-by-step operation.
 	rootStatfs := syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
+	rootStat := syscall.Stat_t{}
 	etcStatfs := syscall.Statfs_t{Type: update.TmpfsMagic}
+	etcStat := syscall.Stat_t{}
 	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, rootStatfs)
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, rootStat)
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, etcStatfs)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, etcStat)
 	rs := s.as.RestrictionsFor("/etc/symlink")
 	err := update.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname", rs)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: rootStatfs},
+		{C: `fstat 3 <ptr>`, R: rootStat},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: etcStatfs},
+		{C: `fstat 4 <ptr>`, R: etcStat},
 		{C: `symlinkat "/oldname" 4 "symlink"`},
 		{C: `close 4`},
 	})
@@ -843,7 +869,9 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
 // We want to create a file in /etc which is a tmpfs created by snapd so that's okay.
 func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
 	rs := s.as.RestrictionsFor("/etc/file")
@@ -852,10 +880,12 @@ func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `openat 4 "file" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, R: 3},
 		{C: `fchown 3 0 0`},
 		{C: `close 3`},
@@ -866,7 +896,9 @@ func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
 // We want to create a directory in /etc which is a tmpfs created by snapd so that is ok.
 func (s *utilsSuite) TestSecureMkdirAllInEtcAfterMimic(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/etc", Type: "tmpfs", Name: "tmpfs"}})
 	rs := s.as.RestrictionsFor("/etc/dir")
@@ -875,10 +907,12 @@ func (s *utilsSuite) TestSecureMkdirAllInEtcAfterMimic(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 4 "dir" 0755`},
 		{C: `openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fchown 3 0 0`},
