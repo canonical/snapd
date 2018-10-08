@@ -18,6 +18,8 @@ import logging
 import os
 import subprocess
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count
 
 import yaml
 
@@ -30,6 +32,8 @@ NO_FAIL = os.getenv('NO_FAIL')
 D = os.getenv('D')
 # set to non-empty to enable verbose logging
 V = os.getenv('V')
+# set to a number to use these many threads
+N = int(os.getenv('N') or cpu_count())
 # file with list of files that can fail validation
 CAN_FAIL = os.getenv('CAN_FAIL')
 
@@ -49,6 +53,8 @@ def parse_arguments():
     parser.add_argument('--can-fail', default=None,
                         help=('file with list of files that are can fail '
                               'validation'))
+    parser.add_argument('-P', '--max-procs', default=N, type=int, metavar='N',
+                        help='run these many shellchecks in parallel (default: %(default)s)')
     parser.add_argument('paths', nargs='+', help='paths to check')
     return parser.parse_args()
 
@@ -95,6 +101,9 @@ class ShellcheckFailures(Exception):
 
 
 def checksection(data):
+    # spread shell snippets are executed under 'set -e' shell, make sure
+    # shellcheck knows about that
+    data = 'set -e\n' + data
     proc = subprocess.Popen("shellcheck -s {} -x -".format(SHELLCHECK_SHELL),
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
@@ -149,7 +158,7 @@ def findfiles(indir):
                 yield os.path.join(root, name)
 
 
-def checkpath(loc):
+def checkpath(loc, max_workers):
     if os.path.isdir(loc):
         # setup iterator
         locations = findfiles(loc)
@@ -157,7 +166,7 @@ def checkpath(loc):
         locations = [loc]
 
     failed = []
-    for entry in locations:
+    def check1path(entry):
         try:
             checkfile(entry)
         except ShellcheckError as serr:
@@ -167,6 +176,9 @@ def checkpath(loc):
             for section, error in serr.sectionerrors.items():
                 logging.error("%s: section '%s':\n%s", entry, section, error)
             failed.append(entry)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        executor.map(check1path, locations)
 
     if failed:
         raise ShellcheckFailures(failures=failed)
@@ -186,7 +198,7 @@ def main(opts):
     failures = ShellcheckFailures()
     for pth in paths:
         try:
-            checkpath(pth)
+            checkpath(pth, opts.max_procs)
         except ShellcheckFailures as sf:
             failures.merge(sf)
 

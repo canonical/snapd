@@ -54,15 +54,15 @@ func (s *snapdSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 }
 
-func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
+func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	selftestErr := fmt.Errorf("foo failed")
-	selftestWasRun := 0
-	restore = snapd.MockSelftestRun(func() error {
-		selftestWasRun += 1
-		return selftestErr
+	sanityErr := fmt.Errorf("foo failed")
+	sanityCheckWasRun := 0
+	restore = snapd.MockSanityCheck(func() error {
+		sanityCheckWasRun += 1
+		return sanityErr
 	})
 	defer restore()
 
@@ -77,11 +77,11 @@ func (s *snapdSuite) TestSelftestFailGoesIntoDegradedMode(c *C) {
 	}()
 	time.Sleep(100 * time.Millisecond)
 
-	// verify that talking to the daemon yields the selftest error
+	// verify that talking to the daemon yields the sanity error
 	// message
 	cli := client.New(nil)
 	_, err := cli.Abort("123")
-	c.Check(selftestWasRun >= 1, Equals, true)
+	c.Check(sanityCheckWasRun >= 1, Equals, true)
 	c.Check(err, ErrorMatches, "system does not fully support snapd: foo failed")
 	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
 

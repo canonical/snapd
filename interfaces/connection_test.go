@@ -329,3 +329,29 @@ func (s *connSuite) TestCopyAttributes(c *C) {
 	cpy["e"].(map[string]interface{})["e1"] = "x"
 	c.Check(orig["e"].(map[string]interface{})["e1"], Equals, "E1")
 }
+
+func (s *connSuite) TestNewConnectedPlugExplicitStaticAttrs(c *C) {
+	staticAttrs := map[string]interface{}{
+		"baz": "boom",
+	}
+	dynAttrs := map[string]interface{}{
+		"foo": "bar",
+	}
+	plug := NewConnectedPlug(s.plug, staticAttrs, dynAttrs)
+	c.Assert(plug, NotNil)
+	c.Assert(plug.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
+	c.Assert(plug.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
+}
+
+func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
+	staticAttrs := map[string]interface{}{
+		"baz": "boom",
+	}
+	dynAttrs := map[string]interface{}{
+		"foo": "bar",
+	}
+	slot := NewConnectedSlot(s.slot, staticAttrs, dynAttrs)
+	c.Assert(slot, NotNil)
+	c.Assert(slot.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
+	c.Assert(slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
+}
