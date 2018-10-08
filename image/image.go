@@ -219,12 +219,6 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		}
 	}
 
-	modelSnaps := modela.RequiredSnaps()
-	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget(), modela.Base())
-	if err := validateNoParallelSnapInstances(modelSnaps); err != nil {
-		return nil, err
-	}
-
 	return modela, nil
 }
 

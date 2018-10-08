@@ -377,7 +377,7 @@ AXNpZw==
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
-	c.Check(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
+	c.Check(err, ErrorMatches, `.* assertion model: invalid snap name: "foo_instance"`)
 }
 
 func (s *imageSuite) TestModelAssertionNoParallelInstancesOfKernel(c *C) {
@@ -401,7 +401,7 @@ AXNpZw==
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
-	c.Check(err, ErrorMatches, `cannot use snap "kernel_instance", parallel snap instances are unsupported`)
+	c.Check(err, ErrorMatches, `.* assertion model: invalid snap name: "kernel_instance"`)
 }
 
 func (s *imageSuite) TestModelAssertionNoParallelInstancesOfGadget(c *C) {
@@ -425,7 +425,7 @@ AXNpZw==
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
-	c.Check(err, ErrorMatches, `cannot use snap "brand-gadget_instance", parallel snap instances are unsupported`)
+	c.Check(err, ErrorMatches, `.* assertion model: invalid snap name: "brand-gadget_instance"`)
 }
 
 func (s *imageSuite) TestModelAssertionNoParallelInstancesOfBase(c *C) {
@@ -450,7 +450,7 @@ AXNpZw==
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
-	c.Check(err, ErrorMatches, `cannot use snap "core18_instance", parallel snap instances are unsupported`)
+	c.Check(err, ErrorMatches, `.* assertion model: invalid snap name: "core18_instance"`)
 }
 
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
