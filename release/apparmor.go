@@ -21,8 +21,10 @@ package release
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -76,6 +78,11 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 }
 
 // probe related code
+type apparmorParserFeature struct {
+	feature string
+	rule    string
+}
+
 var (
 	appArmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
 	requiredAppArmorFeatures = []string{
@@ -89,6 +96,9 @@ var (
 		"ptrace",
 		"signal",
 	}
+	requiredAppArmorParserFeatures = []apparmorParserFeature{
+		{"unsafe", "change_profile unsafe /** -> *,"},
+	}
 )
 
 // isDirectoy is like osutil.IsDirectory but we cannot import this
@@ -99,6 +109,28 @@ func isDirectory(path string) bool {
 		return false
 	}
 	return stat.IsDir()
+}
+
+// tryParser will run the parser on the rule to determine if the feature is
+// supported.
+func tryParser(rule string) bool {
+	cmd := exec.Command("apparmor_parser", "-p")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return false
+	}
+
+	go func() {
+		defer stdin.Close()
+		r := fmt.Sprintf("profile snap-test {\n %s\n}", rule)
+		io.WriteString(stdin, r)
+	}()
+
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 func probeAppArmor() (AppArmorLevelType, string) {
@@ -113,6 +145,15 @@ func probeAppArmor() (AppArmorLevelType, string) {
 	}
 	if len(missing) > 0 {
 		return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
+	} else {
+		for _, f := range requiredAppArmorParserFeatures {
+			if !tryParser(f.rule) {
+				missing = append(missing, f.feature)
+			}
+			if len(missing) > 0 {
+				return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some parser features are missing: %s", strings.Join(missing, ", "))
+			}
+		}
 	}
 	return FullAppArmor, "apparmor is enabled and all features are available"
 }
