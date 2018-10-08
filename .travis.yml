@@ -13,7 +13,7 @@ jobs:
         - ./get-deps.sh
       script:
         - ./run-checks --static
-        - ./run-checks --unit
+        - ./run-checks --short-unit
     - stage: quick
       go: 1.10
       name: OSX build and minimal runtime sanity check
