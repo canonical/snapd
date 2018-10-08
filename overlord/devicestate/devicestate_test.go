@@ -2350,7 +2350,7 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	_, err = repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
 		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
 	c.Assert(err, IsNil)
