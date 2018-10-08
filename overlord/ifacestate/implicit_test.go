@@ -21,6 +21,7 @@ package ifacestate_test
 
 import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 
@@ -35,6 +36,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	st := state.New(nil)
 	hotplugSlots := map[string]ifacestate.HotplugSlotDef{
 		"foo": {
 			Name:             "foo",
@@ -42,9 +44,12 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 			StaticAttrs:      map[string]interface{}{"attr": "value"},
 			HotplugDeviceKey: "1234",
 		}}
+	st.Lock()
+	defer st.Unlock()
+	st.Set("hotplug-slots", hotplugSlots)
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info, hotplugSlots)
+	ifacestate.AddImplicitSlots(st, info)
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
@@ -73,7 +78,12 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	defer restore()
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info, nil)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	ifacestate.AddImplicitSlots(st, info)
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]
