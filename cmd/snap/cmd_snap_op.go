@@ -929,7 +929,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"name": i18n.G("Install the snap file under given instance name"),
+			"name": i18n.G("Install the snap file under the given instance name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
