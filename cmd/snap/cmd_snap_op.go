@@ -45,8 +45,10 @@ var (
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snaps in the system under a given
-instance name.
+The install command installs the named snaps on the system.
+
+To install multiple instances of the same snap, append an underscore and a
+unique identifier (for each instance) to a snap's name.
 
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
