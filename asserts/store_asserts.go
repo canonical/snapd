@@ -49,7 +49,8 @@ func (store *Store) URL() *url.URL {
 	return store.url
 }
 
-// FriendlyStores returns stores to be treated as extensions of this store.
+// FriendlyStores returns stores holding snaps that are also exposed
+// through this one.
 func (store *Store) FriendlyStores() []string {
 	return store.friendlyStores
 }
