@@ -20,6 +20,8 @@
 package ifacestate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/state"
@@ -70,6 +72,9 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 
 	// Add hotplug slots
 	for _, slotDef := range hotplugSlotDefs {
+		if _, ok := snapInfo.Slots[slotDef.Name]; ok {
+			return fmt.Errorf("cannot add hotplug slot %s: slot already exists", slotDef.Name)
+		}
 		snapInfo.Slots[slotDef.Name] = &snap.SlotInfo{
 			Name:             slotDef.Name,
 			Snap:             snapInfo,
