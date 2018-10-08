@@ -1,0 +1,81 @@
+summary: Check snap alias and snap unalias across different instances of the same snap
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    snap set system experimental.parallel-instances=true
+
+    install_local aliases
+    install_local_as aliases aliases_foo
+
+restore: |
+    snap set system experimental.parallel-instances=null
+    rm -f aliases.out
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    echo "Create manual aliases"
+    snap alias aliases.cmd1 alias1|MATCH ".*- aliases.cmd1 as alias1.*"
+    snap alias aliases.cmd2 alias2
+
+    echo "Test the aliases"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases.cmd2"
+    alias1|MATCH "ok command 1"
+    alias2|MATCH "ok command 2"
+
+    echo "Attempting to create the same aliases for aliases_foo should conflict"
+    ! snap alias aliases_foo.cmd1 alias1
+    snap change --last=alias | MATCH 'cannot enable alias "alias1" for "aliases_foo", already enabled for "aliases"'
+    ! snap alias aliases_foo.cmd2 alias2
+    snap change --last=alias | MATCH 'cannot enable alias "alias2" for "aliases_foo", already enabled for "aliases"'
+
+    echo "Check listing"
+    snap aliases > aliases.out
+    MATCH "aliases.cmd1 +alias1 +manual" < aliases.out
+    MATCH "aliases.cmd2 +alias2 +manual" < aliases.out
+    ! MATCH aliases_foo                  < aliases.out
+
+    echo "Disable one alias for aliases snap"
+    snap unalias alias2|MATCH ".*- aliases.cmd2 as alias2.*"
+
+    echo "Creating an alias for aliases_foo should work now"
+    snap alias aliases_foo.cmd2 alias2
+
+    echo "The symlinks should be updated and pointing to the right snaps"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases_foo.cmd2"
+
+    # sanity check if apps can still be run
+    alias1|MATCH "ok command 1"
+    alias2|MATCH "ok command 2"
+
+    echo "Listing should show both snaps having aliases"
+    snap aliases > aliases.out
+    MATCH "aliases.cmd1 +alias1 +manual"     < aliases.out
+    MATCH "aliases_foo.cmd2 +alias2 +manual" < aliases.out
+
+    echo "Disable all aliases of aliases snap"
+    snap unalias aliases|MATCH ".*- aliases.cmd1 as alias1*"
+    test ! -h "$SNAP_MOUNT_DIR"/bin/alias1
+
+    echo "Aliases of aliases_foo remain unchanged"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases_foo.cmd2"
+    snap aliases | MATCH "aliases_foo.cmd2 +alias2 +manual"
+
+    echo "Recreate an alias1 for aliases snap"
+    snap alias aliases.cmd1 alias1
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
+
+    echo "Removing the aliases snap should remove its aliases"
+    snap remove aliases
+    test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
+
+    echo "Aliases of aliases_foo remain unchanged"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases_foo.cmd2"
+
+    snap remove aliases_foo
+    test ! -e "$SNAP_MOUNT_DIR/bin/alias2"

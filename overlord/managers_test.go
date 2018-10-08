@@ -169,6 +169,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 	// registered
+	err = assertstate.Add(st, sysdb.GenericClassicModel())
+	c.Assert(err, IsNil)
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
@@ -2582,7 +2584,7 @@ apps:
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
 	c.Assert(err, IsNil)
@@ -2670,7 +2672,7 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
 	c.Assert(err, IsNil)
