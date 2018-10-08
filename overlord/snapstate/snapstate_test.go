@@ -1686,6 +1686,32 @@ confinement: devmode
 	c.Assert(err, ErrorMatches, `.* requires devmode or confinement override`)
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	_, err := snapstate.Install(s.state, "core_foo", "", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install snap of type os as "core_foo"`)
+
+	_, err = snapstate.Install(s.state, "some-base_foo", "", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install snap of type base as "some-base_foo"`)
+
+	_, err = snapstate.Install(s.state, "some-gadget_foo", "", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install snap of type gadget as "some-gadget_foo"`)
+
+	_, err = snapstate.Install(s.state, "some-kernel_foo", "", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install snap of type kernel as "some-kernel_foo"`)
+
+	_, err = snapstate.Install(s.state, "some-snapd_foo", "", snap.R(0), 0, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
