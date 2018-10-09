@@ -22,7 +22,7 @@ execute: |
     systemctl start snapd.{service,socket}
 
     echo "Ensure that unknown task was ignored"
-    for i in $(seq 10); do
+    for _ in $(seq 10); do
         snap changes|MATCH ".*80999.*Done" && break
         sleep 1
     done 
