@@ -57,15 +57,17 @@ var deviceKeyVersion = len(attrGroups) - 1
 // attrGroups list above and they depend on the keyVersion passed to the
 // function.
 // The resulting key returned by the function has the following format:
-// <version>:<checksum> where checksum is the sha256 checksum computed over
+// <version><checksum> where checksum is the sha256 checksum computed over
 // select attributes of the device.
-func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) string {
+func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) (string, error) {
 	found := 0
 	key := sha256.New()
+	if keyVersion >= 16 || keyVersion >= len(attrGroups) {
+		return "", fmt.Errorf("internal error: invalid key version %d", keyVersion)
+	}
 	for _, group := range attrGroups[keyVersion] {
 		for _, attr := range group {
 			if val, ok := devinfo.Attribute(attr); ok && val != "" {
-				// attribute name and value are separated by null character
 				key.Write([]byte(attr))
 				key.Write([]byte{0})
 				key.Write([]byte(val))
@@ -76,9 +78,9 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) string
 		}
 	}
 	if found < 2 {
-		return ""
+		return "", nil
 	}
-	return fmt.Sprintf("%d%x", keyVersion, key.Sum(nil))
+	return fmt.Sprintf("%x%x", keyVersion, key.Sum(nil)), nil
 }
 
 // HotplugDeviceAdded gets called when a device is added to the system.
