@@ -126,7 +126,7 @@ bool sc_should_populate_mount_ns(struct sc_mount_ns *group);
  * Preserve prepared namespace group.
  *
  * This function signals the child support process for namespace capture to
- * perform the capture and shut down. It must be called after the call to
+ * perform the capture. It must be called after the call to
  * sc_create_or_join_mount_ns() and only when sc_should_populate_mount_ns()
  * returns true.
  *
@@ -134,8 +134,21 @@ bool sc_should_populate_mount_ns(struct sc_mount_ns *group);
  * to wake up, bind mount /proc/$ppid/ns/mnt to /run/snapd/ns/${group_name}.mnt
  * and then exit. The parent process (the caller) then collects the child
  * process and returns.
+ *
+ * The helper process will wait for subsequent commands. Please call
+ * sc_wait_for_helper() to terminate it.
  **/
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group);
+
+/**
+ * Ask the helper process to terminate and wait for it to finish.
+ *
+ * This function asks the helper process to exit by writing an appropriate
+ * command to the eventfd used for the inter process communication between the
+ * main snap-confine process and the helper and then waits for the process to
+ * terminate cleanly.
+ **/
+void sc_wait_for_helper(struct sc_mount_ns *group);
 
 /**
  * Discard the preserved namespace group.

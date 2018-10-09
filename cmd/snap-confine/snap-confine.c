@@ -251,6 +251,10 @@ int main(int argc, char **argv)
 						     base_snap_name,
 						     snap_instance);
 				sc_preserve_populated_mount_ns(group);
+				/* TODO: once the helper process lifecycle is separated from
+				 * the need to construct a mount namespace move this call to
+				 * after sc_setup_user_mounts() below. */
+				sc_wait_for_helper(group);
 			}
 			sc_close_mount_ns(group);
 			// older versions of snap-confine created incorrect
