@@ -20,7 +20,6 @@
 package ifacestate
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"strconv"
@@ -61,18 +60,16 @@ var deviceKeyVersion = len(attrGroups) - 1
 // <version>:<checksum> where checksum is the sha256 checksum computed over
 // select attributes of the device.
 func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) string {
-	var key bytes.Buffer
 	found := 0
+	key := sha256.New()
 	for _, group := range attrGroups[keyVersion] {
 		for _, attr := range group {
 			if val, ok := devinfo.Attribute(attr); ok && val != "" {
-				if key.Len() > 0 {
-					key.Write([]byte{0})
-				}
-				key.Write([]byte(attr))
 				// attribute name and value are separated by null character
+				key.Write([]byte(attr))
 				key.Write([]byte{0})
 				key.Write([]byte(val))
+				key.Write([]byte{0})
 				found++
 				break
 			}
@@ -81,7 +78,7 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) string
 	if found < 2 {
 		return ""
 	}
-	return fmt.Sprintf("%d:%x", keyVersion, sha256.Sum256(key.Bytes()))
+	return fmt.Sprintf("%d%x", keyVersion, key.Sum(nil))
 }
 
 // HotplugDeviceAdded gets called when a device is added to the system.
