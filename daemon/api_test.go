@@ -766,7 +766,7 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
-	found := countCommandDeclsIn(c, "api.go", check.Commentf("TestListIncludesAll"))
+	found := countCommandDecls(c, check.Commentf("TestListIncludesAll"))
 
 	c.Check(found, check.Equals, len(api),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
@@ -3527,7 +3527,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		res, err := snapUpdateMany(inst, st)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
-		c.Check(res.summary, check.Equals, tst.msg)
+		c.Check(res.Summary, check.Equals, tst.msg)
 		c.Check(refreshSnapDecls, check.Equals, true)
 	}
 }
@@ -3551,7 +3551,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh all snaps: no updates`)
+	c.Check(res.Summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3575,8 +3575,8 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3600,8 +3600,8 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snap "foo"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snap "foo"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3619,8 +3619,8 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	res, err := snapInstallMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Install snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
@@ -3651,26 +3651,8 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	res, err := snapRemoveMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Remove snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
-}
-
-func (s *apiSuite) TestSnapshotMany(c *check.C) {
-	snapshotSave = func(s *state.State, snaps, users []string) (uint64, []string, *state.TaskSet, error) {
-		c.Check(snaps, check.HasLen, 2)
-		t := s.NewTask("fake-snapshot-2", "Snapshot two")
-		return 1, snaps, state.NewTaskSet(t), nil
-	}
-
-	d := s.daemon(c)
-	inst := &snapInstruction{Action: "snapshot", Snaps: []string{"foo", "bar"}}
-	st := d.overlord.State()
-	st.Lock()
-	res, err := snapshotMany(inst, st)
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Snapshot snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
@@ -7540,291 +7522,5 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		com := check.Commentf("%v", t.err)
 		rsp := errToResponse(t.err, []string{"foo"}, BadRequest, "%s: %v", "ERR")
 		c.Check(rsp, check.DeepEquals, t.expectedRsp, com)
-	}
-}
-
-func (s *apiSuite) TestListSnapshots(c *check.C) {
-	snapshots := []client.SnapshotSet{{ID: 1}, {ID: 42}}
-
-	oldList := snapshotList
-	defer func() {
-		snapshotList = oldList
-	}()
-	snapshotList = func(context.Context, uint64, []string) ([]client.SnapshotSet, error) {
-		return snapshots, nil
-	}
-
-	c.Check(snapshotCmd.Path, check.Equals, "/v2/snapshots")
-	req, err := http.NewRequest("GET", "/v2/snapshots", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := listSnapshots(snapshotCmd, req, nil).(*resp)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result, check.DeepEquals, snapshots)
-}
-
-func (s *apiSuite) TestListSnapshotsFiltering(c *check.C) {
-	snapshots := []client.SnapshotSet{{ID: 1}, {ID: 42}}
-
-	oldList := snapshotList
-	defer func() {
-		snapshotList = oldList
-	}()
-	snapshotList = func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
-		out := make([]client.SnapshotSet, 0, len(snapshots))
-		for _, snapshot := range snapshots {
-			if snapshot.ID == setID {
-				out = append(out, snapshot)
-			}
-		}
-		return out, nil
-	}
-
-	req, err := http.NewRequest("GET", "/v2/snapshots?set=42", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := listSnapshots(snapshotCmd, req, nil).(*resp)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result, check.DeepEquals, []client.SnapshotSet{{ID: 42}})
-}
-
-func (s *apiSuite) TestListSnapshotsBadFiltering(c *check.C) {
-	oldList := snapshotList
-	defer func() {
-		snapshotList = oldList
-	}()
-	snapshotList = func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
-		panic("too late")
-	}
-
-	req, err := http.NewRequest("GET", "/v2/snapshots?set=no", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := listSnapshots(snapshotCmd, req, nil).(*resp)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `'set', if given, must be a positive base 10 number; got "no"`)
-}
-
-func (s *apiSuite) TestListSnapshotsListError(c *check.C) {
-	oldList := snapshotList
-	defer func() {
-		snapshotList = oldList
-	}()
-	snapshotList = func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
-		return nil, errors.New("no")
-	}
-
-	c.Check(snapshotCmd.Path, check.Equals, "/v2/snapshots")
-	req, err := http.NewRequest("GET", "/v2/snapshots", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := listSnapshots(snapshotCmd, req, nil).(*resp)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "no")
-}
-
-func (s *apiSuite) TestFormatSnapshotAction(c *check.C) {
-	type table struct {
-		action   snapshotAction
-		expected string
-	}
-	tests := []table{
-		{
-			snapshotAction{SetID: 2, Action: "verb"},
-			`Verb of snapshot set #2`,
-		}, {
-			snapshotAction{SetID: 2, Action: "verb", Snaps: []string{"foo"}},
-			`Verb of snapshot set #2 for snaps "foo"`,
-		}, {
-			snapshotAction{SetID: 2, Action: "verb", Snaps: []string{"foo", "bar"}},
-			`Verb of snapshot set #2 for snaps "foo", "bar"`,
-		}, {
-			snapshotAction{SetID: 2, Action: "verb", Users: []string{"meep"}},
-			`Verb of snapshot set #2 for users "meep"`,
-		}, {
-			snapshotAction{SetID: 2, Action: "verb", Users: []string{"meep", "quux"}},
-			`Verb of snapshot set #2 for users "meep", "quux"`,
-		}, {
-			snapshotAction{SetID: 2, Action: "verb", Users: []string{"meep", "quux"}, Snaps: []string{"foo", "bar"}},
-			`Verb of snapshot set #2 for snaps "foo", "bar" for users "meep", "quux"`,
-		},
-	}
-
-	for _, test := range tests {
-		c.Check(test.action.String(), check.Equals, test.expected)
-	}
-}
-
-func (s *apiSuite) TestChangeSnapshots400(c *check.C) {
-	type table struct{ body, error string }
-	tests := []table{
-		{
-			body:  `"woodchucks`,
-			error: "cannot decode request body into snapshot operation:.*",
-		}, {
-			body:  `{}"woodchucks`,
-			error: "extra content found after snapshot operation",
-		}, {
-			body:  `{}`,
-			error: "snapshot operation requires snapshot set ID",
-		}, {
-			body:  `{"set": 42}`,
-			error: "snapshot operation requires action",
-		}, {
-			body:  `{"set": 42, "action": "carrots"}`,
-			error: `unknown snapshot operation "carrots"`,
-		}, {
-			body:  `{"set": 42, "action": "forget", "users": ["foo"]}`,
-			error: `snapshot "forget" operation cannot specify users`,
-		},
-	}
-
-	for i, test := range tests {
-		comm := check.Commentf("%d:%q", i, test.body)
-		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(test.body))
-		c.Assert(err, check.IsNil, comm)
-
-		rsp := changeSnapshots(snapshotCmd, req, nil).(*resp)
-		c.Check(rsp.Type, check.Equals, ResponseTypeError, comm)
-		c.Check(rsp.Status, check.Equals, 400, comm)
-		c.Check(rsp.Result.(*errorResult).Message, check.Matches, test.error, comm)
-	}
-}
-
-func (s *apiSuite) TestChangeSnapshots404(c *check.C) {
-	oldCheck := snapshotCheck
-	oldRestore := snapshotRestore
-	oldForget := snapshotForget
-	defer func() {
-		snapshotCheck = oldCheck
-		snapshotRestore = oldRestore
-		snapshotForget = oldForget
-	}()
-	var expectedError error
-	var done string
-	snapshotCheck = func(*state.State, uint64, []string, []string) ([]string, *state.TaskSet, error) {
-		done = "check"
-		return nil, nil, expectedError
-	}
-	snapshotRestore = func(*state.State, uint64, []string, []string) ([]string, *state.TaskSet, error) {
-		done = "restore"
-		return nil, nil, expectedError
-	}
-	snapshotForget = func(*state.State, uint64, []string) ([]string, *state.TaskSet, error) {
-		done = "forget"
-		return nil, nil, expectedError
-	}
-	for _, expectedError = range []error{client.ErrSnapshotSetNotFound, client.ErrSnapshotSnapsNotFound} {
-		for _, action := range []string{"check", "restore", "forget"} {
-			comm := check.Commentf("%s/%s", action, expectedError)
-			body := fmt.Sprintf(`{"set": 42, "action": "%s"}`, action)
-			req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
-			c.Assert(err, check.IsNil, comm)
-
-			rsp := changeSnapshots(snapshotCmd, req, nil).(*resp)
-			c.Check(rsp.Type, check.Equals, ResponseTypeError, comm)
-			c.Check(rsp.Status, check.Equals, 404, comm)
-			c.Check(rsp.Result.(*errorResult).Message, check.Matches, expectedError.Error(), comm)
-			c.Check(done, check.Equals, action, comm)
-		}
-	}
-}
-
-func (s *apiSuite) TestChangeSnapshots500(c *check.C) {
-	oldCheck := snapshotCheck
-	oldRestore := snapshotRestore
-	oldForget := snapshotForget
-	defer func() {
-		snapshotCheck = oldCheck
-		snapshotRestore = oldRestore
-		snapshotForget = oldForget
-	}()
-	expectedError := errors.New("bzzt")
-	var done string
-	snapshotCheck = func(*state.State, uint64, []string, []string) ([]string, *state.TaskSet, error) {
-		done = "check"
-		return nil, nil, expectedError
-	}
-	snapshotRestore = func(*state.State, uint64, []string, []string) ([]string, *state.TaskSet, error) {
-		done = "restore"
-		return nil, nil, expectedError
-	}
-	snapshotForget = func(*state.State, uint64, []string) ([]string, *state.TaskSet, error) {
-		done = "forget"
-		return nil, nil, expectedError
-	}
-	for _, action := range []string{"check", "restore", "forget"} {
-		comm := check.Commentf("%s", action)
-		body := fmt.Sprintf(`{"set": 42, "action": "%s"}`, action)
-		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
-		c.Assert(err, check.IsNil, comm)
-
-		rsp := changeSnapshots(snapshotCmd, req, nil).(*resp)
-		c.Check(rsp.Type, check.Equals, ResponseTypeError, comm)
-		c.Check(rsp.Status, check.Equals, 500, comm)
-		c.Check(rsp.Result.(*errorResult).Message, check.Matches, expectedError.Error(), comm)
-		c.Check(done, check.Equals, action, comm)
-	}
-}
-
-func (s *apiSuite) TestChangeSnapshot(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-
-	oldCheck := snapshotCheck
-	oldRestore := snapshotRestore
-	oldForget := snapshotForget
-	defer func() {
-		snapshotCheck = oldCheck
-		snapshotRestore = oldRestore
-		snapshotForget = oldForget
-	}()
-	var done string
-	snapshotCheck = func(*state.State, uint64, []string, []string) ([]string, *state.TaskSet, error) {
-		done = "check"
-		return []string{"foo"}, state.NewTaskSet(), nil
-	}
-	snapshotRestore = func(*state.State, uint64, []string, []string) ([]string, *state.TaskSet, error) {
-		done = "restore"
-		return []string{"foo"}, state.NewTaskSet(), nil
-	}
-	snapshotForget = func(*state.State, uint64, []string) ([]string, *state.TaskSet, error) {
-		done = "forget"
-		return []string{"foo"}, state.NewTaskSet(), nil
-	}
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	for _, action := range []string{"check", "restore", "forget"} {
-		comm := check.Commentf("%s", action)
-		body := fmt.Sprintf(`{"set": 42, "action": "%s"}`, action)
-		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
-
-		c.Assert(err, check.IsNil, comm)
-
-		st.Unlock()
-		rsp := changeSnapshots(snapshotCmd, req, nil).(*resp)
-		st.Lock()
-
-		c.Check(rsp.Type, check.Equals, ResponseTypeAsync, comm)
-		c.Check(rsp.Status, check.Equals, 202, comm)
-		c.Check(done, check.Equals, action, comm)
-
-		chg := st.Change(rsp.Change)
-		c.Assert(chg, check.NotNil)
-		c.Assert(chg.Tasks(), check.HasLen, 0)
-
-		c.Check(chg.Kind(), check.Equals, action+"-snapshot")
-		var apiData map[string]interface{}
-		err = chg.Get("api-data", &apiData)
-		c.Assert(err, check.IsNil)
-		c.Check(apiData, check.DeepEquals, map[string]interface{}{
-			"snap-names": []interface{}{"foo"},
-		})
-
 	}
 }
