@@ -21,15 +21,15 @@ restore: |
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Create XDG_RUNTIME_DIR for test user"
     USER_RUNTIME_DIR=/run/user/"$(id -u test)"
-    mkdir -p $USER_RUNTIME_DIR || true
+    mkdir -p "$USER_RUNTIME_DIR" || true
     #shellcheck disable=SC2115
-    rm -rf $USER_RUNTIME_DIR/*
-    chmod u=rwX,go= $USER_RUNTIME_DIR
-    chown test:test $USER_RUNTIME_DIR
+    rm -rf "$USER_RUNTIME_DIR"/*
+    chmod u=rwX,go= "$USER_RUNTIME_DIR"
+    chown test:test "$USER_RUNTIME_DIR"
 
     echo "Without desktop interface connected, there is no user-fstab file"
     [ ! -f /var/lib/snapd/mount/snap.test-snapd-desktop.user-fstab ]

@@ -273,10 +273,15 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			return rs, fmt.Errorf("Cannot restore snapshot into %q: not a directory.", parent)
 		}
 
+		// TODO: have something more atomic in osutil
 		tempdir, err := ioutil.TempDir(parent, ".snapshot")
 		if err != nil {
 			return rs, err
 		}
+		if err := sys.ChownPath(tempdir, uid, gid); err != nil {
+			return rs, err
+		}
+
 		// one way or another we want tempdir gone
 		defer func() {
 			if err := os.RemoveAll(tempdir); err != nil {
