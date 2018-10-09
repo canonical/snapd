@@ -33,6 +33,7 @@ var (
 	DowngradeConfinement       = downgradeConfinement
 	LoadProfiles               = loadProfiles
 	UnloadProfiles             = unloadProfiles
+	SetupSnapConfineReexec     = setupSnapConfineReexec
 )
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
