@@ -680,6 +680,10 @@ static void sc_wait_for_capture_helper(struct sc_mount_ns *group)
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group)
 {
 	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_NS);
+}
+
+void sc_wait_for_helper(struct sc_mount_ns *group)
+{
 	sc_message_capture_helper(group, HELPER_CMD_EXIT);
 	sc_wait_for_capture_helper(group);
 }
