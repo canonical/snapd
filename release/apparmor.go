@@ -44,12 +44,14 @@ const (
 )
 
 var (
-	appArmorLevel   AppArmorLevelType
-	appArmorSummary string
+	appArmorLevel          AppArmorLevelType
+	appArmorSummary        string
+	appArmorParserFeatures []string
 )
 
 func init() {
 	appArmorLevel, appArmorSummary = probeAppArmor()
+	appArmorParserFeatures = probeAppArmorParser()
 }
 
 // AppArmorLevel quantifies how well apparmor is supported on the
@@ -62,6 +64,11 @@ func AppArmorLevel() AppArmorLevelType {
 // current kernel.
 func AppArmorSummary() string {
 	return appArmorSummary
+}
+
+// AppArmorParserFeatures returns a list of apparmor parser features
+func AppArmorParserFeatures() []string {
+	return appArmorParserFeatures
 }
 
 // MockAppArmorSupportLevel makes the system believe it has certain
@@ -78,11 +85,6 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 }
 
 // probe related code
-type apparmorParserFeature struct {
-	feature string
-	rule    string
-}
-
 var (
 	appArmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
 	requiredAppArmorFeatures = []string{
@@ -96,9 +98,6 @@ var (
 		"ptrace",
 		"signal",
 	}
-	requiredAppArmorParserFeatures = []apparmorParserFeature{
-		{"unsafe", "change_profile unsafe /** -> *,"},
-	}
 )
 
 // isDirectoy is like osutil.IsDirectory but we cannot import this
@@ -109,6 +108,49 @@ func isDirectory(path string) bool {
 		return false
 	}
 	return stat.IsDir()
+}
+
+func probeAppArmor() (AppArmorLevelType, string) {
+	if !isDirectory(appArmorFeaturesSysPath) {
+		return NoAppArmor, "apparmor not enabled"
+	}
+	var missing []string
+	for _, feature := range requiredAppArmorFeatures {
+		if !isDirectory(filepath.Join(appArmorFeaturesSysPath, feature)) {
+			missing = append(missing, feature)
+		}
+	}
+	if len(missing) > 0 {
+		return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
+	}
+	return FullAppArmor, "apparmor is enabled and all features are available"
+}
+
+// AppArmorFeatures returns a sorted list of apparmor features like
+// []string{"dbus", "network"}.
+func AppArmorFeatures() []string {
+	// note that ioutil.ReadDir() is already sorted
+	dentries, err := ioutil.ReadDir(appArmorFeaturesSysPath)
+	if err != nil {
+		return nil
+	}
+	appArmorFeatures := make([]string, 0, len(dentries))
+	for _, f := range dentries {
+		if isDirectory(filepath.Join(appArmorFeaturesSysPath, f.Name())) {
+			appArmorFeatures = append(appArmorFeatures, f.Name())
+		}
+	}
+	return appArmorFeatures
+}
+
+// parser probe related code
+type apparmorParserFeature struct {
+	feature string
+	rule    string
+}
+
+var requestedParserFeatures = []apparmorParserFeature{
+	{"unsafe", "change_profile unsafe /** -> *,"},
 }
 
 // tryParser will run the parser on the rule to determine if the feature is
@@ -133,44 +175,14 @@ func tryParser(rule string) bool {
 	return true
 }
 
-func probeAppArmor() (AppArmorLevelType, string) {
-	if !isDirectory(appArmorFeaturesSysPath) {
-		return NoAppArmor, "apparmor not enabled"
-	}
-	var missing []string
-	for _, feature := range requiredAppArmorFeatures {
-		if !isDirectory(filepath.Join(appArmorFeaturesSysPath, feature)) {
-			missing = append(missing, feature)
+// probeAppArmorParser returns a sorted list of apparmor features like
+// []string{"unsafe", ...}.
+func probeAppArmorParser() []string {
+	parserFeatures := make([]string, 0, len(requestedParserFeatures))
+	for _, f := range requestedParserFeatures {
+		if tryParser(f.rule) {
+			parserFeatures = append(parserFeatures, f.feature)
 		}
 	}
-	if len(missing) > 0 {
-		return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
-	} else {
-		for _, f := range requiredAppArmorParserFeatures {
-			if !tryParser(f.rule) {
-				missing = append(missing, f.feature)
-			}
-			if len(missing) > 0 {
-				return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some parser features are missing: %s", strings.Join(missing, ", "))
-			}
-		}
-	}
-	return FullAppArmor, "apparmor is enabled and all features are available"
-}
-
-// AppArmorFeatures returns a sorted list of apparmor features like
-// []string{"dbus", "network"}.
-func AppArmorFeatures() []string {
-	// note that ioutil.ReadDir() is already sorted
-	dentries, err := ioutil.ReadDir(appArmorFeaturesSysPath)
-	if err != nil {
-		return nil
-	}
-	appArmorFeatures := make([]string, 0, len(dentries))
-	for _, f := range dentries {
-		if isDirectory(filepath.Join(appArmorFeaturesSysPath, f.Name())) {
-			appArmorFeatures = append(appArmorFeatures, f.Name())
-		}
-	}
-	return appArmorFeatures
+	return parserFeatures
 }

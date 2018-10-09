@@ -61,6 +61,7 @@ var (
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = release.AppArmorFeatures
+	parserFeatures        = release.AppArmorParserFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -525,8 +526,10 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
-			if release.AppArmorLevel() == release.FullAppArmor {
-				return fmt.Sprintf("change_profile unsafe /**,")
+			for _, f := range parserFeatures() {
+				if f == "unsafe" {
+					return fmt.Sprintf("change_profile unsafe /**,")
+				}
 			}
 			return fmt.Sprintf("change_profile,")
 		case "###SNIPPETS###":
@@ -577,11 +580,18 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 
 	features := kernelFeatures()
-	tags := make([]string, 0, len(features))
+	pFeatures := parserFeatures()
+	tags := make([]string, 0, len(features)+len(pFeatures))
 	for _, feature := range features {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
+	}
+
+	for _, feature := range pFeatures {
+		// Prepend "parser:" to apparmor kernel features to namespace
+		// them and allow us to introduce our own tags later.
+		tags = append(tags, "parser:"+feature)
 	}
 
 	level := "full"
