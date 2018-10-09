@@ -173,7 +173,7 @@ def checkpath(loc, max_workers):
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for serr in executor.map(check1path, locations):
-            if not isinstance(serr, ShellcheckError):
+            if serr is None:
                 continue
             logging.error(('shellcheck failed for file %s in sections: '
                            '%s; error log follows'),
