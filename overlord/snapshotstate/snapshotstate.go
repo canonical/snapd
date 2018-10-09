@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -69,32 +70,56 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound, snapIDs, filenames []string, err error) {
+// snapshotSnapSummaries are used internally to get useful data from a
+// snapshot set when deciding whether to check/forget/restore it.
+type snapshotSnapSummaries []*snapshotSnapSummary
+
+func (summaries snapshotSnapSummaries) snapNames() []string {
+	names := make([]string, len(summaries))
+	for i, summary := range summaries {
+		names[i] = summary.snap
+	}
+	return names
+}
+
+type snapshotSnapSummary struct {
+	snap     string
+	snapID   string
+	filename string
+	epoch    snap.Epoch
+}
+
+// snapSummariesInSnapshotSet goes looking for the requested snaps in the
+// given snap set, and returns summaries of the matching snaps in the set.
+func snapSummariesInSnapshotSet(setID uint64, requested []string) (summaries snapshotSnapSummaries, err error) {
 	sort.Strings(requested)
 	found := false
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
 		if r.SetID == setID {
 			found = true
 			if len(requested) == 0 || strutil.SortedListContains(requested, r.Snap) {
-				snapsFound = append(snapsFound, r.Snap)
-				filenames = append(filenames, r.Name())
-				snapIDs = append(snapIDs, r.SnapID)
+				summaries = append(summaries, &snapshotSnapSummary{
+					filename: r.Name(),
+					snap:     r.Snap,
+					snapID:   r.SnapID,
+					epoch:    r.Epoch,
+				})
 			}
 		}
 
 		return nil
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if !found {
-		return nil, nil, nil, client.ErrSnapshotSetNotFound
+		return nil, client.ErrSnapshotSetNotFound
 	}
-	if len(snapsFound) == 0 {
-		return nil, nil, nil, client.ErrSnapshotSnapsNotFound
+	if len(summaries) == 0 {
+		return nil, client.ErrSnapshotSnapsNotFound
 	}
 
-	return snapsFound, snapIDs, filenames, nil
+	return summaries, nil
 }
 
 func taskGetErrMsg(task *state.Task, err error, what string) error {
@@ -182,7 +207,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 // Restore creates a taskset for restoring a snapshot's data.
 // Note that the state must be locked by the caller.
 func Restore(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
-	snapsFound, snapIDs, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	summaries, err := snapSummariesInSnapshotSet(setID, snapNames)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -190,6 +215,8 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	snapsFound = summaries.snapNames()
 
 	if err := snapstateCheckChangeConflictMany(st, snapsFound, ""); err != nil {
 		return nil, nil, err
@@ -202,38 +229,33 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 
 	ts = state.NewTaskSet()
 
-	for i, snapID := range snapIDs {
-		if snapID == "" {
-			// snapshotted snap was unasserted, never mind
-			continue
+	for _, summary := range summaries {
+		var current snap.Revision
+		if snapst, ok := all[summary.snap]; ok {
+			info, err := snapst.CurrentInfo()
+			if err != nil {
+				// how?
+				return nil, nil, fmt.Errorf("unexpected error while reading snap info: %v", err)
+			}
+			if !info.Epoch.CanRead(&summary.epoch) {
+				const tpl = "cannot restore snapshot for %q: current snap (epoch %s) cannot read snapshot data (epoch %s)"
+				return nil, nil, fmt.Errorf(tpl, summary.snap, &info.Epoch, &summary.epoch)
+			}
+			if summary.snapID != "" && info.SnapID != "" && info.SnapID != summary.snapID {
+				const tpl = "cannot restore snapshot for %q: current snap (ID %.7s…) does not match snapshot (ID %.7s…)"
+				return nil, nil, fmt.Errorf(tpl, summary.snap, info.SnapID, summary.snapID)
+			}
+			current = snapst.Current
 		}
-		snapst, ok := all[snapsFound[i]]
-		if !ok {
-			// snap not installed
-			continue
-		}
-		sideInfo := snapst.CurrentSideInfo()
-		if sideInfo == nil {
-			// ... shouldn't happen (but also not installed)
-			continue
-		}
-		if sideInfo.SnapID == "" {
-			// current snap is unasserted, never mind then
-			continue
-		}
-		if sideInfo.SnapID != snapID {
-			return nil, nil, fmt.Errorf("cannot restore snapshot over id change: %.7s… → %.7s…", snapID, sideInfo.SnapID)
-		}
-	}
 
-	for i, name := range snapsFound {
-		desc := fmt.Sprintf("Restore data of snap %q from snapshot set #%d", name, setID)
+		desc := fmt.Sprintf("Restore data of snap %q from snapshot set #%d", summary.snap, setID)
 		task := st.NewTask("restore-snapshot", desc)
 		snapshot := snapshotSetup{
 			SetID:    setID,
-			Snap:     name,
+			Snap:     summary.snap,
 			Users:    users,
-			Filename: filenames[i],
+			Filename: summary.filename,
+			Current:  current,
 		}
 		task.Set("snapshot-setup", &snapshot)
 		// see the note about snapshots not using lanes, above.
@@ -251,27 +273,27 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 		return nil, nil, err
 	}
 
-	snapsFound, _, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	summaries, err := snapSummariesInSnapshotSet(setID, snapNames)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	ts = state.NewTaskSet()
 
-	for i, name := range snapsFound {
-		desc := fmt.Sprintf("Check data of snap %q in snapshot set #%d", name, setID)
+	for _, summary := range summaries {
+		desc := fmt.Sprintf("Check data of snap %q in snapshot set #%d", summary.snap, setID)
 		task := st.NewTask("check-snapshot", desc)
 		snapshot := snapshotSetup{
 			SetID:    setID,
-			Snap:     name,
+			Snap:     summary.snap,
 			Users:    users,
-			Filename: filenames[i],
+			Filename: summary.filename,
 		}
 		task.Set("snapshot-setup", &snapshot)
 		ts.AddTask(task)
 	}
 
-	return snapsFound, ts, nil
+	return summaries.snapNames(), ts, nil
 }
 
 // Forget creates a taskset for deletinig a snapshot.
@@ -282,23 +304,23 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 		return nil, nil, err
 	}
 
-	snapsFound, _, filenames, err := snapNamesInSnapshotSet(setID, snapNames)
+	summaries, err := snapSummariesInSnapshotSet(setID, snapNames)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	ts = state.NewTaskSet()
-	for i, name := range snapsFound {
-		desc := fmt.Sprintf("Drop data of snap %q from snapshot set #%d", name, setID)
+	for _, summary := range summaries {
+		desc := fmt.Sprintf("Drop data of snap %q from snapshot set #%d", summary.snap, setID)
 		task := st.NewTask("forget-snapshot", desc)
 		snapshot := snapshotSetup{
 			SetID:    setID,
-			Snap:     name,
-			Filename: filenames[i],
+			Snap:     summary.snap,
+			Filename: summary.filename,
 		}
 		task.Set("snapshot-setup", &snapshot)
 		ts.AddTask(task)
 	}
 
-	return snapsFound, ts, nil
+	return summaries.snapNames(), ts, nil
 }

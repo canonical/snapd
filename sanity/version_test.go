@@ -17,21 +17,21 @@
  *
  */
 
-package selftest_test
+package sanity_test
 
 import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/sanity"
 )
 
 type versionSuite struct{}
 
 var _ = Suite(&versionSuite{})
 
-func (s *selftestSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
+func (s *sanitySuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	// Mock an Ubuntu 14.04 system running a 3.13.0 kernel
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -41,11 +41,11 @@ func (s *selftestSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	defer restore()
 
 	// Check for the given advice.
-	err := selftest.CheckKernelVersion()
+	err := sanity.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "you need to reboot into a 4.4 kernel to start using snapd")
 }
 
-func (s *selftestSuite) TestRebootedOnTrusty(c *C) {
+func (s *sanitySuite) TestRebootedOnTrusty(c *C) {
 	// Mock an Ubuntu 14.04 system running a 4.4.0 kernel
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -55,6 +55,6 @@ func (s *selftestSuite) TestRebootedOnTrusty(c *C) {
 	defer restore()
 
 	// Check for the given advice.
-	err := selftest.CheckKernelVersion()
+	err := sanity.CheckKernelVersion()
 	c.Assert(err, IsNil)
 }

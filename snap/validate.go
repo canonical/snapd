@@ -380,7 +380,12 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// ensure that plug and slot have unique names
+	// Ensure that plugs and slots have appropriate names and interface names.
+	if err := plugsSlotsInterfacesNames(info); err != nil {
+		return err
+	}
+
+	// Ensure that plug and slot have unique names.
 	if err := plugsSlotsUniqueNames(info); err != nil {
 		return err
 	}
@@ -446,6 +451,25 @@ func ValidateLayoutAll(info *Info) error {
 	return nil
 }
 
+func plugsSlotsInterfacesNames(info *Info) error {
+	for plugName, plug := range info.Plugs {
+		if err := ValidatePlugName(plugName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(plug.Interface); err != nil {
+			return fmt.Errorf("invalid interface name %q for plug %q", plug.Interface, plugName)
+		}
+	}
+	for slotName, slot := range info.Slots {
+		if err := ValidateSlotName(slotName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(slot.Interface); err != nil {
+			return fmt.Errorf("invalid interface name %q for slot %q", slot.Interface, slotName)
+		}
+	}
+	return nil
+}
 func plugsSlotsUniqueNames(info *Info) error {
 	// we could choose the smaller collection if we wanted to optimize this check
 	for plugName := range info.Plugs {
