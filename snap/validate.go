@@ -280,6 +280,8 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
+	// this comes from snap declaration, so the prefix can only be the snap
+	// name at this point
 	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.SnapName())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
