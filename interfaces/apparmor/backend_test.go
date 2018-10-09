@@ -501,9 +501,6 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"}\n")
 	defer restoreClassicTemplate()
 
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"unsafe"} })
-	defer restore()
-
 	for i, scenario := range combineSnippetsScenarios {
 		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if scenario.snippet == "" {
