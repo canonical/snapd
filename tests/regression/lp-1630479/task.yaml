@@ -9,14 +9,17 @@ details: |
 
 prepare: |
     echo "Having installed a test snap"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
     echo "We can observe the value of PATH twice"
-    revision=$(readlink "$SNAP_MOUNT_DIR/test-snapd-tools/current")
+    #shellcheck disable=SC2016
     one="$(test-snapd-tools.cmd sh -c 'echo $PATH')"
+    #shellcheck disable=SC2016
     two="$(test-snapd-tools.cmd sh -c 'echo $PATH')"
     echo "We can see that PATH is stable across calls"
     [ "$one" = "$two" ]

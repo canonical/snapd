@@ -10,7 +10,7 @@ pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
 optdepends=('bash-completion: bash completion support')
-pkgver=2.35.2
+pkgver=2.35.4
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/snapcore/snapd"
@@ -172,8 +172,8 @@ package() {
   make -C cmd install DESTDIR="$pkgdir/"
 
   # Install man file
-  mkdir -p "$pkgdir/usr/share/man/man1"
-  "$srcdir/go/bin/snap" help --man > "$pkgdir/usr/share/man/man1/snap.1"
+  mkdir -p "$pkgdir/usr/share/man/man8"
+  "$srcdir/go/bin/snap" help --man > "$pkgdir/usr/share/man/man8/snap.8"
 
   # Install the "info" data file with snapd version
   install -m 644 -D "$srcdir/go/src/${_gourl}/data/info" \

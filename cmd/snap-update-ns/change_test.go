@@ -22,6 +22,7 @@ package main_test
 import (
 	"errors"
 	"os"
+	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -369,6 +370,85 @@ func (s *changeSuite) TestNeededChangesParallelInstancesInsideMount(c *C) {
 	})
 }
 
+func mustReadProfile(profileStr string) *osutil.MountProfile {
+	profile, err := osutil.ReadMountProfile(strings.NewReader(profileStr))
+	if err != nil {
+		panic(err)
+	}
+	return profile
+}
+
+func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
+	// We start with a runtime shared from one snap to another and then exposed
+	// to /opt with a symbolic link. This is the initial state of the
+	// application in version v1.
+	initial := mustReadProfile("")
+	desired_v1 := mustReadProfile(
+		"none /opt/runtime none x-snapd.kind=symlink,x-snapd.symlink=/snap/app/x1/runtime,x-snapd.origin=layout 0 0\n" +
+			"/snap/runtime/x1/opt/runtime /snap/app/x1/runtime none bind,ro 0 0\n")
+	// The changes we compute are trivial, simply perform each operation in order.
+	changes := update.NeededChanges(initial, desired_v1)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: desired_v1.Entries[0], Action: update.Mount},
+		{Entry: desired_v1.Entries[1], Action: update.Mount},
+	})
+	// After performing both changes we have a new synthesized entry. We get an
+	// extra writable mimic over /opt so that we can add our symlink. The
+	// content sharing into $SNAP is applied as expected since the snap ships
+	// the required mount point.
+	current_v1 := mustReadProfile(
+		"/snap/runtime/x1/opt/runtime /snap/app/x1/runtime none bind,ro 0 0\n" +
+			"none /opt/runtime none x-snapd.kind=symlink,x-snapd.symlink=/snap/app/x1/runtime,x-snapd.origin=layout 0 0\n" +
+			"tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/runtime,mode=0755,uid=0,gid=0 0")
+
+	// We now proceed to replace app v1 with v2 which uses a bind mount instead
+	// of a symlink. First, let's start with the updated desired profile:
+	desired_v2 := mustReadProfile(
+		"/snap/app/x2/runtime /opt/runtime none rbind,rw,x-snapd.origin=layout 0 0\n" +
+			"/snap/runtime/x1/opt/runtime /snap/app/x2/runtime none bind,ro 0 0\n")
+
+	// Let's see what the update algorithm thinks.
+	changes = update.NeededChanges(current_v1, desired_v2)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// We are dropping the content interface bind mount because app changed revision
+		{Entry: current_v1.Entries[0], Action: update.Unmount},
+		// We are also dropping the symlink we had in /opt/runtime
+		{Entry: current_v1.Entries[1], Action: update.Unmount},
+		// But, we are keeping the /opt tmpfs because we still want /opt/runtime to exist (neat!)
+		{Entry: current_v1.Entries[2], Action: update.Keep},
+		// We are adding a new bind mount for /opt/runtime
+		{Entry: desired_v2.Entries[0], Action: update.Mount},
+		// We also adding the updated path of the content interface (for revision x2)
+		{Entry: desired_v2.Entries[1], Action: update.Mount},
+	})
+
+	// After performing all those changes this is the profile we observe.
+	current_v2 := mustReadProfile(
+		"tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/runtime,mode=0755,uid=0,gid=0 0 0\n" +
+			"/snap/app/x2/runtime /opt/runtime none rbind,rw,x-snapd.origin=layout 0 0\n" +
+			"/snap/runtime/x1/opt/runtime /snap/app/x2/runtime none bind,ro 0 0\n")
+
+	// So far so good. To trigger the issue we now revert or refresh to v1
+	// again. Let's see what happens here. The desired profiles are already
+	// known so let's see what the algorithm thinks now.
+	changes = update.NeededChanges(current_v2, desired_v1)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// We are, again, dropping the content interface bind mount because app changed revision
+		{Entry: current_v2.Entries[2], Action: update.Unmount},
+		// We are also dropping the bind mount from /opt/runtime since we want a symlink instead
+		{Entry: current_v2.Entries[1], Action: update.Unmount},
+		// Again, we reuse the tmpfs.
+		{Entry: current_v2.Entries[0], Action: update.Keep},
+		// We are providing a symlink /opt/runtime -> to $SNAP/runtime.
+		{Entry: desired_v1.Entries[0], Action: update.Mount},
+		// We are bind mounting the runtime from another snap into $SNAP/runtime
+		{Entry: desired_v1.Entries[1], Action: update.Mount},
+	})
+
+	// The problem is that the tmpfs contains leftovers from the things we
+	// created and those prevent the execution of this mount profile.
+}
+
 // ########################################
 // Topic: mounting & unmounting filesystems
 // ########################################
@@ -462,6 +542,8 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 6 <ptr>`, syscall.Statfs_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
 	synth, err := chg.Perform(s.as)
@@ -523,6 +605,19 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `fstatfs 6 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/tmp/.snap/rofs"`},
+		{C: `close 6`},
 
 		// mimic ready, re-try initial mkdir
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -646,22 +741,42 @@ func (s *changeSuite) TestPerformFilesystemMountWithFileInMountPoint(c *C) {
 
 // Change.Perform wants to unmount a filesystem.
 func (s *changeSuite) TestPerformFilesystemUnmount(c *C) {
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{})
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/target"`},
+		{C: `close 4`},
 	})
 	c.Assert(synth, HasLen, 0)
 }
 
 // Change.Perform wants to detach a bind mount.
 func (s *changeSuite) TestPerformFilesystemDetch(c *C) {
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{})
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/something", Dir: "/target", Options: []string{"x-snapd.detach"}}}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/target"`},
+		{C: `close 4`},
 	})
 	c.Assert(synth, HasLen, 0)
 }
@@ -908,6 +1023,8 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 6 <ptr>`, syscall.Statfs_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.as)
@@ -969,6 +1086,19 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `fstatfs 6 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/tmp/.snap/rofs"`},
+		{C: `close 6`},
 
 		// mimic ready, re-try initial mkdir
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -1041,6 +1171,8 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 6 <ptr>`, syscall.Statfs_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/rofs/source", Dir: "/target", Options: []string{"bind", "x-snapd.origin=layout"}}}
 	synth, err := chg.Perform(s.as)
@@ -1101,6 +1233,19 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `fstatfs 6 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/tmp/.snap/rofs"`},
+		{C: `close 6`},
 
 		// /rofs/source was missing (we checked earlier), create it
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -1184,11 +1329,22 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithFileInMountSource(c *C) {
 
 // Change.Perform wants to unmount a directory bind mount.
 func (s *changeSuite) TestPerformDirectoryBindUnmount(c *C) {
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{})
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/target"`},
+		{C: `close 4`},
 	})
 	c.Assert(synth, HasLen, 0)
 }
@@ -1406,6 +1562,8 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 6 <ptr>`, syscall.Statfs_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.as)
@@ -1467,6 +1625,19 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `fstatfs 6 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/tmp/.snap/rofs"`},
+		{C: `close 6`},
 
 		// mimic ready, re-try initial mkdir
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -1550,13 +1721,84 @@ func (s *changeSuite) TestPerformFileBindMountWithDirectoryInMountSource(c *C) {
 	})
 }
 
-// Change.Perform wants to unmount a file bind mount.
-func (s *changeSuite) TestPerformFileBindUnmount(c *C) {
+// Change.Perform wants to unmount a file bind mount made on empty squashfs placeholder.
+func (s *changeSuite) TestPerformFileBindUnmountOnSquashfs(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Size: 0})
 	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `close 4`},
+	})
+	c.Assert(synth, HasLen, 0)
+}
+
+// Change.Perform wants to unmount a file bind mount made on non-empty ext4 placeholder.
+func (s *changeSuite) TestPerformFileBindUnmountOnExt4NonEmpty(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Size: 1})
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Size: 1}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Size: 1}},
+		{C: `close 4`},
+	})
+	c.Assert(synth, HasLen, 0)
+}
+
+// Change.Perform wants to unmount a file bind mount made on empty tmpfs placeholder.
+func (s *changeSuite) TestPerformFileBindUnmountOnTmpfsEmpty(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Size: 0})
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Size: 0}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Size: 0}},
+		{C: `remove "/target"`},
+		{C: `close 4`},
+	})
+	c.Assert(synth, HasLen, 0)
+}
+
+// Change.Perform wants to unmount a file bind mount made on empty tmpfs placeholder but it is busy!.
+func (s *changeSuite) TestPerformFileBindUnmountOnTmpfsEmptyButBusy(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Size: 0})
+	s.sys.InsertFault(`remove "/target"`, syscall.EBUSY)
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, ErrorMatches, "device or resource busy")
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Size: 0}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Size: 0}},
+		{C: `remove "/target"`, E: syscall.EBUSY},
+		{C: `close 4`},
 	})
 	c.Assert(synth, HasLen, 0)
 }
@@ -1711,6 +1953,8 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 6 <ptr>`, syscall.Statfs_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/rofs/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform(s.as)
@@ -1773,6 +2017,19 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
+
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `fstatfs 6 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/tmp/.snap/rofs"`},
+		{C: `close 6`},
 
 		// mimic ready, re-try initial base mkdir
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
@@ -1859,11 +2116,13 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 
 	s.sys.InsertFault(`lstat "/etc/demo.conf"`, syscall.ENOENT)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`,
 		// On 1st call ext4, on 2nd call tmpfs
 		syscall.Statfs_t{Type: update.Ext4Magic},
 		syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertSysLstatResult(`lstat "/etc" <ptr>`, syscall.Stat_t{Mode: 0755})
 	otherConf := testutil.FakeFileInfo("other.conf", 0755)
 	s.sys.InsertReadDirResult(`readdir "/etc"`, []os.FileInfo{otherConf})
@@ -1875,6 +2134,8 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFREG})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 6 <ptr>`, syscall.Statfs_t{})
 
 	// This is the change we want to perform:
 	// put a layout symlink at /etc/demo.conf -> /oldname
@@ -1898,10 +2159,12 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		{C: `lstat "/etc/demo.conf"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: 0x4000}},
 		{C: `close 4`},
 
 		// Create a writable mimic over /etc, scan the contents of /etc first.
@@ -2013,15 +2276,30 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		// We're done restoring now.
 		{C: `unmount "/tmp/.snap/etc" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
+		// Perform clean up after the unmount operation.
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
+		{C: `openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 5},
+		{C: `openat 5 "etc" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 6},
+		{C: `fstat 6 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `fstatfs 6 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/tmp/.snap/etc"`},
+		{C: `close 6`},
+
 		// The mimic is now complete and subsequent writes to /etc are private
 		// to the mount namespace of the process.
 
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
 		{C: `mkdirat 3 "etc" 0755`, E: syscall.EEXIST},
 		{C: `openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `close 3`},
 		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: 0x4000}},
 		{C: `symlinkat "/oldname" 4 "demo.conf"`},
 		{C: `close 4`},
 	})
@@ -2064,6 +2342,8 @@ func (s *changeSuite) TestPerformedChangesAreTracked(c *C) {
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
 	})
 
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{})
 	chg = &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
 	_, err = chg.Perform(s.as)
 	c.Assert(err, IsNil)

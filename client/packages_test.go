@@ -231,6 +231,11 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"url":"http://example.com/shot2.png"}
                         ],
+                        "media": [
+                            {"type": "icon", "url":"http://example.com/icon.png"},
+                            {"type": "screenshot", "url":"http://example.com/shot1.png", "width":640, "height":480},
+                            {"type": "screenshot", "url":"http://example.com/shot2.png"}
+                        ],
                         "common-ids": ["org.funky.snap"]
 		}
 	}`
@@ -264,9 +269,14 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Private:     true,
 		DevMode:     true,
 		TryMode:     true,
-		Screenshots: []client.Screenshot{
+		Screenshots: []snap.ScreenshotInfo{
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
 			{URL: "http://example.com/shot2.png"},
+		},
+		Media: []snap.MediaInfo{
+			{Type: "icon", URL: "http://example.com/icon.png"},
+			{Type: "screenshot", URL: "http://example.com/shot1.png", Width: 640, Height: 480},
+			{Type: "screenshot", URL: "http://example.com/shot2.png"},
 		},
 		CommonIDs: []string{"org.funky.snap"},
 	})
