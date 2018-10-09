@@ -1926,14 +1926,16 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Type:    snap.TypeApp,
 		Version: "v2",
-		Screenshots: []snap.ScreenshotInfo{
+		Media: []snap.MediaInfo{
 			{
+				Type:   "screenshot",
 				URL:    "http://example.com/screenshot.png",
 				Width:  800,
 				Height: 1280,
 			},
 			{
-				URL: "http://example.com/screenshot2.png",
+				Type: "screenshot",
+				URL:  "http://example.com/screenshot2.png",
 			},
 		},
 		MustBuy: true,
@@ -3247,7 +3249,7 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 }
 
 func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
-	info := &snap.Info{SuggestedName: "notInstalledSnap", IconURL: "icon.svg"}
+	info := &snap.Info{SuggestedName: "notInstalledSnap", Media: []snap.MediaInfo{{Type: "icon", URL: "icon.svg"}}}
 	iconfile := snapIcon(info)
 	c.Check(iconfile, testutil.Contains, "icon.svg")
 }
@@ -3950,7 +3952,7 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
@@ -4013,7 +4015,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
@@ -4202,7 +4204,7 @@ func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	conns := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -4383,7 +4385,7 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	st := d.overlord.State()
@@ -4596,7 +4598,7 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	st := d.overlord.State()
@@ -6526,6 +6528,28 @@ func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Unaliased, check.Equals, true)
+}
+
+func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"unaliased\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	// try a multipart/form-data upload
+	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
+	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
 func (s *apiSuite) TestSplitQS(c *check.C) {
