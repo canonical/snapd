@@ -50,7 +50,9 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"ID_REVISION":    "revision",
 	})
 	c.Assert(err, IsNil)
-	key := ifacestate.DefaultDeviceKey(di, 0)
+	key, err := ifacestate.DefaultDeviceKey(di, 0)
+	c.Assert(err, IsNil)
+
 	// sanity check
 	c.Check(key, HasLen, 65)
 	c.Check(key, Equals, "08bcbdcda3fee3534c0288506d9b75d4e26fe3692a36a11e75d05eac9ebf5ca7d")
@@ -66,7 +68,8 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"ID_REVISION":  "revision",
 	})
 	c.Assert(err, IsNil)
-	key = ifacestate.DefaultDeviceKey(di, 0)
+	key, err = ifacestate.DefaultDeviceKey(di, 0)
+	c.Assert(err, IsNil)
 	c.Assert(key, Equals, keyHelper("NAME\x00name\x00ID_WWN\x00wnn\x00ID_MODEL_ENC\x00modelenc\x00ID_REVISION\x00revision\x00"))
 
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
@@ -77,8 +80,9 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"ID_MODEL_ENC":  "modelenc",
 	})
 	c.Assert(err, IsNil)
-	key = ifacestate.DefaultDeviceKey(di, 0)
+	key, err = ifacestate.DefaultDeviceKey(di, 0)
 	c.Assert(key, Equals, keyHelper("PCI_SLOT_NAME\x00pcislot\x00ID_MODEL_ENC\x00modelenc\x00"))
+	c.Assert(err, IsNil)
 
 	// real device #1 - Lime SDR device
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
@@ -108,7 +112,8 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"USEC_INITIALIZED":        "6125378086 ",
 	})
 	c.Assert(err, IsNil)
-	key = ifacestate.DefaultDeviceKey(di, 0)
+	key, err = ifacestate.DefaultDeviceKey(di, 0)
+	c.Assert(err, IsNil)
 	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x001d50\x00ID_MODEL_ID\x006108\x00ID_SERIAL\x00Myriad-RF_LimeSDR-USB_0009060B00492E2C\x00"))
 
 	// real device #2 - usb-serial port adapter
@@ -144,7 +149,8 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"USEC_INITIALIZED":               "6571662103",
 	})
 	c.Assert(err, IsNil)
-	key = ifacestate.DefaultDeviceKey(di, 0)
+	key, err = ifacestate.DefaultDeviceKey(di, 0)
+	c.Assert(err, IsNil)
 	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x000403\x00ID_MODEL_ID\x006001\x00ID_SERIAL\x00FTDI_FT232R_USB_UART_AH06W0EQ\x00"))
 
 	// real device #3 - integrated web camera
@@ -181,7 +187,8 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"USEC_INITIALIZED":     "3411321",
 	})
 	c.Assert(err, IsNil)
-	key = ifacestate.DefaultDeviceKey(di, 0)
+	key, err = ifacestate.DefaultDeviceKey(di, 0)
+	c.Assert(err, IsNil)
 	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00Integrated_Webcam_HD: Integrate\x00ID_VENDOR_ID\x000bda\x00ID_MODEL_ID\x0057c3\x00ID_SERIAL\x00CN0J8NNP7248766FA3H3A01_Integrated_Webcam_HD_200901010001\x00"))
 
 	// key cannot be computed - empty string
@@ -191,8 +198,24 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"SUBSYSTEM": "foo",
 	})
 	c.Assert(err, IsNil)
-	key = ifacestate.DefaultDeviceKey(di, 0)
+	key, err = ifacestate.DefaultDeviceKey(di, 0)
+	c.Assert(err, IsNil)
 	c.Assert(key, Equals, "")
+}
+
+func (s *hotplugSuite) TestDefaultDeviceKeyError(c *C) {
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":      "a/path",
+		"ACTION":       "add",
+		"SUBSYSTEM":    "foo",
+		"NAME":         "name",
+		"ID_VENDOR_ID": "vendor",
+		"ID_MODEL_ID":  "model",
+		"ID_SERIAL":    "serial",
+	})
+	c.Assert(err, IsNil)
+	_, err = ifacestate.DefaultDeviceKey(di, 16)
+	c.Assert(err, ErrorMatches, "internal error: invalid key version 16")
 }
 
 func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
