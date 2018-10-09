@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -150,7 +151,7 @@ type apparmorParserFeature struct {
 }
 
 var requestedParserFeatures = []apparmorParserFeature{
-	{"unsafe", "change_profile unsafe /** -> *,"},
+	{"unsafe", "change_profile unsafe /**,"},
 }
 
 // tryParser will run the parser on the rule to determine if the feature is
@@ -184,5 +185,6 @@ func probeAppArmorParser() []string {
 			parserFeatures = append(parserFeatures, f.feature)
 		}
 	}
+	sort.Strings(parserFeatures)
 	return parserFeatures
 }
