@@ -34,7 +34,7 @@ type hotplugSuite struct{}
 var _ = Suite(&hotplugSuite{})
 
 func keyHelper(input string) string {
-	return fmt.Sprintf("0:%x", sha256.Sum256([]byte(input)))
+	return fmt.Sprintf("0%x", sha256.Sum256([]byte(input)))
 }
 
 func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
@@ -52,9 +52,9 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	c.Assert(err, IsNil)
 	key := ifacestate.DefaultDeviceKey(di, 0)
 	// sanity check
-	c.Check(key, HasLen, 66)
-	c.Check(key, Equals, "0:575e204ee08326b23e4e2663e10a0fb985c497b0e9a5aa588728565320e348a6")
-	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00v4lproduct\x00ID_VENDOR_ID\x00vendor\x00ID_MODEL_ID\x00model\x00ID_SERIAL\x00serial"))
+	c.Check(key, HasLen, 65)
+	c.Check(key, Equals, "08bcbdcda3fee3534c0288506d9b75d4e26fe3692a36a11e75d05eac9ebf5ca7d")
+	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00v4lproduct\x00ID_VENDOR_ID\x00vendor\x00ID_MODEL_ID\x00model\x00ID_SERIAL\x00serial\x00"))
 
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":      "a/path",
@@ -67,7 +67,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	})
 	c.Assert(err, IsNil)
 	key = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(key, Equals, keyHelper("NAME\x00name\x00ID_WWN\x00wnn\x00ID_MODEL_ENC\x00modelenc\x00ID_REVISION\x00revision"))
+	c.Assert(key, Equals, keyHelper("NAME\x00name\x00ID_WWN\x00wnn\x00ID_MODEL_ENC\x00modelenc\x00ID_REVISION\x00revision\x00"))
 
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":       "a/path",
@@ -78,7 +78,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	})
 	c.Assert(err, IsNil)
 	key = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(key, Equals, keyHelper("PCI_SLOT_NAME\x00pcislot\x00ID_MODEL_ENC\x00modelenc"))
+	c.Assert(key, Equals, keyHelper("PCI_SLOT_NAME\x00pcislot\x00ID_MODEL_ENC\x00modelenc\x00"))
 
 	// real device #1 - Lime SDR device
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
@@ -109,7 +109,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	})
 	c.Assert(err, IsNil)
 	key = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x001d50\x00ID_MODEL_ID\x006108\x00ID_SERIAL\x00Myriad-RF_LimeSDR-USB_0009060B00492E2C"))
+	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x001d50\x00ID_MODEL_ID\x006108\x00ID_SERIAL\x00Myriad-RF_LimeSDR-USB_0009060B00492E2C\x00"))
 
 	// real device #2 - usb-serial port adapter
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
@@ -145,7 +145,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	})
 	c.Assert(err, IsNil)
 	key = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x000403\x00ID_MODEL_ID\x006001\x00ID_SERIAL\x00FTDI_FT232R_USB_UART_AH06W0EQ"))
+	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x000403\x00ID_MODEL_ID\x006001\x00ID_SERIAL\x00FTDI_FT232R_USB_UART_AH06W0EQ\x00"))
 
 	// real device #3 - integrated web camera
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
@@ -182,7 +182,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	})
 	c.Assert(err, IsNil)
 	key = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00Integrated_Webcam_HD: Integrate\x00ID_VENDOR_ID\x000bda\x00ID_MODEL_ID\x0057c3\x00ID_SERIAL\x00CN0J8NNP7248766FA3H3A01_Integrated_Webcam_HD_200901010001"))
+	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00Integrated_Webcam_HD: Integrate\x00ID_VENDOR_ID\x000bda\x00ID_MODEL_ID\x0057c3\x00ID_SERIAL\x00CN0J8NNP7248766FA3H3A01_Integrated_Webcam_HD_200901010001\x00"))
 
 	// key cannot be computed - empty string
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
