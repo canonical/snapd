@@ -18,10 +18,17 @@
 package ifacestate
 
 import (
+	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+
+	"gopkg.in/check.v1"
 )
 
 var (
@@ -76,4 +83,114 @@ func UpperCaseConnState() map[string]connState {
 	return map[string]connState{
 		"APP:network CORE:network": {Auto: true, Interface: "network"},
 	}
+}
+
+type AssertsMock struct {
+	Db           *asserts.Database
+	storeSigning *assertstest.StoreStack
+	brandSigning *assertstest.SigningDB
+}
+
+func (am *AssertsMock) MockAsserts(c *check.C, st *state.State) {
+	am.storeSigning = assertstest.NewStoreStack("canonical", nil)
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	am.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   am.storeSigning.Trusted,
+	})
+	c.Assert(err, check.IsNil)
+	am.Db = db
+	err = db.Add(am.storeSigning.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
+
+	st.Lock()
+	assertstate.ReplaceDB(st, am.Db)
+
+	brandAcct := assertstest.NewAccount(am.storeSigning, "my-brand", map[string]interface{}{
+		"account-id": "my-brand",
+	}, "")
+	err = assertstate.Add(st, brandAcct)
+	c.Assert(err, check.IsNil)
+
+	brandPubKey, err := am.brandSigning.PublicKey("")
+	c.Assert(err, check.IsNil)
+	brandAccKey := assertstest.NewAccountKey(am.storeSigning, brandAcct, nil, brandPubKey, "")
+	err = assertstate.Add(st, brandAccKey)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+}
+
+func (am *AssertsMock) MockModel(c *check.C, st *state.State, extraHeaders map[string]interface{}) {
+	headers := map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	for k, v := range extraHeaders {
+		headers[k] = v
+	}
+	model, err := am.brandSigning.Sign(asserts.ModelType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+	st.Lock()
+	defer st.Unlock()
+	err = assertstate.Add(st, model)
+	c.Assert(err, check.IsNil)
+	err = auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	c.Assert(err, check.IsNil)
+}
+
+func (am *AssertsMock) MockSnapDecl(c *check.C, name, publisher string, extraHeaders map[string]interface{}) {
+	_, err := am.Db.Find(asserts.AccountType, map[string]string{
+		"account-id": publisher,
+	})
+	if asserts.IsNotFound(err) {
+		acct := assertstest.NewAccount(am.storeSigning, publisher, map[string]interface{}{
+			"account-id": publisher,
+		}, "")
+		err = am.Db.Add(acct)
+	}
+	c.Assert(err, check.IsNil)
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-name":    name,
+		"publisher-id": publisher,
+		"snap-id":      (name + strings.Repeat("id", 16))[:32],
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	for k, v := range extraHeaders {
+		headers[k] = v
+	}
+
+	snapDecl, err := am.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	err = am.Db.Add(snapDecl)
+	c.Assert(err, check.IsNil)
+}
+
+func (am *AssertsMock) MockStore(c *check.C, st *state.State, storeID string, extraHeaders map[string]interface{}) {
+	headers := map[string]interface{}{
+		"store":       storeID,
+		"operator-id": am.storeSigning.AuthorityID,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+	for k, v := range extraHeaders {
+		headers[k] = v
+	}
+	storeAs, err := am.storeSigning.Sign(asserts.StoreType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+	st.Lock()
+	defer st.Unlock()
+	err = assertstate.Add(st, storeAs)
+	c.Assert(err, check.IsNil)
 }
