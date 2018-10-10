@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
@@ -369,6 +370,15 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 		return err
 	}
 
+	var storeAs *asserts.Store
+	if modelAs.Store() != "" {
+		var err error
+		storeAs, err = assertstate.Store(st, modelAs.Store())
+		if err != nil && !asserts.IsNotFound(err) {
+			return err
+		}
+	}
+
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
@@ -384,6 +394,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 		SnapDeclaration: snapDecl,
 		BaseDeclaration: baseDecl,
 		Model:           modelAs,
+		Store:           storeAs,
 	}
 
 	return ic.Check()

@@ -157,24 +157,28 @@ func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
 
 	t := s.st.NewTask("foo", "")
 	_, _, err := ifacestate.HotplugTaskGetAttrs(t)
-	c.Assert(err, ErrorMatches, `internal error: failed to get interface name: no state entry for key`)
+	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key`)
 
-	ifacestate.HotplugTaskSetAttrs(t, "key", "iface")
+	t.Set("interface", "x")
+	_, _, err = ifacestate.HotplugTaskGetAttrs(t)
+	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key`)
+
+	ifacestate.HotplugTaskSetAttrs(t, "iface", "key")
 
 	var key, iface string
-	c.Assert(t.Get("device-key", &key), IsNil)
+	c.Assert(t.Get("hotplug-key", &key), IsNil)
 	c.Assert(key, Equals, "key")
 
 	c.Assert(t.Get("interface", &iface), IsNil)
 	c.Assert(iface, Equals, "iface")
 
-	key, iface, err = ifacestate.HotplugTaskGetAttrs(t)
+	iface, key, err = ifacestate.HotplugTaskGetAttrs(t)
 	c.Assert(err, IsNil)
 	c.Assert(key, Equals, "key")
 	c.Assert(iface, Equals, "iface")
 }
 
-func (s *helpersSuite) TestHotplugSlotDefs(c *C) {
+func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -182,12 +186,12 @@ func (s *helpersSuite) TestHotplugSlotDefs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slots, HasLen, 0)
 
-	defs := map[string]ifacestate.HotplugSlotDef{}
-	defs["foo"] = ifacestate.HotplugSlotDef{
-		Name:             "foo",
-		Interface:        "iface",
-		StaticAttrs:      map[string]interface{}{"attr": "value"},
-		HotplugDeviceKey: "key",
+	defs := map[string]*ifacestate.HotplugSlotInfo{}
+	defs["foo"] = &ifacestate.HotplugSlotInfo{
+		Name:        "foo",
+		Interface:   "iface",
+		StaticAttrs: map[string]interface{}{"attr": "value"},
+		HotplugKey:  "key",
 	}
 	ifacestate.SetHotplugSlots(s.st, defs)
 
@@ -198,7 +202,7 @@ func (s *helpersSuite) TestHotplugSlotDefs(c *C) {
 			"name":         "foo",
 			"interface":    "iface",
 			"static-attrs": map[string]interface{}{"attr": "value"},
-			"device-key":   "key",
+			"hotplug-key":  "key",
 		}})
 
 	slots, err = ifacestate.GetHotplugSlots(s.st)

@@ -950,6 +950,45 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) 
 	})
 }
 
+func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongFriendlyStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-substore",
+	})
+
+	s.mockStore(c, "my-substore", map[string]interface{}{
+		"friendly-stores": []interface{}{"other-store"},
+	})
+
+	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
+		c.Check(change.Status(), Equals, state.ErrorStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Check(ifaces.Connections, HasLen, 0)
+	})
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightFriendlyStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-substore",
+	})
+
+	s.mockStore(c, "my-substore", map[string]interface{}{
+		"friendly-stores": []interface{}{"my-store"},
+	})
+
+	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+		c.Assert(change.Err(), IsNil)
+		c.Check(change.Status(), Equals, state.DoneStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Assert(ifaces.Connections, HasLen, 1)
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	})
+}
+
 func (s *interfaceManagerSuite) testConnectTaskCheckDeviceScope(c *C, check func(*state.Change)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -1884,6 +1923,53 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 	})
 }
 
+// The auto-connect task will check snap declarations providing the
+// model assertion to fulfill device scope constraints: here the
+// wrong "friendly store"s of the store in the model assertion fail an
+// on-store constraint.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongFriendlyStore(c *C) {
+
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-substore",
+	})
+
+	s.mockStore(c, "my-substore", map[string]interface{}{
+		"friendly-stores": []interface{}{"other-store"},
+	})
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// Ensure nothing is connected.
+		c.Check(conns, HasLen, 0)
+		c.Check(repoConns, HasLen, 0)
+	})
+}
+
+// The auto-connect task will check snap declarations providing the
+// model assertion to fulfill device scope constraints: here a
+// "friendly store" of the store in the model assertion passes an
+// on-store constraint.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeFriendlyStore(c *C) {
+
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-substore",
+	})
+
+	s.mockStore(c, "my-substore", map[string]interface{}{
+		"friendly-stores": []interface{}{"my-store"},
+	})
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// Ensure that "test" plug is now saved in the state as auto-connected.
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test",
+				"plug-static": map[string]interface{}{"attr1": "value1"},
+				"slot-static": map[string]interface{}{"attr2": "value2"},
+			}})
+		// Ensure that "test" is really connected.
+		c.Check(repoConns, HasLen, 1)
+	})
+}
+
 func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c *C, check func(map[string]interface{}, []*interfaces.ConnRef)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -1963,6 +2049,23 @@ func (s *interfaceManagerSuite) mockModel(c *C, extraHeaders map[string]interfac
 		Brand: "my-brand",
 		Model: "my-model",
 	})
+	c.Assert(err, IsNil)
+}
+
+func (s *interfaceManagerSuite) mockStore(c *C, storeID string, extraHeaders map[string]interface{}) {
+	headers := map[string]interface{}{
+		"store":       storeID,
+		"operator-id": s.storeSigning.AuthorityID,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+	for k, v := range extraHeaders {
+		headers[k] = v
+	}
+	storeAs, err := s.storeSigning.Sign(asserts.StoreType, headers, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	defer s.state.Unlock()
+	err = assertstate.Add(s.state, storeAs)
 	c.Assert(err, IsNil)
 }
 
@@ -2901,6 +3004,80 @@ slots:
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
 	s.mockModel(c, map[string]interface{}{
 		"store": "other-store",
+	})
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-installation: true
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "3",
+		"slots": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, `installation not allowed.*`)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightFriendlyStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-substore",
+	})
+
+	s.mockStore(c, "my-substore", map[string]interface{}{
+		"friendly-stores": []interface{}{"my-store"},
+	})
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-installation: true
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "3",
+		"slots": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-installation": map[string]interface{}{
+					"on-store": []interface{}{"my-store"},
+				},
+			},
+		},
+	})
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongFriendlyStore(c *C) {
+	s.mockModel(c, map[string]interface{}{
+		"store": "my-substore",
+	})
+
+	s.mockStore(c, "my-substore", map[string]interface{}{
+		"friendly-stores": []interface{}{"other-store"},
 	})
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
