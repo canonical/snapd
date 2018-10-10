@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	snapname "github.com/snapcore/snapd/snap/name"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -222,24 +223,8 @@ var (
 	classicModelOptional = []string{"architecture", "gadget"}
 )
 
-var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
-
-// validateSnapName checks whether the name can be used as a snap name
-//
-// This function should be synchronized with the reference implementation
-// snap.ValidateName() in snap/validate.go
 func validateSnapName(name string, headerName string) error {
-	isValidName := func() bool {
-		if !almostValidName.MatchString(name) {
-			return false
-		}
-		if name[0] == '-' || name[len(name)-1] == '-' || strings.Contains(name, "--") {
-			return false
-		}
-		return true
-	}
-
-	if len(name) > 40 || !isValidName() {
+	if err := snapname.ValidateSnap(name); err != nil {
 		return fmt.Errorf("invalid snap name in %q header: %s", headerName, name)
 	}
 	return nil
