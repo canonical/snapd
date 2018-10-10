@@ -20,6 +20,7 @@
 package ifacestate
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,6 +28,60 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 )
+
+// List of attributes that determine the computation of default device key.
+// Attributes are grouped by similarity, the first non-empty attribute within the group goes into the key.
+// The final key is composed of 4 attributes (some of which may be empty), separated by "/".
+// Warning, any future changes to these definitions requrie a new key version.
+var attrGroups = [][][]string{
+	// key version 0
+	{
+		// Name
+		{"ID_V4L_PRODUCT", "NAME", "ID_NET_NAME", "PCI_SLOT_NAME"},
+		// Vendor
+		{"ID_VENDOR_ID", "ID_VENDOR", "ID_WWN", "ID_WWN_WITH_EXTENSION", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR_ENC", "ID_OUI_FROM_DATABASE"},
+		// Model
+		{"ID_MODEL_ID", "ID_MODEL_ENC"},
+		// Identifier
+		{"ID_SERIAL", "ID_SERIAL_SHORT", "ID_NET_NAME_MAC", "ID_REVISION"},
+	},
+}
+
+// deviceKeyVersion is the current version number for the default keys computed by hotplug subsystem.
+// Fresh device keys always use current version format
+var deviceKeyVersion = len(attrGroups) - 1
+
+// defaultDeviceKey computes device key from the attributes of
+// HotplugDeviceInfo. Empty string is returned if too few attributes are present
+// to compute a good key. Attributes used to compute device key are defined in
+// attrGroups list above and they depend on the keyVersion passed to the
+// function.
+// The resulting key returned by the function has the following format:
+// <version><checksum> where checksum is the sha256 checksum computed over
+// select attributes of the device.
+func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) (string, error) {
+	found := 0
+	key := sha256.New()
+	if keyVersion >= 16 || keyVersion >= len(attrGroups) {
+		return "", fmt.Errorf("internal error: invalid key version %d", keyVersion)
+	}
+	for _, group := range attrGroups[keyVersion] {
+		for _, attr := range group {
+			if val, ok := devinfo.Attribute(attr); ok && val != "" {
+				key.Write([]byte(attr))
+				key.Write([]byte{0})
+				key.Write([]byte(val))
+				key.Write([]byte{0})
+				found++
+				break
+			}
+		}
+	}
+	if found < 2 {
+		return "", nil
+	}
+	return fmt.Sprintf("%x%x", keyVersion, key.Sum(nil)), nil
+}
 
 // HotplugDeviceAdded gets called when a device is added to the system.
 func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {

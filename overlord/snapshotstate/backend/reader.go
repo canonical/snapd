@@ -174,10 +174,10 @@ type Logf func(format string, args ...interface{})
 
 // Restore the data from the snapshot.
 //
-// If successful this will replace the existing data (for the revision in the
-// snapshot) with that contained in the snapshot.  It keeps track of the old
-// data in the task so it can be undone (or cleaned up).
-func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs *RestoreState, e error) {
+// If successful this will replace the existing data (for the given revision,
+// or the one in the snapshot) with that contained in the snapshot. It keeps
+// track of the old data in the task so it can be undone (or cleaned up).
+func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames []string, logf Logf) (rs *RestoreState, e error) {
 	rs = &RestoreState{}
 	defer func() {
 		if e != nil {
@@ -192,6 +192,11 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 	si := snap.MinimalPlaceInfo(r.Snap, r.Revision)
 	hasher := crypto.SHA3_384.New()
 	var sz sizer
+
+	var curdir string
+	if !current.Unset() {
+		curdir = current.String()
+	}
 
 	for entry := range r.SHA3_384 {
 		if err := ctx.Err(); err != nil {
@@ -322,7 +327,14 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 				r.Name(), entry, expectedHash, actualHash)
 		}
 
-		// TODO: something with Config
+		if curdir != "" && curdir != revdir {
+			// rename it in tempdir
+			// this is where we assume the current revision can read the snapshot revision's data
+			if err := os.Rename(filepath.Join(tempdir, revdir), filepath.Join(tempdir, curdir)); err != nil {
+				return rs, err
+			}
+			revdir = curdir
+		}
 
 		for _, dir := range []string{"common", revdir} {
 			source := filepath.Join(tempdir, dir)
