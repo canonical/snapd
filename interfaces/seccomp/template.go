@@ -483,6 +483,7 @@ newfstatat
 oldfstat
 oldlstat
 oldstat
+statx
 
 statfs
 statfs64

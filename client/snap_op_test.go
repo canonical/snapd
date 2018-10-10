@@ -293,6 +293,41 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	opts := client.SnapOptions{
+		Unaliased: true,
+	}
+
+	_, err = cs.cli.Install("foo", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	jsonBody := make(map[string]interface{})
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
+	c.Check(jsonBody["unaliased"], check.Equals, true, check.Commentf("body: %v", string(body)))
+
+	_, err = cs.cli.InstallPath(snap, "", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err = ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"unaliased\"\r\n\r\ntrue\r\n.*")
+}
+
 func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
 	formData := map[string]string{}
 	for {

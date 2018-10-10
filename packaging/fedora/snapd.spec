@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35.2
+Version:        2.35.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -518,7 +518,7 @@ popd
 %install
 install -d -p %{buildroot}%{_bindir}
 install -d -p %{buildroot}%{_libexecdir}/snapd
-install -d -p %{buildroot}%{_mandir}/man1
+install -d -p %{buildroot}%{_mandir}/man8
 install -d -p %{buildroot}%{_environmentdir}
 install -d -p %{buildroot}%{_systemdgeneratordir}
 install -d -p %{buildroot}%{_unitdir}
@@ -548,10 +548,12 @@ install -d -p %{buildroot}%{_datadir}/selinux/packages
 install -p -m 0755 bin/snap %{buildroot}%{_bindir}
 install -p -m 0755 bin/snap-exec %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-failure %{buildroot}%{_libexecdir}/snapd
-install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
+# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
 
 %if 0%{?with_selinux}
 # Install SELinux module
@@ -559,8 +561,8 @@ install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/
 install -p -m 0644 data/selinux/snappy.pp.bz2 %{buildroot}%{_datadir}/selinux/packages
 %endif
 
-# Install snap(1) man page
-bin/snap help --man > %{buildroot}%{_mandir}/man1/snap.1
+# Install snap(8) man page
+bin/snap help --man > %{buildroot}%{_mandir}/man8/snap.8
 
 # Install the "info" data file with snapd version
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
@@ -675,18 +677,19 @@ popd
 %{_bindir}/snapctl
 %{_environmentdir}/990-snapd.conf
 %dir %{_libexecdir}/snapd
+%{_libexecdir}/snapd/snapctl
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-failure
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-mgmt
-%{_mandir}/man1/snap.1*
+%{_mandir}/man8/snap.8*
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
-%{_mandir}/man7/snapd-env-generator.7*
+%{_mandir}/man8/snapd-env-generator.8*
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
@@ -735,8 +738,8 @@ popd
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
-%{_mandir}/man1/snap-confine.1*
-%{_mandir}/man5/snap-discard-ns.5*
+%{_mandir}/man8/snap-confine.8*
+%{_mandir}/man8/snap-discard-ns.8*
 %{_systemdgeneratordir}/snapd-generator
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
@@ -804,6 +807,21 @@ fi
 %endif
 
 %changelog
+* Fri Oct 05 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.4
+  - wrappers: do not depend on network.taget in socket units, tweak
+    generated units
+
+* Fri Oct 05 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.3
+ - overlord: don't make become-operational interfere with user
+   requests
+ - docker_support.go: add rules to read apparmor macros
+ - interfaces/apparmor: handle overlayfs snippet for snap-update-
+   nsFixes:
+ - snapcraft.yaml: add workaround to fix snapcraft build
+ - interfaces/opengl: misc accesses for VA-API
+
 * Wed Sep 12 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.35.2
  - cmd,overlord/snapstate: go 1.11 format fixes
