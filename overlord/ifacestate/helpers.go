@@ -57,7 +57,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
-	m.addSnaps(snaps)
+	if err := m.addSnaps(snaps); err != nil {
+		return err
+	}
 	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
@@ -118,13 +120,16 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps(snaps []*snap.Info) {
+func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		if err := addImplicitSlots(m.state, snapInfo); err != nil {
+			return err
+		}
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
 	}
+	return nil
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
@@ -146,9 +151,12 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	if err != nil {
 		return err
 	}
+
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		if err := addImplicitSlots(m.state, snapInfo); err != nil {
+			return err
+		}
 	}
 
 	// For each snap:
