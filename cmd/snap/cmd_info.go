@@ -67,6 +67,7 @@ func init() {
 		func() flags.Commander {
 			return &infoCmd{}
 		}, colorDescs.also(timeDescs).also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Include more details on the snap (expanded notes, base, etc.)"),
 		}), nil)
 }
