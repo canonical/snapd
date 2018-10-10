@@ -37,8 +37,8 @@ var (
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
-	HotplugTaskGetAttrs          = hotplugTaskGetAttrs
-	HotplugTaskSetAttrs          = hotplugTaskSetAttrs
+	GetHotplugAttrs              = getHotplugAttrs
+	SetHotplugAttrs              = setHotplugAttrs
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
 )
