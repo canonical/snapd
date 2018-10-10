@@ -563,6 +563,11 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 "
             ;;
+        ubuntu-18.10-64)
+            echo "
+                evolution-data-server
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
