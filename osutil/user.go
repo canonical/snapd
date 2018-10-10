@@ -100,7 +100,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 	if opts.ForcePasswordChange {
 		if opts.Password == "" {
-			return fmt.Errorf("cannot use force password change when no password is provided")
+			return fmt.Errorf("cannot force password change when no password is provided")
 		}
 		cmdStr := []string{
 			"passwd",
@@ -109,7 +109,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 			name,
 		}
 		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
-			return fmt.Errorf("force password change failed: %s", OutputErr(output, err))
+			return fmt.Errorf("cannot force password change: %s", OutputErr(output, err))
 		}
 	}
 
