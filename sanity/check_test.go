@@ -17,7 +17,7 @@
  *
  */
 
-package selftest_test
+package sanity_test
 
 import (
 	"go/ast"
@@ -32,17 +32,17 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/sanity"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type selftestSuite struct{}
+type sanitySuite struct{}
 
-var _ = Suite(&selftestSuite{})
+var _ = Suite(&sanitySuite{})
 
-func (s *selftestSuite) TestRunHappy(c *C) {
+func (s *sanitySuite) TestRunHappy(c *C) {
 	var happyChecks []func() error
 	var happyCheckRan int
 
@@ -51,15 +51,15 @@ func (s *selftestSuite) TestRunHappy(c *C) {
 		return nil
 	})
 
-	restore := selftest.MockChecks(happyChecks)
+	restore := sanity.MockChecks(happyChecks)
 	defer restore()
 
-	err := selftest.Run()
+	err := sanity.Check()
 	c.Check(err, IsNil)
 	c.Check(happyCheckRan, Equals, 1)
 }
 
-func (s *selftestSuite) TestRunNotHappy(c *C) {
+func (s *sanitySuite) TestRunNotHappy(c *C) {
 	var unhappyChecks []func() error
 	var unhappyCheckRan int
 
@@ -68,25 +68,25 @@ func (s *selftestSuite) TestRunNotHappy(c *C) {
 		return nil
 	})
 
-	restore := selftest.MockChecks(unhappyChecks)
+	restore := sanity.MockChecks(unhappyChecks)
 	defer restore()
 
-	err := selftest.Run()
+	err := sanity.Check()
 	c.Check(err, IsNil)
 	c.Check(unhappyCheckRan, Equals, 1)
 }
 
-func (s *selftestSuite) TestUnexportedChecks(c *C) {
-	// collect what funcs we run in selftest.Check
+func (s *sanitySuite) TestUnexportedChecks(c *C) {
+	// collect what funcs we run in sanity.Check
 	var runCheckers []string
-	v := reflect.ValueOf(selftest.Checks())
+	v := reflect.ValueOf(sanity.Checks())
 	for i := 0; i < v.Len(); i++ {
 		v := v.Index(i)
 		fname := runtime.FuncForPC(v.Pointer()).Name()
 		pos := strings.LastIndexByte(fname, '.')
 		checker := fname[pos+1:]
 		if !strings.HasPrefix(checker, "check") {
-			c.Fatalf(`%q in selftest.Checks does not have "check" prefix`, checker)
+			c.Fatalf(`%q in sanity.Checks does not have "check" prefix`, checker)
 		}
 		runCheckers = append(runCheckers, checker)
 	}

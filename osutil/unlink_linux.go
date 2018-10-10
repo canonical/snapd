@@ -17,16 +17,11 @@
  *
  */
 
-package selftest
+package osutil
 
-var checks []func() error
+import (
+	"syscall"
+)
 
-func Run() error {
-	for _, f := range checks {
-		if err := f(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+// syscall.Unlinkat calls unlinkat(2) _without_ AT_REMOVEDIR, which is exactly what we want
+var sysUnlinkat = syscall.Unlinkat

@@ -2293,6 +2293,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			} else {
 				if cur := curSnaps[res.InstanceKey]; cur != nil {
 					a := refreshes[res.InstanceKey]
+					if a == nil {
+						// got an error for a snap that was not part of an 'action'
+						otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, fmt.Sprintf("snap %q: %s", cur.InstanceName, res.Error.Message), nil))
+						logger.Debugf("Unexpected error for snap %q, instance key %v: [%v] %v", cur.InstanceName, res.InstanceKey, res.Error.Code, res.Error.Message)
+						continue
+					}
 					channel := a.Channel
 					if channel == "" && a.Revision.Unset() {
 						channel = cur.TrackingChannel

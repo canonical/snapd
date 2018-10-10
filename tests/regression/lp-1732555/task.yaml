@@ -5,6 +5,7 @@ details: |
     contained unknown interfaces in either plugs or slots.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-unknown-interfaces
 

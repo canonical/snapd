@@ -1365,3 +1365,34 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 	c.Check(byType(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
 	c.Check(byType(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
 }
+
+func (s *infoSuite) TestMedia(c *C) {
+	c.Check(snap.MediaInfos{}.Screenshots(), HasLen, 0)
+	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type:   "screenshot",
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	}
+
+	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
+	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
+		{
+			URL: "https://example.com/shot1.svg",
+		}, {
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	})
+}

@@ -159,6 +159,24 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
+
+	// already set the fallback model
+
+	// verify that the model was added
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "generic",
+		"model":    "generic-classic",
+	})
+	c.Assert(err, IsNil)
+	_, ok := as.(*asserts.Model)
+	c.Check(ok, Equals, true)
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "generic")
+	c.Check(ds.Model, Equals, "generic-classic")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
