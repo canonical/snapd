@@ -760,12 +760,12 @@ func ensureSystemSnapIsPresent(st *state.State) error {
 	return err
 }
 
-func hotplugTaskSetAttrs(task *state.Task, ifaceName, hotplugKey string) {
+func setHotplugAttrs(task *state.Task, ifaceName, hotplugKey string) {
 	task.Set("interface", ifaceName)
 	task.Set("hotplug-key", hotplugKey)
 }
 
-func hotplugTaskGetAttrs(task *state.Task) (ifaceName, hotplugKey string, err error) {
+func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error) {
 	if err = task.Get("interface", &ifaceName); err != nil {
 		return "", "", fmt.Errorf("internal error: cannot get interface name from hotplug task: %s", err)
 	}
