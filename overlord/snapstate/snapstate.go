@@ -30,6 +30,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -56,6 +57,16 @@ const (
 	TrackHookError
 	UseConfigDefaults
 )
+
+func isParallelInstallable(snapsup *SnapSetup) error {
+	if snapsup.InstanceKey == "" {
+		return nil
+	}
+	if snapsup.Type == snap.TypeApp {
+		return nil
+	}
+	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
+}
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
@@ -95,8 +106,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 
-	// TODO parallel-install: block parallel installation of core, kernel,
-	// gadget and snapd snaps
+	if err := isParallelInstallable(snapsup); err != nil {
+		return nil, err
+	}
 
 	if err := CheckChangeConflict(st, snapsup.InstanceName(), snapst); err != nil {
 		return nil, err
@@ -562,6 +574,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+		return nil, nil, err
+	}
 	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, nil, err
 	}
@@ -605,6 +620,11 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 	if snapst.IsInstalled() {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
 	}
 
 	info, err := installInfo(st, name, channel, revision, userID)
@@ -677,6 +697,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 	user, err := userFromUserID(st, userID)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
 		return nil, nil, err
 	}
 
@@ -849,7 +874,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	return updated, tasksets, nil
 }
 
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Refresh aliases for snap %q")
@@ -857,20 +882,20 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		kind = "prune-auto-aliases"
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
-	for snapName, aliases := range delta {
-		if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	for instanceName, aliases := range delta {
+		if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
-				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
 				continue
 			}
 			return nil, err
 		}
 
+		snapName, instanceKey := snap.SplitInstanceName(instanceName)
 		snapsup := &SnapSetup{
-			SideInfo: &snap.SideInfo{RealName: snapName},
-			// TODO parallel-install: review and update the aliases
-			// code in the context of parallel installs
+			SideInfo:    &snap.SideInfo{RealName: snapName},
+			InstanceKey: instanceKey,
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
@@ -878,7 +903,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 			alias.Set("aliases", aliases)
 		}
 		ts := state.NewTaskSet(alias)
-		linkTs(snapName, ts)
+		linkTs(instanceName, ts)
 		applyTs.AddAll(ts)
 	}
 	return applyTs, nil
@@ -1053,6 +1078,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	//        until we know what we want to do
 	if !snapst.Active {
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
 	}
 
 	if err := canSwitchChannel(st, name, channel); err != nil {
@@ -2053,4 +2083,37 @@ func GadgetConnections(st *state.State) ([]snap.GadgetConnection, error) {
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+// hook setup by devicestate
+var (
+	Model func(st *state.State) (*asserts.Model, error)
+)
+
+// ModelPastSeeding returns the device model assertion if available and
+// the device is seeded, at that point the device store is known
+// and seeding done. Otherwise it returns a ChangeConflictError
+// about being too early.
+func ModelPastSeeding(st *state.State) (*asserts.Model, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	modelAs, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	// when seeded modelAs should not be nil except in the rare
+	// case of upgrades from a snapd before the introduction of
+	// the fallback generic/generic-classic model
+	if !seeded || modelAs == nil {
+		return nil, &ChangeConflictError{
+			Message: "too early for operation, device not yet" +
+				" seeded or device model not acknowledged",
+			ChangeKind: "seed",
+		}
+	}
+
+	return modelAs, nil
 }

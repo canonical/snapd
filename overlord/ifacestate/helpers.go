@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -275,7 +276,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
+		if _, err := m.repo.Connect(connRef, conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, nil); err != nil {
 			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
 				// Some versions of snapd may have left stray connections that
 				// don't have the corresponding plug or slot anymore. Before we
@@ -378,6 +379,20 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	modelAs, err := devicestate.Model(c.st)
+	if err != nil {
+		return false, err
+	}
+
+	var storeAs *asserts.Store
+	if modelAs.Store() != "" {
+		var err error
+		storeAs, err = assertstate.Store(c.st, modelAs.Store())
+		if err != nil && !asserts.IsNotFound(err) {
+			return false, err
+		}
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -405,6 +420,8 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
+		Model:               modelAs,
+		Store:               storeAs,
 	}
 
 	return ic.CheckAutoConnect() == nil, nil
@@ -427,6 +444,20 @@ func newConnectChecker(s *state.State) (*connectChecker, error) {
 }
 
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	modelAs, err := devicestate.Model(c.st)
+	if err != nil {
+		return false, fmt.Errorf("cannot get model assertion: %v", err)
+	}
+
+	var storeAs *asserts.Store
+	if modelAs.Store() != "" {
+		var err error
+		storeAs, err = assertstate.Store(c.st, modelAs.Store())
+		if err != nil && !asserts.IsNotFound(err) {
+			return false, err
+		}
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -452,6 +483,8 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
+		Model:               modelAs,
+		Store:               storeAs,
 	}
 
 	// if either of plug or slot snaps don't have a declaration it

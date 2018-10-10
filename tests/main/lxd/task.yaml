@@ -72,7 +72,7 @@ execute: |
 
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
-    lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOPATH/"
+    lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
     echo "Setting up proxy *inside* the container"
@@ -84,6 +84,7 @@ execute: |
     fi
     lxd.lxc exec my-ubuntu -- systemctl daemon-reload
     lxd.lxc exec my-ubuntu -- systemctl restart snapd.service
+    lxd.lxc exec my-ubuntu -- snap wait system seed.loaded
     lxd.lxc exec my-ubuntu -- cat /etc/environment
 
     # FIXME: ensure that the kernel running is recent enough, this
