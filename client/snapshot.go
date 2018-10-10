@@ -56,6 +56,7 @@ type Snapshot struct {
 	// information about the snap this data is for
 	Snap     string        `json:"snap"`
 	Revision snap.Revision `json:"revision"`
+	SnapID   string        `json:"snap-id,omitempty"`
 	Epoch    snap.Epoch    `json:"epoch,omitempty"`
 	Summary  string        `json:"summary"`
 	Version  string        `json:"version"`

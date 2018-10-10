@@ -38,7 +38,7 @@ execute: |
         $name.sh -c "test -d /var/lib/demo"
         $name.sh -c "test -d /var/cache/demo"
         $name.sh -c "test -d /opt/demo"
-        $name.sh -c "test -d /bin/very-weird-place"
+        $name.sh -c "test -d /bin/very/weird/place"
         # Ideally we'd perform this test but the rsyslog directory has mode 700 and user mode 108:4
         # test-snapd-layout.sh -c "test -d /var/spool/rsyslog/demo"
 
@@ -73,8 +73,8 @@ execute: |
 
         echo "layout locations in dynamically created $name \$SNAP directories are writable"
         # shellcheck disable=SC2016
-        $name.sh -c 'test -w $SNAP/bin-very-weird-place'
-        $name.sh -c 'test -w /bin/very-weird-place'
+        $name.sh -c 'test -w $SNAP/bin/very/weird/place'
+        $name.sh -c 'test -w /bin/very/weird/place'
     done
 
     echo "verify snap data is correct on the outside of snap mount namespace"

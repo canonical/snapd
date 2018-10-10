@@ -17,30 +17,9 @@
  *
  */
 
-package selftest
+package osutil
 
-var (
-	CheckSquashfsMount  = checkSquashfsMount
-	CheckKernelVersion  = checkKernelVersion
-	CheckApparmorUsable = checkApparmorUsable
-)
-
-func Checks() []func() error {
-	return checks
-}
-
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
-	}
-}
-
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+// IsMounted is not implemented on darwin
+func IsMounted(baseDir string) (bool, error) {
+	return false, ErrDarwin
 }
