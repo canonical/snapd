@@ -58,6 +58,16 @@ const (
 	UseConfigDefaults
 )
 
+func isParallelInstallable(snapsup *SnapSetup) error {
+	if snapsup.InstanceKey == "" {
+		return nil
+	}
+	if snapsup.Type == snap.TypeApp {
+		return nil
+	}
+	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
@@ -96,8 +106,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 
-	// TODO parallel-install: block parallel installation of core, kernel,
-	// gadget and snapd snaps
+	if err := isParallelInstallable(snapsup); err != nil {
+		return nil, err
+	}
 
 	if err := CheckChangeConflict(st, snapsup.InstanceName(), snapst); err != nil {
 		return nil, err
@@ -563,6 +574,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+		return nil, nil, err
+	}
 	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, nil, err
 	}

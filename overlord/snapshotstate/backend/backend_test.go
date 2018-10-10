@@ -443,7 +443,8 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	}
 	logger.SimpleSetup()
 
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33"}
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: *epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
@@ -453,6 +454,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
 	c.Check(shw.SnapID, check.Equals, info.SnapID)
 	c.Check(shw.Version, check.Equals, info.Version)
+	c.Check(shw.Epoch, check.DeepEquals, *epoch)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
@@ -473,6 +475,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(sh.Snap, check.Equals, info.InstanceName(), comm)
 		c.Check(sh.SnapID, check.Equals, info.SnapID, comm)
 		c.Check(sh.Version, check.Equals, info.Version, comm)
+		c.Check(sh.Epoch, check.DeepEquals, *epoch)
 		c.Check(sh.Revision, check.Equals, info.Revision, comm)
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
@@ -497,7 +500,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(diff().Run(), check.NotNil, comm)
 
 		// restore leaves things like they were (again and again)
-		rs, err := shr.Restore(context.TODO(), nil, logger.Debugf)
+		rs, err := shr.Restore(context.TODO(), snap.R(0), nil, logger.Debugf)
 		c.Assert(err, check.IsNil, comm)
 		rs.Cleanup()
 		c.Check(diff().Run(), check.IsNil, comm)
@@ -505,4 +508,54 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		// dirty it -> no longer like it was
 		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), "marker"), []byte("scribble\n"), 0644), check.IsNil, comm)
 	}
+}
+
+func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	logger.SimpleSetup()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: *epoch}
+	shID := uint64(12)
+
+	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.Revision, check.Equals, info.Revision)
+
+	shr, err := backend.Open(backend.Filename(shw))
+	c.Assert(err, check.IsNil)
+	defer shr.Close()
+
+	c.Check(shr.Revision, check.Equals, info.Revision)
+	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
+
+	// move the expected data to its expected place
+	for _, dir := range []string{
+		filepath.Join(s.root, "home", "snapuser", "snap", "hello-snap"),
+		filepath.Join(dirs.SnapDataDir, "hello-snap"),
+	} {
+		c.Check(os.Rename(filepath.Join(dir, "42"), filepath.Join(dir, "17")), check.IsNil)
+	}
+
+	newroot := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(newroot, "home", "snapuser"), 0755), check.IsNil)
+	dirs.SetRootDir(newroot)
+
+	var diff = func() *exec.Cmd {
+		cmd := exec.Command("diff", "-urN", "-x*.zip", s.root, newroot)
+		// cmd.Stdout = os.Stdout
+		// cmd.Stderr = os.Stderr
+		return cmd
+	}
+
+	// sanity check
+	c.Check(diff().Run(), check.NotNil)
+
+	// restore leaves things like they were, but in the new dir
+	rs, err := shr.Restore(context.TODO(), snap.R("17"), nil, logger.Debugf)
+	c.Assert(err, check.IsNil)
+	rs.Cleanup()
+	c.Check(diff().Run(), check.IsNil)
 }

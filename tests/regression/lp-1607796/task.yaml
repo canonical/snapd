@@ -2,6 +2,7 @@ summary: Check that /root is bind mounted to the real /root
 
 prepare: |
     echo "Having installed a test snap in devmode"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
     echo "Having added a canary file in /root"

@@ -188,6 +188,12 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeOS
 	case "some-base":
 		typ = snap.TypeBase
+	case "some-kernel":
+		typ = snap.TypeKernel
+	case "some-gadget":
+		typ = snap.TypeGadget
+	case "some-snapd":
+		typ = snap.TypeSnapd
 	}
 
 	if spec.Name == "snap-unknown" {
