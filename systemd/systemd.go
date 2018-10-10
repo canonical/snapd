@@ -217,17 +217,22 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
 type ServiceStatus struct {
-	Daemon          string
-	ServiceFileName string
-	Enabled         bool
-	Active          bool
+	Daemon   string
+	UnitName string
+	Enabled  bool
+	Active   bool
 }
 
 func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
-	expected := []string{"Id", "Type", "ActiveState", "UnitFileState"}
+	// expected properties for timers and sockets
+	expectedBase := []string{"Id", "ActiveState", "UnitFileState"}
+	// for services and mounts
+	expectedAll := append(expectedBase, "Type")
+
 	cmd := make([]string, len(serviceNames)+2)
 	cmd[0] = "show"
-	cmd[1] = "--property=" + strings.Join(expected, ",")
+	// ask for all properties, regardless of unit type
+	cmd[1] = "--property=" + strings.Join(expectedAll, ",")
 	copy(cmd[2:], serviceNames)
 	bs, err := systemctlCmd(cmd...)
 	if err != nil {
@@ -241,6 +246,12 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) == 0 {
 			// systemctl separates data pertaining to particular services by an empty line
+			unitType := filepath.Ext(cur.UnitName)
+			expected := expectedAll
+			if unitType == ".timer" || unitType == ".socket" {
+				expected = expectedBase
+			}
+
 			missing := make([]string, 0, len(expected))
 			for _, k := range expected {
 				if !seen[k] {
@@ -249,14 +260,13 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 			}
 			if len(missing) > 0 {
 				return nil, fmt.Errorf("cannot get service status: missing %s in ‘systemctl show’ output", strings.Join(missing, ", "))
-
 			}
 			sts = append(sts, cur)
 			if len(sts) > len(serviceNames) {
 				break // wut
 			}
-			if cur.ServiceFileName != serviceNames[len(sts)-1] {
-				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)-1], cur.ServiceFileName)
+			if cur.UnitName != serviceNames[len(sts)-1] {
+				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)-1], cur.UnitName)
 			}
 
 			cur = &ServiceStatus{}
@@ -275,7 +285,7 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 
 		switch k {
 		case "Id":
-			cur.ServiceFileName = v
+			cur.UnitName = v
 		case "Type":
 			cur.Daemon = v
 		case "ActiveState":
