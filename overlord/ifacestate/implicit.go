@@ -54,7 +54,7 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 		return nil
 	}
 
-	hotplugSlotDefs, err := getHotplugSlots(st)
+	hotplugSlots, err := getHotplugSlots(st)
 	if err != nil {
 		return err
 	}
@@ -71,16 +71,16 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 	}
 
 	// Add hotplug slots
-	for _, slotDef := range hotplugSlotDefs {
-		if _, ok := snapInfo.Slots[slotDef.Name]; ok {
-			return fmt.Errorf("cannot add hotplug slot %s: slot already exists", slotDef.Name)
+	for _, hslotInfo := range hotplugSlots {
+		if _, ok := snapInfo.Slots[hslotInfo.Name]; ok {
+			return fmt.Errorf("cannot add hotplug slot %s: slot already exists", hslotInfo.Name)
 		}
-		snapInfo.Slots[slotDef.Name] = &snap.SlotInfo{
-			Name:             slotDef.Name,
-			Snap:             snapInfo,
-			Interface:        slotDef.Interface,
-			Attrs:            slotDef.StaticAttrs,
-			HotplugDeviceKey: slotDef.HotplugDeviceKey,
+		snapInfo.Slots[hslotInfo.Name] = &snap.SlotInfo{
+			Name:       hslotInfo.Name,
+			Snap:       snapInfo,
+			Interface:  hslotInfo.Interface,
+			Attrs:      hslotInfo.StaticAttrs,
+			HotplugKey: hslotInfo.HotplugKey,
 		}
 	}
 

@@ -37,12 +37,12 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	defer restore()
 
 	st := state.New(nil)
-	hotplugSlots := map[string]ifacestate.HotplugSlotDef{
+	hotplugSlots := map[string]*ifacestate.HotplugSlotInfo{
 		"foo": {
-			Name:             "foo",
-			Interface:        "dummy",
-			StaticAttrs:      map[string]interface{}{"attr": "value"},
-			HotplugDeviceKey: "1234",
+			Name:        "foo",
+			Interface:   "dummy",
+			StaticAttrs: map[string]interface{}{"attr": "value"},
+			HotplugKey:  "1234",
 		}}
 	st.Lock()
 	defer st.Unlock()
@@ -70,7 +70,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Interface, Equals, "dummy")
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "value"})
-	c.Assert(slot.HotplugDeviceKey, Equals, "1234")
+	c.Assert(slot.HotplugKey, Equals, "1234")
 }
 
 func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
@@ -102,11 +102,11 @@ func (implicitSuite) TestAddImplicitSlotsErrorSlotExists(c *C) {
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
 
 	st := state.New(nil)
-	hotplugSlots := map[string]ifacestate.HotplugSlotDef{
+	hotplugSlots := map[string]*ifacestate.HotplugSlotInfo{
 		"unity7": {
-			Name:             "unity7",
-			Interface:        "unity7",
-			HotplugDeviceKey: "1234",
+			Name:       "unity7",
+			Interface:  "unity7",
+			HotplugKey: "1234",
 		}}
 	st.Lock()
 	defer st.Unlock()
