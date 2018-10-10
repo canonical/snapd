@@ -73,6 +73,14 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	})
 }
 
+func MockConnCheckStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
+	originalConnCheckStrategy := connCheckStrategy
+	connCheckStrategy = strategy
+	t.AddCleanup(func() {
+		connCheckStrategy = originalConnCheckStrategy
+	})
+}
+
 func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }
