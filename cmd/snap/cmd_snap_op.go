@@ -593,7 +593,9 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	}
 	// only show "next" if its after "hold" to not confuse users
 	if !next.IsZero() {
-		if next.Before(hold) {
+		// Snapstate checks for holdTime.After(limitTime) so we need
+		// to check for before or equal here to be fully correct.
+		if next.Before(hold) || next.Equal(hold) {
 			fmt.Fprintf(Stdout, "next: %s (but held)\n", x.fmtTime(next))
 		} else {
 			fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(next))
