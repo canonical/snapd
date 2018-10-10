@@ -186,7 +186,7 @@ func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
 		Gecos:               "my gecos",
 		ForcePasswordChange: true,
 	})
-	c.Assert(err, check.ErrorMatches, `cannot use force password change when no password is provided`)
+	c.Assert(err, check.ErrorMatches, `cannot force password change when no password is provided`)
 }
 
 func (s *createUserSuite) TestRealUser(c *check.C) {
