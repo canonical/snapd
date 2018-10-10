@@ -169,6 +169,9 @@ func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
 	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
 		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "karl.popper"},
 	})
+	c.Check(s.mockUserMod.Calls(), check.DeepEquals, [][]string{
+		{"usermod", "--password", "$6$salt$hash", "karl.popper"},
+	})
 	c.Check(s.mockPasswd.Calls(), check.DeepEquals, [][]string{
 		{"passwd", "--expire", "karl.popper"},
 	})
