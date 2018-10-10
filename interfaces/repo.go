@@ -764,8 +764,8 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 	return conns, nil
 }
 
-// ConnectionsForDeviceKey returns all hotplug connections for given device key and interface name.
-func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*ConnRef, error) {
+// ConnectionsForHotplugKey returns all hotplug connections for given interface name and hotplug key.
+func (r *Repository) ConnectionsForHotplugKey(ifaceName, hotplugKey string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -775,7 +775,7 @@ func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*Co
 	}
 	var conns []*ConnRef
 	for _, slotInfo := range r.slots[snapName] {
-		if slotInfo.HotplugDeviceKey == deviceKey && slotInfo.Interface == ifaceName {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
 			for plugInfo := range r.slotPlugs[slotInfo] {
 				connRef := NewConnRef(plugInfo, slotInfo)
 				conns = append(conns, connRef)
@@ -786,9 +786,9 @@ func (r *Repository) ConnectionsForDeviceKey(deviceKey, ifaceName string) ([]*Co
 	return conns, nil
 }
 
-// HotplugSlotForDeviceKey returns a hotplug slot for given device key and interface name or nil
+// SlotForHotplugKey returns a hotplug slot for given interface name and hotplug key or nil
 // if there is no slot.
-func (r *Repository) HotplugSlotForDeviceKey(deviceKey, ifaceName string) (*snap.SlotInfo, error) {
+func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -798,7 +798,7 @@ func (r *Repository) HotplugSlotForDeviceKey(deviceKey, ifaceName string) (*snap
 	}
 
 	for _, slotInfo := range r.slots[snapName] {
-		if slotInfo.HotplugDeviceKey == deviceKey && slotInfo.Interface == ifaceName {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
 			return slotInfo, nil
 		}
 	}
