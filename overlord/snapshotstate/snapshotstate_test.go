@@ -482,9 +482,10 @@ func (snapshotSuite) TestSaveOneSnap(c *check.C) {
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
 	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
-		"set-id": 1.,
-		"snap":   "a-snap",
-		"users":  []interface{}{"a-user"},
+		"set-id":  1.,
+		"snap":    "a-snap",
+		"users":   []interface{}{"a-user"},
+		"current": "unset",
 	})
 }
 
@@ -921,6 +922,7 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 		"set-id":   42.,
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
+		"current":  "1",
 	})
 }
 
@@ -957,6 +959,7 @@ func (snapshotSuite) TestRestore(c *check.C) {
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
 		"users":    []interface{}{"a-user"},
+		"current":  "unset",
 	})
 }
 
@@ -1210,6 +1213,7 @@ func (snapshotSuite) TestCheck(c *check.C) {
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
 		"users":    []interface{}{"a-user"},
+		"current":  "unset",
 	})
 }
 
@@ -1322,5 +1326,6 @@ func (snapshotSuite) TestForget(c *check.C) {
 		"set-id":   42.,
 		"snap":     "a-snap",
 		"filename": shotfile.Name(),
+		"current":  "unset",
 	})
 }
