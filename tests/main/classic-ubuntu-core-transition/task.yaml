@@ -47,6 +47,9 @@ execute: |
     distro_purge_package snapd
     distro_install_build_snapd
 
+    # need to be seeded to allow snap install
+    snap wait system seed.loaded
+
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is
     # installed

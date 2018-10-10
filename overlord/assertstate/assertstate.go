@@ -138,6 +138,11 @@ func findError(format string, ref *asserts.Ref, err error) error {
 
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
 func RefreshSnapDeclarations(s *state.State, userID int) error {
+	modelAs, err := snapstate.ModelPastSeeding(s)
+	if err != nil {
+		return err
+	}
+
 	snapStates, err := snapstate.All(s)
 	if err != nil {
 		return nil
@@ -155,6 +160,15 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
 			}
 		}
+
+		// fetch store assertion if available
+		if modelAs.Store() != "" {
+			err := snapasserts.FetchStore(f, modelAs.Store())
+			if err != nil && !asserts.IsNotFound(err) {
+				return err
+			}
+		}
+
 		return nil
 	}
 	return doFetch(s, userID, fetching)

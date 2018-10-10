@@ -409,7 +409,7 @@ func (s *RepositorySuite) TestRemovePlugFailsWhenPlugIsConnected(c *C) {
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Removing a plug used by a slot returns an appropriate error
 	err = s.testRepo.RemovePlug(s.plug.Snap.InstanceName(), s.plug.Name)
@@ -747,7 +747,7 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsConnected(c *C) {
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Removing a slot occupied by a plug returns an appropriate error
 	err = s.testRepo.RemoveSlot(s.slot.Snap.InstanceName(), s.slot.Name)
@@ -1227,7 +1227,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err := s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err := s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	scenarios := []struct {
@@ -1309,7 +1309,7 @@ func (s *RepositorySuite) TestConnectFailsWhenPlugDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Connecting an unknown plug returns an appropriate error
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot connect plug "plug" from snap "consumer": no such plug`)
 }
 
@@ -1318,7 +1318,7 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Connecting to an unknown slot returns an error
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot connect slot "slot" from snap "producer": no such slot`)
 }
 
@@ -1328,7 +1328,7 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	connRef := NewConnRef(s.plug, s.slot)
-	conn, err := s.testRepo.Connect(connRef, nil, nil, nil)
+	conn, err := s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(conn, NotNil)
 	c.Assert(conn.Plug, NotNil)
@@ -1336,7 +1336,7 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 	c.Assert(conn.Plug.Name(), Equals, "plug")
 	c.Assert(conn.Slot.Name(), Equals, "slot")
 	// Connecting exactly the same thing twice succeeds without an error but does nothing.
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Only one connection is actually present.
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
@@ -1361,7 +1361,7 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
 	c.Assert(err, IsNil)
 	// Connecting a plug to an incompatible slot fails with an appropriate error
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot connect plug "consumer:plug" \(interface "other-interface"\) to "producer:slot" \(interface "interface"\)`)
 }
 
@@ -1372,7 +1372,7 @@ func (s *RepositorySuite) TestConnectSucceeds(c *C) {
 	c.Assert(err, IsNil)
 	// Connecting a plug works okay
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1416,9 +1416,9 @@ func (s *RepositorySuite) TestDisconnectFailsWhenNotConnected(c *C) {
 func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
-	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil)
+	_, err = s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	err = s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, IsNil)
@@ -1454,7 +1454,7 @@ func (s *RepositorySuite) TestConnectedFailsWithoutPlugOrSlot(c *C) {
 func (s *RepositorySuite) TestConnectedFindsConnections(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
-	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	conns, err := s.testRepo.Connected(s.plug.Snap.InstanceName(), s.plug.Name)
@@ -1475,7 +1475,7 @@ func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	}
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(slot), IsNil)
-	_, err := s.testRepo.Connect(NewConnRef(s.plug, slot), nil, nil, nil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plug, slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	conns, err := s.testRepo.Connected("", s.slot.Name)
@@ -1487,7 +1487,7 @@ func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 func (s *RepositorySuite) TestConnections(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
-	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	conns, err := s.testRepo.Connections(s.plug.Snap.InstanceName())
@@ -1506,7 +1506,7 @@ func (s *RepositorySuite) TestConnections(c *C) {
 func (s *RepositorySuite) TestConnectionsWithSelfConnected(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plugSelf), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
-	_, err := s.testRepo.Connect(NewConnRef(s.plugSelf, s.slot), nil, nil, nil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plugSelf, s.slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	conns, err := s.testRepo.Connections(s.plugSelf.Snap.InstanceName())
@@ -1523,7 +1523,7 @@ func (s *RepositorySuite) TestConnectionsWithSelfConnected(c *C) {
 func (s *RepositorySuite) TestDisconnectAll(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
-	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil)
+	_, err := s.testRepo.Connect(NewConnRef(s.plug, s.slot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	conns := []*ConnRef{NewConnRef(s.plug, s.slot)}
@@ -1543,7 +1543,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	c.Assert(err, IsNil)
 	// After connecting the result is as expected
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	ifaces := s.testRepo.Interfaces()
 	c.Assert(ifaces, DeepEquals, &Interfaces{
@@ -1604,7 +1604,7 @@ func (s *RepositorySuite) TestSnapSpecification(c *C) {
 
 	// Establish connection between plug and slot
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err = repo.Connect(connRef, nil, nil, nil)
+	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// Snaps should get static and connection-specific security now
@@ -1642,7 +1642,7 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.InstanceName())
@@ -1672,7 +1672,7 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
 	connRef := NewConnRef(s.plug, s.slot)
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.InstanceName())
@@ -1928,7 +1928,7 @@ func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedPlug(c *C) {
 	_, err = s.addSnap(c, testProducerYaml)
 	c.Assert(err, IsNil)
 	connRef := &ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "iface"}, SlotRef: SlotRef{Snap: "producer", Name: "iface"}}
-	_, err = s.repo.Connect(connRef, nil, nil, nil)
+	_, err = s.repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	err = s.repo.RemoveSnap("consumer")
 	c.Assert(err, ErrorMatches, "cannot remove connected plug consumer.iface")
@@ -1940,7 +1940,7 @@ func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSlot(c *C) {
 	_, err = s.addSnap(c, testProducerYaml)
 	c.Assert(err, IsNil)
 	connRef := &ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "iface"}, SlotRef: SlotRef{Snap: "producer", Name: "iface"}}
-	_, err = s.repo.Connect(connRef, nil, nil, nil)
+	_, err = s.repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	err = s.repo.RemoveSnap("producer")
 	c.Assert(err, ErrorMatches, "cannot remove connected slot producer.iface")
@@ -2013,7 +2013,7 @@ func (s *DisconnectSnapSuite) TestNotConnected(c *C) {
 
 func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
 	connRef := &ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "iface-a"}, SlotRef: SlotRef{Snap: "s2", Name: "iface-a"}}
-	_, err := s.repo.Connect(connRef, nil, nil, nil)
+	_, err := s.repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Disconnect s1 with which has an outgoing connection to s2
 	affected, err := s.repo.DisconnectSnap("s1")
@@ -2024,7 +2024,7 @@ func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
 
 func (s *DisconnectSnapSuite) TestIncomingConnection(c *C) {
 	connRef := &ConnRef{PlugRef: PlugRef{Snap: "s2", Name: "iface-b"}, SlotRef: SlotRef{Snap: "s1", Name: "iface-b"}}
-	_, err := s.repo.Connect(connRef, nil, nil, nil)
+	_, err := s.repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Disconnect s1 with which has an incoming connection from s2
 	affected, err := s.repo.DisconnectSnap("s1")
@@ -2037,10 +2037,10 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 	// This test is symmetric wrt s1 <-> s2 connections
 	for _, snapName := range []string{"s1", "s2"} {
 		connRef1 := &ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "iface-a"}, SlotRef: SlotRef{Snap: "s2", Name: "iface-a"}}
-		_, err := s.repo.Connect(connRef1, nil, nil, nil)
+		_, err := s.repo.Connect(connRef1, nil, nil, nil, nil, nil)
 		c.Assert(err, IsNil)
 		connRef2 := &ConnRef{PlugRef: PlugRef{Snap: "s2", Name: "iface-b"}, SlotRef: SlotRef{Snap: "s1", Name: "iface-b"}}
-		_, err = s.repo.Connect(connRef2, nil, nil, nil)
+		_, err = s.repo.Connect(connRef2, nil, nil, nil, nil, nil)
 		c.Assert(err, IsNil)
 		affected, err := s.repo.DisconnectSnap(snapName)
 		c.Assert(err, IsNil)
@@ -2050,14 +2050,14 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 }
 
 func (s *DisconnectSnapSuite) TestParallelInstances(c *C) {
-	_, err := s.repo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "iface-a"}, SlotRef: SlotRef{Snap: "s2_instance", Name: "iface-a"}}, nil, nil, nil)
+	_, err := s.repo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "iface-a"}, SlotRef: SlotRef{Snap: "s2_instance", Name: "iface-a"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	affected, err := s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
 	c.Check(affected, testutil.Contains, "s1")
 	c.Check(affected, testutil.Contains, "s2_instance")
 
-	_, err = s.repo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s2_instance", Name: "iface-b"}, SlotRef: SlotRef{Snap: "s1", Name: "iface-b"}}, nil, nil, nil)
+	_, err = s.repo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s2_instance", Name: "iface-b"}, SlotRef: SlotRef{Snap: "s1", Name: "iface-b"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	affected, err = s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
@@ -2202,13 +2202,13 @@ apps:
 	c.Assert(r.AddSnap(s4), IsNil)
 
 	// Connect a few things for the tests below.
-	_, err := r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil)
+	_, err := r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s4", Name: "i2"}, SlotRef: SlotRef{Snap: "s3_instance", Name: "i2"}}, nil, nil, nil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s4", Name: "i2"}, SlotRef: SlotRef{Snap: "s3_instance", Name: "i2"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// Without any names or options we get the summary of all the interfaces.
@@ -2298,7 +2298,7 @@ func (s *RepositorySuite) TestBeforeConnectValidation(c *C) {
 	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
 
 	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) { return true, nil }
-	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
+	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, nil, plugDynAttrs, nil, slotDynAttrs, policyCheck)
 	c.Assert(err, IsNil)
 	c.Assert(conn, NotNil)
 
@@ -2333,7 +2333,7 @@ func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
 
 	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) { return true, nil }
 
-	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
+	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, nil, plugDynAttrs, nil, slotDynAttrs, policyCheck)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot connect plug "consumer" of snap "s1": invalid plug`)
 	c.Assert(conn, IsNil)
@@ -2359,7 +2359,7 @@ func (s *RepositorySuite) TestBeforeConnectValidationPolicyCheckFailure(c *C) {
 		return false, fmt.Errorf("policy check failed")
 	}
 
-	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
+	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, nil, plugDynAttrs, nil, slotDynAttrs, policyCheck)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `policy check failed`)
 	c.Assert(conn, IsNil)
@@ -2374,7 +2374,7 @@ func (s *RepositorySuite) TestConnection(c *C) {
 	conn, err := s.testRepo.Connection(connRef)
 	c.Assert(err, ErrorMatches, `no connection from consumer:plug to producer:slot`)
 
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	conn, err = s.testRepo.Connection(connRef)
@@ -2387,6 +2387,25 @@ func (s *RepositorySuite) TestConnection(c *C) {
 
 	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: SlotRef{Snap: "a", Name: "b"}})
 	c.Assert(err, ErrorMatches, `snap "a" has no slot named "b"`)
+}
+
+func (s *RepositorySuite) TestConnectWithStaticAttrs(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+
+	connRef := NewConnRef(s.plug, s.slot)
+
+	plugAttrs := map[string]interface{}{"foo": "bar"}
+	slotAttrs := map[string]interface{}{"boo": "baz"}
+	_, err := s.testRepo.Connect(connRef, plugAttrs, nil, slotAttrs, nil, nil)
+	c.Assert(err, IsNil)
+
+	conn, err := s.testRepo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Assert(conn.Plug.Name(), Equals, "plug")
+	c.Assert(conn.Slot.Name(), Equals, "slot")
+	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, plugAttrs)
+	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, slotAttrs)
 }
 
 type hotplugTestInterface struct{ InterfaceName string }
