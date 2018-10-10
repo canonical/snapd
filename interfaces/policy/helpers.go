@@ -95,16 +95,30 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 	return nil
 }
 
-func checkDeviceScope(c *asserts.DeviceScopeConstraint, model *asserts.Model) error {
+func checkDeviceScope(c *asserts.DeviceScopeConstraint, model *asserts.Model, store *asserts.Store) error {
 	if c == nil {
 		return nil
 	}
 	if model == nil {
 		return fmt.Errorf("cannot match on-store/on-brand/on-model without model")
 	}
+	if store != nil && store.Store() != model.Store() {
+		return fmt.Errorf("store assertion and model store must match")
+	}
 	if len(c.Store) != 0 {
 		if !strutil.ListContains(c.Store, model.Store()) {
-			return fmt.Errorf("on-store mismatch")
+			mismatch := true
+			if store != nil {
+				for _, sto := range c.Store {
+					if strutil.ListContains(store.FriendlyStores(), sto) {
+						mismatch = false
+						break
+					}
+				}
+			}
+			if mismatch {
+				return fmt.Errorf("on-store mismatch")
+			}
 		}
 	}
 	if len(c.Brand) != 0 {
@@ -143,7 +157,7 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Plu
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
-	if err := checkDeviceScope(cstrs.DeviceScope, connc.Model); err != nil {
+	if err := checkDeviceScope(cstrs.DeviceScope, connc.Model, connc.Store); err != nil {
 		return err
 	}
 	return nil
@@ -186,7 +200,7 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Slo
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
-	if err := checkDeviceScope(cstrs.DeviceScope, connc.Model); err != nil {
+	if err := checkDeviceScope(cstrs.DeviceScope, connc.Model, connc.Store); err != nil {
 		return err
 	}
 	return nil
@@ -218,7 +232,7 @@ func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
-	if err := checkDeviceScope(cstrs.DeviceScope, ic.Model); err != nil {
+	if err := checkDeviceScope(cstrs.DeviceScope, ic.Model, ic.Store); err != nil {
 		return err
 	}
 	return nil
@@ -250,7 +264,7 @@ func checkPlugInstallationConstraints1(ic *InstallCandidate, plug *snap.PlugInfo
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
-	if err := checkDeviceScope(cstrs.DeviceScope, ic.Model); err != nil {
+	if err := checkDeviceScope(cstrs.DeviceScope, ic.Model, ic.Store); err != nil {
 		return err
 	}
 	return nil

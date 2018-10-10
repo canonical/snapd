@@ -165,6 +165,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		SnapID:   si.SnapID,
 		Revision: si.Revision,
 		Version:  si.Version,
+		Epoch:    si.Epoch,
 		Time:     time.Now(),
 		SHA3_384: make(map[string]string),
 		Size:     0,
