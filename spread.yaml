@@ -86,7 +86,6 @@ backends:
             - opensuse-42.3-64:
                 workers: 4
             - arch-linux-64:
-                image: arch-apparmor
                 workers: 4
 
             - amazon-linux-2-64:
