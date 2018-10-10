@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -158,7 +157,7 @@ func checkSnapWithTrackHeader(header string, headers map[string]interface{}) err
 	}
 	l := strings.SplitN(value, "=", 2)
 
-	if err := snap.ValidateName(l[0]); err != nil {
+	if err := validateSnapName(l[0]); err != nil {
 		return err
 	}
 	if len(l) == 1 {
@@ -223,6 +222,29 @@ var (
 	classicModelOptional = []string{"architecture", "gadget"}
 )
 
+var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
+
+// validateSnapName checks whether the name can be used as a snap name
+//
+// This function should be synchronized with the reference implementation
+// snap.ValidateName() in snap/validate.go
+func validateSnapName(name string) error {
+	isValidName := func() bool {
+		if !almostValidName.MatchString(name) {
+			return false
+		}
+		if name[0] == '-' || name[len(name)-1] == '-' || strings.Contains(name, "--") {
+			return false
+		}
+		return true
+	}
+
+	if len(name) > 40 || !isValidName() {
+		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
 func assembleModel(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
@@ -275,7 +297,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	if base != "" {
-		if err := snap.ValidateName(base); err != nil {
+		if err := validateSnapName(base); err != nil {
 			return nil, err
 		}
 	}
@@ -298,7 +320,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	for _, name := range reqSnaps {
-		if err := snap.ValidateName(name); err != nil {
+		if err := validateSnapName(name); err != nil {
 			return nil, err
 		}
 	}
