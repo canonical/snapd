@@ -22,6 +22,7 @@ package backend_test
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
 )
@@ -558,4 +560,98 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rs.Cleanup()
 	c.Check(diff().Run(), check.IsNil)
+}
+
+func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
+	n := 0
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.MockExecLookPath(func(s string) (string, error) {
+		n++
+		if s != "runuser" {
+			c.Fatalf(`expected to get "runuser", got %q`, s)
+		}
+		return "/sbin/runuser", nil
+	})()
+
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/sbin/runuser",
+		Args: []string{"runuser", "-u", "test", "--", "cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 1)
+	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 1)
+	uid = 42
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
+	n := 0
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.MockExecLookPath(func(s string) (string, error) {
+		n++
+		if n == 1 {
+			if s != "runuser" {
+				c.Fatalf(`expected to get "runuser" first, got %q`, s)
+			}
+			return "", errors.New("no such thing")
+		}
+		if s != "sudo" {
+			c.Fatalf(`expected to get "sudo" next, got %q`, s)
+		}
+		return "/usr/bin/sudo", nil
+	})()
+
+	cmd := backend.MaybeRunuserCommand("test", "cat", "--bar")
+	c.Check(cmd, check.DeepEquals, &exec.Cmd{
+		Path: "/usr/bin/sudo",
+		Args: []string{"sudo", "-u", "test", "--", "cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 2)
+	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 2)
+	uid = 42
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 2)
+}
+
+func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
+	n := 0
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.MockExecLookPath(func(s string) (string, error) {
+		n++
+		return "", errors.New("no such thing")
+	})()
+
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 2)
+	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 2)
+	uid = 42
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(n, check.Equals, 2)
 }
