@@ -1639,6 +1639,9 @@ var (
 	otherModel *asserts.Model
 	myModel1   *asserts.Model
 	myModel2   *asserts.Model
+	myModel3   *asserts.Model
+
+	substore1 *asserts.Store
 )
 
 func init() {
@@ -1693,6 +1696,41 @@ AXNpZw==`))
 		panic(err)
 	}
 	myModel2 = a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model3
+store: substore1
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	if err != nil {
+		panic(err)
+	}
+	myModel3 = a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: store
+store: substore1
+authority-id: canonical
+operator-id: canonical
+friendly-stores:
+  - a-store
+  - store1
+  - store2
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	if err != nil {
+		panic(err)
+	}
+	substore1 = a.(*asserts.Store)
 }
 
 func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
@@ -1727,6 +1765,40 @@ func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
 			BaseDeclaration: s.baseDecl,
 
 			Model: t.model,
+		}
+		err := cand.CheckAutoConnect()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (s *policySuite) TestPlugDeviceScopeFriendlyStoreCheckAutoConnection(c *C) {
+	tests := []struct {
+		model *asserts.Model
+		store *asserts.Store
+		iface string
+		err   string // "" => no error
+	}{
+		{nil, nil, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{myModel3, nil, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+		{myModel3, substore1, "auto-plug-on-store1", ""},
+		{myModel2, substore1, "auto-plug-on-store1", `auto-connection not allowed by plug rule of interface "auto-plug-on-store1" for "plug-snap" snap`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs[t.iface], nil, nil),
+			Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+
+			BaseDeclaration: s.baseDecl,
+
+			Model: t.model,
+			Store: t.store,
 		}
 		err := cand.CheckAutoConnect()
 		if t.err == "" {
@@ -1779,6 +1851,40 @@ func (s *policySuite) TestSlotDeviceScopeCheckAutoConnection(c *C) {
 	}
 }
 
+func (s *policySuite) TestSlotDeviceScopeFriendlyStoreCheckAutoConnection(c *C) {
+	tests := []struct {
+		model *asserts.Model
+		store *asserts.Store
+		iface string
+		err   string // "" => no error
+	}{
+		{nil, nil, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{myModel3, nil, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+		{myModel3, substore1, "auto-slot-on-store1", ""},
+		{myModel2, substore1, "auto-slot-on-store1", `auto-connection not allowed by slot rule of interface "auto-slot-on-store1" for "slot-snap" snap`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs[t.iface], nil, nil),
+			Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+
+			BaseDeclaration: s.baseDecl,
+
+			Model: t.model,
+			Store: t.store,
+		}
+		err := cand.CheckAutoConnect()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
 func (s *policySuite) TestDeviceScopeInstallation(c *C) {
 	const plugSnap = `name: install-snap
 version: 0
@@ -1818,20 +1924,28 @@ slots:
 
 	tests := []struct {
 		model       *asserts.Model
+		store       *asserts.Store
 		installYaml string
 		plugsSlots  string
 		err         string // "" => no error
 	}{
-		{nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{otherModel, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{myModel1, plugSnap, plugOnStore1, ""},
-		{myModel2, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{otherModel, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{myModel1, plugSnap, plugOnMulti, ""},
-		{myModel2, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
-		{otherModel, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
-		{myModel1, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
-		{myModel2, slotSnap, slotOnStore2, ""},
+		{nil, nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel1, nil, plugSnap, plugOnStore1, ""},
+		{myModel2, nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, nil, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel1, nil, plugSnap, plugOnMulti, ""},
+		{myModel2, nil, plugSnap, plugOnMulti, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{otherModel, nil, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
+		{myModel1, nil, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for "install-snap" snap`},
+		{myModel2, nil, slotSnap, slotOnStore2, ""},
+		// friendly-stores
+		{myModel3, nil, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel3, substore1, plugSnap, plugOnStore1, ""},
+		{myModel2, substore1, plugSnap, plugOnStore1, `installation not allowed by "install-plug-device-scope" plug rule of interface "install-plug-device-scope" for "install-snap" snap`},
+		{myModel3, nil, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for \"install-snap\" snap`},
+		{myModel3, substore1, slotSnap, slotOnStore2, ""},
+		{myModel2, substore1, slotSnap, slotOnStore2, `installation not allowed by "install-slot-device-scope" slot rule of interface "install-slot-device-scope" for \"install-snap\" snap`},
 	}
 
 	for _, t := range tests {
@@ -1856,6 +1970,7 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
 			SnapDeclaration: snapDecl,
 			BaseDeclaration: s.baseDecl,
 			Model:           t.model,
+			Store:           t.store,
 		}
 		err = cand.Check()
 		if t.err == "" {

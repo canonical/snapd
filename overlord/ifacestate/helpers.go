@@ -346,13 +346,13 @@ type connState struct {
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
 	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
-	// Hotplug-related attributes: HotplugRemoved indicates a connection
-	// that disappeared because the device was removed, but may potentially
-	// be restored in the future if we see the device again.
-	// HotplugDeviceKey is the key of the associated device; it's empty for
-	// connections of regular slots.
-	HotplugRemoved   bool   `json:"hotplug-removed,omitempty"`
-	HotplugDeviceKey string `json:"hotplug-key,omitempty"`
+	// Hotplug-related attributes: HotplugGone indicates a connection that
+	// disappeared because the device was removed, but may potentially be
+	// restored in the future if we see the device again. HotplugKey is the
+	// key of the associated device; it's empty for connections of regular
+	// slots.
+	HotplugGone bool   `json:"hotplug-gone,omitempty"`
+	HotplugKey  string `json:"hotplug-key,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -392,6 +392,15 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		return false, err
 	}
 
+	var storeAs *asserts.Store
+	if modelAs.Store() != "" {
+		var err error
+		storeAs, err = assertstate.Store(c.st, modelAs.Store())
+		if err != nil && !asserts.IsNotFound(err) {
+			return false, err
+		}
+	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
@@ -420,6 +429,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
 		Model:               modelAs,
+		Store:               storeAs,
 	}
 
 	return ic.CheckAutoConnect() == nil, nil
@@ -445,6 +455,15 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	modelAs, err := devicestate.Model(c.st)
 	if err != nil {
 		return false, fmt.Errorf("cannot get model assertion: %v", err)
+	}
+
+	var storeAs *asserts.Store
+	if modelAs.Store() != "" {
+		var err error
+		storeAs, err = assertstate.Store(c.st, modelAs.Store())
+		if err != nil && !asserts.IsNotFound(err) {
+			return false, err
+		}
 	}
 
 	var plugDecl *asserts.SnapDeclaration
@@ -473,6 +492,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
 		Model:               modelAs,
+		Store:               storeAs,
 	}
 
 	// if either of plug or slot snaps don't have a declaration it
@@ -748,40 +768,40 @@ func ensureSystemSnapIsPresent(st *state.State) error {
 	return err
 }
 
-func hotplugTaskSetAttrs(task *state.Task, deviceKey, ifaceName string) {
-	task.Set("device-key", deviceKey)
+func hotplugTaskSetAttrs(task *state.Task, ifaceName, hotplugKey string) {
 	task.Set("interface", ifaceName)
+	task.Set("hotplug-key", hotplugKey)
 }
 
-func hotplugTaskGetAttrs(task *state.Task) (deviceKey, ifaceName string, err error) {
+func hotplugTaskGetAttrs(task *state.Task) (ifaceName, hotplugKey string, err error) {
 	if err = task.Get("interface", &ifaceName); err != nil {
-		return "", "", fmt.Errorf("internal error: failed to get interface name: %s", err)
+		return "", "", fmt.Errorf("internal error: cannot get interface name from hotplug task: %s", err)
 	}
-	if err = task.Get("device-key", &deviceKey); err != nil {
-		return "", "", fmt.Errorf("internal error: failed to get device key: %s", err)
+	if err = task.Get("hotplug-key", &hotplugKey); err != nil {
+		return "", "", fmt.Errorf("internal error: cannot get hotplug key from hotplug task: %s", err)
 	}
-	return deviceKey, ifaceName, err
+	return ifaceName, hotplugKey, err
 }
 
-type HotplugSlotDef struct {
-	Name             string                 `json:"name"`
-	Interface        string                 `json:"interface"`
-	StaticAttrs      map[string]interface{} `json:"static-attrs,omitempty"`
-	HotplugDeviceKey string                 `json:"device-key"`
+type HotplugSlotInfo struct {
+	Name        string                 `json:"name"`
+	Interface   string                 `json:"interface"`
+	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
+	HotplugKey  string                 `json:"hotplug-key"`
 }
 
-func getHotplugSlots(st *state.State) (map[string]HotplugSlotDef, error) {
-	var slots map[string]HotplugSlotDef
+func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
+	var slots map[string]*HotplugSlotInfo
 	err := st.Get("hotplug-slots", &slots)
 	if err != nil {
 		if err != state.ErrNoState {
 			return nil, err
 		}
-		slots = make(map[string]HotplugSlotDef)
+		slots = make(map[string]*HotplugSlotInfo)
 	}
 	return slots, nil
 }
 
-func setHotplugSlots(st *state.State, slots map[string]HotplugSlotDef) {
+func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
 }
