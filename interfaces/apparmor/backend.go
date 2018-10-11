@@ -226,15 +226,16 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 //
 // Additionally it will cleanup stale apparmor profiles it created.
 func setupSnapConfineReexec(info *snap.Info) error {
-	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
-	if err != nil {
+	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
-
 	dir, glob, content, err := snapConfineFromSnapProfile(info)
 	cache := dirs.AppArmorCacheDir
 	if err != nil {
 		return fmt.Errorf("cannot compute snap-confine profile: %s", err)
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create snap-confine directory %q: %s", dir, err)
 	}
 
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)

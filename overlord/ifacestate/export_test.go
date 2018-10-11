@@ -37,6 +37,10 @@ var (
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
+	GetHotplugAttrs              = getHotplugAttrs
+	SetHotplugAttrs              = setHotplugAttrs
+	GetHotplugSlots              = getHotplugSlots
+	SetHotplugSlots              = setHotplugSlots
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

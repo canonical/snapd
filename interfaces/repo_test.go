@@ -2433,3 +2433,36 @@ func (s *RepositorySuite) TestAllHotplugInterfaces(c *C) {
 	c.Assert(hi[0].Name(), Equals, "iface2")
 	c.Assert(hi[1].Name(), Equals, "iface3")
 }
+
+func (s *RepositorySuite) TestHotplugMethods(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+
+	coreSlot := &snap.SlotInfo{
+		Snap:       s.coreSnap,
+		Name:       "dummy-slot",
+		Interface:  "interface",
+		HotplugKey: "1234",
+	}
+	c.Assert(s.testRepo.AddSlot(coreSlot), IsNil)
+
+	slotInfo, err := s.testRepo.SlotForHotplugKey("interface", "1234")
+	c.Assert(err, IsNil)
+	c.Check(slotInfo, DeepEquals, coreSlot)
+
+	// no slot for device key 9999
+	slotInfo, err = s.testRepo.SlotForHotplugKey("interface", "9999")
+	c.Assert(err, IsNil)
+	c.Check(slotInfo, IsNil)
+
+	_, err = s.testRepo.Connect(NewConnRef(s.plug, coreSlot), nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.ConnectionsForHotplugKey("interface", "1234")
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plug, coreSlot)})
+
+	// no connections for device 9999
+	conns, err = s.testRepo.ConnectionsForHotplugKey("interface", "9999")
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
+}
