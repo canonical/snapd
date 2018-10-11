@@ -157,7 +157,14 @@ var requestedParserFeatures = []apparmorParserFeature{
 // tryParser will run the parser on the rule to determine if the feature is
 // supported.
 func tryParser(rule string) bool {
-	cmd := exec.Command("apparmor_parser", "--preprocess")
+	parser := "apparmor_parser"
+
+	_, err := exec.LookPath(parser)
+	if err != nil {
+		return false
+	}
+
+	cmd := exec.Command(parser, "--preprocess")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return false
