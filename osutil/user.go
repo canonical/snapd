@@ -46,6 +46,8 @@ type AddUserOptions struct {
 	SSHKeys    []string
 	// crypt(3) compatible password of the form $id$salt$hash
 	Password string
+	// force a password change by the user on login
+	ForcePasswordChange bool
 }
 
 func AddUser(name string, opts *AddUserOptions) error {
@@ -94,6 +96,20 @@ func AddUser(name string, opts *AddUserOptions) error {
 		}
 		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
 			return fmt.Errorf("setting password failed: %s", OutputErr(output, err))
+		}
+	}
+	if opts.ForcePasswordChange {
+		if opts.Password == "" {
+			return fmt.Errorf("cannot force password change when no password is provided")
+		}
+		cmdStr := []string{
+			"passwd",
+			"--expire",
+			// no --extrauser required, see LP: #1562872
+			name,
+		}
+		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
+			return fmt.Errorf("cannot force password change: %s", OutputErr(output, err))
 		}
 	}
 
