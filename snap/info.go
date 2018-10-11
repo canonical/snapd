@@ -720,6 +720,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     RestartCondition
+	RestartDelay    timeout.Timeout
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
