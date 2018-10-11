@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -17,26 +16,12 @@
  *
  */
 
-package selftest
+package standby
 
-var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
-	ApparmorUsable     = apparmorUsable
+import (
+	"time"
 )
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
-	}
-}
-
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+func (m *StandbyOpinions) SetStartTime(t time.Time) {
+	m.startTime = t
 }

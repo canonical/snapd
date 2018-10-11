@@ -53,6 +53,17 @@ type snapYaml struct {
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
+
+	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
+	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
+}
+
+type typoDetector struct {
+	Hint string
+}
+
+func (td *typoDetector) UnmarshalYAML(func(interface{}) error) error {
+	return fmt.Errorf("typo detected: %s", td.Hint)
 }
 
 type appYaml struct {
@@ -72,9 +83,10 @@ type appYaml struct {
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
-	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string         `yaml:"slots,omitempty"`
-	PlugNames   []string         `yaml:"plugs,omitempty"`
+	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
+	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
+	SlotNames    []string         `yaml:"slots,omitempty"`
+	PlugNames    []string         `yaml:"plugs,omitempty"`
 
 	BusName  string `yaml:"bus-name,omitempty"`
 	CommonID string `yaml:"common-id,omitempty"`
@@ -116,6 +128,8 @@ type socketsYaml struct {
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
 func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
+	// Customize hints for the typo detector.
+	y.TypoLayouts.Hint = `use singular "layout" instead of plural "layouts"`
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
@@ -308,6 +322,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
+			RestartDelay:    yApp.RestartDelay,
 			BusName:         yApp.BusName,
 			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,

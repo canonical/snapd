@@ -1796,9 +1796,13 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(result.License, Equals, "MIT")
 	c.Check(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Check(result.Paid, Equals, true)
-	c.Check(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+	c.Check(result.Media, DeepEquals, snap.MediaInfos{
 		{
-			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type: "icon",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
@@ -2300,9 +2304,10 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 	c.Assert(result, IsNil)
 }
 
-/* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
-Add base and prices.
+/* acquired via looking at the query snapd does for "snap find 'hello-world of snaps' --narrow" (on core) and adding size=1:
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?confinement=strict&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Clicense%2Cbase%2Cmedia%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello-world+of+snaps&size=1' | python -m json.tool | xsel -b
+
+And then add base and prices, and remove the _links dict
 */
 const MockSearchJSON = `{
     "_embedded": {
@@ -2325,10 +2330,18 @@ const MockSearchJSON = `{
                 "developer_validation": "verified",
                 "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
                 "download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
-                "epoch": "0",
-                "icon_url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
                 "last_updated": "2016-07-12T16:37:23.960632+00:00",
                 "license": "MIT",
+                "media": [
+                    {
+                        "type": "icon",
+                        "url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png"
+                    },
+                    {
+                        "type": "screenshot",
+                        "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                    }
+                ],
                 "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {"EUR": 2.99, "USD": 3.49},
@@ -2336,9 +2349,6 @@ const MockSearchJSON = `{
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
                 "revision": 27,
-                "screenshot_urls": [
-                    "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
-                ],
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "The 'hello-world' of snaps",
                 "support_url": "",
@@ -2346,11 +2356,6 @@ const MockSearchJSON = `{
                 "version": "6.3"
             }
         ]
-    },
-    "_links": {
-        "self": {
-            "href": "http://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello"
-        }
     }
 }
 `
@@ -2675,9 +2680,13 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Check(snp.License, Equals, "MIT")
 	c.Assert(snp.Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
 	c.Assert(snp.Paid, Equals, true)
-	c.Assert(snp.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+	c.Assert(snp.Media, DeepEquals, snap.MediaInfos{
 		{
-			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type: "icon",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
 	c.Check(snp.MustBuy, Equals, true)
@@ -5933,6 +5942,11 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
+	store.MockConnCheckStrategy(&s.BaseTest, retry.LimitCount(3, retry.Exponential{
+		Initial: time.Millisecond,
+		Factor:  1.3,
+	}))
+
 	seenPaths := make(map[string]int, 2)
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -6590,4 +6604,111 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	}, nil, nil)
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
 	c.Assert(results, IsNil)
+}
+
+func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo-2",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "foo-2-id",
+     "name": "foo-2",
+     "snap": {
+       "snap-id": "foo-2-id",
+       "name": "foo-2",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  },{
+      "error": {
+        "code": "duplicated-snap",
+         "message": "The Snap is present more than once in the request."
+      },
+      "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
+      "name": null,
+      "result": "error",
+      "snap": null,
+      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo-2",
+		},
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(err, DeepEquals, &store.SnapActionError{
+		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
+	})
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "foo-2")
+	c.Assert(results[0].SnapID, Equals, "foo-2-id")
 }

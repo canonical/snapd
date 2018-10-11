@@ -17,16 +17,20 @@
  *
  */
 
-package selftest
+package sanity
 
 import (
 	"fmt"
 	"os"
 )
 
+func init() {
+	checks = append(checks, checkApparmorUsable)
+}
+
 var apparmorProfilesPath = "/sys/kernel/security/apparmor/profiles"
 
-func apparmorUsable() error {
+func checkApparmorUsable() error {
 	// Check that apparmor is actually usable. In some
 	// configurations of lxd, apparmor looks available when in
 	// reality it isn't. Eg, this can happen when a container runs

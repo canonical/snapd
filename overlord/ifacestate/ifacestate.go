@@ -26,10 +26,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -238,7 +240,10 @@ func initialConnectAttributes(st *state.State, plugSnap string, plugName string,
 		return nil, nil, err
 	}
 
-	addImplicitSlots(snapInfo)
+	if err := addImplicitSlots(st, snapInfo); err != nil {
+		return nil, nil, err
+	}
+
 	slot, ok := snapInfo.Slots[slotName]
 	if !ok {
 		return nil, nil, fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
@@ -351,11 +356,27 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	// XXX: addImplicitSlots is really a brittle interface
-	addImplicitSlots(snapInfo)
+	if err := addImplicitSlots(st, snapInfo); err != nil {
+		return err
+	}
 
 	if snapInfo.SnapID == "" {
 		// no SnapID means --dangerous was given, so skip interface checks
 		return nil
+	}
+
+	modelAs, err := devicestate.Model(st)
+	if err != nil {
+		return err
+	}
+
+	var storeAs *asserts.Store
+	if modelAs.Store() != "" {
+		var err error
+		storeAs, err = assertstate.Store(st, modelAs.Store())
+		if err != nil && !asserts.IsNotFound(err) {
+			return err
+		}
 	}
 
 	baseDecl, err := assertstate.BaseDeclaration(st)
@@ -372,6 +393,8 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 		Snap:            snapInfo,
 		SnapDeclaration: snapDecl,
 		BaseDeclaration: baseDecl,
+		Model:           modelAs,
+		Store:           storeAs,
 	}
 
 	return ic.Check()

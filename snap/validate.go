@@ -380,7 +380,12 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// ensure that plug and slot have unique names
+	// Ensure that plugs and slots have appropriate names and interface names.
+	if err := plugsSlotsInterfacesNames(info); err != nil {
+		return err
+	}
+
+	// Ensure that plug and slot have unique names.
 	if err := plugsSlotsUniqueNames(info); err != nil {
 		return err
 	}
@@ -446,6 +451,25 @@ func ValidateLayoutAll(info *Info) error {
 	return nil
 }
 
+func plugsSlotsInterfacesNames(info *Info) error {
+	for plugName, plug := range info.Plugs {
+		if err := ValidatePlugName(plugName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(plug.Interface); err != nil {
+			return fmt.Errorf("invalid interface name %q for plug %q", plug.Interface, plugName)
+		}
+	}
+	for slotName, slot := range info.Slots {
+		if err := ValidateSlotName(slotName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(slot.Interface); err != nil {
+			return fmt.Errorf("invalid interface name %q for slot %q", slot.Interface, slotName)
+		}
+	}
+	return nil
+}
 func plugsSlotsUniqueNames(info *Info) error {
 	// we could choose the smaller collection if we wanted to optimize this check
 	for plugName := range info.Plugs {
@@ -590,6 +614,31 @@ func validateAppTimer(app *AppInfo) error {
 	return nil
 }
 
+func validateAppRestart(app *AppInfo) error {
+	// app.RestartCond value is validated when unmarshalling
+
+	if app.RestartDelay == 0 && app.RestartCond == "" {
+		return nil
+	}
+
+	if app.RestartDelay != 0 {
+		if !app.IsService() {
+			return fmt.Errorf("application %q must be a service to define restart-delay", app.Name)
+		}
+
+		if app.RestartDelay < 0 {
+			return fmt.Errorf("cannot use a negative restart-delay for application %q", app.Name)
+		}
+	}
+
+	if app.RestartCond != "" {
+		if !app.IsService() {
+			return fmt.Errorf("application %q must be a service to define restart-condition", app.Name)
+		}
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused. chainContentWhitelist is the same, but for the
@@ -654,6 +703,9 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
+	if err := validateAppRestart(app); err != nil {
+		return err
+	}
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}

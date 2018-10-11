@@ -71,6 +71,7 @@ type Overlord struct {
 	ensureTimer *time.Timer
 	ensureNext  time.Time
 	pruneTicker *time.Ticker
+	numEnsure   uint64
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
@@ -276,6 +277,7 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
+			o.numEnsure++
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -288,6 +290,10 @@ func (o *Overlord) Loop() {
 			}
 		}
 	})
+}
+
+func (o *Overlord) CanStandby() bool {
+	return o.numEnsure > 0
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.
