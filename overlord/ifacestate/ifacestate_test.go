@@ -61,9 +61,11 @@ type AssertsMock struct {
 	Db           *asserts.Database
 	storeSigning *assertstest.StoreStack
 	brandSigning *assertstest.SigningDB
+	st           *state.State
 }
 
 func (am *AssertsMock) SetupAsserts(c *C, st *state.State) {
+	am.st = st
 	am.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 	am.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
@@ -94,7 +96,7 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State) {
 	st.Unlock()
 }
 
-func (am *AssertsMock) MockModel(c *C, st *state.State, extraHeaders map[string]interface{}) {
+func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"brand-id":     "my-brand",
@@ -109,11 +111,11 @@ func (am *AssertsMock) MockModel(c *C, st *state.State, extraHeaders map[string]
 	}
 	model, err := am.brandSigning.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
-	st.Lock()
-	defer st.Unlock()
-	err = assertstate.Add(st, model)
+	am.st.Lock()
+	defer am.st.Unlock()
+	err = assertstate.Add(am.st, model)
 	c.Assert(err, IsNil)
-	err = auth.SetDevice(st, &auth.DeviceState{
+	err = auth.SetDevice(am.st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -792,7 +794,7 @@ func (s *interfaceManagerSuite) TestAutoconnectIgnoresSetupProfilesPhase2(c *C) 
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
@@ -898,7 +900,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.testConnectTaskCheck(c, func() {
 		s.MockSnapDecl(c, "consumer", "consumer-publisher", nil)
@@ -916,7 +918,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.testConnectTaskCheck(c, func() {
 		s.mockSnap(c, consumerYaml)
@@ -933,7 +935,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.testConnectTaskCheck(c, func() {
 		s.MockSnapDecl(c, "consumer", "one-publisher", nil)
@@ -991,7 +993,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeNoStore(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
 		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
@@ -1004,7 +1006,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeNoStore(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "other-store",
 	})
 
@@ -1019,7 +1021,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongStore(c *C) 
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-store",
 	})
 
@@ -1035,7 +1037,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) 
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongFriendlyStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -1054,7 +1056,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongFriendlyStor
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightFriendlyStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -1649,7 +1651,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 
 // The auto-connect task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	// Add an OS snap.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
@@ -1695,7 +1697,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 
 // The auto-connect task will auto-connect slots with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
@@ -1748,7 +1750,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 
 // The auto-connect task will auto-connect slots with viable multiple candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiplePlugs(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
@@ -1851,7 +1853,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 
 // The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
@@ -1931,7 +1933,7 @@ slots:
 // in the model assertion fails an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeNoStore(c *C) {
 
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
@@ -1945,7 +1947,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // store in the model assertion fails an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongStore(c *C) {
 
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "other-store",
 	})
 
@@ -1961,7 +1963,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // store in the model assertion passes an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeRightStore(c *C) {
 
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-store",
 	})
 
@@ -1983,7 +1985,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongFriendlyStore(c *C) {
 
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -2004,7 +2006,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeFriendlyStore(c *C) {
 
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -2083,7 +2085,7 @@ slots:
 // The setup-profiles task will only touch connection state for the task it
 // operates on or auto-connects to and will leave other state intact.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionState(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	// Add an OS snap in place.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
@@ -2357,7 +2359,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 
 // auto-connect needs to setup security for connected slots after autoconnection
 func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	// Add an OS snap.
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
@@ -2547,7 +2549,7 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
@@ -2591,7 +2593,7 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 
@@ -2880,7 +2882,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -2922,7 +2924,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -2949,7 +2951,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-store",
 	})
 
@@ -2982,7 +2984,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeNoStore(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -3013,7 +3015,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "other-store",
 	})
 
@@ -3046,7 +3048,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightFriendlyStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -3083,7 +3085,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongFriendlyStore(c *C) {
-	s.MockModel(c, s.state, map[string]interface{}{
+	s.MockModel(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -3359,7 +3361,7 @@ plugs:
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	// Add both the old and new core snaps
 	s.mockSnap(c, ubuntuCoreSnapYaml)
@@ -3446,7 +3448,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 }
 
 func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.manager(c)
@@ -3616,7 +3618,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
@@ -3686,7 +3688,7 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, selfconnectSnapYaml)
@@ -4318,7 +4320,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectHappyPolicyChecks(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.MockModel(c, s.state, nil)
+	s.MockModel(c, nil)
 
 	s.mockSnap(c, coreSnapYaml)
 
