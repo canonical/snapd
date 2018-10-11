@@ -5733,6 +5733,53 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		c.Check(opts.ForcePasswordChange, check.Equals, false)
+		return nil
+	}
+
+	defer func() {
+		osutilAddUser = osutil.AddUser
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &userResponseData{
+		Username: "guy",
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionWithForcePasswordChnage(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	lusers := []map[string]interface{}{goodUser}
+	lusers[0]["force-password-change"] = "true"
+	s.makeSystemUsers(c, lusers)
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		c.Check(opts.ForcePasswordChange, check.Equals, true)
 		return nil
 	}
 
