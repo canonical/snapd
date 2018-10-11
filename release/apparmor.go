@@ -159,7 +159,7 @@ var requestedParserFeatures = []apparmorParserFeature{
 func tryParser(rule string) bool {
 	cmd := exec.Command("apparmor_parser", "--preprocess")
 	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
-	if _, err := cmd.CombinedOutput(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return false
 	}
 	return true
