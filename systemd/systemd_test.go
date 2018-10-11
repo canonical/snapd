@@ -205,7 +205,7 @@ UnitFileState=disabled
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service", "some.timer", "other.socket")
 	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, []*ServiceStatus{
+	c.Check(out, DeepEquals, []*UnitStatus{
 		{
 			Daemon:   "simple",
 			UnitName: "foo.service",
@@ -251,7 +251,7 @@ UnitFileState=enabled
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo.service")
-	c.Check(err, ErrorMatches, "cannot get service status: expected 1 results, got 2")
+	c.Check(err, ErrorMatches, "cannot get unit status: expected 1 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }
