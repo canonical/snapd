@@ -55,6 +55,7 @@ var defaultTemplate = `
   /etc/ld.so.preload r,
 
   # The base abstraction doesn't yet have this
+  /etc/sysconfig/clock r,
   /lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
