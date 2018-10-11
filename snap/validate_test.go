@@ -1486,3 +1486,84 @@ version: 1.0
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid instance key: %q", s))
 	}
 }
+
+func (s *ValidateSuite) TestValidateAppRestart(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-condition: on-abort
+    restart-delay: 12s
+`)
+	fooAllGoodDefault := []byte(`
+apps:
+  foo:
+    daemon: simple
+`)
+	fooAllGoodJustDelay := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-delay: 12s
+`)
+	fooConditionNotADaemon := []byte(`
+apps:
+  foo:
+    restart-condition: on-abort
+`)
+	fooDelayNotADaemon := []byte(`
+apps:
+  foo:
+    restart-delay: 12s
+`)
+	fooNegativeDelay := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-delay: -12s
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo all good with default values",
+		desc: fooAllGoodDefault,
+	}, {
+		name: "foo all good with restart-delay only",
+		desc: fooAllGoodJustDelay,
+	}, {
+		name: "foo restart-delay but not a service",
+		desc: fooDelayNotADaemon,
+		err:  `application "foo" must be a service to define restart-delay`,
+	}, {
+		name: "foo restart-delay but not a service",
+		desc: fooConditionNotADaemon,
+		err:  `application "foo" must be a service to define restart-condition`,
+	}, {
+		name: "negative restart-delay",
+		desc: fooNegativeDelay,
+		err:  `cannot use a negative restart-delay for application "foo"`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
