@@ -1506,6 +1506,90 @@ func (s *imageSuite) TestBootstrapToRootDirSnapReqBase(c *C) {
 	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
+func (s *imageSuite) TestBootstrapToRootDirStoreAssertionMissing(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"store":        "my-store",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+}
+
+func (s *imageSuite) TestBootstrapToRootDirStoreAssertionFetched(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// add store assertion
+	storeAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "my-store",
+		"operator-id": "canonical",
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"store":        "my-store",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
+	seedassertsdir := filepath.Join(seeddir, "assertions")
+
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":      "canonical",
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check the store assertion was fetched
+	p := filepath.Join(seedassertsdir, "my-store.store")
+	c.Check(osutil.FileExists(p), Equals, true)
+}
+
 func (s *imageSuite) TestBootstrapToRootDirSnapReqBaseFromLocal(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()

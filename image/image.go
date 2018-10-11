@@ -539,7 +539,15 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
 
-	// TODO: fetch device store assertion (and prereqs) if available
+	// fetch device store assertion (and prereqs) if available
+	if model.Store() != "" {
+		err := snapasserts.FetchStore(f, model.Store())
+		if err != nil {
+			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
+				return err
+			}
+		}
+	}
 
 	for _, aRef := range f.addedRefs {
 		var afn string
