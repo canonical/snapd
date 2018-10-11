@@ -273,6 +273,11 @@ func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	return nil
 }
 
+// HotplugKey returns the device key of the slot if it belongs to a hotplug device. It's empty for regular slots.
+func (slot *ConnectedSlot) HotplugKey() string {
+	return slot.slotInfo.HotplugKey
+}
+
 // Ref returns the SlotRef for this slot.
 func (slot *ConnectedSlot) Ref() *SlotRef {
 	return &SlotRef{Snap: slot.Snap().InstanceName(), Name: slot.Name()}

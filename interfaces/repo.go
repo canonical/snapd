@@ -837,7 +837,7 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	return conns, nil
 }
 
-// coreSnapName returns the name of the core snap if one exists
+// guessSystemSnapName returns the name of the core snap if one exists
 func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
 	case r.slots["snapd"] != nil:

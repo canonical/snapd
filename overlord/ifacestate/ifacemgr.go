@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+type deviceData struct{ ifaceName, hotplugKey string }
+
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
 // installed snaps to track the current set of available plugs and slots.
@@ -41,6 +43,10 @@ type InterfaceManager struct {
 	udevMon             udevmonitor.Interface
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
+	// indexed by interface name and device key
+	enumeratedDeviceKeys map[string]map[string]bool
+	// maps sysfs path -> [(interface name, device key)...]
+	hotplugDevicePaths map[string][]deviceData
 }
 
 // Manager returns a new InterfaceManager.
@@ -65,6 +71,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	s.Lock()
 	ifacerepo.Replace(s, m.repo)
+
 	s.Unlock()
 
 	taskKinds := map[string]bool{}
@@ -81,6 +88,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
+	addHandler("hotplug-connect", m.doHotplugConnect, nil)
+	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
+	addHandler("hotplug-update-slot", m.doHotplugUpdateSlot, nil)
+	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
@@ -168,7 +179,7 @@ var (
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
-	mon := createUDevMonitor(m.HotplugDeviceAdded, m.HotplugDeviceRemoved)
+	mon := createUDevMonitor(m.hotplugDeviceAdded, m.hotplugDeviceRemoved, m.hotplugEnumerationDone)
 	if err := mon.Connect(); err != nil {
 		return err
 	}
@@ -176,6 +187,8 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		mon.Disconnect()
 		return err
 	}
+	m.enumeratedDeviceKeys = make(map[string]map[string]bool)
+	m.hotplugDevicePaths = make(map[string][]deviceData)
 	m.udevMon = mon
 	return nil
 }
@@ -187,4 +200,12 @@ func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
 	old := backends.All
 	backends.All = be
 	return func() { backends.All = old }
+}
+
+// MockObservedDevicePath adds the given device to the map of observed devices.
+// This function is used for tests only.
+func (m *InterfaceManager) MockObservedDevicePath(devPath, ifaceName, hotplugKey string) func() {
+	old := m.hotplugDevicePaths
+	m.hotplugDevicePaths[devPath] = append(m.hotplugDevicePaths[devPath], deviceData{hotplugKey: hotplugKey, ifaceName: ifaceName})
+	return func() { m.hotplugDevicePaths = old }
 }

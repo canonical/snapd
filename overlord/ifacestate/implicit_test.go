@@ -84,6 +84,7 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	defer st.Unlock()
 
 	c.Assert(ifacestate.AddImplicitSlots(st, info), IsNil)
+
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]
