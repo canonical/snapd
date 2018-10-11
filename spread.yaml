@@ -60,7 +60,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 6
-
+            - ubuntu-18.10-64:
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1810-cosmic-v20181002
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
