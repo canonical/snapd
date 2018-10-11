@@ -56,14 +56,18 @@ func init() {
 		func() flags.Commander {
 			return &cmdSignBuild{}
 		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"developer-id": i18n.G("Identifier of the signer"),
-			"snap-id":      i18n.G("Identifier of the snap package associated with the build"),
-			"k":            i18n.G("Name of the GnuPG key to use (defaults to 'default' as key name)"),
-			"grade":        i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"snap-id": i18n.G("Identifier of the snap package associated with the build"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"k": i18n.G("Name of the GnuPG key to use (defaults to 'default' as key name)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"grade": i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
 		}, []argDesc{{
 			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<filename>"),
-			// TRANSLATORS: This should probably not start with a lowercase letter.
+			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Filename of the snap you want to assert a build for"),
 		}})
 	cmd.hidden = true

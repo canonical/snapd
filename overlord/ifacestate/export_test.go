@@ -32,7 +32,15 @@ var (
 	ConnectPriv                  = connect
 	GetConns                     = getConns
 	SetConns                     = setConns
+	DefaultDeviceKey             = defaultDeviceKey
+	MakeSlotName                 = makeSlotName
+	EnsureUniqueName             = ensureUniqueName
+	SuggestedSlotName            = suggestedSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
+	GetHotplugAttrs              = getHotplugAttrs
+	SetHotplugAttrs              = setHotplugAttrs
+	GetHotplugSlots              = getHotplugSlots
+	SetHotplugSlots              = setHotplugSlots
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

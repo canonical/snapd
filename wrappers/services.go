@@ -389,6 +389,9 @@ X-Snappy=yes
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
+{{- if .App.RestartDelay}}
+RestartSec={{.App.RestartDelay.Seconds}}
+{{- end}}
 WorkingDirectory={{.App.Snap.DataDir}}
 {{- if .App.StopCommand}}
 ExecStop={{.App.LauncherStopCommand}}
@@ -492,18 +495,19 @@ WantedBy={{.ServicesTarget}}
 
 func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
 	socketTemplate := `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Socket {{.SocketName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Requires={{.MountUnit}}
-Wants={{.PrerequisiteTarget}}
-After={{.MountUnit}} {{.PrerequisiteTarget}}
+After={{.MountUnit}}
 X-Snappy=yes
 
 [Socket]
 Service={{.ServiceFileName}}
 FileDescriptorName={{.SocketInfo.Name}}
 ListenStream={{.ListenStream}}
-{{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}{{end}}
+{{- if .SocketInfo.SocketMode}}
+SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}
+{{- end}}
 
 [Install]
 WantedBy={{.SocketsTarget}}
@@ -514,23 +518,21 @@ WantedBy={{.SocketsTarget}}
 	socket := appInfo.Sockets[socketName]
 	listenStream := renderListenStream(socket)
 	wrapperData := struct {
-		App                *snap.AppInfo
-		ServiceFileName    string
-		PrerequisiteTarget string
-		SocketsTarget      string
-		MountUnit          string
-		SocketName         string
-		SocketInfo         *snap.SocketInfo
-		ListenStream       string
+		App             *snap.AppInfo
+		ServiceFileName string
+		SocketsTarget   string
+		MountUnit       string
+		SocketName      string
+		SocketInfo      *snap.SocketInfo
+		ListenStream    string
 	}{
-		App:                appInfo,
-		ServiceFileName:    filepath.Base(appInfo.ServiceFile()),
-		SocketsTarget:      systemd.SocketsTarget,
-		PrerequisiteTarget: systemd.PrerequisiteTarget,
-		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
-		SocketName:         socketName,
-		SocketInfo:         socket,
-		ListenStream:       listenStream,
+		App:             appInfo,
+		ServiceFileName: filepath.Base(appInfo.ServiceFile()),
+		SocketsTarget:   systemd.SocketsTarget,
+		MountUnit:       filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
+		SocketName:      socketName,
+		SocketInfo:      socket,
+		ListenStream:    listenStream,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

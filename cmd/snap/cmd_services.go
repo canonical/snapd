@@ -51,7 +51,7 @@ var (
 The services command lists information about the services specified, or about
 the services in all currently installed snaps.
 `)
-	shortLogsHelp = i18n.G("Retrieve logs of services")
+	shortLogsHelp = i18n.G("Retrieve logs for services")
 	longLogsHelp  = i18n.G(`
 The logs command fetches logs of the given services and displays them in
 chronological order.
@@ -77,25 +77,31 @@ func init() {
 	argdescs := []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<service>"),
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),
 	}}
 	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, nil, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"n": i18n.G("Show only the given number of lines, or 'all'."),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"f": i18n.G("Wait for new lines and print them as they come in."),
 		}, argdescs)
 
 	addCommand("start", shortStartHelp, longStartHelp, func() flags.Commander { return &svcStart{} },
 		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"enable": i18n.G("As well as starting the service now, arrange for it to be started on boot."),
 		}), argdescs)
 	addCommand("stop", shortStopHelp, longStopHelp, func() flags.Commander { return &svcStop{} },
 		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"disable": i18n.G("As well as stopping the service now, arrange for it to no longer be started on boot."),
 		}), argdescs)
 	addCommand("restart", shortRestartHelp, longRestartHelp, func() flags.Commander { return &svcRestart{} },
 		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"reload": i18n.G("If the service has a reload command, use it instead of restarting."),
 		}), argdescs)
 }

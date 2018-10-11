@@ -30,7 +30,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -45,11 +44,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
-)
-
-// hook setup by devicestate
-var (
-	Model func(st *state.State) (*asserts.Model, error)
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -383,7 +377,16 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
-	if !settings.ProblemReportsDisabled(st) {
+	// Only report and error if there is an actual error in the change,
+	// we could undo things because the user canceled the change.
+	var isErr bool
+	for _, tt := range t.Change().Tasks() {
+		if tt.Status() == state.ErrorStatus {
+			isErr = true
+			break
+		}
+	}
+	if isErr && !settings.ProblemReportsDisabled(st) {
 		st.Unlock()
 		oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
 		st.Lock()

@@ -41,9 +41,7 @@ invoked just using the alias.
           --no-wait     Do not wait for the operation to finish but just print
                         the change id.
 `
-	rest, err := Parser(Client()).ParseArgs([]string{"alias", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "alias", msg)
 }
 
 func (s *SnapSuite) TestAlias(c *C) {

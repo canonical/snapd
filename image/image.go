@@ -328,6 +328,20 @@ func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
 	return mch.Clean().String(), nil
 }
 
+// neededDefaultProviders returns the names of all default-providers for
+// the content plugs that the given snap.Info needs.
+func neededDefaultProviders(info *snap.Info) (cps []string) {
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			var dprovider string
+			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+				cps = append(cps, dprovider)
+			}
+		}
+	}
+	return cps
+}
+
 func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -456,6 +470,12 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		if info.Base != "" && !local.hasName(snaps, info.Base) {
 			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
 		}
+		// warn about missing default providers
+		for _, dp := range neededDefaultProviders(info) {
+			if !local.hasName(snaps, dp) {
+				fmt.Fprintf(Stderr, "WARNING: the default content provider %q requested by snap %q is not getting installed.", dp, info.InstanceName())
+			}
+		}
 
 		seen[name] = true
 		typ := info.Type
@@ -517,6 +537,16 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	}
 	if len(locals) > 0 {
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
+	}
+
+	// fetch device store assertion (and prereqs) if available
+	if model.Store() != "" {
+		err := snapasserts.FetchStore(f, model.Store())
+		if err != nil {
+			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
+				return err
+			}
+		}
 	}
 
 	for _, aRef := range f.addedRefs {

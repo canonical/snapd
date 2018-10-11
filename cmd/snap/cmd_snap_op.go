@@ -36,10 +36,10 @@ import (
 )
 
 var (
-	shortInstallHelp = i18n.G("Install a snap to the system")
-	shortRemoveHelp  = i18n.G("Remove a snap from the system")
-	shortRefreshHelp = i18n.G("Refresh a snap in the system")
-	shortTryHelp     = i18n.G("Test a snap in the system")
+	shortInstallHelp = i18n.G("Install snaps on the system")
+	shortRemoveHelp  = i18n.G("Remove snaps from the system")
+	shortRefreshHelp = i18n.G("Refresh snaps in the system")
+	shortTryHelp     = i18n.G("Test an unpacked snap in the system")
 	shortEnableHelp  = i18n.G("Enable a snap in the system")
 	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
@@ -211,11 +211,16 @@ func (mxd mixinDescs) also(m map[string]string) mixinDescs {
 }
 
 var channelDescs = mixinDescs{
-	"channel":   i18n.G("Use this channel instead of stable"),
-	"beta":      i18n.G("Install from the beta channel"),
-	"edge":      i18n.G("Install from the edge channel"),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"channel": i18n.G("Use this channel instead of stable"),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"beta": i18n.G("Install from the beta channel"),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"edge": i18n.G("Install from the edge channel"),
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"candidate": i18n.G("Install from the candidate channel"),
-	"stable":    i18n.G("Install from the stable channel"),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"stable": i18n.G("Install from the stable channel"),
 }
 
 func (mx *channelMixin) setChannelFromCommandline() error {
@@ -301,8 +306,11 @@ type modeMixin struct {
 }
 
 var modeDescs = mixinDescs{
-	"classic":  i18n.G("Put snap in classic mode and disable security confinement"),
-	"devmode":  i18n.G("Put snap in development mode and disable security confinement"),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"classic": i18n.G("Put snap in classic mode and disable security confinement"),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"devmode": i18n.G("Put snap in development mode and disable security confinement"),
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }
 
@@ -621,14 +629,14 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.Time {
 		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+			return errors.New(i18n.G("--time does not take mode or channel flags"))
 		}
 		return x.showRefreshTimes()
 	}
 
 	if x.List {
-		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--list does not take mode nor channel flags"))
+		if len(x.Positional.Snaps) > 0 || x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--list does not accept additional arguments"))
 		}
 
 		return x.listRefresh()
@@ -900,28 +908,42 @@ func (x cmdSwitch) Execute(args []string) error {
 
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} },
-		waitDescs.also(map[string]string{"revision": i18n.G("Remove only the given revision")}), nil)
+		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"revision": i18n.G("Remove only the given revision"),
+		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
-			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
-			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"revision": i18n.G("Install the given revision of a snap, to which you must have developer access"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"dangerous": i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
-			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
-			"name":            i18n.G("Install the snap file under given snap name"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"name": i18n.G("Install the snap file under given snap name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
-			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
-			"revision":          i18n.G("Refresh to the given revision, to which you must have developer access"),
-			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
-			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"amend": i18n.G("Allow refresh attempt on snap unknown to the store"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"revision": i18n.G("Refresh to the given revision, to which you must have developer access"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"time": i18n.G("Show auto refresh information but do not perform a refresh"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)
 	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} }, waitDescs, nil)
 	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, waitDescs.also(modeDescs).also(map[string]string{
-		"revision": "Revert to the given revision",
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"revision": i18n.G("Revert to the given revision"),
 	}), nil)
 	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, waitDescs.also(channelDescs), nil)
 }

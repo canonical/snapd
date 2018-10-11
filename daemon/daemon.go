@@ -45,28 +45,35 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/systemd"
 )
 
+var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
+
 var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	Version       string
-	overlord      *overlord.Overlord
-	snapdListener net.Listener
-	snapdServe    *shutdownServer
-	snapListener  net.Listener
-	snapServe     *shutdownServer
-	tomb          tomb.Tomb
-	router        *mux.Router
+	Version         string
+	overlord        *overlord.Overlord
+	snapdListener   net.Listener
+	snapdServe      *shutdownServer
+	snapListener    net.Listener
+	snapServe       *shutdownServer
+	tomb            tomb.Tomb
+	router          *mux.Router
+	standbyOpinions *standby.StandbyOpinions
+
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
 	restartSystem bool
-
+	// set to remember that we need to exit the daemon in a way that
+	// prevents systemd from restarting it
+	restartSocket bool
 	// degradedErr is set when the daemon is in degraded mode
 	degradedErr error
 
@@ -242,6 +249,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rsp.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
 			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+		case state.RestartSocket:
+			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is stopping to wait for socket activation")
 		}
 		if rsp.Type != ResponseTypeError {
 			st.Lock()
@@ -367,8 +376,8 @@ func (d *Daemon) Init() error {
 // as readonlyOK.
 //
 // This is useful to report errors to the client when the daemon
-// cannot work because e.g. a selftest failed or the system is out of
-// diskspace.
+// cannot work because e.g. a sanity check failed or the system is out
+// of diskspace.
 //
 // When the system is fine again calling "DegradedMode(nil)" is enough
 // to put the daemon into full operation again.
@@ -421,6 +430,18 @@ func (srv *shutdownServer) Serve() error {
 	return srv.httpSrv.Serve(srv.l)
 }
 
+func (srv *shutdownServer) CanStandby() bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	for _, state := range srv.conns {
+		if state != http.StateIdle {
+			return false
+		}
+	}
+	return true
+}
+
 func (srv *shutdownServer) trackConn(conn net.Conn, state http.ConnState) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
@@ -468,6 +489,16 @@ func (srv *shutdownServer) finishShutdown() error {
 	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
 }
 
+func (d *Daemon) initStandbyHandling() {
+	d.standbyOpinions = standby.New(d.overlord.State())
+	d.standbyOpinions.AddOpinion(d.snapdServe)
+	d.standbyOpinions.AddOpinion(d.snapServe)
+	d.standbyOpinions.AddOpinion(d.overlord)
+	d.standbyOpinions.AddOpinion(d.overlord.SnapManager())
+	d.standbyOpinions.AddOpinion(d.overlord.DeviceManager())
+	d.standbyOpinions.Start()
+}
+
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
@@ -487,6 +518,9 @@ func (d *Daemon) Start() {
 			// remember we need to restart the system
 			d.restartSystem = true
 			d.tomb.Kill(nil)
+		case state.RestartSocket:
+			d.restartSocket = true
+			d.tomb.Kill(nil)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)
@@ -497,6 +531,9 @@ func (d *Daemon) Start() {
 		d.snapServe = newShutdownServer(d.snapListener, logit(d.router))
 	}
 	d.snapdServe = newShutdownServer(d.snapdListener, logit(d.router))
+
+	// enable standby handling
+	d.initStandbyHandling()
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
@@ -550,9 +587,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	d.mu.Lock()
 	restartSystem := d.restartSystem
+	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
 	d.snapdListener.Close()
+	d.standbyOpinions.Stop()
 
 	if d.snapListener != nil {
 		// stop running hooks first
@@ -583,6 +622,19 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	}
 
+	if restartSocket {
+		// At this point we processed all open requests (and
+		// stopped accepting new requests) - before going into
+		// socket activated mode we need to check if any of
+		// those open requests resulted in something that
+		// prevents us from going into socket activation mode.
+		//
+		// If this is the case we do a "normal" snapd restart
+		// to process the new changes.
+		if !d.standbyOpinions.CanStandby() {
+			d.restartSocket = false
+		}
+	}
 	d.overlord.Stop()
 
 	err := d.tomb.Wait()
@@ -616,6 +668,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 		time.Sleep(rebootWaitTimeout)
 		return fmt.Errorf("expected reboot did not happen")
+	}
+	if d.restartSocket {
+		return ErrRestartSocket
 	}
 
 	return nil

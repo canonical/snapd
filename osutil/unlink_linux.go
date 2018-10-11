@@ -17,24 +17,11 @@
  *
  */
 
-package selftest_test
+package osutil
 
 import (
-	"os"
-	"path/filepath"
-
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/selftest"
+	"syscall"
 )
 
-func (s *selftestSuite) TestApparmorUsable(c *C) {
-	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := selftest.MockAppArmorProfilesPath(epermProfilePath)
-	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
-
-	err = selftest.ApparmorUsable()
-	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
-}
+// syscall.Unlinkat calls unlinkat(2) _without_ AT_REMOVEDIR, which is exactly what we want
+var sysUnlinkat = syscall.Unlinkat
