@@ -129,7 +129,7 @@ type Systemd interface {
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
-	Status(services ...string) ([]*ServiceStatus, error)
+	Status(units ...string) ([]*UnitStatus, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
@@ -216,31 +216,31 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
-type ServiceStatus struct {
+type UnitStatus struct {
 	Daemon   string
 	UnitName string
 	Enabled  bool
 	Active   bool
 }
 
-func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
+func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	// expected properties for timers and sockets
 	expectedBase := []string{"Id", "ActiveState", "UnitFileState"}
 	// for services and mounts
 	expectedAll := append(expectedBase, "Type")
 
-	cmd := make([]string, len(serviceNames)+2)
+	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"
 	// ask for all properties, regardless of unit type
 	cmd[1] = "--property=" + strings.Join(expectedAll, ",")
-	copy(cmd[2:], serviceNames)
+	copy(cmd[2:], unitNames)
 	bs, err := systemctlCmd(cmd...)
 	if err != nil {
 		return nil, err
 	}
 
-	sts := make([]*ServiceStatus, 0, len(serviceNames))
-	cur := &ServiceStatus{}
+	sts := make([]*UnitStatus, 0, len(unitNames))
+	cur := &UnitStatus{}
 	seen := map[string]bool{}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
@@ -259,28 +259,28 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 				}
 			}
 			if len(missing) > 0 {
-				return nil, fmt.Errorf("cannot get service status: missing %s in ‘systemctl show’ output", strings.Join(missing, ", "))
+				return nil, fmt.Errorf("cannot get unit %q status: missing %s in ‘systemctl show’ output", cur.UnitName, strings.Join(missing, ", "))
 			}
 			sts = append(sts, cur)
-			if len(sts) > len(serviceNames) {
+			if len(sts) > len(unitNames) {
 				break // wut
 			}
-			if cur.UnitName != serviceNames[len(sts)-1] {
-				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)-1], cur.UnitName)
+			if cur.UnitName != unitNames[len(sts)-1] {
+				return nil, fmt.Errorf("cannot get unit status: queried status of %q but got status of %q", unitNames[len(sts)-1], cur.UnitName)
 			}
 
-			cur = &ServiceStatus{}
+			cur = &UnitStatus{}
 			seen = map[string]bool{}
 			continue
 		}
 		if len(bs[3]) > 0 {
-			return nil, fmt.Errorf("cannot get service status: bad line %q in ‘systemctl show’ output", bs[3])
+			return nil, fmt.Errorf("cannot get unit status: bad line %q in ‘systemctl show’ output", bs[3])
 		}
 		k := string(bs[1])
 		v := string(bs[2])
 
 		if v == "" {
-			return nil, fmt.Errorf("cannot get service status: empty field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
 		}
 
 		switch k {
@@ -295,17 +295,17 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
 		default:
-			return nil, fmt.Errorf("cannot get service status: unexpected field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
 
 		if seen[k] {
-			return nil, fmt.Errorf("cannot get service status: duplicate field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get unit status: duplicate field %q in ‘systemctl show’ output", k)
 		}
 		seen[k] = true
 	}
 
-	if len(sts) != len(serviceNames) {
-		return nil, fmt.Errorf("cannot get service status: expected %d results, got %d", len(serviceNames), len(sts))
+	if len(sts) != len(unitNames) {
+		return nil, fmt.Errorf("cannot get unit status: expected %d results, got %d", len(unitNames), len(sts))
 	}
 
 	return sts, nil
