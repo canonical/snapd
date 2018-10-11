@@ -453,6 +453,11 @@ distro_install_build_snapd(){
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload
+
+            # AppArmor policy needs to be reloaded
+            if systemctl show -p ActiveState apparmor.service | MATCH 'ActiveState=active'; then
+                systemctl restart apparmor.service
+            fi
         fi
 
         # On some distributions the snapd.socket is not yet automatically
@@ -697,6 +702,7 @@ pkg_dependencies_arch(){
     udisks2
     xdg-user-dirs
     xfsprogs
+    apparmor
     "
 }
 
