@@ -623,7 +623,7 @@ func validateAppRestart(app *AppInfo) error {
 
 	if app.RestartDelay != 0 {
 		if !app.IsService() {
-			return fmt.Errorf("cannot define restart-delay for application %q as it's not a service", app.Name)
+			return fmt.Errorf("application %q must be a service to define restart-delay", app.Name)
 		}
 
 		if app.RestartDelay < 0 {
@@ -633,7 +633,7 @@ func validateAppRestart(app *AppInfo) error {
 
 	if app.RestartCond != "" {
 		if !app.IsService() {
-			return fmt.Errorf("cannot define restart-condition for application %q as it's not a service", app.Name)
+			return fmt.Errorf("application %q must be a service to define restart-condition", app.Name)
 		}
 	}
 	return nil

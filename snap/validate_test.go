@@ -1543,11 +1543,11 @@ apps:
 	}, {
 		name: "foo restart-delay but not a service",
 		desc: fooDelayNotADaemon,
-		err:  `cannot define restart-delay for application "foo" as it's not a service`,
+		err:  `application "foo" must be a service to define restart-delay`,
 	}, {
 		name: "foo restart-delay but not a service",
 		desc: fooConditionNotADaemon,
-		err:  `cannot define restart-condition for application "foo" as it's not a service`,
+		err:  `application "foo" must be a service to define restart-condition`,
 	}, {
 		name: "negative restart-delay",
 		desc: fooNegativeDelay,
