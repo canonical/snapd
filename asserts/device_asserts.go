@@ -157,7 +157,7 @@ func checkSnapWithTrackHeader(header string, headers map[string]interface{}) err
 	}
 	l := strings.SplitN(value, "=", 2)
 
-	if err := validateSnapName(l[0]); err != nil {
+	if err := validateSnapName(l[0], header); err != nil {
 		return err
 	}
 	if len(l) == 1 {
@@ -228,7 +228,7 @@ var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
 //
 // This function should be synchronized with the reference implementation
 // snap.ValidateName() in snap/validate.go
-func validateSnapName(name string) error {
+func validateSnapName(name string, headerName string) error {
 	isValidName := func() bool {
 		if !almostValidName.MatchString(name) {
 			return false
@@ -240,7 +240,7 @@ func validateSnapName(name string) error {
 	}
 
 	if len(name) > 40 || !isValidName() {
-		return fmt.Errorf("invalid snap name: %q", name)
+		return fmt.Errorf("invalid snap name in header %q: %s", headerName, name)
 	}
 	return nil
 }
@@ -297,7 +297,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	if base != "" {
-		if err := validateSnapName(base); err != nil {
+		if err := validateSnapName(base, "base"); err != nil {
 			return nil, err
 		}
 	}
@@ -320,7 +320,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	for _, name := range reqSnaps {
-		if err := validateSnapName(name); err != nil {
+		if err := validateSnapName(name, "required-snaps"); err != nil {
 			return nil, err
 		}
 	}

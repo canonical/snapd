@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -166,32 +167,90 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	c.Check(model.RequiredSnaps(), HasLen, 0)
 }
 
-func (mods *modelSuite) TestDecodeValidSnapNames(c *C) {
+func (mods *modelSuite) TestDecodeValidatesSnapNames(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo_bar\n  - bar\n", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "foo_bar"`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "required-snaps": foo_bar`)
 
 	encoded = strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo\n  - bar-;;''\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "bar-;;''"`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "required-snaps": bar-;;''`)
 
 	encoded = strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux_instance\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "baz-linux_instance"`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "kernel": baz-linux_instance`)
 
 	encoded = strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget_instance\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "brand-gadget_instance"`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "gadget": brand-gadget_instance`)
 
 	encoded = strings.Replace(withTimestamp, "base: core18\n", "base: core18_instance\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name: "core18_instance"`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "base": core18_instance`)
+}
+
+func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
+	// reuse test cases for snap.ValidateName()
+
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"01game", "1-or-2",
+		// a regexp stresser
+		"u-94903713687486543234157734673284536758",
+	}
+	for _, name := range validNames {
+		encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", fmt.Sprintf("kernel: %s\n", name), 1)
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		model := a.(*asserts.Model)
+		c.Check(model.Kernel(), Equals, name)
+	}
+	invalidNames := []string{
+		// name cannot be empty, never reaches snap name validation
+		"",
+		// names cannot be too long
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"1111111111111111111111111111111111111111x",
+		"x1111111111111111111111111111111111111111",
+		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
+		// a regexp stresser
+		"u-9490371368748654323415773467328453675-",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+		// instance names are invalid too
+		"foo_bar", "x_1",
+	}
+	for _, name := range invalidNames {
+		encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", fmt.Sprintf("kernel: %s\n", name), 1)
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(a, IsNil)
+		if name != "" {
+			c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "kernel": .*`)
+		} else {
+			c.Assert(err, ErrorMatches, `assertion model: "kernel" header should not be empty`)
+		}
+	}
 }
 
 func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
