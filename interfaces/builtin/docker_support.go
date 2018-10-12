@@ -21,10 +21,12 @@ package builtin
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -124,7 +126,7 @@ pivot_root,
 /sys/kernel/security/apparmor/{,**} r,
 
 # use 'privileged-containers: true' to support --security-opts
-change_profile -> docker-default,
+###CHANGEPROFILE_DOCKERDEFAULT###
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
 
@@ -529,7 +531,7 @@ const dockerSupportPrivilegedAppArmor = `
 # These rules are here to allow Docker to launch unconfined containers but
 # allow the docker daemon itself to go unconfined. Since it runs as root, this
 # grants device ownership.
-change_profile -> *,
+###CHANGEPROFILE_PRIVILEGED###
 signal (send) peer=unconfined,
 ptrace (read, trace) peer=unconfined,
 
@@ -568,12 +570,34 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
+var (
+	cpDockerDefaultPattern = regexp.MustCompile("(###CHANGEPROFILE_DOCKERDEFAULT###)")
+	cpPrivilegedPattern    = regexp.MustCompile("(###CHANGEPROFILE_PRIVILEGED###)")
+	parserFeatures         = release.AppArmorParserFeatures
+)
+
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var privileged bool
 	_ = plug.Attr("privileged-containers", &privileged)
-	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
+	useUnsafe := false
+	for _, f := range parserFeatures() {
+		if f == "unsafe" {
+			useUnsafe = true
+		}
+	}
+	rule := "change_profile -> docker-default,"
+	if useUnsafe {
+		rule = "change_profile unsafe /** -> docker-default,"
+	}
+	snippet := cpDockerDefaultPattern.ReplaceAllString(dockerSupportConnectedPlugAppArmor, rule)
+	spec.AddSnippet(snippet)
 	if privileged {
-		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
+		rule = "change_profile -> *,"
+		if useUnsafe {
+			rule = "change_profile unsafe /**,"
+		}
+		snippet = cpPrivilegedPattern.ReplaceAllString(dockerSupportPrivilegedAppArmor, rule)
+		spec.AddSnippet(snippet)
 	}
 	spec.UsesPtraceTrace()
 	return nil
