@@ -922,3 +922,25 @@ apps:
 		{"daemon-reload"},
 	}, Commentf("calls: %v", s.sysdLog))
 }
+
+func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
+	snapYaml := packageHello + `
+ svc2:
+   daemon: forking
+   restart-delay: 12s
+ svc3:
+   daemon: forking
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(content), "\nRestartSec=12\n"), Equals, true)
+
+	content, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
+}
