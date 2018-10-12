@@ -102,7 +102,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	//  - connect-slot-<slot> hook
 	//  - connect-plug-<plug> hook
 	// The tasks run in sequence (are serialized by WaitFor). The hooks are optional
-	// and their tasks are not created if not provided by snap.
+	// and their tasks are created when hook exists or is declared in the snap.
 	// The prepare- hooks collect attributes via snapctl set.
 	// 'snapctl set' can only modify own attributes (plug's attributes in the *-plug-* hook and
 	// slot's attributes in the *-slot-* hook).
