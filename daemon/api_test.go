@@ -766,7 +766,7 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
-	found := countCommandDeclsIn(c, "api.go", check.Commentf("TestListIncludesAll"))
+	found := countCommandDecls(c, check.Commentf("TestListIncludesAll"))
 
 	c.Check(found, check.Equals, len(api),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
@@ -3527,7 +3527,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		res, err := snapUpdateMany(inst, st)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
-		c.Check(res.summary, check.Equals, tst.msg)
+		c.Check(res.Summary, check.Equals, tst.msg)
 		c.Check(refreshSnapDecls, check.Equals, true)
 	}
 }
@@ -3551,7 +3551,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh all snaps: no updates`)
+	c.Check(res.Summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3575,8 +3575,8 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3600,8 +3600,8 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snap "foo"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snap "foo"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3619,8 +3619,8 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	res, err := snapInstallMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Install snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
@@ -3651,8 +3651,8 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	res, err := snapRemoveMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Remove snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
@@ -7525,7 +7525,7 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	})
 }
 
-func (s *appSuite) TestErrToResponse(c *check.C) {
+func (s *apiSuite) TestErrToResponse(c *check.C) {
 	aie := &snap.AlreadyInstalledError{Snap: "foo"}
 	nie := &snap.NotInstalledError{Snap: "foo"}
 	cce := &snapstate.ChangeConflictError{Snap: "foo"}
