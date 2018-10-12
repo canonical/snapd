@@ -539,3 +539,15 @@ func (s *specSuite) TestApparmorOvernameSnippets(c *C) {
 `
 	c.Assert(updateNS[0], Equals, profile)
 }
+
+func (s *specSuite) TestUsesPtraceTrace(c *C) {
+	c.Assert(s.spec.GetUsesPtraceTrace(), Equals, false)
+	s.spec.UsesPtraceTrace()
+	c.Assert(s.spec.GetUsesPtraceTrace(), Equals, true)
+}
+
+func (s *specSuite) TestSuppressPtraceTrace(c *C) {
+	c.Assert(s.spec.GetSuppressPtraceTrace(), Equals, false)
+	s.spec.SuppressPtraceTrace()
+	c.Assert(s.spec.GetSuppressPtraceTrace(), Equals, true)
+}

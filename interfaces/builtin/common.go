@@ -55,6 +55,9 @@ type commonInterface struct {
 	connectedSlotKModModules []string
 	permanentPlugKModModules []string
 	permanentSlotKModModules []string
+
+	usesPtraceTrace     bool
+	suppressPtraceTrace bool
 }
 
 // Name returns the interface name.
@@ -86,6 +89,11 @@ func (iface *commonInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if iface.usesPtraceTrace {
+		spec.UsesPtraceTrace()
+	} else if iface.suppressPtraceTrace {
+		spec.SuppressPtraceTrace()
+	}
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}
