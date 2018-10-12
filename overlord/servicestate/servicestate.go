@@ -21,9 +21,11 @@ package servicestate
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -85,6 +87,18 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 			snapNames = append(snapNames, snapName)
 			lastName = snapName
 		}
+
+		// also add the timer if this service has a timer
+		if svc.Timer != nil {
+			timerService := filepath.Base(svc.Timer.File())
+			svcs = append(svcs, timerService)
+		}
+
+		// also check the socket case
+		for _, socket := range svc.Sockets {
+			socketService := filepath.Base(socket.File())
+			svcs = append(svcs, socketService)
+		}
 	}
 
 	var ignoreChangeID string
@@ -101,7 +115,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	}
 
 	for _, cmd := range ctlcmds {
-		argv := append([]string{"systemctl", cmd}, svcs...)
+		argv := append([]string{"systemctl", "--root", dirs.GlobalRootDir, cmd}, svcs...)
 		desc := fmt.Sprintf("%s of %v", cmd, names)
 		// Give the systemctl a maximum time of 61 for now.
 		//

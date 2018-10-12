@@ -53,7 +53,7 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
+		return nil, NewError(exitCode, args, bs)
 	}
 
 	return bs, nil
@@ -130,6 +130,7 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
+	IsEnabled(service string) (bool, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
@@ -301,6 +302,22 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 	return sts, nil
 }
 
+// IsEnabled checkes whether the given service is enabled
+func (s *systemd) IsEnabled(serviceName string) (bool, error) {
+	_, err := systemctlCmd("--root", s.rootDir, "is-enabled", serviceName)
+	if err == nil {
+		return true, nil
+	}
+	// note that "systemctl is-enabled <name>" returns exit code 1 for disabled services
+	// as well as outputting "disabled\n", so we need to cast the error, and
+	// also trim the whitespace from the output to check the command output
+	sysdErr, ok := err.(*Error)
+	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+		return false, nil
+	}
+	return false, err
+}
+
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	if _, err := systemctlCmd("stop", serviceName); err != nil {
@@ -363,6 +380,11 @@ type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+}
+
+// NewError creates a systemd.Error, exported for mocks during testing
+func NewError(exitCode int, cmd []string, msg []byte) *Error {
+	return &Error{exitCode: exitCode, cmd: cmd, msg: msg}
 }
 
 func (e *Error) Error() string {
