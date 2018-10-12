@@ -276,7 +276,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 
 	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
 		return fmt.Errorf(
-			"invalid %q: only $SNAP_DATA and $SNAP_COMMON prefixes are allowed", fieldName)
+			"invalid %q: must have a prefix of $SNAP_DATA or $SNAP_COMMON", fieldName)
 	}
 
 	return nil
@@ -305,13 +305,14 @@ func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string)
 }
 
 func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
-	for _, validAddress := range []string{"127.0.0.1", "[::1]", "[::]"} {
-		if address == validAddress {
+	validAddresses := []string{"127.0.0.1", "[::1]", "[::]"}
+	for _, valid := range validAddresses {
+		if address == valid {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("invalid %q address %q", fieldName, address)
+	return fmt.Errorf("invalid %q address %q, must be one of: %s", fieldName, address, strings.Join(validAddresses, ", "))
 }
 
 func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
