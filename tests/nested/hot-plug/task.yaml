@@ -1,0 +1,29 @@
+summary: create ubuntu classic image, install snapd and test hot plug feature
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+
+prepare: |
+
+    "$TESTSLIB"/prepare-restore.sh --prepare-suite
+    "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    create_nested_classic_vm
+    copy_remote "${GOHOME}"/snapd_*.deb
+    execute_remote "sudo dpkg -i snapd_*.deb"
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+
+    "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+    "$TESTSLIB"/prepare-restore.sh --restore-suite    
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    add_usb_tablet_device my-tablet
+    del_device my-tablet

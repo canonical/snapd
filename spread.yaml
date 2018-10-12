@@ -595,9 +595,11 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -amazon-*]
+        systems: [-fedora-*, -opensuse-*, -amazon-*, -arch-*]
         environment:
+            NESTED_TYPE: "$(HOST: echo ${SPREAD_NESTED_TYPE:-core})"
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
         halt-timeout: 2h
         kill-timeout: 2h
@@ -607,11 +609,19 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass
-            snap install --classic --beta ubuntu-image
+            if [ "$NESTED_TYPE" = "core" ]; then
+                snap install --classic --beta ubuntu-image
+            else
+                distro_install_package qemu-kvm cloud-image-utils
+            fi
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
-            snap remove ubuntu-image
+            if [ "$NESTED_TYPE" = "core" ]; then
+                snap remove ubuntu-image
+            else
+                distro_purge_package qemu-kvm cloud-image-utils
+            fi
 
 # vim:ts=4:sw=4:et
