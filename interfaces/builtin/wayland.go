@@ -124,8 +124,7 @@ func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
-		// TODO parallel-install: use of proper instance/store name
-		new := "snap." + plug.Snap().InstanceName() // forms the snap-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		new := "snap." + plug.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
