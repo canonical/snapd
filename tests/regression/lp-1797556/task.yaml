@@ -12,8 +12,11 @@ restore: |
     su -l -c 'rmdir /home/test/bin/ || true' test
 execute: |
     test -d /home/test/bin
-    test ! -e /home/test/bin/evil
+    test ! -e /home/test/bin/evil-1
+    test ! -e /home/test/bin/evil-2
     if snap debug sandbox-features | grep 'apparmor:.* kernel:file'; then
-        ! su -l -c 'test-snapd-sh.with-home-plug -c touch /home/test/bin/evil' test
+        ! su -l -c 'test-snapd-sh.with-home-plug -c touch /home/test/bin/evil-1' test
+        ! su -l -c 'test-snapd-sh.with-home-plug -c ln /home/test/snap/test-snapd-sh/common/evil-2 /home/test/bin/evil-2' test
     fi
-    test ! -e /home/test/bin/evil
+    test ! -e /home/test/bin/evil-1
+    test ! -e /home/test/bin/evil-2

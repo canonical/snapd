@@ -75,10 +75,9 @@ owner @{HOME}/snap/ r,
 owner /run/user/[0-9]*/gvfs/{,**} r,
 owner /run/user/[0-9]*/gvfs/*/**  w,
 
-# On some systems HOME/bin is in the default path in ahead of system
-# directories. To prevent snaps from writing arbitrary executables waiting to
-# be launched by the user, deny writes to the directory altogether.
-deny @{HOME}/bin/{,**} w,
+# Disallow writes to the well-known directory included in
+# the user's PATH on several distributions
+deny @{HOME}/bin/{,**} wl,
 `
 
 const homeConnectedPlugAppArmorWithAllRead = `
