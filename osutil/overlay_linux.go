@@ -69,6 +69,20 @@ func IsRootWritableOverlay() (string, error) {
 					continue
 				}
 
+				if dir == "/media/root-rw/overlay" {
+					// Apparmor doesn't really support overlayfs correctly.
+					// When the root filesystem in a Ubuntu 18.10 server,
+					// ephemeral image, uses overlayfs then the declared
+					// overlayfs upperdir is "/media/root-rw/overlay" but when
+					// apparmor resolves the path the rules look for "/overlay"
+					// for some unknown reason.  As a quick hack to unblock the
+					// Ubuntu 18.10 release, detect this condition and return
+					// the path that apparmor would detect.
+					//
+					// See LP: #1797218 for context.
+					return "/overlay", nil
+				}
+
 				// Make sure trailing slashes are predicatably
 				// missing
 				return dir, nil
