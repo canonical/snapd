@@ -79,7 +79,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		if model == nil || model.Base() == "" {
 			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, "experimental.snapd-snap")
+			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, "experimental.snapd-snap", false)
 			if err != nil && !config.IsNoOption(err) {
 				return nil, err
 			}
@@ -471,20 +471,20 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func GetFeatureFlagBool(tr *config.Transaction, flag string) (bool, error) {
-	var v interface{} = false
+func GetFeatureFlagBool(tr *config.Transaction, flag string, unset bool) (bool, error) {
+	var v interface{} = unset
 	if err := tr.GetMaybe("core", flag, &v); err != nil {
-		return false, err
+		return unset, err
 	}
 	switch value := v.(type) {
 	case string:
 		if value == "" {
-			return false, nil
+			return unset, nil
 		}
 	case bool:
 		return value, nil
 	}
-	return false, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
+	return unset, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
 }
 
 // validateFeatureFlags validates the given snap only uses experimental
@@ -493,7 +493,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := GetFeatureFlagBool(tr, "experimental.layouts")
+		flag, err := GetFeatureFlagBool(tr, "experimental.layouts", true)
 		if err != nil {
 			return err
 		}
@@ -503,7 +503,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := GetFeatureFlagBool(tr, "experimental.parallel-instances")
+		flag, err := GetFeatureFlagBool(tr, "experimental.parallel-instances", false)
 		if err != nil {
 			return err
 		}
