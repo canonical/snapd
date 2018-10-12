@@ -201,6 +201,10 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	connectInterface.Set("slot-static", slotStatic)
 	connectInterface.Set("plug-dynamic", emptyDynamicAttrs)
 	connectInterface.Set("slot-dynamic", emptyDynamicAttrs)
+
+	// The main 'connect' task should wait on prepare-slot- hook or on prepare-plug- hook (whichever is present),
+	// but not on both. While there would be no harm in waiting for both, it's not needed as prepare-slot- will
+	// wait for prepare-plug- anyway, and a simple one-to-one wait dependency makes testing easier.
 	if prepareSlotConnection != nil {
 		connectInterface.WaitFor(prepareSlotConnection)
 	} else {
