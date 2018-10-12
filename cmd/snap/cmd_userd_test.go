@@ -69,7 +69,7 @@ func (s *userdSuite) TestUserd(c *C) {
 		}()
 
 		needle := "io.snapcraft.Launcher"
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 1000; i++ {
 			for _, objName := range s.SessionBus.Names() {
 				if objName == needle {
 					return
