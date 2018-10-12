@@ -38,10 +38,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -60,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -96,6 +96,7 @@ var api = []*Command{
 	logsCmd,
 	warningsCmd,
 	debugCmd,
+	snapshotCmd,
 }
 
 var (
@@ -887,6 +888,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
 	Snaps    []string     `json:"snaps"`
+	Users    []string     `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -908,9 +910,10 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 }
 
 type snapInstructionResult struct {
-	summary  string
-	affected []string
-	tasksets []*state.TaskSet
+	Summary  string
+	Affected []string
+	Tasksets []*state.TaskSet
+	Result   map[string]interface{}
 }
 
 var (
@@ -924,6 +927,12 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -988,9 +997,9 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	return &snapInstructionResult{
-		summary:  msg,
-		affected: updated,
-		tasksets: tasksets,
+		Summary:  msg,
+		Affected: updated,
+		Tasksets: tasksets,
 	}, nil
 }
 
@@ -1033,9 +1042,9 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 	}
 
 	return &snapInstructionResult{
-		summary:  msg,
-		affected: installed,
-		tasksets: tasksets,
+		Summary:  msg,
+		Affected: installed,
+		Tasksets: tasksets,
 	}, nil
 }
 
@@ -1113,9 +1122,9 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	return &snapInstructionResult{
-		summary:  msg,
-		affected: removed,
-		tasksets: tasksets,
+		Summary:  msg,
+		Affected: removed,
+		Tasksets: tasksets,
 	}, nil
 }
 
@@ -1187,6 +1196,28 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 
 	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
 	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if len(inst.Snaps) == 0 {
+		msg = i18n.G("Snapshot all snaps")
+	} else {
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Snapshot snaps %s"), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		Summary:  msg,
+		Affected: snapshotted,
+		Tasksets: []*state.TaskSet{ts},
+		Result:   map[string]interface{}{"set-id": setID},
+	}, nil
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
@@ -1361,6 +1392,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		op = snapInstallMany
 	case "remove":
 		op = snapRemoveMany
+	case "snapshot":
+		op = snapshotMany
 	default:
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
@@ -1370,17 +1403,17 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	var chg *state.Change
-	if len(res.tasksets) == 0 {
-		chg = st.NewChange(inst.Action+"-snap", res.summary)
+	if len(res.Tasksets) == 0 {
+		chg = st.NewChange(inst.Action+"-snap", res.Summary)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", res.summary, res.tasksets, res.affected)
+		chg = newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
 		ensureStateSoon(st)
 	}
 
-	chg.Set("api-data", map[string]interface{}{"snap-names": res.affected})
+	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(res.Result, &Meta{Change: chg.ID()})
 }
 
 func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2280,9 +2313,10 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
 	opts := &osutil.AddUserOptions{
-		SSHKeys:  su.SSHKeys(),
-		Gecos:    gecos,
-		Password: su.Password(),
+		SSHKeys:             su.SSHKeys(),
+		Gecos:               gecos,
+		Password:            su.Password(),
+		ForcePasswordChange: su.ForcePasswordChange(),
 	}
 	return su.Username(), opts, nil
 }
@@ -2901,6 +2935,7 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
+
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
