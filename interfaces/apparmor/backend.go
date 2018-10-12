@@ -61,6 +61,7 @@ var (
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = release.AppArmorFeatures
+	parserFeatures        = release.AppArmorParserFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -474,14 +475,9 @@ func downgradeConfinement() bool {
 			return false
 		}
 	case release.DistroLike("arch"):
-		if strings.HasSuffix(kver, "-hardened") {
-			if cmp, _ := strutil.VersionCompare(kver, "4.17.4"); cmp >= 0 {
-				// The linux-hardened 4.17.4+ package has
-				// apparmor enabled, do not downgrade the
-				// confinement template.
-				return false
-			}
-		}
+		// The default kernel has AppArmor enabled since 4.18.8, the
+		// hardened one since 4.17.4
+		return false
 	}
 	return true
 }
@@ -525,6 +521,13 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 			return templateVariables(snapInfo, securityTag)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###CHANGEPROFILE_RULE###":
+			for _, f := range parserFeatures() {
+				if f == "unsafe" {
+					return fmt.Sprintf("change_profile unsafe /**,")
+				}
+			}
+			return fmt.Sprintf("change_profile,")
 		case "###SNIPPETS###":
 			var tagSnippets string
 			if opts.Classic && opts.JailMode {
@@ -573,11 +576,18 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 
 	features := kernelFeatures()
-	tags := make([]string, 0, len(features))
+	pFeatures := parserFeatures()
+	tags := make([]string, 0, len(features)+len(pFeatures))
 	for _, feature := range features {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
+	}
+
+	for _, feature := range pFeatures {
+		// Prepend "parser:" to apparmor kernel features to namespace
+		// them and allow us to introduce our own tags later.
+		tags = append(tags, "parser:"+feature)
 	}
 
 	level := "full"

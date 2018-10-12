@@ -25,7 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2408,28 +2407,47 @@ func (s *RepositorySuite) TestConnectWithStaticAttrs(c *C) {
 	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, slotAttrs)
 }
 
-type hotplugTestInterface struct{ InterfaceName string }
-
-func (h *hotplugTestInterface) Name() string {
-	return h.InterfaceName
-}
-
-func (h *hotplugTestInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
-	return true
-}
-
-func (h *hotplugTestInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-	return nil
-}
-
 func (s *RepositorySuite) TestAllHotplugInterfaces(c *C) {
 	repo := NewRepository()
 	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface1"}), IsNil)
-	c.Assert(repo.AddInterface(&hotplugTestInterface{InterfaceName: "iface2"}), IsNil)
-	c.Assert(repo.AddInterface(&hotplugTestInterface{InterfaceName: "iface3"}), IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "iface2"}}), IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "iface3"}}), IsNil)
 
 	hi := repo.AllHotplugInterfaces()
 	c.Assert(hi, HasLen, 2)
 	c.Assert(hi[0].Name(), Equals, "iface2")
 	c.Assert(hi[1].Name(), Equals, "iface3")
+}
+
+func (s *RepositorySuite) TestHotplugMethods(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+
+	coreSlot := &snap.SlotInfo{
+		Snap:       s.coreSnap,
+		Name:       "dummy-slot",
+		Interface:  "interface",
+		HotplugKey: "1234",
+	}
+	c.Assert(s.testRepo.AddSlot(coreSlot), IsNil)
+
+	slotInfo, err := s.testRepo.SlotForHotplugKey("interface", "1234")
+	c.Assert(err, IsNil)
+	c.Check(slotInfo, DeepEquals, coreSlot)
+
+	// no slot for device key 9999
+	slotInfo, err = s.testRepo.SlotForHotplugKey("interface", "9999")
+	c.Assert(err, IsNil)
+	c.Check(slotInfo, IsNil)
+
+	_, err = s.testRepo.Connect(NewConnRef(s.plug, coreSlot), nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.ConnectionsForHotplugKey("interface", "1234")
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plug, coreSlot)})
+
+	// no connections for device 9999
+	conns, err = s.testRepo.ConnectionsForHotplugKey("interface", "9999")
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
 }
