@@ -170,12 +170,12 @@ func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(iface.AutoConnect(nil, nil), Equals, false)
 }
 
-func (s *TestInterfaceSuite) TestHotplugDeviceKeyError(c *C) {
+func (s *TestInterfaceSuite) TestHotplugKeyError(c *C) {
 	iface := &ifacetest.TestHotplugInterface{
 		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
-		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "", fmt.Errorf("error")
 		},
 	}
@@ -183,23 +183,27 @@ func (s *TestInterfaceSuite) TestHotplugDeviceKeyError(c *C) {
 	c.Assert(iface.Name(), Equals, "test")
 
 	dev := &hotplug.HotplugDeviceInfo{}
-	key, err := iface.HotplugDeviceKey(dev)
+	key, err := iface.HotplugKey(dev)
 	c.Assert(err, ErrorMatches, "error")
 	c.Assert(key, Equals, "")
 }
 
-func (s *TestInterfaceSuite) TestHotplugDeviceKeyOK(c *C) {
-	iface := &ifacetest.TestHotplugInterface{
+func (s *TestInterfaceSuite) TestHotplugKeyOK(c *C) {
+	var iface interfaces.Interface
+	iface = &ifacetest.TestHotplugInterface{
 		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
-		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key", nil
 		},
 	}
 
+	hotplugIface, ok := iface.(hotplug.HotplugKeyHandler)
+	c.Assert(ok, Equals, true)
+
 	dev := &hotplug.HotplugDeviceInfo{}
-	key, err := iface.HotplugDeviceKey(dev)
+	key, err := hotplugIface.HotplugKey(dev)
 	c.Assert(err, IsNil)
 	c.Assert(key, Equals, "key")
 }
