@@ -514,7 +514,7 @@ var classicTemplate = `
   /** pix,
 
   capability,
-  change_profile,
+  ###CHANGEPROFILE_RULE###
   dbus,
   network,
   mount,
