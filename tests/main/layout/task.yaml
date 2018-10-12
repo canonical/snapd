@@ -7,9 +7,6 @@ details: |
     hooks get permissions to access those areas.
 
 prepare: |
-    echo "Ensure feature flag is enabled"
-    snap set core experimental.layouts=true
-
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-layout
