@@ -1792,3 +1792,19 @@ hooks:
 	hook := info.Hooks["configure"]
 	c.Check(hook.CommandChain, DeepEquals, []string{"hookchain1", "hookchain2"})
 }
+
+func (s *YamlSuite) TestSnapYamlRestartDelay(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+  command: bin/foo
+  daemon: simple
+  restart-delay: 12s
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Assert(app, NotNil)
+	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
+}

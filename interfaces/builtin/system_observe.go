@@ -52,6 +52,7 @@ ptrace (read),
 deny ptrace (trace),
 
 # Other miscellaneous accesses for observing the system
+@{PROC}/modules r,
 @{PROC}/stat r,
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
