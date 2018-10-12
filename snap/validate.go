@@ -614,6 +614,31 @@ func validateAppTimer(app *AppInfo) error {
 	return nil
 }
 
+func validateAppRestart(app *AppInfo) error {
+	// app.RestartCond value is validated when unmarshalling
+
+	if app.RestartDelay == 0 && app.RestartCond == "" {
+		return nil
+	}
+
+	if app.RestartDelay != 0 {
+		if !app.IsService() {
+			return fmt.Errorf("application %q must be a service to define restart-delay", app.Name)
+		}
+
+		if app.RestartDelay < 0 {
+			return fmt.Errorf("cannot use a negative restart-delay for application %q", app.Name)
+		}
+	}
+
+	if app.RestartCond != "" {
+		if !app.IsService() {
+			return fmt.Errorf("application %q must be a service to define restart-condition", app.Name)
+		}
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused. chainContentWhitelist is the same, but for the
@@ -678,6 +703,9 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
+	if err := validateAppRestart(app); err != nil {
+		return err
+	}
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
