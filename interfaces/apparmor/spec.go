@@ -43,6 +43,20 @@ type Specification struct {
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
 	updateNS []string
+
+	// AppArmor deny rules cannot be undone by allow rules which makes
+	// deny rules difficult to work with arbitrary combinations of
+	// interfaces. Sometimes it is useful to suppress noisy denials and
+	// because that can currently only be done with explicit deny rules,
+	// adding explicit deny rules unconditionally makes it difficult for
+	// interfaces to be used in combination. Define the suppressPtraceTrace
+	// to allow an interface to request suppression and define
+	// usesPtraceTrace to omit the explicit deny rules such that:
+	//   if suppressPtraceTrace && !usesPtraceTrace {
+	//       add 'deny ptrace (trace),'
+	//   }
+	suppressPtraceTrace bool
+	usesPtraceTrace     bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -476,4 +490,22 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
+}
+
+// UsesPtraceTrace records when to omit explicit ptrace deny rules
+func (spec *Specification) UsesPtraceTrace() {
+	spec.usesPtraceTrace = true
+}
+
+// SuppressPtraceTrace to request explicit ptrace deny rules
+func (spec *Specification) SuppressPtraceTrace() {
+	spec.suppressPtraceTrace = true
+}
+
+func (spec *Specification) GetUsesPtraceTrace() bool {
+	return spec.usesPtraceTrace
+}
+
+func (spec *Specification) GetSuppressPtraceTrace() bool {
+	return spec.suppressPtraceTrace
 }
