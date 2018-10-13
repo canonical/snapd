@@ -40,6 +40,7 @@ const kernelModuleControlConnectedPlugAppArmor = `
 
 capability sys_module,
 @{PROC}/modules r,
+/{,usr/}bin/kmod ixr,
 
 # FIXME: moved to physical-memory-observe (remove this in series 18)
 /dev/mem r,
@@ -49,8 +50,10 @@ capability sys_module,
 # required to verify kernel modules that are loaded.
 capability syslog,
 
-# Allow plug side to read information about loaded kernel modules
+# Allow reading information about loaded kernel modules
 /sys/module/{,**} r,
+/etc/modprobe.d/{,**} r,
+/lib/modprobe.d/{,**} r,
 `
 
 const kernelModuleControlConnectedPlugSecComp = `
