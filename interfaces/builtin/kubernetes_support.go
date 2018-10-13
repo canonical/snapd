@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,6 +19,17 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
+)
+
 const kubernetesSupportSummary = `allows operating as the Kubernetes service`
 
 const kubernetesSupportBaseDeclarationPlugs = `
@@ -35,65 +46,234 @@ const kubernetesSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const kubernetesSupportConnectedPlugAppArmor = `
-# Description: can use kubernetes to control Docker containers. This interface
-# is restricted because it gives wide ranging access to the host and other
-# processes.
+const kubernetesSupportConnectedPlugAppArmorCommon = `
+# Common rules for running as a kubernetes node
 
-# what is this for?
-#include <abstractions/dbus-strict>
-
-# Allow reading all information regarding cgroups for all processes
+# reading cgroups
 capability sys_resource,
-@{PROC}/@{pid}/cgroup r,
 /sys/fs/cgroup/{,**} r,
 
-# Allow adjusting the OOM score for Docker containers. Note, this allows
-# adjusting for all processes, not just containers.
+# Allow adjusting the OOM score for containers. Note, this allows adjusting for
+# all processes, not just containers.
 @{PROC}/@{pid}/oom_score_adj rw,
-/sys/kernel/mm/hugepages/ r,
-
-@{PROC}/sys/kernel/panic rw,
-@{PROC}/sys/kernel/panic_on_oops rw,
-@{PROC}/sys/kernel/keys/root_maxbytes r,
-@{PROC}/sys/kernel/keys/root_maxkeys r,
 @{PROC}/sys/vm/overcommit_memory rw,
-@{PROC}/sys/vm/panic_on_oom r,
+/sys/kernel/mm/hugepages/{,**} r,
 
-@{PROC}/diskstats r,
-@{PROC}/@{pid}/cmdline r,
-
-# Allow reading the state of modules kubernetes needs
-/sys/module/llc/initstate r,
-/sys/module/stp/initstate r,
-
-# Allow listing kernel modules. Note, seccomp blocks module loading syscalls
-/sys/module/apparmor/parameters/enabled r,
-/bin/kmod ixr,
-/etc/modprobe.d/{,**} r,
-
-# Allow ptracing Docker containers
-ptrace (read, trace) peer=docker-default,
-ptrace (read, trace) peer=snap.docker.dockerd,
-
-# Should we have a 'privileged' mode for kubernetes like we do with
-# docker-support? Right now kubernetes needs this which allows it to control
-# all processes on the system and on <4.8 kernels, escape confinement.
-ptrace (read, trace) peer=unconfined,
+capability dac_override,
 `
 
-var kubernetesSupportConnectedPlugKmod = []string{`llc`, `stp`}
+const kubernetesSupportConnectedPlugAppArmorKubelet = `
+# Allow running as the kubelet service
+
+# Ideally this would be snap-specific
+/run/dockershim.sock rw,
+
+# allow managing pods' cgroups
+/sys/fs/cgroup/*/kubepods/{,**} rw,
+
+# Allow tracing our own processes. Note, this allows seccomp sandbox escape on
+# kernels < 4.8
+capability sys_ptrace,
+ptrace (trace) peer=snap.@{SNAP_NAME}.*,
+
+# Allow ptracing other processes (as part of ps-style process lookups). Note,
+# the peer needs a corresponding tracedby rule. As a special case, disallow
+# ptracing unconfined.
+ptrace (trace),
+deny ptrace (trace) peer=unconfined,
+
+@{PROC}/[0-9]*/attr/ r,
+@{PROC}/[0-9]*/fdinfo/ r,
+@{PROC}/[0-9]*/map_files/ r,
+@{PROC}/[0-9]*/ns/ r,
+
+@{PROC}/sys/kernel/panic w,
+@{PROC}/sys/kernel/panic_on_oops w,
+@{PROC}/sys/kernel/keys/root_maxbytes r,
+@{PROC}/sys/kernel/keys/root_maxkeys r,
+
+/dev/kmsg r,
+
+# kubelet calls out to systemd-run for some mounts, but not all of them and not
+# unmounts...
+
+/usr/bin/systemd-run Cxr -> systemd_run,
+profile systemd_run (attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  /usr/bin/systemd-run r,
+  owner @{PROC}/@{pid}/stat r,
+  owner @{PROC}/@{pid}/environ r,
+  @{PROC}/cmdline r,
+
+  # setsockopt()
+  capability net_admin,
+
+  /run/systemd/private rw,
+  /bin/true ixr,
+  ptrace trace peer=unconfined,
+
+  capability sys_admin,
+  /bin/mount ixr,
+  mount -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  deny /run/mount/utab rw,
+}
+
+capability sys_admin,
+mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
+mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
+
+/bin/umount ixr,
+deny /run/mount/utab rw,
+umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+`
+
+const kubernetesSupportConnectedPlugSeccompKubelet = `
+# Allow running as the kubelet service
+mount
+umount
+umount2
+
+unshare
+setns - CLONE_NEWNET
+`
+
+var kubernetesSupportConnectedPlugUDevKubelet = []string{
+	`KERNEL=="kmsg"`,
+}
+
+const kubernetesSupportConnectedPlugAppArmorKubeproxy = `
+# Allow running as the kubeproxy service
+
+# managing our own cgroup
+/sys/fs/cgroup/*/kube-proxy/{,**} rw,
+
+# Allow reading the state of modules kubernetes needs
+/sys/module/libcrc32c/initstate r,
+/sys/module/llc/initstate r,
+/sys/module/stp/initstate r,
+/sys/module/ip_vs/initstate r,
+/sys/module/ip_vs_rr/initstate r,
+/sys/module/ip_vs_sh/initstate r,
+/sys/module/ip_vs_wrr/initstate r,
+
+/usr/bin/systemd-run Cxr -> systemd_run,
+profile systemd_run (attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  /usr/bin/systemd-run r,
+  owner @{PROC}/@{pid}/stat r,
+  owner @{PROC}/@{pid}/environ r,
+  @{PROC}/cmdline r,
+
+  # setsockopt()
+  capability net_admin,
+
+  /run/systemd/private rw,
+  /bin/true ixr,
+  ptrace trace peer=unconfined,
+}
+`
+
+var kubernetesSupportConnectedPlugKmodKubeProxy = []string{
+	`ip_vs_rr`,
+	`ip_vs_sh`,
+	`ip_vs_wrr`,
+	`libcrc32c`,
+	`llc`,
+	`stp`,
+}
+
+type kubernetesSupportInterface struct{}
+
+func (iface *kubernetesSupportInterface) Name() string {
+	return "kubernetes-support"
+}
+
+func (iface *kubernetesSupportInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              kubernetesSupportSummary,
+		BaseDeclarationPlugs: kubernetesSupportBaseDeclarationPlugs,
+		BaseDeclarationSlots: kubernetesSupportBaseDeclarationSlots,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
+	}
+}
+
+func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorCommon)
+
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	if flavor == "kubelet" {
+		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubelet)
+		spec.UsesPtraceTrace()
+	} else if flavor == "kubeproxy" {
+		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubeproxy)
+	} else {
+		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubelet)
+		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubeproxy)
+		spec.UsesPtraceTrace()
+	}
+	return nil
+}
+
+func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+
+	if flavor != "kubeproxy" {
+		snippet := kubernetesSupportConnectedPlugSeccompKubelet
+		spec.AddSnippet(snippet)
+	}
+	return nil
+}
+
+func (iface *kubernetesSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+
+	if flavor != "kubeproxy" {
+		for _, rule := range kubernetesSupportConnectedPlugUDevKubelet {
+			spec.TagDevice(rule)
+		}
+	}
+	return nil
+}
+
+func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+
+	if flavor != "kubelet" {
+		for _, m := range kubernetesSupportConnectedPlugKmodKubeProxy {
+			if err := spec.AddModule(m); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	return sanitizeSlotReservedForOS(iface, slot)
+}
+
+func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// It's fine if flavor isn't specified, but if it is, it needs to be
+	// either "kubelet" or "kubeproxy"
+	if t, ok := plug.Attrs["flavor"]; ok && t != "kubelet" && t != "kubeproxy" {
+		return fmt.Errorf(`kubernetes-support plug requires "flavor" to be either "kubelet" or "kubeproxy"`)
+	}
+
+	return nil
+}
+
+func (iface *kubernetesSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// allow what declarations allowed
+	return true
+}
 
 func init() {
-	registerIface(&commonInterface{
-		name:                     "kubernetes-support",
-		summary:                  kubernetesSupportSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     kubernetesSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:     kubernetesSupportBaseDeclarationSlots,
-		connectedPlugAppArmor:    kubernetesSupportConnectedPlugAppArmor,
-		connectedPlugKModModules: kubernetesSupportConnectedPlugKmod,
-		reservedForOS:            true,
-	})
+	registerIface(&kubernetesSupportInterface{})
 }
