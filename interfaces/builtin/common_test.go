@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -150,4 +150,39 @@ slots:
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.GetUsesPtraceTrace(), Equals, true)
 	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+}
+
+func (s *commonIfaceSuite) TestSuppressHomeIx(c *C) {
+	plug, _ := MockConnectedPlug(c, `
+name: consumer
+version: 0
+apps:
+  app:
+    plugs: [common]
+`, nil, "common")
+	slot, _ := MockConnectedSlot(c, `
+name: producer
+version: 0
+slots:
+  common:
+`, nil, "common")
+
+	// setting nothing
+	iface := &commonInterface{
+		name:           "common",
+		suppressHomeIx: false,
+	}
+	spec := &apparmor.Specification{}
+	c.Assert(spec.GetSuppressHomeIx(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.GetSuppressHomeIx(), Equals, false)
+
+	iface = &commonInterface{
+		name:           "common",
+		suppressHomeIx: true,
+	}
+	spec = &apparmor.Specification{}
+	c.Assert(spec.GetSuppressHomeIx(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.GetSuppressHomeIx(), Equals, true)
 }

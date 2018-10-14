@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -550,4 +550,10 @@ func (s *specSuite) TestSuppressPtraceTrace(c *C) {
 	c.Assert(s.spec.GetSuppressPtraceTrace(), Equals, false)
 	s.spec.SuppressPtraceTrace()
 	c.Assert(s.spec.GetSuppressPtraceTrace(), Equals, true)
+}
+
+func (s *specSuite) TestSuppressHomeIx(c *C) {
+	c.Assert(s.spec.GetSuppressHomeIx(), Equals, false)
+	s.spec.SuppressHomeIx()
+	c.Assert(s.spec.GetSuppressHomeIx(), Equals, true)
 }
