@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -58,6 +58,7 @@ type commonInterface struct {
 
 	usesPtraceTrace     bool
 	suppressPtraceTrace bool
+	suppressHomeIx      bool
 }
 
 // Name returns the interface name.
@@ -93,6 +94,9 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		spec.UsesPtraceTrace()
 	} else if iface.suppressPtraceTrace {
 		spec.SuppressPtraceTrace()
+	}
+	if iface.suppressHomeIx {
+		spec.SuppressHomeIx()
 	}
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)

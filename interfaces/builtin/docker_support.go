@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -588,6 +588,9 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	rule := "change_profile -> docker-default,"
 	if useUnsafe {
 		rule = "change_profile unsafe /** -> docker-default,"
+		// This rule conflicts with the 'ix' rules in the home
+		// interface, so suppress them (LP: #1797786)
+		spec.SuppressHomeIx()
 	}
 	snippet := cpDockerDefaultPattern.ReplaceAllString(dockerSupportConnectedPlugAppArmor, rule)
 	spec.AddSnippet(snippet)

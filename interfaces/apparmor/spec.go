@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -57,6 +57,14 @@ type Specification struct {
 	//   }
 	suppressPtraceTrace bool
 	usesPtraceTrace     bool
+
+	// The home interface typically should have 'ix' as part of its rules,
+	// but specifying certain change_profile rules with these rules cases
+	// a 'conflicting x modifiers' parser error. Allow interfaces that
+	// require this type of change_profile rule to suppress 'ix' so that
+	// the calling interface can be used with the home interface. Ideally,
+	// we would not need this, but we currently do (LP: #1797786)
+	suppressHomeIx bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -508,4 +516,13 @@ func (spec *Specification) GetUsesPtraceTrace() bool {
 
 func (spec *Specification) GetSuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
+}
+
+// SuppressHomeIx to request explicit ptrace deny rules
+func (spec *Specification) SuppressHomeIx() {
+	spec.suppressHomeIx = true
+}
+
+func (spec *Specification) GetSuppressHomeIx() bool {
+	return spec.suppressHomeIx
 }
