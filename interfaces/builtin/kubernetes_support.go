@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -60,6 +61,25 @@ capability sys_resource,
 /sys/kernel/mm/hugepages/{,**} r,
 
 capability dac_override,
+
+/usr/bin/systemd-run Cxr -> systemd_run,
+profile systemd_run (attach_disconnected,mediate_deleted) {
+  # Common rules for kubernetes use of systemd_run
+  #include <abstractions/base>
+
+  /usr/bin/systemd-run r,
+  owner @{PROC}/@{pid}/stat r,
+  owner @{PROC}/@{pid}/environ r,
+  @{PROC}/cmdline r,
+
+  # setsockopt()
+  capability net_admin,
+
+  /run/systemd/private rw,
+  /bin/true ixr,
+  ptrace trace peer=unconfined,
+###KUBERNETES_SUPPORT_SYSTEMD_RUN###
+}
 `
 
 const kubernetesSupportConnectedPlugAppArmorKubelet = `
@@ -96,29 +116,6 @@ deny ptrace (trace) peer=unconfined,
 
 # kubelet calls out to systemd-run for some mounts, but not all of them and not
 # unmounts...
-
-/usr/bin/systemd-run Cxr -> systemd_run,
-profile systemd_run (attach_disconnected,mediate_deleted) {
-  #include <abstractions/base>
-
-  /usr/bin/systemd-run r,
-  owner @{PROC}/@{pid}/stat r,
-  owner @{PROC}/@{pid}/environ r,
-  @{PROC}/cmdline r,
-
-  # setsockopt()
-  capability net_admin,
-
-  /run/systemd/private rw,
-  /bin/true ixr,
-  ptrace trace peer=unconfined,
-
-  capability sys_admin,
-  /bin/mount ixr,
-  mount -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
-  deny /run/mount/utab rw,
-}
-
 capability sys_admin,
 mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
 mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
@@ -126,6 +123,14 @@ mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
 /bin/umount ixr,
 deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+`
+
+const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
+  # kubelet mount rules
+  capability sys_admin,
+  /bin/mount ixr,
+  mount -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  deny /run/mount/utab rw,
 `
 
 const kubernetesSupportConnectedPlugSeccompKubelet = `
@@ -156,23 +161,6 @@ const kubernetesSupportConnectedPlugAppArmorKubeproxy = `
 /sys/module/ip_vs_rr/initstate r,
 /sys/module/ip_vs_sh/initstate r,
 /sys/module/ip_vs_wrr/initstate r,
-
-/usr/bin/systemd-run Cxr -> systemd_run,
-profile systemd_run (attach_disconnected,mediate_deleted) {
-  #include <abstractions/base>
-
-  /usr/bin/systemd-run r,
-  owner @{PROC}/@{pid}/stat r,
-  owner @{PROC}/@{pid}/environ r,
-  @{PROC}/cmdline r,
-
-  # setsockopt()
-  capability net_admin,
-
-  /run/systemd/private rw,
-  /bin/true ixr,
-  ptrace trace peer=unconfined,
-}
 `
 
 var kubernetesSupportConnectedPlugKmodKubeProxy = []string{
@@ -201,20 +189,26 @@ func (iface *kubernetesSupportInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorCommon)
+	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 
+	systemd_run_extra := ""
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
 	if flavor == "kubelet" {
-		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubelet)
+		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
+		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		spec.UsesPtraceTrace()
 	} else if flavor == "kubeproxy" {
-		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubeproxy)
+		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
 	} else {
-		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubelet)
-		spec.AddSnippet(kubernetesSupportConnectedPlugAppArmorKubeproxy)
+		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
+		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
+		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
 		spec.UsesPtraceTrace()
 	}
+
+	old := "###KUBERNETES_SUPPORT_SYSTEMD_RUN###"
+	spec.AddSnippet(strings.Replace(snippet, old, systemd_run_extra, -1))
 	return nil
 }
 
