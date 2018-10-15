@@ -451,10 +451,12 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	return EAGAIN;
 }
 
+static void helper_fork(struct sc_mount_ns *group,
+			struct sc_apparmor *apparmor);
 static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 			pid_t parent);
-static void helper_exit(void);
 static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
+static void helper_exit(void);
 
 int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 			       struct sc_apparmor *apparmor,
@@ -530,11 +532,16 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		}
 		return 0;
 	}
+	helper_fork(group, apparmor);
+	return 0;
+}
+
+static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
+{
 	// Create a pipe for sending commands to the helper process.
 	if (pipe2(group->pipe_fd, O_CLOEXEC | O_DIRECT) < 0) {
 		die("cannot create pipes for commanding the helper process");
 	}
-	// Create a new namespace and ask the caller to populate it.
 
 	// Store the PID of the "parent" process. This done instead of calls to
 	// getppid() because then we can reliably track the PID of the parent even
@@ -554,6 +561,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		// print pid's portably so this is the best we can do.
 		debug("forked support process %d", (int)pid);
 		group->child = pid;
+
 		// Unshare the mount namespace and set a flag instructing the caller that
 		// the namespace is pristine and needs to be populated now.
 		if (unshare(CLONE_NEWNS) < 0) {
@@ -562,7 +570,6 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		debug("created new mount namespace");
 		group->should_populate = true;
 	}
-	return 0;
 }
 
 static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
