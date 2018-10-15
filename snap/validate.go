@@ -571,11 +571,11 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 		// dependency is not defined
 		other, ok := app.Snap.Apps[dep]
 		if !ok {
-			return fmt.Errorf("refers to missing application %q in before/after", dep)
+			return fmt.Errorf("before/after references a missing application %q", dep)
 		}
 
 		if !other.IsService() {
-			return fmt.Errorf("refers to non-service application %q in before/after", dep)
+			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
 	}
 	return nil

@@ -1206,11 +1206,11 @@ apps:
 	}{{
 		name: "foo after baz",
 		desc: fooAfterBaz,
-		err:  `invalid definition of application "foo": refers to missing application "baz" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a missing application "baz"`,
 	}, {
 		name: "foo before baz",
 		desc: fooBeforeBaz,
-		err:  `invalid definition of application "foo": refers to missing application "baz" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a missing application "baz"`,
 	}, {
 		name: "foo not a daemon",
 		desc: fooNotADaemon,
@@ -1218,7 +1218,7 @@ apps:
 	}, {
 		name: "foo wants bar, bar not a daemon",
 		desc: fooBarNotADaemon,
-		err:  `invalid definition of application "foo": refers to non-service application "bar" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a non-service application "bar"`,
 	}, {
 		name: "bad order 1",
 		desc: badOrder1,
