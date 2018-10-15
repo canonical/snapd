@@ -224,6 +224,9 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
 
 void sc_close_mount_ns(struct sc_mount_ns *group)
 {
+	if (group->child != 0) {
+		sc_wait_for_helper(group);
+	}
 	sc_cleanup_close(&group->dir_fd);
 	sc_cleanup_close(&group->pipe_fd[0]);
 	sc_cleanup_close(&group->pipe_fd[1]);
