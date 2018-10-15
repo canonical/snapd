@@ -40,10 +40,14 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)})
-	snapdSrv := filepath.Join(info.MountDir(), "/lib/systemd/system/snapd.service")
-	err = os.MkdirAll(filepath.Dir(snapdSrv), 0755)
+	snapdDir := filepath.Join(info.MountDir(), "lib", "systemd", "system")
+	err = os.MkdirAll(snapdDir, 0755)
 	c.Assert(err, IsNil)
+	snapdSrv := filepath.Join(snapdDir, "snapd.service")
 	err = ioutil.WriteFile(snapdSrv, []byte("[Unit]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"), 0644)
+	c.Assert(err, IsNil)
+	snapdShutdown := filepath.Join(snapdDir, "snapd.system-shutdown.service")
+	err = ioutil.WriteFile(snapdShutdown, []byte("[Unit]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start"), 0644)
 	c.Assert(err, IsNil)
 	return info
 }
@@ -68,6 +72,12 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	c.Assert(err, IsNil)
 	// and paths get re-written
 	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", dirs.SnapMountDir))
+
+	// check that snapd.system-shutdown.service is created
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"))
+	c.Assert(err, IsNil)
+	// and paths *do not* get re-written
+	c.Check(string(content), Equals, "[Unit]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start")
 
 	// check that usr-lib-snapd.mount is created
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"))
@@ -95,6 +105,7 @@ WantedBy=snapd.service
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 	})

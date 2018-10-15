@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(.*)$`)
+var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/lib/snapd/.*)$`)
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
 	// Not using WriteMountUnitFile() because we need
