@@ -91,11 +91,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
-	// Prepare a directory for apparmor profiles.
-	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapAppArmorDir, 0700)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.AppArmorCacheDir, 0700)
+	err := os.MkdirAll(dirs.AppArmorCacheDir, 0700)
 	c.Assert(err, IsNil)
 	// Mock away any real apparmor interaction
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
@@ -730,7 +726,6 @@ func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreInfo *snap.Info)
     /etc/ld.so.cache r,
 }
 `)
-	c.Assert(os.MkdirAll(dirs.SystemApparmorDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(vanillaProfilePath), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(vanillaProfilePath, vanillaProfileText, 0644), IsNil)
 }
@@ -799,6 +794,17 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 			Mode:    0644,
 		},
 	})
+}
+
+func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
+	c.Assert(osutil.IsDirectory(dirs.SnapAppArmorDir), Equals, false)
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+
+	err := apparmor.SetupSnapConfineReexec(coreInfo)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.IsDirectory(dirs.SnapAppArmorDir), Equals, true)
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
@@ -1128,8 +1134,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 
 // Test behavior when MkdirAll fails
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError4(c *C) {
-	// Create a directory where we would expect to find the local policy.
-	err := ioutil.WriteFile(dirs.SnapConfineAppArmorDir, []byte(""), 0644)
+	// Create a file where we would expect to find the local policy.
+	err := os.MkdirAll(filepath.Dir(dirs.SnapConfineAppArmorDir), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapConfineAppArmorDir, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	// Setup generated policy for snap-confine.
@@ -1497,10 +1505,7 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 		{"opensuse-tumbleweed", "4.16.10-1-default", false},
 		{"opensuse-tumbleweed", "4.14.1-default", true},
 		{"arch", "4.18.2.a-1-hardened", false},
-		{"arch", "4.18.5-arch1-1-ARCH", true},
-		{"arch", "4.17.4-hardened", false},
-		{"arch", "4.17.4-1-ARCH", true},
-		{"arch", "4.18.6-arch1-1-ARCH", true},
+		{"arch", "4.18.8-arch1-1-ARCH", false},
 	} {
 		c.Logf("trying: %+v", tc)
 		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})

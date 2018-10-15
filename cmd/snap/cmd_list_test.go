@@ -38,11 +38,11 @@ A green check mark (given color and unicode support) after a publisher name
 indicates that the publisher has been verified.
 
 [list command options]
-          --all                         Show all revisions
-          --color=[auto|never|always]   Use a little bit of color to highlight
-                                        some things. (default: auto)
-          --unicode=[auto|never|always] Use a little bit of Unicode to improve
-                                        legibility. (default: auto)
+      --all                           Show all revisions
+      --color=[auto|never|always]     Use a little bit of color to highlight
+                                      some things. (default: auto)
+      --unicode=[auto|never|always]   Use a little bit of Unicode to improve
+                                      legibility. (default: auto)
 `
 	s.testSubCommandHelp(c, "list", msg)
 }
