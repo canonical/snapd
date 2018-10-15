@@ -74,6 +74,10 @@ owner @{HOME}/snap/ r,
 # files; only allow writes to files, not the mount point).
 owner /run/user/[0-9]*/gvfs/{,**} r,
 owner /run/user/[0-9]*/gvfs/*/**  w,
+
+# Disallow writes to the well-known directory included in
+# the user's PATH on several distributions
+audit deny @{HOME}/bin/{,**} wl,
 `
 
 const homeConnectedPlugAppArmorWithAllRead = `
