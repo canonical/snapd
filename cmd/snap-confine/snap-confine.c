@@ -254,12 +254,9 @@ int main(int argc, char **argv)
 						     base_snap_name,
 						     snap_instance);
 
-				/* Preserve the mount namespace and ask the helper to terminate. */
+				/* Preserve the mount namespace. */
 				sc_preserve_populated_mount_ns(group);
-				sc_wait_for_helper(group);
 			}
-
-			sc_close_mount_ns(group);
 
 			/* Older versions of snap-confine created incorrect 777 permissions
 			   for /var/lib and we need to fixup for systems that had their NS
@@ -290,6 +287,7 @@ int main(int argc, char **argv)
 
 			sc_setup_user_mounts(&apparmor, snap_update_ns_fd,
 					     snap_instance);
+			sc_close_mount_ns(group);
 
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
