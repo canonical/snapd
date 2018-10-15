@@ -308,7 +308,7 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
 	} else {
-		spec.SuppressPtraceTrace()
+		spec.SetSuppressPtraceTrace()
 	}
 	return nil
 }

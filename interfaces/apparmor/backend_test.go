@@ -1634,10 +1634,10 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 	} {
 		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if tc.uses {
-				spec.UsesPtraceTrace()
+				spec.SetUsesPtraceTrace()
 			}
 			if tc.suppress {
-				spec.SuppressPtraceTrace()
+				spec.SetSuppressPtraceTrace()
 			}
 			return nil
 		}
