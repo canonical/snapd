@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35.4
+Version:        2.35.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -794,6 +794,11 @@ fi
 %endif
 
 %changelog
+* Mon Oct 15 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.5
+ - interfaces/home: don't allow snaps to write to $HOME/bin
+ - osutil: workaround overlayfs on ubuntu 18.10
+
 * Fri Oct 05 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.35.4
   - wrappers: do not depend on network.taget in socket units, tweak
