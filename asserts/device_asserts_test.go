@@ -172,27 +172,27 @@ func (mods *modelSuite) TestDecodeValidatesSnapNames(c *C) {
 	encoded := strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo_bar\n  - bar\n", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "required-snaps": foo_bar`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "required-snaps" header: foo_bar`)
 
 	encoded = strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo\n  - bar-;;''\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "required-snaps": bar-;;''`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "required-snaps" header: bar-;;''`)
 
 	encoded = strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux_instance\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "kernel": baz-linux_instance`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "kernel" header: baz-linux_instance`)
 
 	encoded = strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget_instance\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "gadget": brand-gadget_instance`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "gadget" header: brand-gadget_instance`)
 
 	encoded = strings.Replace(withTimestamp, "base: core18\n", "base: core18_instance\n", 1)
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(a, IsNil)
-	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "base": core18_instance`)
+	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "base" header: core18_instance`)
 }
 
 func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
@@ -246,7 +246,7 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 		a, err := asserts.Decode([]byte(encoded))
 		c.Assert(a, IsNil)
 		if name != "" {
-			c.Assert(err, ErrorMatches, `assertion model: invalid snap name in header "kernel": .*`)
+			c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "kernel" header: .*`)
 		} else {
 			c.Assert(err, ErrorMatches, `assertion model: "kernel" header should not be empty`)
 		}

@@ -240,7 +240,7 @@ func validateSnapName(name string, headerName string) error {
 	}
 
 	if len(name) > 40 || !isValidName() {
-		return fmt.Errorf("invalid snap name in header %q: %s", headerName, name)
+		return fmt.Errorf("invalid snap name in %q header: %s", headerName, name)
 	}
 	return nil
 }
