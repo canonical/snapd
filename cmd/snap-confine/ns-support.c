@@ -185,8 +185,6 @@ struct sc_mount_ns {
 	// Identifier of the child process that is used during the one-time (per
 	// group) initialization and capture process.
 	pid_t child;
-	// Flag set when this process created a fresh namespace should populate it.
-	bool should_populate;
 };
 
 static struct sc_mount_ns *sc_alloc_mount_ns(void)
@@ -458,10 +456,9 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_exit(void);
 
-int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
-			       struct sc_apparmor *apparmor,
-			       const char *base_snap_name,
-			       const char *snap_name)
+int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
+			 *apparmor, const char *base_snap_name,
+			 const char *snap_name)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -506,7 +503,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
 		    (mnt_fd, snap_name, base_snap_name) == EAGAIN) {
-			return EAGAIN;
+			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.
 		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
@@ -532,8 +529,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		}
 		return 0;
 	}
-	helper_fork(group, apparmor);
-	return 0;
+	return ESRCH;
 }
 
 static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
@@ -542,7 +538,6 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 	if (pipe2(group->pipe_fd, O_CLOEXEC | O_DIRECT) < 0) {
 		die("cannot create pipes for commanding the helper process");
 	}
-
 	// Store the PID of the "parent" process. This done instead of calls to
 	// getppid() because then we can reliably track the PID of the parent even
 	// if the child process is re-parented.
@@ -568,7 +563,6 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 			die("cannot unshare the mount namespace");
 		}
 		debug("created new mount namespace");
-		group->should_populate = true;
 	}
 }
 
@@ -649,11 +643,6 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 	      (int)parent, dst);
 }
 
-bool sc_should_populate_mount_ns(struct sc_mount_ns *group)
-{
-	return group->should_populate;
-}
-
 static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 {
 	if (group->child == 0) {
@@ -682,6 +671,11 @@ static void sc_wait_for_capture_helper(struct sc_mount_ns *group)
 	}
 	debug("helper process exited normally");
 	group->child = 0;
+}
+
+void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
+{
+	helper_fork(group, apparmor);
 }
 
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group)
