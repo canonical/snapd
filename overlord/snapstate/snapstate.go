@@ -471,20 +471,27 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func GetFeatureFlagBool(tr *config.Transaction, flag string) (bool, error) {
-	var v interface{} = false
+func GetFeatureFlagBool(tr *config.Transaction, flag string, unset ...bool) (bool, error) {
+	if len(unset) == 0 {
+		unset = []bool{false}
+	}
+	if len(unset) > 1 {
+		return false, fmt.Errorf("please specify only a single unset value")
+	}
+
+	var v interface{} = unset[0]
 	if err := tr.GetMaybe("core", flag, &v); err != nil {
-		return false, err
+		return unset[0], err
 	}
 	switch value := v.(type) {
 	case string:
 		if value == "" {
-			return false, nil
+			return unset[0], nil
 		}
 	case bool:
 		return value, nil
 	}
-	return false, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
+	return unset[0], fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
 }
 
 // validateFeatureFlags validates the given snap only uses experimental
@@ -493,7 +500,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := GetFeatureFlagBool(tr, "experimental.layouts")
+		flag, err := GetFeatureFlagBool(tr, "experimental.layouts", true)
 		if err != nil {
 			return err
 		}

@@ -38,8 +38,8 @@ Once this manual alias is setup the respective application command can be
 invoked just using the alias.
 
 [alias command options]
-          --no-wait     Do not wait for the operation to finish but just print
-                        the change id.
+      --no-wait       Do not wait for the operation to finish but just print
+                      the change id.
 `
 	s.testSubCommandHelp(c, "alias", msg)
 }

@@ -55,6 +55,7 @@ var defaultTemplate = `
   /etc/ld.so.preload r,
 
   # The base abstraction doesn't yet have this
+  /etc/sysconfig/clock r,
   /lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
@@ -135,6 +136,8 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-daemon ixr,
+  /{,usr/}bin/dbus-run-session ixr,
   /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
@@ -346,6 +349,7 @@ var defaultTemplate = `
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
@@ -421,6 +425,7 @@ var defaultTemplate = `
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
+  unix (bind, listen) addr="@snap.@{SNAP_INSTANCE_NAME}.**",
   unix peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
 
   # Allow apps from the same package to communicate with each other via DBus.
@@ -509,7 +514,7 @@ var classicTemplate = `
   /** pix,
 
   capability,
-  change_profile,
+  ###CHANGEPROFILE_RULE###
   dbus,
   network,
   mount,
