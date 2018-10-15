@@ -198,14 +198,14 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 	systemd_run_extra := ""
 
-	flavor := k8sFlavor(plug)
-	if flavor == "kubelet" {
+	switch flavor := k8sFlavor(plug); flavor {
+	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		spec.UsesPtraceTrace()
-	} else if flavor == "kubeproxy" {
+	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
-	} else {
+	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
@@ -219,7 +219,7 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 
 func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	flavor := k8sFlavor(plug)
-	if flavor != "kubeproxy" {
+	if flavor == "kubelet" || flavor == "" {
 		snippet := kubernetesSupportConnectedPlugSeccompKubelet
 		spec.AddSnippet(snippet)
 	}
@@ -228,7 +228,7 @@ func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Spec
 
 func (iface *kubernetesSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	flavor := k8sFlavor(plug)
-	if flavor != "kubeproxy" {
+	if flavor == "kubelet" || flavor == "" {
 		for _, rule := range kubernetesSupportConnectedPlugUDevKubelet {
 			spec.TagDevice(rule)
 		}
@@ -238,7 +238,7 @@ func (iface *kubernetesSupportInterface) UDevConnectedPlug(spec *udev.Specificat
 
 func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	flavor := k8sFlavor(plug)
-	if flavor != "kubelet" {
+	if flavor == "kubeproxy" || flavor == "" {
 		for _, m := range kubernetesSupportConnectedPlugKmodKubeProxy {
 			if err := spec.AddModule(m); err != nil {
 				return err
