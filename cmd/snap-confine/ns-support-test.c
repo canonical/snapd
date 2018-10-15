@@ -80,7 +80,6 @@ static void test_sc_alloc_mount_ns(void)
 	g_assert_cmpint(group->pipe_fd[0], ==, -1);
 	g_assert_cmpint(group->pipe_fd[1], ==, -1);
 	g_assert_cmpint(group->child, ==, 0);
-	g_assert_cmpint(group->should_populate, ==, false);
 	g_assert_null(group->name);
 }
 
@@ -102,7 +101,6 @@ static struct sc_mount_ns *sc_test_open_mount_ns(const char *group_name)
 	g_assert_cmpint(group->pipe_fd[0], ==, -1);
 	g_assert_cmpint(group->pipe_fd[1], ==, -1);
 	g_assert_cmpint(group->child, ==, 0);
-	g_assert_cmpint(group->should_populate, ==, false);
 	g_assert_cmpstr(group->name, ==, group_name);
 	return group;
 }

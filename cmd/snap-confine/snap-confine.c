@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <glob.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -231,36 +232,38 @@ int main(int argc, char **argv)
 			      snap_instance);
 			struct sc_mount_ns *group = NULL;
 			group = sc_open_mount_ns(snap_instance, 0);
-			if (sc_create_or_join_mount_ns(group, &apparmor,
-						       base_snap_name,
-						       snap_instance) ==
-			    EAGAIN) {
-				// If the namespace was stale and was discarded we just need to
-				// try again. Since this is done with the per-snap lock held
-				// there are no races here.
-				if (sc_create_or_join_mount_ns(group, &apparmor,
-							       base_snap_name,
-							       snap_instance) ==
-				    EAGAIN) {
-					die("unexpectedly the namespace needs to be discarded again");
+			int retval = sc_join_preserved_ns(group, &apparmor,
+							  base_snap_name,
+							  snap_instance);
+			if (retval == ESRCH) {
+				/* Stale mount namespace discarded or no mount namespace to
+				   join. We need to construct a new mount namespace ourselves.
+				   To capture it we will need a helper process so make one. */
+				sc_fork_helper(group, &apparmor);
+
+				/* Create and Populate the mount namespace. This performs all
+				   of the bootstrapping mounts, pivots into the new root
+				   filesystem and applies the per-snap mount profile using
+				   snap-update-ns. */
+				debug("unsharing the mount namespace");
+				if (unshare(CLONE_NEWNS) < 0) {
+					die("cannot unshare the mount namespace");
 				}
-			}
-			if (sc_should_populate_mount_ns(group)) {
 				sc_populate_mount_ns(&apparmor,
 						     snap_update_ns_fd,
 						     base_snap_name,
 						     snap_instance);
+
+				/* Preserve the mount namespace and ask the helper to terminate. */
 				sc_preserve_populated_mount_ns(group);
-				/* TODO: once the helper process lifecycle is separated from
-				 * the need to construct a mount namespace move this call to
-				 * after sc_setup_user_mounts() below. */
 				sc_wait_for_helper(group);
 			}
+
 			sc_close_mount_ns(group);
-			// older versions of snap-confine created incorrect
-			// 777 permissions for /var/lib and we need to fixup
-			// for systems that had their NS created with an
-			// old version
+
+			/* Older versions of snap-confine created incorrect 777 permissions
+			   for /var/lib and we need to fixup for systems that had their NS
+			   created with an old version. */
 			sc_maybe_fixup_permissions();
 			sc_maybe_fixup_udev();
 
