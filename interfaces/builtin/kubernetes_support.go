@@ -188,19 +188,24 @@ func (iface *kubernetesSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	snippet := kubernetesSupportConnectedPlugAppArmorCommon
-
-	systemd_run_extra := ""
+func k8sFlavor(plug *interfaces.ConnectedPlug) string {
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
-	if flavor == "kubelet" {
+	return flavor
+}
+
+func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	snippet := kubernetesSupportConnectedPlugAppArmorCommon
+	systemd_run_extra := ""
+
+	switch flavor := k8sFlavor(plug); flavor {
+	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		spec.UsesPtraceTrace()
-	} else if flavor == "kubeproxy" {
+	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
-	} else {
+	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
@@ -213,10 +218,8 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 }
 
 func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var flavor string
-	_ = plug.Attr("flavor", &flavor)
-
-	if flavor != "kubeproxy" {
+	flavor := k8sFlavor(plug)
+	if flavor == "kubelet" || flavor == "" {
 		snippet := kubernetesSupportConnectedPlugSeccompKubelet
 		spec.AddSnippet(snippet)
 	}
@@ -224,10 +227,8 @@ func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Spec
 }
 
 func (iface *kubernetesSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var flavor string
-	_ = plug.Attr("flavor", &flavor)
-
-	if flavor != "kubeproxy" {
+	flavor := k8sFlavor(plug)
+	if flavor == "kubelet" || flavor == "" {
 		for _, rule := range kubernetesSupportConnectedPlugUDevKubelet {
 			spec.TagDevice(rule)
 		}
@@ -236,10 +237,8 @@ func (iface *kubernetesSupportInterface) UDevConnectedPlug(spec *udev.Specificat
 }
 
 func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var flavor string
-	_ = plug.Attr("flavor", &flavor)
-
-	if flavor != "kubelet" {
+	flavor := k8sFlavor(plug)
+	if flavor == "kubeproxy" || flavor == "" {
 		for _, m := range kubernetesSupportConnectedPlugKmodKubeProxy {
 			if err := spec.AddModule(m); err != nil {
 				return err
