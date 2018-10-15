@@ -96,7 +96,7 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		spec.SuppressPtraceTrace()
 	}
 	if iface.suppressHomeIx {
-		spec.SuppressHomeIx()
+		spec.SetSuppressHomeIx()
 	}
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)

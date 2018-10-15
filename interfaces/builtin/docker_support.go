@@ -590,7 +590,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		rule = "change_profile unsafe /** -> docker-default,"
 		// This rule conflicts with the 'ix' rules in the home
 		// interface, so suppress them (LP: #1797786)
-		spec.SuppressHomeIx()
+		spec.SetSuppressHomeIx()
 	}
 	snippet := cpDockerDefaultPattern.ReplaceAllString(dockerSupportConnectedPlugAppArmor, rule)
 	spec.AddSnippet(snippet)

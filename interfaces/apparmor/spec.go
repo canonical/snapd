@@ -518,11 +518,11 @@ func (spec *Specification) GetSuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
 }
 
-// SuppressHomeIx to request explicit ptrace deny rules
-func (spec *Specification) SuppressHomeIx() {
+// SetSuppressHomeIx to request explicit ptrace deny rules
+func (spec *Specification) SetSuppressHomeIx() {
 	spec.suppressHomeIx = true
 }
 
-func (spec *Specification) GetSuppressHomeIx() bool {
+func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
 }

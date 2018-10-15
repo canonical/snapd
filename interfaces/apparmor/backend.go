@@ -564,7 +564,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// Use 'ix' rules in the home interface unless an
 				// interface asked to suppress them
 				repl := "ix"
-				if spec.suppressHomeIx {
+				if spec.SuppressHomeIx() {
 					repl = ""
 				}
 				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)

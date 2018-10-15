@@ -552,8 +552,8 @@ func (s *specSuite) TestSuppressPtraceTrace(c *C) {
 	c.Assert(s.spec.GetSuppressPtraceTrace(), Equals, true)
 }
 
-func (s *specSuite) TestSuppressHomeIx(c *C) {
-	c.Assert(s.spec.GetSuppressHomeIx(), Equals, false)
-	s.spec.SuppressHomeIx()
-	c.Assert(s.spec.GetSuppressHomeIx(), Equals, true)
+func (s *specSuite) TestSetSuppressHomeIx(c *C) {
+	c.Assert(s.spec.SuppressHomeIx(), Equals, false)
+	s.spec.SetSuppressHomeIx()
+	c.Assert(s.spec.SuppressHomeIx(), Equals, true)
 }

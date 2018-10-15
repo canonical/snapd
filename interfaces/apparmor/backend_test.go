@@ -1687,7 +1687,7 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 	} {
 		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if tc.suppress {
-				spec.SuppressHomeIx()
+				spec.SetSuppressHomeIx()
 			}
 			spec.AddSnippet("needle rwkl###HOME_IX###,")
 			return nil
