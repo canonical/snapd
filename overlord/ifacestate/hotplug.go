@@ -167,6 +167,7 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 
 		logger.Debugf("HotplugDeviceAdded: %s (interface: %s, hotplug key: %q, devname %s, subsystem: %s)", devinfo.DevicePath(), iface, key, devinfo.DeviceName(), devinfo.Subsystem())
 
+		// enumeratedDeviceKeys is only available when enumerating devices
 		if m.enumeratedDeviceKeys != nil {
 			if m.enumeratedDeviceKeys[iface.Name()] == nil {
 				m.enumeratedDeviceKeys[iface.Name()] = make(map[string]bool)
@@ -186,6 +187,7 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		slot, err := m.repo.SlotForHotplugKey(iface.Name(), key)
 		if err != nil {
 			logger.Noticef("internal error: %s", err)
+			continue
 		}
 
 		// Add or update slot in the repository
@@ -361,7 +363,7 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 	m.enumeratedDeviceKeys = nil
 }
 
-func findConnsForDeviceKey(conns *map[string]connState, coreSnapName, ifaceName, hotplugKey string) []string {
+func findConnsForDeviceKey(conns *map[string]connState, ifaceName, hotplugKey string) []string {
 	var connsForDevice []string
 	for id, connSt := range *conns {
 		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {

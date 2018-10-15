@@ -1189,12 +1189,6 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	core, err := snapstate.CoreInfo(st)
-	if err != nil {
-		return err
-	}
-	coreSnapName := core.InstanceName()
-
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
 		return err
@@ -1202,7 +1196,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// find old connections for slots of this device - note we can't ask the repository since we need
 	// to recreate old connections that are only remembered in the state.
-	connsForDevice := findConnsForDeviceKey(&conns, coreSnapName, ifaceName, hotplugKey)
+	connsForDevice := findConnsForDeviceKey(&conns, ifaceName, hotplugKey)
 
 	// we see this device for the first time (or it didn't have any connected slot before)
 	if len(connsForDevice) == 0 {
@@ -1216,8 +1210,8 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			return err
 		}
 
-		snapName := slot.Snap.InstanceName()
-		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		instanceName := slot.Snap.InstanceName()
+		candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
 		var newconns []*interfaces.ConnRef
 		// Auto-connect the slots
 		for _, plug := range candidates {
@@ -1242,7 +1236,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			}
 			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 				if _, retry := err.(*state.Retry); retry {
-					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", snapName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", instanceName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
 					task.Logf("Waiting for conflicting change in progress...")
 					return err // will retry
 				}
@@ -1375,26 +1369,29 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 		}
 	}
 
-	if len(connections) > 0 {
-		dts := state.NewTaskSet()
-		for _, connRef := range connections {
-			conn, err := m.repo.Connection(connRef)
-			if err != nil {
-				break
-			}
-			// "by-hotplug" flag indicates it's a disconnect triggered as part of hotplug removal.
-			ts, err := disconnectTasks(st, conn, disconnectOpts{ByHotplug: true})
-			if err != nil {
-				return fmt.Errorf("internal error: cannot create disconnect tasks: %s", err)
-			}
-			dts.AddAll(ts)
-		}
-
-		snapstate.InjectTasks(task, dts)
-
-		// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
-		task.SetStatus(state.DoneStatus)
+	if len(connections) == 0 {
+		return nil
 	}
+
+	dts := state.NewTaskSet()
+	for _, connRef := range connections {
+		conn, err := m.repo.Connection(connRef)
+		if err != nil {
+			break
+		}
+		// "by-hotplug" flag indicates it's a disconnect triggered as part of hotplug removal.
+		ts, err := disconnectTasks(st, conn, disconnectOpts{ByHotplug: true})
+		if err != nil {
+			return fmt.Errorf("internal error: cannot create disconnect tasks: %s", err)
+		}
+		dts.AddAll(ts)
+	}
+
+	snapstate.InjectTasks(task, dts)
+
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+	task.SetStatus(state.DoneStatus)
+
 	return nil
 }
 
@@ -1429,20 +1426,22 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 	// including connection with hotplug-gone=true.
 Loop:
 	for slotName, def := range stateSlots {
-		if def.Interface == ifaceName && def.HotplugKey == hotplugKey {
-			conns, err := getConns(st)
-			if err != nil {
-				return err
-			}
-			for _, conn := range conns {
-				if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
-					break Loop
-				}
-			}
-			delete(stateSlots, slotName)
-			setHotplugSlots(st, stateSlots)
-			break
+		if def.Interface != ifaceName || def.HotplugKey != hotplugKey {
+			continue
 		}
+		conns, err := getConns(st)
+		if err != nil {
+			return err
+		}
+		for _, conn := range conns {
+			if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
+				// there is a connection referencing this slot, do not remove it
+				break Loop
+			}
+		}
+		delete(stateSlots, slotName)
+		setHotplugSlots(st, stateSlots)
+		break
 	}
 
 	return nil
@@ -1472,25 +1471,27 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return fmt.Errorf("internal error: cannot determine slot for device %s, interface %s: %s", hotplugKey, ifaceName, err)
 	}
-	if slot != nil {
-		conns, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot determine connections for device %s, interface %s: %s", hotplugKey, ifaceName, err)
-		}
-		if len(conns) > 0 {
-			return fmt.Errorf("internal error: cannot update slot %s while connected", slot.Name)
-		}
+	if slot == nil {
+		return nil
+	}
 
-		if slotSpec, ok := stateSlots[slot.Name]; ok {
-			slotSpec.StaticAttrs = attrs
-			stateSlots[slot.Name] = slotSpec
-			setHotplugSlots(st, stateSlots)
+	conns, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot determine connections for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+	if len(conns) > 0 {
+		return fmt.Errorf("internal error: cannot update slot %s while connected", slot.Name)
+	}
 
-			// XXX: this is ugly and relies on the slot infos being kept as pointers in the repository
-			slot.Attrs = attrs
-		} else {
-			return fmt.Errorf("internal error: cannot find slot %s for device %s", slot.Name, hotplugKey)
-		}
+	if slotSpec, ok := stateSlots[slot.Name]; ok {
+		slotSpec.StaticAttrs = attrs
+		stateSlots[slot.Name] = slotSpec
+		setHotplugSlots(st, stateSlots)
+
+		// XXX: this is ugly and relies on the slot infos being kept as pointers in the repository
+		slot.Attrs = attrs
+	} else {
+		return fmt.Errorf("internal error: cannot find slot %s for device %s", slot.Name, hotplugKey)
 	}
 
 	return nil
