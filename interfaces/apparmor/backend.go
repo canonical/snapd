@@ -559,7 +559,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// suppression of 'ptrace (trace)' denials, add
 				// the suppression rule unless another
 				// interface said it uses them.
-				if spec.suppressPtraceTrace && !spec.usesPtraceTrace {
+				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
 				}
 			}
