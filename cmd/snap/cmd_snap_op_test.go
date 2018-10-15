@@ -795,8 +795,8 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
-	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
