@@ -308,9 +308,8 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	// note that "systemctl is-enabled <name>" returns exit code 1 for disabled services
-	// as well as outputting "disabled\n", so we need to cast the error, and
-	// also trim the whitespace from the output to check the command output
+	// "systemctl is-enabled <name>" prints `disabled\n` to stderr and returns exit code 1
+	// for disabled services
 	sysdErr, ok := err.(*Error)
 	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
 		return false, nil
