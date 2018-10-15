@@ -173,16 +173,16 @@ slots:
 		suppressHomeIx: false,
 	}
 	spec := &apparmor.Specification{}
-	c.Assert(spec.GetSuppressHomeIx(), Equals, false)
+	c.Assert(spec.SuppressHomeIx(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.GetSuppressHomeIx(), Equals, false)
+	c.Assert(spec.SuppressHomeIx(), Equals, false)
 
 	iface = &commonInterface{
 		name:           "common",
 		suppressHomeIx: true,
 	}
 	spec = &apparmor.Specification{}
-	c.Assert(spec.GetSuppressHomeIx(), Equals, false)
+	c.Assert(spec.SuppressHomeIx(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.GetSuppressHomeIx(), Equals, true)
+	c.Assert(spec.SuppressHomeIx(), Equals, true)
 }
