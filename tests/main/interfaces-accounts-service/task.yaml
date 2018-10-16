@@ -15,7 +15,6 @@ prepare: |
     . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-accounts-service
     mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
-    pkill -9 goa || true
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -27,7 +26,6 @@ restore: |
     rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
     # usually not needed, this should die when dbus goes down
     kill "$(cat gdbus-monitor.pid)" || true
-    pkill -9 goa || true
 
 debug: |
     cat gdbus.log || true
