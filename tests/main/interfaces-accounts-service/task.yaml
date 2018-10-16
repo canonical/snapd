@@ -53,15 +53,16 @@ execute: |
     # We set a long timeout here because goa-daemon will be activated
     # by the method call, and this can take a while on heavily loaded
     # or IO constrianed VMs.
-    gdbus call --session --timeout 300 \
-      --dest=org.gnome.OnlineAccounts \
-      --object-path=/org/gnome/OnlineAccounts/Manager \
-      --method=org.gnome.OnlineAccounts.Manager.AddAccount \
+    busctl call --verbose --user --timeout 300 \
+      org.gnome.OnlineAccounts \
+      /org/gnome/OnlineAccounts/Manager \
+      org.gnome.OnlineAccounts.Manager AddAccount \
+      'sssa{sv}a{ss}' \
       "imap_smtp" \
       "test@example.com" \
       "Display Name" \
-      "{}" \
-      "{'Enabled': 'true', 'EmailAddress': 'test@example.com', 'Name': 'Test User', 'ImapHost': 'imap.example.com', 'SmtpHost': 'mail.example.com'}"
+      0 \
+      5 'Enabled' 'true' 'EmailAddress' 'test@example.com' 'Name' 'Test User' 'ImapHost' 'imap.example.com' 'SmtpHost': 'mail.example.com'
 
     echo "The interface is initially disconnected"
     snap interfaces -i accounts-service | MATCH '\- +test-snapd-accounts-service:accounts-service'
