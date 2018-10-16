@@ -317,10 +317,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
 			 SNAP_MOUNT_DIR, base_snap_name);
 	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
-		die("cannot read revision of base snap %s", fname);
+		die("cannot read current revision of snap %s", snap_name);
 	}
 	if (base_snap_rev[sizeof base_snap_rev - 1] != '\0') {
-		die("cannot use symbolic link %s - value is too long", fname);
+		die("cannot read current revision of snap %s: value too long",
+		    snap_name);
 	}
 	// Find the device that is backing the current revision of the base snap.
 	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
@@ -339,12 +340,12 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Create an eventfd for the communication with the child.
 	event_fd = eventfd(0, EFD_CLOEXEC);
 	if (event_fd < 0) {
-		die("cannot create eventfd for communication with inspection process");
+		die("cannot create eventfd");
 	}
 	// Fork a child, it will do the inspection for us.
 	pid_t child = fork();
 	if (child < 0) {
-		die("cannot fork support process for namespace inspection");
+		die("cannot fork support process");
 	}
 
 	if (child == 0) {
@@ -361,22 +362,22 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// us up from eventfd_read() below. In the rare case that the PID
 		// numbers overflow and the now-dead parent PID is recycled we will
 		// still hang forever on the read from eventfd below.
-		debug("ensuring that parent process is still alive");
 		if (kill(parent, 0) < 0) {
 			switch (errno) {
 			case ESRCH:
-				debug("parent process has already terminated");
+				debug("parent process has terminated");
 				abort();
 			default:
-				die("cannot ensure that parent process is still alive");
+				die("cannot confirm that parent process is alive");
 				break;
 			}
 		}
 
-		debug("joining the namespace that we are about to probe");
+		debug
+		    ("NOTE: joining preserved mount namespace (for inspection)");
 		// Move to the mount namespace of the snap we're trying to inspect.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
-			die("cannot join the mount namespace in order to inspect it");
+			die("cannot join preserved mount namespace");
 		}
 		// Check if the namespace needs to be discarded.
 		//
@@ -391,17 +392,12 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
-		debug
-		    ("sending information about the state of the mount namespace (%s)",
-		     should_discard ? "discard" : "keep");
 		if (eventfd_write
 		    (event_fd,
 		     should_discard ? SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
-			die("cannot send information about the state of the mount namespace");
+			die("cannot send information about freshness of preserved mount namespace");
 		}
 		// Exit, we're done.
-		debug
-		    ("support process for mount namespace inspection is about to finish");
 		exit(0);
 	}
 	// This is back in the parent process.
@@ -411,9 +407,8 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Next, read the value written by the child process.
 	sc_enable_sanity_timeout();
 	eventfd_t value = 0;
-	debug("receiving information about the state of the mount namespace");
 	if (eventfd_read(event_fd, &value) < 0) {
-		die("cannot receive information about the state of the mount namespace");
+		die("cannot read from eventfd");
 	}
 	sc_disable_sanity_timeout();
 
@@ -428,27 +423,26 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// If the namespace is up-to-date then we are done.
 	if (value == SC_DISCARD_NO) {
-		debug("the mount namespace is up-to-date and can be reused");
+		debug("NOTE: preserved mount namespace can be reused");
 		return 0;
 	}
 	// The namespace is stale, let's check if we can discard it.
-	debug("the mount namespace is stale and should be discarded");
 	if (sc_cgroup_freezer_occupied(snap_name)) {
 		// Some processes are still using the namespace so we cannot discard it
 		// as that would fracture the view that the set of processes inside
 		// have on what is mounted.
+		debug("NOTE: preserved mount namespace is stale but occupied");
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	debug("discarding stale and empty mount namespace");
 	sc_must_snprintf(mnt_fname, sizeof mnt_fname,
 			 "%s/%s%s", sc_ns_dir, snap_name, SC_NS_MNT_FILE);
 
 	// Use MNT_DETACH as otherwise we get EBUSY.
 	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
-		die("cannot umount stale mount namespace %s", mnt_fname);
+		die("cannot discard stale mount namespace %s", mnt_fname);
 	}
-	debug("stale mount namespace discarded");
+	debug("NOTE: stale mount namespace discarded");
 	return EAGAIN;
 }
 
