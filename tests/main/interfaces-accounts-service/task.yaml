@@ -15,6 +15,7 @@ prepare: |
     . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-accounts-service
     mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+    pkill -9 goa || true
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -22,21 +23,30 @@ restore: |
     # this will also kill the "gdbus monitor" command
     kill "$(cat dbus-launch.pid)"
     rm -f dbus-launch.pid
+    rm -f dbus.env
     rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
     # usually not needed, this should die when dbus goes down
     kill "$(cat gdbus-monitor.pid)" || true
+    pkill -9 goa || true
 
 debug: |
     cat gdbus.log || true
+    if [[ -f dbus.env ]]; then
+        #shellcheck disable=SC1091
+        source dbus.env
+        busctl --user status org.gnome.OnlineAccounts
+    fi
 
 execute: |
     echo "Ensure things run"
-    eval "$(dbus-launch --sh-syntax)"
+    dbus-launch --sh-syntax > dbus.env
+    #shellcheck disable=SC1091
+    source dbus.env
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
     eval "$(printf password|gnome-keyring-daemon --login)"
     eval "$(gnome-keyring-daemon --start)"
     # add debug
-    gdbus monitor --session --dest org.gnome.OnlineAccounts >gdbus.log 2>&1 &
+    dbus-monitor --session >gdbus.log 2>&1 &
     echo "$!" > gdbus-monitor.pid
 
     echo "Creating account"
