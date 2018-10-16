@@ -444,7 +444,6 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			// TODO parallel-install: use of proper instance/store name
 			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
