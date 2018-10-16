@@ -32,11 +32,11 @@ int main(int argc, char **argv)
 
 	int snap_lock_fd = sc_lock_snap(snap_name);
 	debug("initializing mount namespace: %s", snap_name);
-	struct sc_ns_group *group =
-	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
+	struct sc_mount_ns *group =
+	    sc_open_mount_ns(snap_name, SC_NS_FAIL_GRACEFULLY);
 	if (group != NULL) {
-		sc_discard_preserved_ns_group(group);
-		sc_close_ns_group(group);
+		sc_discard_preserved_mount_ns(group);
+		sc_close_mount_ns(group);
 	}
 	// Unlink the current mount profile, if any.
 	char profile_path[PATH_MAX] = { 0 };

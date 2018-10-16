@@ -2217,7 +2217,7 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	tasks := chg.Tasks()
-	connectTask := tasks[len(tasks)-3]
+	connectTask := tasks[len(tasks)-1]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 
 	// verify connect task data

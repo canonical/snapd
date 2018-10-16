@@ -1164,6 +1164,18 @@ func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 	c.Assert(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
 }
 
+func (s *imageSuite) TestNoInvalidSnapNames(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Snaps:     []string{"foo.invalid.name"},
+	})
+	c.Assert(err, ErrorMatches, `invalid snap name: "foo.invalid.name"`)
+}
+
 func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
@@ -1661,6 +1673,15 @@ func (s *imageSuite) TestBootstrapToRootDirMissingContentProvider(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.stderr.String(), Equals, `WARNING: the default content provider "gtk-common-themes" requested by snap "snap-req-content-provider" is not getting installed.`)
+}
+
+func (s *imageSuite) TestMissingLocalSnaps(c *C) {
+	opts := &image.Options{
+		Snaps: []string{"i-am-missing.snap"},
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, ErrorMatches, "local snap i-am-missing.snap not found")
+	c.Assert(local, IsNil)
 }
 
 type toolingAuthContextSuite struct {

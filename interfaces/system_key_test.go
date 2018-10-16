@@ -82,6 +82,9 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	apparmorFeaturesStr, err := json.Marshal(release.AppArmorFeatures())
 	c.Assert(err, IsNil)
 
+	apparmorParserFeaturesStr, err := json.Marshal(release.AppArmorParserFeatures())
+	c.Assert(err, IsNil)
+
 	seccompActionsStr, err := json.Marshal(release.SecCompActions())
 	c.Assert(err, IsNil)
 
@@ -93,7 +96,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {

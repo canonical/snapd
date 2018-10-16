@@ -83,9 +83,10 @@ type appYaml struct {
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
-	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string         `yaml:"slots,omitempty"`
-	PlugNames   []string         `yaml:"plugs,omitempty"`
+	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
+	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
+	SlotNames    []string         `yaml:"slots,omitempty"`
+	PlugNames    []string         `yaml:"plugs,omitempty"`
 
 	BusName  string `yaml:"bus-name,omitempty"`
 	CommonID string `yaml:"common-id,omitempty"`
@@ -321,6 +322,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
+			RestartDelay:    yApp.RestartDelay,
 			BusName:         yApp.BusName,
 			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
