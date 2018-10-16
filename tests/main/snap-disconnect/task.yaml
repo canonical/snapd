@@ -7,14 +7,14 @@ environment:
 
 prepare: |
     echo "Install a test snap"
-    snap pack $TESTSLIB/snaps/home-consumer
-    snap install --dangerous $SNAP_FILE
+    snap pack "$TESTSLIB"/snaps/home-consumer
+    snap install --dangerous "$SNAP_FILE"
 
 restore: |
-    rm -f *.snap
+    rm -f ./*.snap
 
 execute: |
-    DISCONNECTED_PATTERN="\-\s+home-consumer:home"
+    DISCONNECTED_PATTERN='-\s+home-consumer:home'
 
     echo "Disconnect everything from given slot"
     snap connect home-consumer:home core:home

@@ -34,12 +34,14 @@ prepare: |
     snap install --devmode test-snapd-tools
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        . $TESTSLIB/store.sh
-        setup_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        setup_fake_store "$BLOB_DIR"
 
         echo "And a new version of that snap put in the controlled store"
-        . $TESTSLIB/store.sh
-        init_fake_refreshes $BLOB_DIR test-snapd-tools
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        init_fake_refreshes "$BLOB_DIR" test-snapd-tools
     fi
 
 restore: |
@@ -54,8 +56,9 @@ restore: |
             echo "This test needs test keys to be trusted"
             exit
         fi
-        . $TESTSLIB/store.sh
-        teardown_fake_store $BLOB_DIR
+        #shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_fake_store "$BLOB_DIR"
     fi
 
 execute: |
@@ -76,11 +79,9 @@ execute: |
     # echo "Then the new version is available for the snap to be refreshed"
     # expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
     # snap refresh --list | grep -Pzq "$expected"
-    #
-    # echo "================================="
 
     echo "When the snap is refreshed"
-    snap refresh --devmode --channel=edge $SNAP_NAME
+    snap refresh --devmode --channel=edge "$SNAP_NAME"
 
     echo "Then the new version is listed"
     expected="$SNAP_NAME +$SNAP_VERSION_PATTERN .*devmode"

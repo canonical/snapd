@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -47,8 +48,8 @@ const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -81,8 +82,8 @@ var (
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=%s-xkcd\x2dwebserver-44.mount
-Wants=network-online.target
-After=%s-xkcd\x2dwebserver-44.mount network-online.target
+Wants=network.target
+After=%s-xkcd\x2dwebserver-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -136,6 +137,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileRestart(c *C) {
 name: snap
 apps:
     app:
+        daemon: simple
         restart-condition: %s
 `
 	for name, cond := range snap.RestartMap {
@@ -334,8 +336,8 @@ func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service
+Wants=network.target
+After=%s-snap-44.mount network.target snap.snap.bar.service snap.snap.zed.service
 Before=snap.snap.foo.service
 X-Snappy=yes
 
@@ -458,8 +460,8 @@ func (s *servicesWrapperGenSuite) TestServiceTimerServiceUnit(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -618,8 +620,8 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network-online.target
-After=%s-snap-44.mount network-online.target
+Wants=network.target
+After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
@@ -636,4 +638,42 @@ KillSignal=%s
 WantedBy=multi-user.target
 `, mountUnitPrefix, mountUnitPrefix, strings.ToUpper(rm)))
 	}
+}
+
+func (s *servicesWrapperGenSuite) TestRestartDelay(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:         "app",
+		Command:      "bin/foo start",
+		Daemon:       "simple",
+		RestartDelay: timeout.Timeout(20 * time.Second),
+	}
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+RestartSec=20
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
 }

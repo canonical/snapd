@@ -32,6 +32,17 @@ var defaultTemplate = `
 
 #include <tunables/global>
 
+# snapd supports the concept of 'parallel installs' where snaps with the same
+# name are differentiated by '_<instance>' such that foo, foo_bar and foo_baz
+# may all be installed on the system. To support this, SNAP_NAME is set to the
+# name (eg, 'foo') while SNAP_INSTANCE_NAME is set to the instance name (eg
+# 'foo_bar'). The profile name and most rules therefore reference
+# SNAP_INSTANCE_NAME. In some cases, snapd will adjust the snap's runtime
+# environment so the snap doesn't have to be aware of the distinction (eg,
+# SNAP, SNAP_DATA and SNAP_COMMON are all bind mounted onto a directory with
+# SNAP_NAME so the security policy will allow writing to both locations (since
+# they are equivalent).
+
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
@@ -44,6 +55,7 @@ var defaultTemplate = `
   /etc/ld.so.preload r,
 
   # The base abstraction doesn't yet have this
+  /etc/sysconfig/clock r,
   /lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
@@ -57,8 +69,9 @@ var defaultTemplate = `
   # for details)
   deny /usr/lib/python3*/{,**/}__pycache__/ w,
   deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
-  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
+  # bind mount used here (see 'parallel installs', above)
+  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
 
   # for perl apps/services
   #include <abstractions/perl>
@@ -123,6 +136,8 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-daemon ixr,
+  /{,usr/}bin/dbus-run-session ixr,
   /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
@@ -333,7 +348,8 @@ var defaultTemplate = `
   @{PROC}/sys/kernel/random/boot_id r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
-  /sys/fs/cgroup/memory/snap.@{SNAP_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
@@ -360,29 +376,34 @@ var defaultTemplate = `
   @{PROC}/@{pid}/net/dev r,
 
   # Read-only for the install directory
-  @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
-  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
-  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
+  # bind mount used here (see 'parallel installs', above)
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/                   r,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}}/    r,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}}/**  mrklix,
 
   # Read-only install directory for other revisions to help with bugs like
   # LP: #1616650 and LP: #1655992
-  @{INSTALL_DIR}/@{SNAP_NAME}/**  mrkix,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**  mrkix,
 
   # Read-only home area for other versions
-  owner @{HOME}/snap/@{SNAP_NAME}/                  r,
-  owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
+  # bind mount *not* used here (see 'parallel installs', above)
+  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
+  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
   # Writable home area for this version.
-  owner @{HOME}/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
-  owner @{HOME}/snap/@{SNAP_NAME}/common/** wl,
+  # bind mount *not* used here (see 'parallel installs', above)
+  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
 
   # Read-only system area for other versions
-  /var/snap/@{SNAP_NAME}/   r,
-  /var/snap/@{SNAP_NAME}/** mrkix,
+  # bind mount used here (see 'parallel installs', above)
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/   r,
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** mrkix,
 
   # Writable system area only for this version
-  /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
-  /var/snap/@{SNAP_NAME}/common/** wl,
+  # bind mount used here (see 'parallel installs', above)
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/** wl,
+  /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
@@ -392,25 +413,28 @@ var defaultTemplate = `
 
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()
-  /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
+  # bind mount *not* used here (see 'parallel installs', above)
+  /{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,
   # Also allow app-specific access for sem_open()
-  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* mrwk,
+  /{dev,run}/shm/sem.snap.@{SNAP_INSTANCE_NAME}.* mrwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
-  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
-  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
+  # bind mount *not* used here (see 'parallel installs', above)
+  owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/   rw,
+  owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
-  unix peer=(label=snap.@{SNAP_NAME}.*),
+  unix (bind, listen) addr="@snap.@{SNAP_INSTANCE_NAME}.**",
+  unix peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
 
   # Allow apps from the same package to communicate with each other via DBus.
   # Note: this does not grant access to the DBus sockets of well known buses
   # (will still need to use an appropriate interface for that).
-  dbus (receive, send) peer=(label=snap.@{SNAP_NAME}.*),
+  dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
 
   # Allow apps from the same package to signal each other via signals
-  signal peer=snap.@{SNAP_NAME}.*,
+  signal peer=snap.@{SNAP_INSTANCE_NAME}.*,
 
   # Allow receiving signals from all snaps (and focus on mediating sending of
   # signals)
@@ -490,7 +514,7 @@ var classicTemplate = `
   /** pix,
 
   capability,
-  change_profile,
+  ###CHANGEPROFILE_RULE###
   dbus,
   network,
   mount,
@@ -561,7 +585,7 @@ var updateNSTemplate = `
 
 #include <tunables/global>
 
-profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
+profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
@@ -588,23 +612,23 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   /{etc/,usr/lib/}os-release r,
 
   # Allow creating/grabbing global and per-snap lock files.
-  /run/snapd/lock/###SNAP_NAME###.lock rwk,
+  /run/snapd/lock/###SNAP_INSTANCE_NAME###.lock rwk,
   /run/snapd/lock/.lock rwk,
 
   # Allow reading stored mount namespaces,
   /run/snapd/ns/ r,
-  /run/snapd/ns/###SNAP_NAME###.mnt r,
+  /run/snapd/ns/###SNAP_INSTANCE_NAME###.mnt r,
 
   # Allow reading per-snap desired mount profiles. Those are written by
   # snapd and represent the desired layout and content connections.
-  /var/lib/snapd/mount/snap.###SNAP_NAME###.fstab r,
-  /var/lib/snapd/mount/snap.###SNAP_NAME###.user-fstab r,
+  /var/lib/snapd/mount/snap.###SNAP_INSTANCE_NAME###.fstab r,
+  /var/lib/snapd/mount/snap.###SNAP_INSTANCE_NAME###.user-fstab r,
 
   # Allow reading and writing actual per-snap mount profiles. Note that
   # the wildcard in the rule to allow an atomic write + rename strategy.
   # Those files are written by snap-update-ns and represent the actual
   # mount profile at a given moment.
-  /run/snapd/ns/snap.###SNAP_NAME###.fstab{,.*} rw,
+  /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.fstab{,.*} rw,
 
   # NOTE: at this stage the /snap directory is stable as we have called
   # pivot_root already.
@@ -623,11 +647,11 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
-  /sys/fs/cgroup/freezer/snap.###SNAP_NAME###/freezer.state rw,
+  /sys/fs/cgroup/freezer/snap.###SNAP_INSTANCE_NAME###/freezer.state rw,
 
   # Allow the content interface to bind fonts from the host filesystem
-  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_NAME###/*/**,
-  umount /snap/###SNAP_NAME###/*/**,
+  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,
+  umount /snap/###SNAP_INSTANCE_NAME###/*/**,
 
   # set up user mount namespace
   mount options=(rslave) -> /,
@@ -652,6 +676,10 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Don't allow bind mounts to /media which has special
   # sharing and propagates mount events outside of the snap namespace.
   audit deny mount -> /media,
+
+  # Commonly needed permissions for writable mimics.
+  /tmp/ r,
+  /tmp/.snap/{,**} rw,
 
 ###SNIPPETS###
 }

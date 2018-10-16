@@ -1,8 +1,5 @@
 summary: Ensure network interface works.
 
-# amazon: uses nmap-netcat
-systems: [-fedora-*, -opensuse-*, -amazon-*]
-
 details: |
     The network interface allows a snap to access the network as a client.
 
@@ -11,6 +8,9 @@ details: |
     reconnected.
 
     A snap declaring a plug on this interface must be able to access network services.
+
+# amazon: uses nmap-netcat
+systems: [-fedora-*, -opensuse-*, -amazon-*]
 
 environment:
     SNAP_NAME: network-consumer

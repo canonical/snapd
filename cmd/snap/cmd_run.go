@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -33,8 +34,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -55,10 +58,12 @@ var (
 )
 
 type cmdRun struct {
+	clientMixin
 	Command  string `long:"command" hidden:"yes"`
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
 	// "default" and "optional-value" to distinguish this.
@@ -81,18 +86,25 @@ and environment.
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command":    i18n.G("Alternative command to run"),
-			"hook":       i18n.G("Hook to run"),
-			"r":          i18n.G("Use a specific snap revision when running hook"),
-			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
-			"gdb":        i18n.G("Run the command with gdb"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"command": i18n.G("Alternative command to run"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"hook": i18n.G("Hook to run"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"r": i18n.G("Use a specific snap revision when running hook"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"shell": i18n.G("Run a shell instead of the command (useful for debugging)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"strace": i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"gdb": i18n.G("Run the command with gdb"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer":      i18n.G("Run as a timer service with given schedule"),
 			"parser-ran": "",
 		}, nil)
 }
 
-func maybeWaitForSecurityProfileRegeneration() error {
+func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, err := interfaces.SystemKeyMismatch()
@@ -125,7 +137,6 @@ func maybeWaitForSecurityProfileRegeneration() error {
 		}
 	}
 
-	cli := Client()
 	for i := 0; i < timeout; i++ {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
@@ -163,7 +174,7 @@ func (x *cmdRun) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
 
-	if err := maybeWaitForSecurityProfileRegeneration(); err != nil {
+	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
 	}
 
@@ -300,9 +311,18 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	userData := info.UserDataDir(usr.HomeDir)
-	commonUserData := info.UserCommonDataDir(usr.HomeDir)
-	for _, d := range []string{userData, commonUserData} {
+	instanceUserData := info.UserDataDir(usr.HomeDir)
+	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
+	createDirs := []string{instanceUserData, instanceCommonUserData}
+	if info.InstanceKey != "" {
+		// parallel instance snaps get additional mapping in their mount
+		// namespace, namely /home/joe/snap/foo_bar ->
+		// /home/joe/snap/foo, make sure that the mount point exists and
+		// is owned by the user
+		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
+		createDirs = append(createDirs, snapUserDir)
+	}
+	for _, d := range createDirs {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
@@ -530,6 +550,101 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	return targetPath, nil
 }
 
+func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
+	// Don't do anything for apps or hooks that don't plug the
+	// desktop interface
+	//
+	// NOTE: This check is imperfect because we don't really know
+	// if the interface is connected or not but this is an
+	// acceptable compromise for not having to communicate with
+	// snapd in snap run. In a typical desktop session the
+	// document portal can be in use by many applications, not
+	// just by snaps, so this is at most, pre-emptively using some
+	// extra memory.
+	var plugs map[string]*snap.PlugInfo
+	if hook != "" {
+		plugs = info.Hooks[hook].Plugs
+	} else {
+		_, appName := snap.SplitSnapApp(snapApp)
+		plugs = info.Apps[appName].Plugs
+	}
+	plugsDesktop := false
+	for _, plug := range plugs {
+		if plug.Interface == "desktop" {
+			plugsDesktop = true
+			break
+		}
+	}
+	if !plugsDesktop {
+		return nil
+	}
+
+	u, err := userCurrent()
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+	}
+	xdgRuntimeDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
+
+	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
+	// that the document portal is up and running.
+	expectedMountPoint := filepath.Join(xdgRuntimeDir, "doc")
+	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
+		logger.Noticef("Could not check document portal mount state: %s", err)
+	} else if mounted {
+		return nil
+	}
+
+	// If there is no session bus, our job is done.  We check this
+	// manually to avoid dbus.SessionBus() auto-launching a new
+	// bus.
+	busAddress := osGetenv("DBUS_SESSION_BUS_ADDRESS")
+	if len(busAddress) == 0 {
+		return nil
+	}
+
+	// We've previously tried to start the document portal and
+	// were told the service is unknown: don't bother connecting
+	// to the session bus again.
+	//
+	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
+	// full logout/login or reboot cycles.
+	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".portals-unavailable")
+	if osutil.FileExists(portalsUnavailableFile) {
+		return nil
+	}
+
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		return err
+	}
+
+	portal := conn.Object("org.freedesktop.portal.Documents",
+		"/org/freedesktop/portal/documents")
+	var mountPoint []byte
+	if err := portal.Call("org.freedesktop.portal.Documents.GetMountPoint", 0).Store(&mountPoint); err != nil {
+		// It is not considered an error if
+		// xdg-document-portal is not available on the system.
+		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
+			// We ignore errors here: if writing the file
+			// fails, we'll just try connecting to D-Bus
+			// again next time.
+			if err = ioutil.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
+				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
+			}
+			return nil
+		}
+		return err
+	}
+
+	// Sanity check to make sure the document portal is exposed
+	// where we think it is.
+	actualMountPoint := strings.TrimRight(string(mountPoint), "\x00")
+	if actualMountPoint != expectedMountPoint {
+		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
+	}
+	return nil
+}
+
 func straceCmd() ([]string, error) {
 	current, err := user.Current()
 	if err != nil {
@@ -711,6 +826,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	xauthPath, err := migrateXauthority(info)
 	if err != nil {
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
+	}
+
+	if err := activateXdgDocumentPortal(info, snapApp, hook); err != nil {
+		logger.Noticef("WARNING: cannot start document portal: %s", err)
 	}
 
 	cmd := []string{snapConfine}

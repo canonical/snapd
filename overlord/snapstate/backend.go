@@ -42,7 +42,7 @@ type StoreService interface {
 	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
 
-	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
+	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 
@@ -54,7 +54,7 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install releated
-	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
+	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, model *asserts.Model) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
@@ -69,8 +69,10 @@ type managerBackend interface {
 	// remove related
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
+	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
+	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error
 	DiscardSnapNamespace(snapName string) error
 
 	// alias related

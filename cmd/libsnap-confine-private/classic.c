@@ -8,7 +8,8 @@
 #include <string.h>
 #include <unistd.h>
 
-char *os_release = "/etc/os-release";
+static const char *os_release = "/etc/os-release";
+static const char *meta_snap_yaml = "/meta/snap.yaml";
 
 sc_distro sc_classify_distro(void)
 {
@@ -34,6 +35,14 @@ sc_distro sc_classify_distro(void)
 			core_version = 16;
 		} else if (sc_streq(buf, "VARIANT_ID=\"snappy\"")
 			   || sc_streq(buf, "VARIANT_ID=snappy")) {
+			is_core = true;
+		}
+	}
+
+	if (!is_core) {
+		/* Since classic systems don't have a /meta/snap.yaml file the simple
+		   presence of that file qualifies as SC_DISTRO_CORE_OTHER. */
+		if (access(meta_snap_yaml, F_OK) == 0) {
 			is_core = true;
 		}
 	}

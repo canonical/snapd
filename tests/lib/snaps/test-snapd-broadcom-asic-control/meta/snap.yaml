@@ -1,9 +1,0 @@
-name: test-snapd-broadcom-asic-control
-version: 1.0
-summary: Basic broadcom-asic-control snap
-description: A basic snap which allow access to broadcom asic kernel module
-
-apps:
-  sh:
-    command: bin/sh
-    plugs: [broadcom-asic-control]

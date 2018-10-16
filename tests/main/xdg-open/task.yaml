@@ -1,15 +1,16 @@
 summary: Ensure snap userd allows opening a URL via xdg-open
 
-systems:
-    # Not supposed to work on Ubuntu Core systems as we don't have
-    # a user session environment there
-    - -ubuntu-core-*
+# Not supposed to work on Ubuntu Core systems as we don't have
+# a user session environment there
+systems: [-ubuntu-core-*]
 
 environment:
     DISPLAY: :0
 
 restore: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     rm -f dbus.env
     umount -f /usr/bin/xdg-open || true
@@ -19,11 +20,14 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     dbus-launch > dbus.env
-    export $(cat dbus.env | xargs)
+    #shellcheck disable=SC2046
+    export $(xargs < dbus.env)
 
     # wait for session to be ready
     ping_launcher() {
@@ -54,9 +58,9 @@ execute: |
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output
         export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
-        chroot $SNAP_MOUNT_DIR/core/current /usr/bin/xdg-open $1
+        chroot $SNAP_MOUNT_DIR/core/current /usr/bin/xdg-open "$1"
         test -e /tmp/xdg-open-output
-        test "$(cat /tmp/xdg-open-output)" = $1
+        test "$(cat /tmp/xdg-open-output)" = "$1"
     }
 
     # Ensure http, https and mailto work

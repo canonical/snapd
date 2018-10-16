@@ -13,8 +13,6 @@ execute: |
         exit 1
     fi
 
-    echo "===================================="
-
     echo "Abort with valid id - error"
     subdirPath="$SNAP_MOUNT_DIR/$SNAP_NAME/current/foo"
     mkdir -p "$subdirPath"
@@ -31,8 +29,6 @@ execute: |
         exit 1
     fi
     rm -rf "$subdirPath"
-
-    echo "===================================="
 
     echo "Abort with valid id - done"
     install_local "$SNAP_NAME"

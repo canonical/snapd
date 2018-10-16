@@ -6,7 +6,8 @@ execute: |
     fi
 
     echo "Given a basic snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-devpts
 
     echo "When no plugs are not connected"

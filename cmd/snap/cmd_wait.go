@@ -22,6 +22,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"time"
 
@@ -32,9 +33,10 @@ import (
 )
 
 type cmdWait struct {
+	clientMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
-		Key  string            `required:"yes"`
+		Key  string
 	} `positional-args:"yes"`
 }
 
@@ -47,12 +49,12 @@ func init() {
 		}, nil, []argDesc{
 			{
 				name: "<snap>",
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The snap for which configuration will be checked"),
 			}, {
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<key>"),
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Key of interest within the configuration"),
 			},
 		})
@@ -115,9 +117,27 @@ func (x *cmdWait) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKey := x.Positional.Key
 
-	cli := Client()
+	// This is fine because not providing a confKey is unsupported so this
+	// won't interfere with supported uses of `snap wait`.
+	if snapName == "godot" && confKey == "" {
+		switch rand.Intn(10) {
+		case 0:
+			fmt.Fprintln(Stdout, `The tears of the world are a constant quantity.
+For each one who begins to weep somewhere else another stops.
+The same is true of the laugh.`)
+		case 1:
+			fmt.Fprintln(Stdout, "Nothing happens. Nobody comes, nobody goes. It's awful.")
+		default:
+			fmt.Fprintln(Stdout, `"Let's go." "We can't." "Why not?" "We're waiting for Godot."`)
+		}
+		return nil
+	}
+	if confKey == "" {
+		return fmt.Errorf("the required argument `<key>` was not provided")
+	}
+
 	for {
-		conf, err := cli.Conf(snapName, []string{confKey})
+		conf, err := x.client.Conf(snapName, []string{confKey})
 		if err != nil && !isNoOption(err) {
 			return err
 		}

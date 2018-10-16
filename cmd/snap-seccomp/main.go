@@ -390,12 +390,6 @@ var seccompResolver = map[string]uint64{
 	"NETLINK_INET_DIAG":      C.NETLINK_INET_DIAG, // synonymous with NETLINK_SOCK_DIAG
 }
 
-const (
-	SeccompRetAllow = C.SECCOMP_RET_ALLOW
-	SeccompRetKill  = C.SECCOMP_RET_KILL
-	SeccompRetLog   = C.SECCOMP_RET_LOG
-)
-
 // UbuntuArchToScmpArch takes a dpkg architecture and converts it to
 // the seccomp.ScmpArch as used in the libseccomp-golang library
 func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
@@ -418,31 +412,6 @@ func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
 		return seccomp.ArchS390X
 	}
 	panic(fmt.Sprintf("cannot map ubuntu arch %q to a seccomp arch", ubuntuArch))
-}
-
-// ScmpArchToSeccompNativeArch takes a seccomp.ScmpArch and converts
-// it into the native kernel architecture uint32. This is required for
-// the tests to simulate the bpf kernel behaviour.
-func ScmpArchToSeccompNativeArch(scmpArch seccomp.ScmpArch) uint32 {
-	switch scmpArch {
-	case seccomp.ArchAMD64:
-		return C.SCMP_ARCH_X86_64
-	case seccomp.ArchARM64:
-		return C.SCMP_ARCH_AARCH64
-	case seccomp.ArchARM:
-		return C.SCMP_ARCH_ARM
-	case seccomp.ArchPPC64:
-		return C.SCMP_ARCH_PPC64
-	case seccomp.ArchPPC64LE:
-		return C.SCMP_ARCH_PPC64LE
-	case seccomp.ArchPPC:
-		return C.SCMP_ARCH_PPC
-	case seccomp.ArchS390X:
-		return C.SCMP_ARCH_S390X
-	case seccomp.ArchX86:
-		return C.SCMP_ARCH_X86
-	}
-	panic(fmt.Sprintf("cannot map scmpArch %q to a native seccomp arch", scmpArch))
 }
 
 // important for unit testing

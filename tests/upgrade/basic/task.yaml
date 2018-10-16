@@ -16,7 +16,9 @@ execute: |
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Remove snapd and snap-confine"
@@ -33,6 +35,11 @@ execute: |
         systemctl daemon-reload
         systemctl restart snapd.socket
         systemctl enable snapd.socket
+    fi
+
+    # need to be seeded to allow snap install
+    if ! snap wait 2>&1|MATCH "unknown command" ; then
+        snap wait system seed.loaded
     fi
 
     prevsnapdver=$(snap --version|grep "snapd ")

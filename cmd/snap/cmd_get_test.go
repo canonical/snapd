@@ -109,10 +109,10 @@ func (s *SnapSuite) runTests(cmds []getCmdArgs, c *C) {
 
 		c.Logf("Test: %s", test.args)
 
-		restore := snapset.MockIsTerminal(test.isTerminal)
+		restore := snapset.MockIsStdinTTY(test.isTerminal)
 		defer restore()
 
-		_, err := snapset.Parser().ParseArgs(strings.Fields(test.args))
+		_, err := snapset.Parser(snapset.Client()).ParseArgs(strings.Fields(test.args))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {

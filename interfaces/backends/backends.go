@@ -37,6 +37,8 @@ var All []interfaces.SecurityBackend = backends()
 
 func backends() []interfaces.SecurityBackend {
 	all := []interfaces.SecurityBackend{
+		// Because of how the GPIO interface is implemented the systemd backend
+		// must be earlier in the sequence than the apparmor backend.
 		&systemd.Backend{},
 		&seccomp.Backend{},
 		&dbus.Backend{},

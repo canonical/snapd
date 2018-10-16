@@ -71,8 +71,7 @@ func canUnicode(mode string) bool {
 	return strings.Contains(lang, "UTF-8") || strings.Contains(lang, "UTF8")
 }
 
-// TODO: maybe unify isTTY (~3 calls just in cmd/snap) (but note stdout vs stdin)
-var isTTY = terminal.IsTerminal(1)
+var isStdoutTTY = terminal.IsTerminal(1)
 
 func colorTable(mode string) escapes {
 	switch mode {
@@ -81,7 +80,7 @@ func colorTable(mode string) escapes {
 	case "never":
 		return noesc
 	}
-	if !isTTY {
+	if !isStdoutTTY {
 		return noesc
 	}
 	if _, ok := os.LookupEnv("NO_COLOR"); ok {
@@ -100,12 +99,15 @@ func colorTable(mode string) escapes {
 }
 
 var colorDescs = mixinDescs{
-	"color":   i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"color": i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"unicode": i18n.G("Use a little bit of Unicode to improve legibility."),
 }
 
 type escapes struct {
 	green string
+	bold  string
 	end   string
 
 	tick, dash, uparrow string
@@ -113,11 +115,13 @@ type escapes struct {
 
 var (
 	color = escapes{
+		bold:  "\033[1m",
 		green: "\033[32m",
 		end:   "\033[0m",
 	}
 
 	mono = escapes{
+		bold:  "\033[1m",
 		green: "\033[1m",
 		end:   "\033[0m",
 	}

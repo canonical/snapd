@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -77,17 +78,20 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 
-	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
+	s.AddCleanup(snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {}))
 
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
 	err = interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
-	interfaces.MockSystemKey(`
-{
-"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor-features": ["caps", "dbus"]
-}`)
+
+	s.AddCleanup(snap.MockIsStdoutTTY(false))
+	s.AddCleanup(snap.MockIsStdinTTY(false))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -291,4 +295,36 @@ func (s *SnapSuite) TestResolveApp(c *C) {
 
 	_, err = snap.ResolveApp("baz")
 	c.Check(err, NotNil)
+}
+
+func (s *SnapSuite) TestFirstNonOptionIsRun(c *C) {
+	osArgs := os.Args
+	defer func() {
+		os.Args = osArgs
+	}()
+	for _, negative := range []string{
+		"",
+		"snap",
+		"snap verb",
+		"snap verb --flag arg",
+		"snap verb arg --flag",
+		"snap --global verb --flag arg",
+	} {
+		os.Args = strings.Fields(negative)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, false)
+	}
+
+	for _, positive := range []string{
+		"snap run",
+		"snap run --flag",
+		"snap run --flag arg",
+		"snap run arg --flag",
+		"snap --global run",
+		"snap --global run --flag",
+		"snap --global run --flag arg",
+		"snap --global run arg --flag",
+	} {
+		os.Args = strings.Fields(positive)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, true)
+	}
 }

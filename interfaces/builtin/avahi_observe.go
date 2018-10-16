@@ -45,6 +45,10 @@ const avahiObserveBaseDeclarationSlots = `
 const avahiObservePermanentSlotAppArmor = `
 network netlink,
 
+# Allow access to deamon to create socket
+/{,var/}run/avahi-daemon/  w,
+/{,var/}run/avahi-daemon/{pid,socket} rw,
+
 # Description: Allow operating as the avahi service. This gives
 # privileged access to the system.
 #include <abstractions/dbus-strict>
@@ -232,6 +236,8 @@ const avahiObserveConnectedPlugAppArmor = `
 # Description: allows domain, record, service, and service type browsing
 # as well as address, host and service resolving
 
+/{,var/}run/avahi-daemon/socket rw,
+
 #include <abstractions/dbus-strict>
 dbus (send)
     bus=system
@@ -256,12 +262,12 @@ dbus (receive)
 
 # Don't allow introspection since it reveals too much (path is not service
 # specific for unconfined)
+# do not use peer=(label=unconfined) here since this is DBus activated
 #dbus (send)
 #    bus=system
 #    path=/
 #    interface=org.freedesktop.DBus.Introspectable
-#    member=Introspect
-#    peer=(label=unconfined),
+#    member=Introspect,
 
 # These allows tampering with other snap's browsers, so don't autoconnect for
 # now.

@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -55,7 +56,7 @@ func (s *userdSuite) TearDownTest(c *C) {
 }
 
 func (s *userdSuite) TestUserdBadCommandline(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"userd", "extra-arg"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "extra-arg"})
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
@@ -68,20 +69,19 @@ func (s *userdSuite) TestUserd(c *C) {
 		}()
 
 		needle := "io.snapcraft.Launcher"
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 1000; i++ {
 			for _, objName := range s.SessionBus.Names() {
 				if objName == needle {
 					return
 				}
-				time.Sleep(1 * time.Second)
 			}
-
+			time.Sleep(10 * time.Millisecond)
 		}
-		c.Fatalf("%s does not appeared on the bus", needle)
+		c.Fatalf("%s has not appeared on the bus", needle)
 	}()
 
-	rest, err := snap.Parser().ParseArgs([]string{"userd"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
 	c.Assert(err, IsNil)
 	c.Check(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, "Exiting on user defined signal 1.\n")
+	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")
 }

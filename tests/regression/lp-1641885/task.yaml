@@ -1,21 +1,20 @@
 summary: snaps installed with --jailmode are not in devmode
-systems:
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-    - -fedora-*
-    - -opensuse-*
-    - -arch-*
-    - -amazon-*
+
+# No confinement (AppArmor, Seccomp) available on these systems
+systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+
 details: |
     Users found that a snap that uses "confinement: devmode", even when
     installed with "snap install --jailmode" is effectively in devmode (the
     apparmor profile is in complain mode) even if "snap list" reports it as
     "jailmode".
     This has been reported as https://bugs.launchpad.net/snappy/+bug/1641885
+
 prepare: |
     snap pack "$TESTSLIB/snaps/test-snapd-devmode"
     echo "Install a test snap that uses 'confinement: devmode' in jailmode"
     snap install --jailmode --dangerous ./test-snapd-devmode_1.0_all.snap
+
 execute: |
     echo "Ensure that the snap is installed in jailmode"
     snap list | MATCH 'test-snapd-devmode.*jailmode'
@@ -23,8 +22,10 @@ execute: |
     grep attach_disconnected /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode | MATCH -v complain
     echo "Ensure that the seccomp profile doesn't use the complain mode"
     MATCH -v '@complain' < /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src
+
 restore: |
     rm -f ./test-snapd-devmode_1.0_all.snap
+
 debug: |
     echo "Apparmor profile (first 30 lines)"
     head -n 30 /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode || true

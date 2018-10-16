@@ -4,12 +4,14 @@ systems: [-ubuntu-core-*]
 
 execute: |
     echo "When some snaps are installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
     snap install test-snapd-control-consumer
     snap install test-snapd-auto-aliases
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     # purge is performed while/after removing the package
     systemctl stop snapd.service snapd.socket
@@ -18,10 +20,10 @@ execute: |
     # tool
     if [[ "$SPREAD_SYSTEM" = ubuntu-* || "$SPREAD_SYSTEM" = debian-* ]]; then
         # only available on trusty
-        if [ -x ${SPREAD_PATH}/debian/snapd.prerm ]; then
-            sh -x ${SPREAD_PATH}/debian/snapd.prerm
+        if [ -x "${SPREAD_PATH}/debian/snapd.prerm" ]; then
+            sh -x "${SPREAD_PATH}/debian/snapd.prerm"
         fi
-        sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
+        sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
     else
         ${LIBEXECDIR}/snapd/snap-mgmt --purge
     fi
@@ -30,7 +32,7 @@ execute: |
     for d in $SNAP_MOUNT_DIR /var/snap; do
         if [ -d "$d" ]; then
             echo "$d is not removed"
-            ls -lR $d
+            ls -lR "$d"
             exit 1
         fi
     done

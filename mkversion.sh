@@ -26,6 +26,12 @@ if [ "$GOPACKAGE" = "cmd" ]; then
     GO_GENERATE_BUILDDIR="$(pwd)/.."
 fi
 
+OUTPUT_ONLY=false
+if [ "$1" = "--output-only" ]; then
+    OUTPUT_ONLY=true
+    shift
+fi
+
 # If the version is passed in as an argument to mkversion.sh, let's use that.
 if [ ! -z "$1" ]; then
     v="$1"
@@ -52,6 +58,11 @@ fi
 
 if [ -z "$v" ]; then
     exit 1
+fi
+
+if [ "$OUTPUT_ONLY" = true ]; then
+    echo "$v"
+    exit 0
 fi
 
 echo "*** Setting version to '$v' from $o." >&2
