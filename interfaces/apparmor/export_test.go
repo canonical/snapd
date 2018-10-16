@@ -101,3 +101,11 @@ func MockKernelFeatures(f func() []string) (resture func()) {
 		kernelFeatures = old
 	}
 }
+
+func MockParserFeatures(f func() []string) (resture func()) {
+	old := parserFeatures
+	parserFeatures = f
+	return func() {
+		parserFeatures = old
+	}
+}

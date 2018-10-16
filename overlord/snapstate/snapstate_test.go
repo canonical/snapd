@@ -2259,9 +2259,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(snapstate.Installing(s.state), Equals, false)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
-		// TODO parallel-install: fix once store changes are in place
-		name:   "some-snap",
-		target: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 	}})
 	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
@@ -11951,6 +11950,11 @@ func (s *snapmgrTestSuite) TestInstallPathWithLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// When layouts are disabled we cannot install a local snap depending on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
+
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
 layout:
@@ -11960,8 +11964,8 @@ layout:
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can install a local snap depending on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -12033,40 +12037,48 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// Layouts are now enabled by default.
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, IsNil)
 
-	// check various forms of disabling
+	// Layouts can be explicitly disabled.
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", false)
 	tr.Commit()
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
+	// Layouts can be explicitly enabled.
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// The default empty value now means "enabled".
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", "")
 	tr.Commit()
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, IsNil)
 
+	// Layouts are enabled when the controlling flag is reset to nil.
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", nil)
 	tr.Commit()
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
-
-	// enable layouts
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", true)
-	tr.Commit()
-
-	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
+
 }
 
 func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// When layouts are disabled we cannot refresh to a snap depending on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -12080,8 +12092,8 @@ func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can refresh to a snap depending on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -12092,6 +12104,11 @@ func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// When layouts are disabled we cannot refresh multiple snaps if one of them depends on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:  true,
@@ -12106,8 +12123,8 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can refresh multiple snaps if one of them depends on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -12118,6 +12135,11 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// When layouts are disabled we cannot refresh multiple snaps if one of them depends on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:  true,
@@ -12133,8 +12155,8 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, HasLen, 0)
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can refresh multiple snaps if one of them depends on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
