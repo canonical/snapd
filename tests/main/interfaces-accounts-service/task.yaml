@@ -28,6 +28,7 @@ restore: |
     kill "$(cat gdbus-monitor.pid)" || true
 
 debug: |
+    ps aux
     cat gdbus.log || true
     if [[ -f dbus.env ]]; then
         #shellcheck disable=SC1091
