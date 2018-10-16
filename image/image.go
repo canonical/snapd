@@ -100,28 +100,34 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	local := make(map[string]*snap.Info)
 	nameToPath := make(map[string]string)
 	for _, snapName := range opts.Snaps {
-		if strings.HasSuffix(snapName, ".snap") && osutil.FileExists(snapName) {
-			snapFile, err := snap.Open(snapName)
-			if err != nil {
-				return nil, err
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-			if err != nil {
-				return nil, err
-			}
-			// local snap gets local revision
-			info.Revision = snap.R(-1)
-			nameToPath[info.InstanceName()] = snapName
-			local[snapName] = info
+		if !strings.HasSuffix(snapName, ".snap") {
+			continue
+		}
 
-			si, err := snapasserts.DeriveSideInfo(snapName, tsto)
-			if err != nil && !asserts.IsNotFound(err) {
-				return nil, err
-			}
-			if err == nil {
-				info.SnapID = si.SnapID
-				info.Revision = si.Revision
-			}
+		if !osutil.FileExists(snapName) {
+			return nil, fmt.Errorf("local snap %s not found", snapName)
+		}
+
+		snapFile, err := snap.Open(snapName)
+		if err != nil {
+			return nil, err
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		if err != nil {
+			return nil, err
+		}
+		// local snap gets local revision
+		info.Revision = snap.R(-1)
+		nameToPath[info.InstanceName()] = snapName
+		local[snapName] = info
+
+		si, err := snapasserts.DeriveSideInfo(snapName, tsto)
+		if err != nil && !asserts.IsNotFound(err) {
+			return nil, err
+		}
+		if err == nil {
+			info.SnapID = si.SnapID
+			info.Revision = si.Revision
 		}
 	}
 	return &localInfos{
@@ -130,11 +136,14 @@ func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
 	}, nil
 }
 
-func validateNoParallelSnapInstances(snaps []string) error {
+func validateSnapNames(snaps []string) error {
 	for _, snapName := range snaps {
-		_, instanceKey := snap.SplitInstanceName(snapName)
-		if instanceKey != "" {
+		if _, instanceKey := snap.SplitInstanceName(snapName); instanceKey != "" {
+			// be specific about this error
 			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
+		}
+		if err := snap.ValidateName(snapName); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -149,7 +158,7 @@ func validateNonLocalSnaps(snaps []string) error {
 			nonLocalSnaps = append(nonLocalSnaps, snapName)
 		}
 	}
-	return validateNoParallelSnapInstances(nonLocalSnaps)
+	return validateSnapNames(nonLocalSnaps)
 }
 
 func Prepare(opts *Options) error {
@@ -220,8 +229,12 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	}
 
 	modelSnaps := modela.RequiredSnaps()
-	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget(), modela.Base())
-	if err := validateNoParallelSnapInstances(modelSnaps); err != nil {
+	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget())
+	if modela.Base() != "" {
+		// base is optional
+		modelSnaps = append(modelSnaps, modela.Base())
+	}
+	if err := validateSnapNames(modelSnaps); err != nil {
 		return nil, err
 	}
 
