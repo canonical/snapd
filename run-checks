@@ -185,6 +185,8 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+        echo Checking shell scripts inside spread yamls...
+        ./spread-shellcheck spread.yaml tests
     fi
 
     echo Checking spelling errors

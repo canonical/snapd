@@ -10,6 +10,7 @@ jobs:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false install python3-yaml
         - ./get-deps.sh
       script:
         - ./run-checks --static
