@@ -83,6 +83,10 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/bad^upper,workdir=/cow/work",
 	}, {
 		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/bad\"upper,workdir=/cow/work",
+	}, {
+		// The special cased version for 18.10 server release
+		mountinfo: "28 0 0:24 / / rw,realtime shared:1 - overlay overlayroot rw,lowerdir=/media/root-ro,upperdir=/media/root-rw/overlay,workdir=/media/root-rw/overlay-workdir/_",
+		overlay:   "/overlay",
 	}}
 	for _, tc := range cases {
 		restore := osutil.MockMountInfo(tc.mountinfo)
