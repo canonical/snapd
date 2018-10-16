@@ -190,16 +190,14 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 			continue
 		}
 
-		// Add or update slot in the repository
+		// Update slot in the repository if already exists
 		if slot != nil {
-			if reflect.DeepEqual(slotSpec.Attrs, slot.Attrs) {
-				// slot attributes unchanged, nothing to do
-				logger.Debugf("Slot %s for device %s already present and unchanged", slot.Name, key)
-			} else {
+			if !reflect.DeepEqual(slotSpec.Attrs, slot.Attrs) {
 				logger.Debugf("Slot %s for device %s has changed", slot.Name, key)
 				ts := updateDevice(st, iface.Name(), key, slotSpec.Attrs)
 				chg := st.NewChange(fmt.Sprintf("hotplug-update-%s", iface), fmt.Sprintf("Update hotplug slot of interface %s, device %s", iface.Name(), key))
 				chg.AddAll(ts)
+				continue // next interface
 			}
 		} else {
 			// Determine slot name:
@@ -248,14 +246,13 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				HotplugKey:  newSlot.HotplugKey,
 			}
 			setHotplugSlots(st, stateSlots)
-
 			logger.Noticef("Added hotplug slot %s:%s of interface %s for hotplug key %q", newSlot.Snap.InstanceName(), newSlot.Name, newSlot.Interface, key)
-
-			chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slot of interface %s", iface.Name()))
-			hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of device %q", key))
-			setHotplugAttrs(hotplugConnect, iface.Name(), key)
-			chg.AddTask(hotplugConnect)
 		}
+
+		chg := st.NewChange(fmt.Sprintf("hotplug-connect-%s", iface), fmt.Sprintf("Connect hotplug slot of interface %s", iface.Name()))
+		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of device %q", key))
+		setHotplugAttrs(hotplugConnect, iface.Name(), key)
+		chg.AddTask(hotplugConnect)
 		st.EnsureBefore(0)
 	}
 }

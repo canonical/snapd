@@ -21,7 +21,6 @@ package ifacestate
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -1200,42 +1199,21 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// we see this device for the first time (or it didn't have any connected slot before)
 	if len(connsForDevice) == 0 {
-		return m.connectNewDevice(task, ifaceName, hotplugKey)
+		return m.autoconnectNewDevice(task, ifaceName, hotplugKey)
 	}
 
-	// recreate old connections for the device.
-	var recreate []string
+	// recreate old connections
+	var recreate []*interfaces.ConnRef
 	for _, id := range connsForDevice {
 		conn := conns[id]
-		// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection
-		if conn.HotplugGone {
-			if !conn.Undesired {
-				recreate = append(recreate, id)
-			}
-		} else {
-			// we have never observed remove event for this device: check if any attributes of the slot changed
-			slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
-			if err != nil {
-				return err
-			}
-			connRef, err := interfaces.ParseConnRef(id)
-			if err != nil {
-				return err
-			}
-			if reflect.DeepEqual(slot.Attrs, conn.StaticSlotAttrs) {
-				// no change in attributes - reload the connection
-				if _, err := m.repo.Connect(connRef, conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, nil); err != nil {
-					return err
-				}
-			} else {
-				logger.Debugf("Attributes of slot %s for hotplug key %s have changed (old: %q, new: %q)", slot.Name, slot.HotplugKey, slot.Attrs, conn.StaticSlotAttrs)
-				recreate = append(recreate, id)
-			}
+		// device was not unplugged, this is the case if snapd is restarted and we enumerate devices.
+		// note, the situation where device was not unplugged but has changed is handled
+		// by hotlugDeviceAdded handler - updateDevice.
+		if !conn.HotplugGone || conn.Undesired {
+			continue
 		}
-	}
 
-	var newconns []*interfaces.ConnRef
-	for _, id := range recreate {
+		// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
@@ -1248,33 +1226,35 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			}
 			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
 		}
-		newconns = append(newconns, connRef)
+		recreate = append(recreate, connRef)
+	}
+
+	if len(recreate) == 0 {
+		return nil
 	}
 
 	// Create connect tasks and interface hooks
-	if len(newconns) > 0 {
-		connectTs := state.NewTaskSet()
-		for _, conn := range newconns {
-			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{})
-			if err != nil {
-				return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
-			}
-			connectTs.AddAll(ts)
+	connectTs := state.NewTaskSet()
+	for _, conn := range recreate {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: conns[conn.ID()].Auto})
+		if err != nil {
+			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
 		}
-
-		if len(connectTs.Tasks()) > 0 {
-			snapstate.InjectTasks(task, connectTs)
-			st.EnsureBefore(0)
-		}
-
-		// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
-		task.SetStatus(state.DoneStatus)
+		connectTs.AddAll(ts)
 	}
+
+	if len(connectTs.Tasks()) > 0 {
+		snapstate.InjectTasks(task, connectTs)
+		st.EnsureBefore(0)
+	}
+
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+	task.SetStatus(state.DoneStatus)
 
 	return nil
 }
 
-func (m *InterfaceManager) connectNewDevice(task *state.Task, ifaceName, hotplugKey string) error {
+func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hotplugKey string) error {
 	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
 	if err != nil {
 		return err
@@ -1319,7 +1299,7 @@ func (m *InterfaceManager) connectNewDevice(task *state.Task, ifaceName, hotplug
 	autots := state.NewTaskSet()
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{})
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true})
 		if err != nil {
 			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
