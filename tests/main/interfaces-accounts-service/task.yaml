@@ -5,6 +5,9 @@ summary: Ensure that the accounts-service interface works
 # seems to be incompatible.
 systems: [ ubuntu-16* ]
 
+# temporarily disable the test
+manual: true
+
 environment:
     XDG_CONFIG_HOME: $(pwd)/config
     XDG_DATA_HOME: $(pwd)/share
