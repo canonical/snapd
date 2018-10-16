@@ -678,7 +678,7 @@ static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 	if (write(group->pipe_master[1], &command_id, sizeof command_id) < 0) {
 		die("cannot send command %d to helper process", command_id);
 	}
-	debug("waiting for response from helper\n");
+	debug("waiting for response from helper");
 	if (read(group->pipe_helper[0], &ack, sizeof ack) < 0) {
 		die("cannot receive ack from helper process");
 	}
