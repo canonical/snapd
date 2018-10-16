@@ -286,11 +286,11 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 		// was used to do something weird. The initial rootfs was
 		// set up by snap-confine and that is the one we want to
 		// measure.
-		debug("found root filesystem inside the mount namespace %d:%d",
+		debug("block device of the root filesystem is %d:%d",
 		      mie->dev_major, mie->dev_minor);
 		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
 	}
-	die("cannot find mount entry of the root filesystem inside snap namespace");
+	die("cannot find mount entry of the root filesystem");
 }
 
 enum sc_discard_vote {
