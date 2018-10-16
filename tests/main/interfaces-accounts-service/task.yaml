@@ -11,6 +11,11 @@ environment:
     XDG_CACHE_HOME: $(pwd)/cache
 
 prepare: |
+    if pgrep goa-daemon; then
+        echo "precondtion failed, goa-daemon already running!"
+        exit 1
+    fi
+
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-accounts-service
@@ -25,7 +30,7 @@ restore: |
     rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
     # usually not needed, this should die when dbus goes down
     kill "$(cat gdbus-monitor.pid)" || true
-
+    pkill goa-daemon || true
 debug: |
     ps aux
     cat gdbus.log || true
