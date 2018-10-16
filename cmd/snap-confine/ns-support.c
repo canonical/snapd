@@ -220,8 +220,6 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
 
 void sc_close_mount_ns(struct sc_mount_ns *group)
 {
-	debug("releasing resources associated with namespace group %s",
-	      group->name);
 	sc_cleanup_close(&group->dir_fd);
 	sc_cleanup_close(&group->event_fd);
 	free(group->name);
