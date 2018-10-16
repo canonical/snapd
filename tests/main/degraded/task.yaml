@@ -1,5 +1,9 @@
 summary: Check that the system is not in "degraded" state
 
+# autopkgtest images sometimes have failing services (cosmic/s390x)
+# in their images so this test is not useful there.
+backends: [-autopkgtest]
+
 # run this early to ensure no test created failed units yet
 priority: 500
 
