@@ -22,6 +22,7 @@ package builtin
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -81,4 +82,72 @@ func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) 
 	test.AddCleanup(func() {
 		evalSymlinks = orig
 	})
+}
+
+func (s *commonIfaceSuite) TestSuppressPtraceTrace(c *C) {
+	plug, _ := MockConnectedPlug(c, `
+name: consumer
+version: 0
+apps:
+  app:
+    plugs: [common]
+`, nil, "common")
+	slot, _ := MockConnectedSlot(c, `
+name: producer
+version: 0
+slots:
+  common:
+`, nil, "common")
+
+	// setting nothing
+	iface := &commonInterface{
+		name:                "common",
+		suppressPtraceTrace: false,
+		usesPtraceTrace:     false,
+	}
+	spec := &apparmor.Specification{}
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
+
+	// setting only uses
+	iface = &commonInterface{
+		name:                "common",
+		suppressPtraceTrace: false,
+		usesPtraceTrace:     true,
+	}
+	spec = &apparmor.Specification{}
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.UsesPtraceTrace(), Equals, true)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
+
+	// setting only suppress
+	iface = &commonInterface{
+		name:                "common",
+		suppressPtraceTrace: true,
+		usesPtraceTrace:     false,
+	}
+	spec = &apparmor.Specification{}
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, true)
+
+	// setting both, only uses is set
+	iface = &commonInterface{
+		name:                "common",
+		suppressPtraceTrace: true,
+		usesPtraceTrace:     true,
+	}
+	spec = &apparmor.Specification{}
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.UsesPtraceTrace(), Equals, true)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 }
