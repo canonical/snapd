@@ -239,29 +239,31 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	return info, nil
 }
 
-func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
+func snapPath(info *snap.Info, targetDir string) string {
+	snapName := fmt.Sprintf("%s_%s_%v.snap", info.InstanceName(), info.Version, debArchitecture(info))
+	if targetDir != "" {
+		snapName = filepath.Join(targetDir, snapName)
+	}
+	return snapName
+}
+
+func prepare(sourceDir, targetDir, buildDir string) (*snap.Info, error) {
 	info, err := loadAndValidate(sourceDir)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// build the package
-	snapName = fmt.Sprintf("%s_%s_%v.snap", info.InstanceName(), info.Version, debArchitecture(info))
-
 	if targetDir != "" {
-		snapName = filepath.Join(targetDir, snapName)
-		if _, err := os.Stat(targetDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(targetDir, 0755); err != nil {
-				return "", err
-			}
+		if err := os.MkdirAll(targetDir, 0755); err != nil {
+			return nil, err
 		}
 	}
 
-	return snapName, nil
+	return info, nil
 }
 
 // Snap the given sourceDirectory and return the generated
@@ -274,13 +276,14 @@ func Snap(sourceDir, targetDir string) (string, error) {
 	}
 	defer os.RemoveAll(buildDir)
 
-	snapName, err := prepare(sourceDir, targetDir, buildDir)
+	info, err := prepare(sourceDir, targetDir, buildDir)
 	if err != nil {
 		return "", err
 	}
 
+	snapName := snapPath(info, targetDir)
 	d := squashfs.New(snapName)
-	if err = d.Build(buildDir); err != nil {
+	if err = d.Build(buildDir, string(info.Type)); err != nil {
 		return "", err
 	}
 
