@@ -466,24 +466,23 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 	mnt_fd = openat(group->dir_fd, mnt_fname,
 			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (mnt_fd < 0) {
-		die("cannot open mount namespace file for namespace group %s",
-		    group->name);
+		die("cannot open preserved mount namespace %s", group->name);
 	}
 	// Check if we got an nsfs-based or procfs file or a regular file. This can
 	// be reliably tested because nsfs has an unique filesystem type
 	// NSFS_MAGIC.  On older kernels that don't support nsfs yet we can look
-	// for PROC_SUPER_MAGIC instead. 
+	// for PROC_SUPER_MAGIC instead.
 	// We can just ensure that this is the case thanks to fstatfs.
 	struct statfs ns_statfs_buf;
 	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
-		die("cannot perform fstatfs() on the mount namespace file descriptor");
+		die("cannot inspect filesystem of file with preserved namespace");
 	}
 	// Stat the mount namespace as well, this is later used to check if the
 	// namespace is used by other processes if we are considering discarding a
 	// stale namespace.
 	struct stat ns_stat_buf;
 	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
-		die("cannot perform fstat() on the mount namespace file descriptor");
+		die("cannot inspect file with preserved namespace");
 	}
 #ifndef NSFS_MAGIC
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
@@ -504,31 +503,24 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 			die("cannot get the current working directory");
 		}
 		// Move to the mount namespace of the snap we're trying to start.
-		debug
-		    ("attempting to re-associate the mount namespace with the namespace group %s",
-		     group->name);
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
-			die("cannot re-associate the mount namespace with namespace group %s", group->name);
+			die("cannot join preserved mount namespace %s",
+			    group->name);
 		}
-		debug
-		    ("successfully re-associated the mount namespace with the namespace group %s",
-		     group->name);
+		debug("NOTE: joined preserved mount namespace %s", group->name);
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
-			debug
-			    ("cannot remain in %s, moving to the void directory",
-			     vanilla_cwd);
+			debug("NOTE: cannot remain in %s,"
+			      " moving to the void directory", vanilla_cwd);
 			if (chdir(SC_VOID_DIR) != 0) {
 				die("cannot change directory to %s",
 				    SC_VOID_DIR);
 			}
-			debug("successfully moved to %s", SC_VOID_DIR);
 		}
 		return 0;
 	}
-	debug("initializing new namespace group %s", group->name);
 	// Create a new namespace and ask the caller to populate it.
 	// For rationale of forking see this:
 	// https://lists.linuxfoundation.org/pipermail/containers/2013-August/033386.html
@@ -538,7 +530,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 	// operation.
 	group->event_fd = eventfd(0, EFD_CLOEXEC);
 	if (group->event_fd < 0) {
-		die("cannot create eventfd for mount namespace capture");
+		die("cannot create eventfd");
 	}
 	debug("forking support process for mount namespace capture");
 	// Store the PID of the "parent" process. This done instead of calls to
@@ -548,7 +540,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 	// Glibc defines pid as a signed 32bit integer. There's no standard way to
 	// print pid's portably so this is the best we can do.
 	pid_t pid = fork();
-	debug("forked support process has pid %d", (int)pid);
+	debug("NOTE: forked support process has pid %d", (int)pid);
 	if (pid < 0) {
 		die("cannot fork support process for mount namespace capture");
 	}
@@ -560,8 +552,6 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		// completely.
 		// Change the hat to a sub-profile that has limited permissions
 		// necessary to accomplish the capture of the mount namespace.
-		debug
-		    ("changing apparmor hat of the support process for mount namespace capture");
 		sc_maybe_aa_change_hat(apparmor,
 				       "mount-namespace-capture-helper", 0);
 		// Configure the child to die as soon as the parent dies. In an odd
@@ -575,31 +565,25 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		// us up from eventfd_read() below. In the rare case that the PID numbers
 		// overflow and the now-dead parent PID is recycled we will still hang
 		// forever on the read from eventfd below.
-		debug("ensuring that parent process is still alive");
 		if (kill(parent, 0) < 0) {
 			switch (errno) {
 			case ESRCH:
-				debug("parent process has already terminated");
+				debug("parent process has terminated");
 				abort();
 			default:
-				die("cannot ensure that parent process is still alive");
+				die("cannot confirm that parent process is alive");
 				break;
 			}
 		}
 		if (fchdir(group->dir_fd) < 0) {
-			die("cannot move process for mount namespace capture to namespace group directory");
+			die("cannot move to directory with preserved namespaces");
 		}
-		debug
-		    ("waiting for a eventfd data from the parent process to continue");
 		eventfd_t value = 0;
 		sc_enable_sanity_timeout();
 		if (eventfd_read(group->event_fd, &value) < 0) {
 			die("cannot read expected data from eventfd");
 		}
 		sc_disable_sanity_timeout();
-		debug
-		    ("capturing mount namespace of process %d in namespace group %s",
-		     (int)parent, group->name);
 		char src[PATH_MAX] = { 0 };
 		char dst[PATH_MAX] = { 0 };
 		sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt",
@@ -607,20 +591,19 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		sc_must_snprintf(dst, sizeof dst, "%s%s", group->name,
 				 SC_NS_MNT_FILE);
 		if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
-			die("cannot bind-mount the mount namespace file %s -> %s", src, dst);
+			die("cannot preserve mount namespace of process %d as %s", (int)parent, dst);
 		}
-		debug
-		    ("successfully captured mount namespace in namespace group %s",
-		     group->name);
+		debug("NOTE: preserved mount namespace of process %d as %s",
+		      (int)parent, dst);
 		exit(0);
 	} else {
 		group->child = pid;
-		// Unshare the mount namespace and set a flag instructing the caller that 
+		// Unshare the mount namespace and set a flag instructing the caller that
 		// the namespace is pristine and needs to be populated now.
-		debug("unsharing the mount namespace");
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
+		debug("NOTE: created new mount namespace");
 		group->should_populate = true;
 	}
 	return 0;
