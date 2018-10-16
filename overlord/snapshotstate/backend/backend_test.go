@@ -562,10 +562,8 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Check(diff().Run(), check.IsNil)
 }
 
-func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
+func (s *snapshotSuite) TestPickUserWrapperRunuser(c *check.C) {
 	n := 0
-	uid := sys.UserID(0)
-	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
 	defer backend.MockExecLookPath(func(s string) (string, error) {
 		n++
 		if s != "runuser" {
@@ -574,28 +572,12 @@ func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
 		return "/sbin/runuser", nil
 	})()
 
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/sbin/runuser",
-		Args: []string{"runuser", "-u", "test", "--", "cat", "--bar"},
-	})
-	c.Check(n, check.Equals, 1)
-	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
-	})
-	c.Check(n, check.Equals, 1)
-	uid = 42
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
-	})
+	c.Check(backend.PickUserWrapper(), check.Equals, "/sbin/runuser")
 	c.Check(n, check.Equals, 1)
 }
 
-func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
+func (s *snapshotSuite) TestPickUserWrapperSudo(c *check.C) {
 	n := 0
-	uid := sys.UserID(0)
-	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
 	defer backend.MockExecLookPath(func(s string) (string, error) {
 		n++
 		if n == 1 {
@@ -610,48 +592,78 @@ func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
 		return "/usr/bin/sudo", nil
 	})()
 
-	cmd := backend.MaybeRunuserCommand("test", "cat", "--bar")
-	c.Check(cmd, check.DeepEquals, &exec.Cmd{
-		Path: "/usr/bin/sudo",
-		Args: []string{"sudo", "-u", "test", "--", "cat", "--bar"},
-	})
-	c.Check(n, check.Equals, 2)
-	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
-	})
-	c.Check(n, check.Equals, 2)
-	uid = 42
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
-	})
+	c.Check(backend.PickUserWrapper(), check.Equals, "/usr/bin/sudo")
 	c.Check(n, check.Equals, 2)
 }
 
-func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
+func (s *snapshotSuite) TestPickUserWrapperNothing(c *check.C) {
 	n := 0
-	uid := sys.UserID(0)
-	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
 	defer backend.MockExecLookPath(func(s string) (string, error) {
 		n++
 		return "", errors.New("no such thing")
 	})()
 
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
-	})
+	c.Check(backend.PickUserWrapper(), check.Equals, "")
 	c.Check(n, check.Equals, 2)
+}
+
+func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.SetUserWrapper("/sbin/runuser")()
+
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/sbin/runuser",
+		Args: []string{"/sbin/runuser", "-u", "test", "--", "cat", "--bar"},
+	})
 	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
 		Path: "/bin/cat",
 		Args: []string{"cat", "--bar"},
 	})
-	c.Check(n, check.Equals, 2)
 	uid = 42
 	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
 		Path: "/bin/cat",
 		Args: []string{"cat", "--bar"},
 	})
-	c.Check(n, check.Equals, 2)
+}
+
+func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.SetUserWrapper("/usr/bin/sudo")()
+
+	cmd := backend.MaybeRunuserCommand("test", "cat", "--bar")
+	c.Check(cmd, check.DeepEquals, &exec.Cmd{
+		Path: "/usr/bin/sudo",
+		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "cat", "--bar"},
+	})
+	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	uid = 42
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+}
+
+func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.SetUserWrapper("")()
+
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
+	uid = 42
+	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/cat",
+		Args: []string{"cat", "--bar"},
+	})
 }

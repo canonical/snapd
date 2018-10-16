@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -157,6 +158,21 @@ var (
 	execLookPath = exec.LookPath
 )
 
+func pickUserWrapper() string {
+	// runuser and sudo happen to work the same way in this case.
+	// The main reason to prefer runuser over sudo is that runuser
+	// is part of util-linux, which is considered essential,
+	// whereas sudo is an addon which could be removed.
+	for _, cmd := range []string{"runuser", "sudo"} {
+		if lp, err := execLookPath(cmd); err == nil {
+			return lp
+		}
+	}
+	return ""
+}
+
+var sudo = pickUserWrapper()
+
 // maybeRunuserCommand returns an exec.Cmd that will, if the current
 // effective user id is 0 and username is not "root", call runuser(1)
 // (or sudo(8) if runuser(1) isn't available) to change to the given
@@ -167,26 +183,21 @@ var (
 //
 // TODO: maybe move this to osutil
 func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
-	if sysGeteuid() == 0 && username != "root" {
-		// runuser and sudo happen to work the same way in this case.
-		// The main reason to prefer runuser over sudo is that runuser
-		// is part of util-linux, which is considered essential,
-		// whereas sudo is an addon which could be removed.
-		for _, cmd := range []string{"runuser", "sudo"} {
-			if lp, err := execLookPath(cmd); err == nil {
-				sudoArgs := make([]string, len(args)+4)
-				copy(sudoArgs[4:], args)
-				sudoArgs[0] = cmd
-				sudoArgs[1] = "-u"
-				sudoArgs[2] = username
-				sudoArgs[3] = "--"
-				return &exec.Cmd{
-					Path: lp,
-					Args: sudoArgs,
-				}
-			}
+	if sysGeteuid() == 0 && username != "root" && sudo != "" {
+		sudoArgs := make([]string, len(args)+4)
+		copy(sudoArgs[4:], args)
+		sudoArgs[0] = sudo
+		sudoArgs[1] = "-u"
+		sudoArgs[2] = username
+		sudoArgs[3] = "--"
+		return &exec.Cmd{
+			Path: sudo,
+			Args: sudoArgs,
 		}
 	}
+
+	// TODO: use warnings instead
+	logger.Noticef("No user wrapper found; running tar for user data as root. Please make sure 'sudo' or 'runuser' (from util-linux) is on $PATH to avoid this.")
 
 	return exec.Command(args[0], args[1:]...)
 }
