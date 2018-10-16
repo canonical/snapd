@@ -455,7 +455,7 @@ type: app`
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, ErrorMatches, "invalid snap name.*")
+	c.Assert(err, ErrorMatches, `invalid snap name.*`)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {

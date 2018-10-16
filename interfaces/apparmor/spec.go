@@ -500,21 +500,21 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	return nil
 }
 
-// UsesPtraceTrace records when to omit explicit ptrace deny rules
-func (spec *Specification) UsesPtraceTrace() {
+// SetUsesPtraceTrace records when to omit explicit ptrace deny rules
+func (spec *Specification) SetUsesPtraceTrace() {
 	spec.usesPtraceTrace = true
 }
 
-// SuppressPtraceTrace to request explicit ptrace deny rules
-func (spec *Specification) SuppressPtraceTrace() {
-	spec.suppressPtraceTrace = true
-}
-
-func (spec *Specification) GetUsesPtraceTrace() bool {
+func (spec *Specification) UsesPtraceTrace() bool {
 	return spec.usesPtraceTrace
 }
 
-func (spec *Specification) GetSuppressPtraceTrace() bool {
+// SetSuppressPtraceTrace to request explicit ptrace deny rules
+func (spec *Specification) SetSuppressPtraceTrace() {
+	spec.suppressPtraceTrace = true
+}
+
+func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
 }
 
