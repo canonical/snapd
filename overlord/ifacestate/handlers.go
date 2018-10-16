@@ -1200,64 +1200,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// we see this device for the first time (or it didn't have any connected slot before)
 	if len(connsForDevice) == 0 {
-		slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
-		if err != nil {
-			return err
-		}
-
-		autochecker, err := newAutoConnectChecker(st)
-		if err != nil {
-			return err
-		}
-
-		instanceName := slot.Snap.InstanceName()
-		candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
-		var newconns []*interfaces.ConnRef
-		// Auto-connect the slots
-		for _, plug := range candidates {
-			// make sure slot is the only viable
-			// connection for plug, same check as if we were
-			// considering auto-connections from plug
-			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
-			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
-				crefs := make([]string, len(candSlots))
-				for i, candidate := range candSlots {
-					crefs[i] = candidate.String()
-				}
-				task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
-				continue
-			}
-
-			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-				if _, retry := err.(*state.Retry); retry {
-					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", instanceName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
-					task.Logf("Waiting for conflicting change in progress...")
-					return err // will retry
-				}
-				return fmt.Errorf("auto-connect conflict check failed: %s", err)
-			}
-			connRef := interfaces.NewConnRef(plug, slot)
-			newconns = append(newconns, connRef)
-		}
-
-		autots := state.NewTaskSet()
-		// Create connect tasks and interface hooks
-		for _, conn := range newconns {
-			ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{})
-			if err != nil {
-				return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
-			}
-			autots.AddAll(ts)
-		}
-
-		if len(autots.Tasks()) > 0 {
-			snapstate.InjectTasks(task, autots)
-
-			st.EnsureBefore(0)
-		}
-
-		task.SetStatus(state.DoneStatus)
-		return nil
+		return m.connectNewDevice(task, ifaceName, hotplugKey)
 	}
 
 	// recreate old connections for the device.
@@ -1328,6 +1271,68 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		task.SetStatus(state.DoneStatus)
 	}
 
+	return nil
+}
+
+func (m *InterfaceManager) connectNewDevice(task *state.Task, ifaceName, hotplugKey string) error {
+	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return err
+	}
+
+	st := task.State()
+	autochecker, err := newAutoConnectChecker(st)
+	if err != nil {
+		return err
+	}
+
+	instanceName := slot.Snap.InstanceName()
+	candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
+	var newconns []*interfaces.ConnRef
+	// Auto-connect the slots
+	for _, plug := range candidates {
+		// make sure slot is the only viable
+		// connection for plug, same check as if we were
+		// considering auto-connections from plug
+		candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
+		if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
+			crefs := make([]string, len(candSlots))
+			for i, candidate := range candSlots {
+				crefs[i] = candidate.String()
+			}
+			task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
+			continue
+		}
+
+		if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", instanceName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
+				task.Logf("Waiting for conflicting change in progress...")
+				return err // will retry
+			}
+			return fmt.Errorf("auto-connect conflict check failed: %s", err)
+		}
+		connRef := interfaces.NewConnRef(plug, slot)
+		newconns = append(newconns, connRef)
+	}
+
+	autots := state.NewTaskSet()
+	// Create connect tasks and interface hooks
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{})
+		if err != nil {
+			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+		}
+		autots.AddAll(ts)
+	}
+
+	if len(autots.Tasks()) > 0 {
+		snapstate.InjectTasks(task, autots)
+
+		st.EnsureBefore(0)
+	}
+
+	task.SetStatus(state.DoneStatus)
 	return nil
 }
 
