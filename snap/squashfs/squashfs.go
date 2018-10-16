@@ -54,6 +54,7 @@ func New(snapPath string) *Snap {
 }
 
 var osLink = os.Link
+var osutilCommandFromCore = osutil.CommandFromCore
 
 func (s *Snap) Install(targetPath, mountDir string) error {
 
@@ -297,22 +298,29 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 }
 
 // Build builds the snap.
-func (s *Snap) Build(buildDir string) error {
+func (s *Snap) Build(buildDir, snapType string) error {
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
 		return err
 	}
 
+	args := []string{
+		".", fullSnapPath,
+		"-noappend",
+		"-comp", "xz",
+		"-no-fragments",
+		"-no-progress",
+	}
+	if snapType != "os" && snapType != "core" && snapType != "base" {
+		args = append(args, "-all-root", "-no-xattrs")
+	}
+	cmd, err := osutilCommandFromCore("/usr/bin/mksquashfs", args...)
+	if err != nil {
+		cmd = exec.Command("mksquashfs", args...)
+	}
+
 	return osutil.ChDir(buildDir, func() error {
-		output, err := exec.Command(
-			"mksquashfs",
-			".", fullSnapPath,
-			"-noappend",
-			"-comp", "xz",
-			"-no-xattrs",
-			"-no-fragments",
-			"-no-progress",
-		).CombinedOutput()
+		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))
 		}
