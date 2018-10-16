@@ -91,9 +91,9 @@ func (iface *commonInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if iface.usesPtraceTrace {
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	} else if iface.suppressPtraceTrace {
-		spec.SuppressPtraceTrace()
+		spec.SetSuppressPtraceTrace()
 	}
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()

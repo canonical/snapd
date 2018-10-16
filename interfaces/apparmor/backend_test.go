@@ -1606,7 +1606,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 			suppress: true,
 			expected: false,
 		},
-		// classic with jail, never suppress
+		// classic with jail, only suppress if suppress == true and uses == false
 		{
 			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
 			uses:     false,
@@ -1617,7 +1617,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
 			uses:     false,
 			suppress: true,
-			expected: false,
+			expected: true,
 		},
 		{
 			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
@@ -1634,10 +1634,10 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 	} {
 		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if tc.uses {
-				spec.UsesPtraceTrace()
+				spec.SetUsesPtraceTrace()
 			}
 			if tc.suppress {
-				spec.SuppressPtraceTrace()
+				spec.SetSuppressPtraceTrace()
 			}
 			return nil
 		}
