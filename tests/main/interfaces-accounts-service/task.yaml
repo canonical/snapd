@@ -27,6 +27,7 @@ restore: |
     kill "$(cat gdbus-monitor.pid)" || true
 
 debug: |
+    ps aux
     cat gdbus.log || true
 
 execute: |
