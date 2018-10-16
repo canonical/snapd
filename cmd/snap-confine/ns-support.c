@@ -105,19 +105,18 @@ void sc_reassociate_with_pid1_mount_ns(void)
 {
 	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int self_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	const char *path_pid_1 = "/proc/1/ns/mnt";
+	const char *path_pid_self = "/proc/self/ns/mnt";
 
-	debug("checking if the current process shares mount namespace"
-	      " with the init process");
-
-	init_mnt_fd = open("/proc/1/ns/mnt",
+	init_mnt_fd = open(path_pid_1,
 			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
 	if (init_mnt_fd < 0) {
-		die("cannot open mount namespace of the init process (O_PATH)");
+		die("cannot open path %s", path_pid_1);
 	}
-	self_mnt_fd = open("/proc/self/ns/mnt",
+	self_mnt_fd = open(path_pid_self,
 			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
 	if (self_mnt_fd < 0) {
-		die("cannot open mount namespace of the current process (O_PATH)");
+		die("cannot open path %s", path_pid_1);
 	}
 	char init_buf[128] = { 0 };
 	char self_buf[128] = { 0 };
@@ -131,29 +130,24 @@ void sc_reassociate_with_pid1_mount_ns(void)
 			// error.
 			return;
 		}
-		die("cannot perform readlinkat() on the mount namespace file "
-		    "descriptor of the init process");
+		die("cannot read mount namespace identifier of pid 1");
 	}
 	memset(self_buf, 0, sizeof self_buf);
 	if (readlinkat(self_mnt_fd, "", self_buf, sizeof self_buf) < 0) {
-		die("cannot perform readlinkat() on the mount namespace file "
-		    "descriptor of the current process");
+		die("cannot read mount namespace identifier of this process");
 	}
 	if (memcmp(init_buf, self_buf, sizeof init_buf) != 0) {
-		debug("the current process does not share mount namespace with "
-		      "the init process, re-association required");
-		// NOTE: we cannot use O_NOFOLLOW here because that file will always be a
+		debug("NOTE: moving to mount namespace of pid 1");
+		// We cannot use O_NOFOLLOW here because that file will always be a
 		// symbolic link. We actually want to open it this way.
 		int init_mnt_fd_real SC_CLEANUP(sc_cleanup_close) = -1;
-		init_mnt_fd_real = open("/proc/1/ns/mnt", O_RDONLY | O_CLOEXEC);
+		init_mnt_fd_real = open(path_pid_1, O_RDONLY | O_CLOEXEC);
 		if (init_mnt_fd_real < 0) {
-			die("cannot open mount namespace of the init process");
+			die("cannot open %s", path_pid_1);
 		}
 		if (setns(init_mnt_fd_real, CLONE_NEWNS) < 0) {
-			die("cannot re-associate the mount namespace with the init process");
+			die("cannot join mount namespace of pid 1");
 		}
-	} else {
-		debug("re-associating is not required");
 	}
 }
 
