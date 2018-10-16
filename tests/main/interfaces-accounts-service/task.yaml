@@ -42,11 +42,13 @@ execute: |
     #shellcheck disable=SC1091
     source dbus.env
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
-    eval "$(printf password|gnome-keyring-daemon --login)"
-    eval "$(gnome-keyring-daemon --start)"
-    # add debug
+
+    # the test failed often in the past, log all dbus activity to ease debugging
     dbus-monitor --session >gdbus.log 2>&1 &
     echo "$!" > gdbus-monitor.pid
+
+    eval "$(printf password|gnome-keyring-daemon --login)"
+    eval "$(gnome-keyring-daemon --start)"
 
     echo "Creating account"
     # We set a long timeout here because goa-daemon will be activated
