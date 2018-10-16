@@ -248,16 +248,17 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	     mie = sc_next_mountinfo_entry(mie)) {
 		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
 			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
-			debug("found base snap filesystem device %d:%d",
-			      mie->dev_major, mie->dev_minor);
+			debug("block device of snap %s, revision %s is %d:%d",
+			      base_snap_name, base_snap_rev, mie->dev_major,
+			      mie->dev_minor);
 			// Don't break when found, we are interested in the last
 			// entry as this is the "effective" one.
 			found = true;
 		}
 	}
 	if (!found) {
-		die("cannot find device backing the base snap %s",
-		    base_snap_name);
+		die("cannot find mount entry for snap %s revision %s",
+		    base_snap_name, base_snap_rev);
 	}
 	return base_snap_dev;
 }
