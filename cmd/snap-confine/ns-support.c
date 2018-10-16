@@ -188,7 +188,7 @@ static struct sc_mount_ns *sc_alloc_mount_ns(void)
 {
 	struct sc_mount_ns *group = calloc(1, sizeof *group);
 	if (group == NULL) {
-		die("cannot allocate memory for namespace group");
+		die("cannot allocate memory for sc_mount_ns");
 	}
 	group->dir_fd = -1;
 	group->event_fd = -1;
