@@ -106,19 +106,6 @@ owner @{PROC}/@{pid}/mountinfo r,
 deny capability mknod,
 `
 
-const browserSupportConnectedPlugAppArmorWithoutSandbox = `
-# ptrace can be used to break out of the seccomp sandbox, but ps requests
-# 'ptrace (trace)' even though it isn't tracing other processes. Unfortunately,
-# this is due to the kernel overloading trace such that the LSMs are unable to
-# distinguish between tracing other processes and other accesses. We deny the
-# trace here to silence the log.
-# Note: for now, explicitly deny to avoid confusion and accidentally giving
-# away this dangerous access frivolously. We may conditionally deny this in the
-# future. If the kernel has https://lkml.org/lkml/2016/5/26/354 we could also
-# allow this.
-deny ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.**,
-`
-
 const browserSupportConnectedPlugAppArmorWithSandbox = `
 # Leaks installed applications
 # TODO: should this be somewhere else?
@@ -321,7 +308,7 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
 	} else {
-		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithoutSandbox)
+		spec.SetSuppressPtraceTrace()
 	}
 	return nil
 }
