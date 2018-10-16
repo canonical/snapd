@@ -242,3 +242,12 @@ func (s *createUserSuite) TestUidGid(c *check.C) {
 		}
 	}
 }
+
+func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
+	mockAddUser := testutil.MockCommand(c, "adduser", "echo some error; exit 1")
+	defer mockAddUser.Restore()
+
+	err := osutil.AddUser("lakatos", nil)
+	c.Assert(err, check.ErrorMatches, "adduser failed with: some error")
+
+}
