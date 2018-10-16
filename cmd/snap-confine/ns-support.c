@@ -159,25 +159,18 @@ void sc_reassociate_with_pid1_mount_ns(void)
 
 void sc_initialize_mount_ns(void)
 {
-	debug("creating namespace group directory %s", sc_ns_dir);
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
-		die("cannot create namespace group directory %s", sc_ns_dir);
+		die("cannot create directory %s", sc_ns_dir);
 	}
-	if (!sc_is_mount_ns_dir_private()) {
-		debug
-		    ("bind mounting the namespace group directory over itself");
-		if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) <
-		    0) {
-			die("cannot bind mount namespace group directory over itself");
-		}
-		debug
-		    ("making the namespace group directory mount point private");
-		if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
-			die("cannot make the namespace group directory mount point private");
-		}
-	} else {
-		debug
-		    ("namespace group directory does not require intialization");
+	if (sc_is_mount_ns_dir_private()) {
+		return;
+	}
+	if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) < 0) {
+		die("cannot self-bind mount %s", sc_ns_dir);
+	}
+	if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
+		die("cannot change propagation type to MS_PRIVATE in %s",
+		    sc_ns_dir);
 	}
 }
 
