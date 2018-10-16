@@ -230,7 +230,7 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	}
 
 	if err := snap.Validate(info); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot validate snap %q: %v", info.InstanceName(), err)
 	}
 
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
