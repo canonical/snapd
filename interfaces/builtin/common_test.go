@@ -106,11 +106,11 @@ slots:
 		usesPtraceTrace:     false,
 	}
 	spec := &apparmor.Specification{}
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, false)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, false)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 
 	// setting only uses
 	iface = &commonInterface{
@@ -119,11 +119,11 @@ slots:
 		usesPtraceTrace:     true,
 	}
 	spec = &apparmor.Specification{}
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, false)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, true)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, true)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 
 	// setting only suppress
 	iface = &commonInterface{
@@ -132,11 +132,11 @@ slots:
 		usesPtraceTrace:     false,
 	}
 	spec = &apparmor.Specification{}
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, false)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, false)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, true)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, true)
 
 	// setting both, only uses is set
 	iface = &commonInterface{
@@ -145,9 +145,9 @@ slots:
 		usesPtraceTrace:     true,
 	}
 	spec = &apparmor.Specification{}
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, false)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, false)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.GetUsesPtraceTrace(), Equals, true)
-	c.Assert(spec.GetSuppressPtraceTrace(), Equals, false)
+	c.Assert(spec.UsesPtraceTrace(), Equals, true)
+	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 }
