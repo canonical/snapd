@@ -17,6 +17,7 @@
  *
  */
 
+// not using store_test as this is a very low level test
 package store
 
 import (
@@ -242,10 +243,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		Prices: map[string]float64{
 			"USD": 9.99,
 		},
-		IconURL: "https://dashboard.snapcraft.io/site_media/appmedia/2017/12/Thingy.png",
-		Screenshots: []snap.ScreenshotInfo{
-			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
-			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
+		Media: []snap.MediaInfo{
+			{Type: "icon", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2017/12/Thingy.png"},
+			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
+			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
 		CommonIDs: []string{"org.thingy"},
 	})

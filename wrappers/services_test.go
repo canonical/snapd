@@ -46,7 +46,7 @@ type servicesTestSuite struct {
 
 	sysdLog [][]string
 
-	restorer func()
+	systemctlRestorer, delaysRestorer func()
 }
 
 var _ = Suite(&servicesTestSuite{})
@@ -56,15 +56,18 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.sysdLog = nil
 	dirs.SetRootDir(s.tempdir)
 
-	s.restorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
+	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.restorer()
+	s.systemctlRestorer()
+	s.delaysRestorer()
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
@@ -140,7 +143,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 }
 
 func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
-	restore := wrappers.MockKillWait(200 * time.Millisecond)
+	restore := wrappers.MockKillWait(time.Millisecond)
 	defer restore()
 
 	var sysdLog [][]string
@@ -159,7 +162,7 @@ version: 42
 apps:
  wat:
    command: wat
-   stop-timeout: 250ms
+   stop-timeout: 20ms
    daemon: forking
 `, &snap.SideInfo{Revision: snap.R(11)})
 
@@ -720,7 +723,9 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
   timer: 10:00-12:00
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.StartServices(info.Services(), nil)
+	// fix the apps order to make the test stable
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"]}
+	err := wrappers.StartServices(apps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 3, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -916,4 +921,26 @@ apps:
 		{"--root", dirs.GlobalRootDir, "enable", svc3Name},
 		{"daemon-reload"},
 	}, Commentf("calls: %v", s.sysdLog))
+}
+
+func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
+	snapYaml := packageHello + `
+ svc2:
+   daemon: forking
+   restart-delay: 12s
+ svc3:
+   daemon: forking
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(content), "\nRestartSec=12\n"), Equals, true)
+
+	content, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
 }

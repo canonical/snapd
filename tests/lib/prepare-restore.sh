@@ -152,10 +152,10 @@ build_rpm() {
         -ba \
         "$packaging_path/snapd.spec"
 
-    cp "$rpm_dir"/RPMS/$arch/snap*.rpm "$GOPATH"
+    cp "$rpm_dir"/RPMS/$arch/snap*.rpm "${GOPATH%%:*}"
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         # On Fedora we have an additional package for SELinux
-        cp "$rpm_dir"/RPMS/noarch/snap*.rpm "$GOPATH"
+        cp "$rpm_dir"/RPMS/noarch/snap*.rpm "${GOPATH%%:*}"
     fi
 }
 
@@ -198,7 +198,7 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "$GOPATH"
+    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
 }
 
 download_from_published(){
@@ -342,7 +342,7 @@ prepare_project() {
 
     # update vendoring
     if [ -z "$(command -v govendor)" ]; then
-        rm -rf "$GOPATH/src/github.com/kardianos/govendor"
+        rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
     quiet govendor sync

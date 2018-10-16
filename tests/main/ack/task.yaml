@@ -1,5 +1,7 @@
 summary: Check snap ack
+
 systems: [-ubuntu-core-*-arm-*]
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

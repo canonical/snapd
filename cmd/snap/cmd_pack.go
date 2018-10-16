@@ -58,6 +58,7 @@ func init() {
 		func() flags.Commander {
 			return &packCmd{}
 		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"check-skeleton": i18n.G("Validate snap-dir metadata only"),
 		}, nil)
 }

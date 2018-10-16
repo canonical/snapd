@@ -17,13 +17,12 @@
  *
  */
 
-package store
+package store_test
 
 import (
 	"bytes"
 	"crypto"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -55,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,12 +66,12 @@ var _ = Suite(&configTestSuite{})
 
 func (suite *configTestSuite) TestSetBaseURL(c *C) {
 	// Sanity check to prove at least one URI changes.
-	cfg := DefaultConfig()
+	cfg := store.DefaultConfig()
 	c.Assert(cfg.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
 
 	u, err := url.Parse("http://example.com/path/prefix/")
 	c.Assert(err, IsNil)
-	err = cfg.setBaseURL(u)
+	err = cfg.SetBaseURL(u)
 	c.Assert(err, IsNil)
 
 	c.Check(cfg.StoreBaseURL.String(), Equals, "http://example.com/path/prefix/")
@@ -79,14 +79,14 @@ func (suite *configTestSuite) TestSetBaseURL(c *C) {
 }
 
 func (suite *configTestSuite) TestSetBaseURLStoreOverrides(c *C) {
-	cfg := DefaultConfig()
-	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
-	c.Check(cfg.StoreBaseURL, Matches, apiURL().String()+".*")
+	cfg := store.DefaultConfig()
+	c.Assert(cfg.SetBaseURL(store.ApiURL()), IsNil)
+	c.Check(cfg.StoreBaseURL, Matches, store.ApiURL().String()+".*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
-	cfg = DefaultConfig()
-	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
+	cfg = store.DefaultConfig()
+	c.Assert(cfg.SetBaseURL(store.ApiURL()), IsNil)
 	c.Check(cfg.StoreBaseURL.String(), Equals, "https://force-api.local/")
 	c.Check(cfg.AssertionsBaseURL, IsNil)
 }
@@ -95,20 +95,20 @@ func (suite *configTestSuite) TestSetBaseURLStoreURLBadEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://example.com"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 
-	cfg := DefaultConfig()
-	err := cfg.setBaseURL(apiURL())
+	cfg := store.DefaultConfig()
+	err := cfg.SetBaseURL(store.ApiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
 }
 
 func (suite *configTestSuite) TestSetBaseURLAssertsOverrides(c *C) {
-	cfg := DefaultConfig()
-	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
+	cfg := store.DefaultConfig()
+	c.Assert(cfg.SetBaseURL(store.ApiURL()), IsNil)
 	c.Check(cfg.AssertionsBaseURL, IsNil)
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
-	cfg = DefaultConfig()
-	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
+	cfg = store.DefaultConfig()
+	c.Assert(cfg.SetBaseURL(store.ApiURL()), IsNil)
 	c.Check(cfg.AssertionsBaseURL, Matches, "https://force-sas.local/.*")
 }
 
@@ -116,8 +116,8 @@ func (suite *configTestSuite) TestSetBaseURLAssertsURLBadEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 
-	cfg := DefaultConfig()
-	err := cfg.setBaseURL(apiURL())
+	cfg := store.DefaultConfig()
+	err := cfg.SetBaseURL(store.ApiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
@@ -158,14 +158,13 @@ func assertRequest(c *C, r *http.Request, method, pathPattern string) {
 
 type storeTestSuite struct {
 	testutil.BaseTest
-	store     *Store
+	store     *store.Store
 	logbuf    *bytes.Buffer
 	user      *auth.UserState
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
-	mockXDelta       *testutil.MockCmd
+	mockXDelta *testutil.MockCmd
 
 	restoreLogger func()
 }
@@ -302,7 +301,7 @@ func makeTestMacaroon() (*macaroon.Macaroon, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", UbuntuoneLocation)
+	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", store.UbuntuoneLocation)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +310,7 @@ func makeTestMacaroon() (*macaroon.Macaroon, error) {
 }
 
 func makeTestDischarge() (*macaroon.Macaroon, error) {
-	m, err := macaroon.New([]byte("shared-key"), "third-party-caveat", UbuntuoneLocation)
+	m, err := macaroon.New([]byte("shared-key"), "third-party-caveat", store.UbuntuoneLocation)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +319,7 @@ func makeTestDischarge() (*macaroon.Macaroon, error) {
 }
 
 func makeTestRefreshDischargeResponse() (string, error) {
-	m, err := macaroon.New([]byte("shared-key"), "refreshed-third-party-caveat", UbuntuoneLocation)
+	m, err := macaroon.New([]byte("shared-key"), "refreshed-third-party-caveat", store.UbuntuoneLocation)
 	if err != nil {
 		return "", err
 	}
@@ -360,8 +359,7 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	s.store = New(nil, nil)
-	s.origDownloadFunc = download
+	s.store = store.New(nil, nil)
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
@@ -384,7 +382,7 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	s.device = createTestDevice()
 	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
 
-	MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
 			Factor:  1,
@@ -393,7 +391,6 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 }
 
 func (s *storeTestSuite) TearDownTest(c *C) {
-	download = s.origDownloadFunc
 	s.mockXDelta.Restore()
 	s.restoreLogger()
 	s.BaseTest.TearDownTest(c)
@@ -419,11 +416,13 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 
 func (s *storeTestSuite) TestDownloadOK(c *C) {
 	expectedContent := []byte("I was downloaded")
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write(expectedContent)
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -432,7 +431,7 @@ func (s *storeTestSuite) TestDownloadOK(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -444,12 +443,13 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 	missingContentStr := "was downloaded"
 	expectedContentStr := partialContentStr + missingContentStr
 
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(resume, Equals, int64(len(partialContentStr)))
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte(missingContentStr))
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -462,7 +462,7 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
@@ -470,8 +470,6 @@ func (s *storeTestSuite) TestDownloadRangeRequest(c *C) {
 
 func (s *storeTestSuite) TestResumeOfCompleted(c *C) {
 	expectedContentStr := "nothing downloaded"
-
-	download = nil
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -484,7 +482,7 @@ func (s *storeTestSuite) TestResumeOfCompleted(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
@@ -525,7 +523,7 @@ func (s *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(targetFn, testutil.FileEquals, buf)
 	c.Assert(s.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
@@ -569,7 +567,7 @@ func (s *storeTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
@@ -606,7 +604,7 @@ func (s *storeTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	c.Assert(ioutil.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
@@ -634,9 +632,9 @@ func (s *storeTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c *C) 
 	snap.Size = int64(len("something invalid"))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 
-	_, ok := err.(HashError)
+	_, ok := err.(store.HashError)
 	c.Assert(ok, Equals, true)
 	// ensure we only retried once (as these downloads might be big)
 	c.Assert(n, Equals, 2)
@@ -647,16 +645,17 @@ func (s *storeTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		n++
 		if n == 1 {
 			// force sha3 error on first download
 			c.Check(resume, Equals, int64(len(partialContentStr)))
-			return HashError{"foo", "1234", "5678"}
+			return store.NewHashError("foo", "1234", "5678")
 		}
 		w.Write([]byte(expectedContentStr))
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -669,7 +668,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 
@@ -680,10 +679,11 @@ func (s *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		n++
-		return HashError{"foo", "1234", "5678"}
-	}
+		return store.NewHashError("foo", "1234", "5678")
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -696,7 +696,7 @@ func (s *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = s.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `sha3-384 mismatch for "foo": got 1234 but expected 5678`)
 	c.Assert(n, Equals, 2)
@@ -704,14 +704,15 @@ func (s *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 
 func (s *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	expectedContent := []byte("I was downloaded")
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, s.user)
 		c.Check(url, Equals, "AUTH-URL")
 
 		w.Write(expectedContent)
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -720,7 +721,7 @@ func (s *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.user)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.user, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -729,13 +730,14 @@ func (s *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	expectedContent := []byte("I was downloaded")
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		// check auth url is used
 		c.Check(url, Equals, "AUTH-URL")
 
 		w.Write(expectedContent)
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -744,10 +746,10 @@ func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := sto.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := sto.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -756,12 +758,13 @@ func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 
 func (s *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	expectedContentStr := "I was downloaded"
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte(expectedContentStr))
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -770,7 +773,7 @@ func (s *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.localUser)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, s.localUser, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -779,10 +782,11 @@ func (s *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (s *storeTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -791,7 +795,7 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -799,13 +803,14 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 
 func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
 		c.Assert(err, IsNil)
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
@@ -815,429 +820,10 @@ func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
-}
-
-func (s *storeTestSuite) TestActualDownload(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Snap-CDN"), Equals, "")
-		n++
-		io.WriteString(w, "response-data")
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	var buf SillyBuffer
-	// keep tests happy
-	sha3 := ""
-	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, "response-data")
-	c.Check(n, Equals, 1)
-}
-
-func (s *storeTestSuite) TestActualDownloadNoCDN(c *C) {
-	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
-	defer os.Unsetenv("SNAPPY_STORE_NO_CDN")
-
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Snap-CDN"), Equals, "none")
-		io.WriteString(w, "response-data")
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	var buf SillyBuffer
-	// keep tests happy
-	sha3 := ""
-	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, "response-data")
-}
-
-func (s *storeTestSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
-
-		io.WriteString(w, "response-data")
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, &testAuthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
-
-	var buf SillyBuffer
-	// keep tests happy
-	sha3 := ""
-	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, "response-data")
-}
-
-func (s *storeTestSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
-
-		io.WriteString(w, "response-data")
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, &testAuthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
-
-	var buf SillyBuffer
-	// keep tests happy
-	sha3 := ""
-	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, "response-data")
-}
-
-func (s *storeTestSuite) TestDownloadCancellation(c *C) {
-	// the channel used by mock server to request cancellation from the test
-	syncCh := make(chan struct{})
-
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
-		io.WriteString(w, "foo")
-		syncCh <- struct{}{}
-		io.WriteString(w, "bar")
-		time.Sleep(time.Duration(1) * time.Second)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	result := make(chan string)
-	go func() {
-		sha3 := ""
-		var buf SillyBuffer
-		err := download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
-		result <- err.Error()
-		close(result)
-	}()
-
-	<-syncCh
-	cancel()
-
-	err := <-result
-	c.Check(n, Equals, 1)
-	c.Assert(err, Equals, "The download has been cancelled: context canceled")
-}
-
-type nopeSeeker struct{ io.ReadWriter }
-
-func (nopeSeeker) Seek(int64, int) (int64, error) {
-	return -1, errors.New("what is this, quidditch?")
-}
-
-func (s *storeTestSuite) TestActualDownloadNonPurchased402(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
-		// XXX: the server doesn't behave correctly ATM
-		// but 401 for paid snaps is the unlikely case so far
-		w.WriteHeader(402)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	var buf bytes.Buffer
-	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "please buy foo before installing it.")
-	c.Check(n, Equals, 1)
-}
-
-func (s *storeTestSuite) TestActualDownload404(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
-		w.WriteHeader(404)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	var buf SillyBuffer
-	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &DownloadError{})
-	c.Check(err.(*DownloadError).Code, Equals, 404)
-	c.Check(n, Equals, 1)
-}
-
-func (s *storeTestSuite) TestActualDownload500(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
-		w.WriteHeader(500)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	var buf SillyBuffer
-	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &DownloadError{})
-	c.Check(err.(*DownloadError).Code, Equals, 500)
-	c.Check(n, Equals, 5)
-}
-
-func (s *storeTestSuite) TestActualDownload500Once(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
-		if n == 1 {
-			w.WriteHeader(500)
-		} else {
-			io.WriteString(w, "response-data")
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	var buf SillyBuffer
-	// keep tests happy
-	sha3 := ""
-	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, "response-data")
-	c.Check(n, Equals, 2)
-}
-
-// SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
-// (bytes does not implement an ReadWriteSeeker)
-type SillyBuffer struct {
-	buf [1024]byte
-	pos int64
-	end int64
-}
-
-func NewSillyBufferString(s string) *SillyBuffer {
-	sb := &SillyBuffer{
-		pos: int64(len(s)),
-		end: int64(len(s)),
-	}
-	copy(sb.buf[0:], []byte(s))
-	return sb
-}
-func (sb *SillyBuffer) Read(b []byte) (n int, err error) {
-	if sb.pos >= int64(sb.end) {
-		return 0, io.EOF
-	}
-	n = copy(b, sb.buf[sb.pos:sb.end])
-	sb.pos += int64(n)
-	return n, nil
-}
-func (sb *SillyBuffer) Seek(offset int64, whence int) (int64, error) {
-	if whence != 0 {
-		panic("only io.SeekStart implemented in SillyBuffer")
-	}
-	if offset < 0 || offset > int64(sb.end) {
-		return 0, fmt.Errorf("seek out of bounds: %d", offset)
-	}
-	sb.pos = offset
-	return sb.pos, nil
-}
-func (sb *SillyBuffer) Write(p []byte) (n int, err error) {
-	n = copy(sb.buf[sb.pos:], p)
-	sb.pos += int64(n)
-	if sb.pos > sb.end {
-		sb.end = sb.pos
-	}
-	return n, nil
-}
-func (sb *SillyBuffer) String() string {
-	return string(sb.buf[0:sb.pos])
-}
-
-func (s *storeTestSuite) TestActualDownloadResume(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
-		io.WriteString(w, "data")
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	theStore := New(&Config{}, nil)
-	buf := NewSillyBufferString("some ")
-	// calc the expected hash
-	h := crypto.SHA3_384.New()
-	h.Write([]byte("some data"))
-	sha3 := fmt.Sprintf("%x", h.Sum(nil))
-	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil)
-	c.Check(err, IsNil)
-	c.Check(buf.String(), Equals, "some data")
-	c.Check(n, Equals, 1)
-}
-
-func (s *storeTestSuite) TestUseDeltas(c *C) {
-	origPath := os.Getenv("PATH")
-	defer os.Setenv("PATH", origPath)
-	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	restore := release.MockOnClassic(false)
-	defer restore()
-	altPath := c.MkDir()
-	origSnapMountDir := dirs.SnapMountDir
-	defer func() { dirs.SnapMountDir = origSnapMountDir }()
-	dirs.SnapMountDir = c.MkDir()
-	exeInCorePath := filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")
-	os.MkdirAll(filepath.Dir(exeInCorePath), 0755)
-
-	scenarios := []struct {
-		env       string
-		classic   bool
-		exeInHost bool
-		exeInCore bool
-
-		wantDelta bool
-	}{
-		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
-		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
-		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
-		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
-		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
-		{env: "", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
-
-		{env: "0", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "0", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
-		{env: "0", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
-		{env: "0", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
-		{env: "0", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "0", classic: true, exeInHost: false, exeInCore: true, wantDelta: false},
-		{env: "0", classic: true, exeInHost: true, exeInCore: false, wantDelta: false},
-		{env: "0", classic: true, exeInHost: true, exeInCore: true, wantDelta: false},
-
-		{env: "1", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "1", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
-		{env: "1", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
-		{env: "1", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
-		{env: "1", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "1", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
-		{env: "1", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
-		{env: "1", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
-	}
-
-	for _, scenario := range scenarios {
-		if scenario.exeInCore {
-			osutil.CopyFile("/bin/true", exeInCorePath, 0)
-		} else {
-			os.Remove(exeInCorePath)
-		}
-		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
-		release.MockOnClassic(scenario.classic)
-		if scenario.exeInHost {
-			os.Setenv("PATH", origPath)
-		} else {
-			os.Setenv("PATH", altPath)
-		}
-
-		c.Check(useDeltas(), Equals, scenario.wantDelta, Commentf("%#v", scenario))
-	}
-}
-
-type downloadBehaviour []struct {
-	url   string
-	error bool
-}
-
-var deltaTests = []struct {
-	downloads       downloadBehaviour
-	info            snap.DownloadInfo
-	expectedContent string
-}{{
-	// The full snap is not downloaded, but rather the delta
-	// is downloaded and applied.
-	downloads: downloadBehaviour{
-		{url: "delta-url"},
-	},
-	info: snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
-		},
-	},
-	expectedContent: "snap-content-via-delta",
-}, {
-	// If there is an error during the delta download, the
-	// full snap is downloaded as per normal.
-	downloads: downloadBehaviour{
-		{error: true},
-		{url: "full-snap-url"},
-	},
-	info: snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
-		},
-	},
-	expectedContent: "full-snap-url-content",
-}, {
-	// If more than one matching delta is returned by the store
-	// we ignore deltas and do the full download.
-	downloads: downloadBehaviour{
-		{url: "full-snap-url"},
-	},
-	info: snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
-			{AnonDownloadURL: "delta-url-2", Format: "xdelta3"},
-		},
-	},
-	expectedContent: "full-snap-url-content",
-}}
-
-func (s *storeTestSuite) TestDownloadWithDelta(c *C) {
-	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
-
-	for _, testCase := range deltaTests {
-		testCase.info.Size = int64(len(testCase.expectedContent))
-		downloadIndex := 0
-		download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
-			if testCase.downloads[downloadIndex].error {
-				downloadIndex++
-				return errors.New("Bang")
-			}
-			c.Check(url, Equals, testCase.downloads[downloadIndex].url)
-			w.Write([]byte(testCase.downloads[downloadIndex].url + "-content"))
-			downloadIndex++
-			return nil
-		}
-		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
-			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
-			err := ioutil.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
-			c.Assert(err, IsNil)
-			return nil
-		}
-
-		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
-		err := s.store.Download(context.TODO(), "foo", path, &testCase.info, nil, nil)
-
-		c.Assert(err, IsNil)
-		defer os.Remove(path)
-		c.Assert(path, testutil.FileEquals, testCase.expectedContent)
-	}
 }
 
 var downloadDeltaTests = []struct {
@@ -1340,11 +926,11 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	authContext := &testAuthContext{c: c}
-	sto := New(nil, authContext)
+	sto := store.New(nil, authContext)
 
 	for _, testCase := range downloadDeltaTests {
-		sto.deltaFormat = testCase.format
-		download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		sto.SetDeltaFormat(testCase.format)
+		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 			expectedUser := s.user
 			if testCase.useLocalUser {
 				expectedUser = s.localUser
@@ -1356,7 +942,8 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 			c.Check(url, Equals, testCase.expectedURL)
 			w.Write([]byte("I was downloaded"))
 			return nil
-		}
+		})
+		defer restore()
 
 		w, err := ioutil.TempFile("", "")
 		c.Assert(err, IsNil)
@@ -1375,7 +962,7 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		err = sto.downloadDelta("snapname", &testCase.info, w, nil, authedUser)
+		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser)
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)
@@ -1429,7 +1016,7 @@ func (s *storeTestSuite) TestApplyDelta(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		err = applyDelta(name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+		err = store.ApplyDelta(name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
 
 		if testCase.error == "" {
 			c.Assert(err, IsNil)
@@ -1470,12 +1057,12 @@ func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
 	defer mockServer.Close()
 
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := store.NewRequestOptions("GET", endpoint)
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1500,12 +1087,12 @@ func (s *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	defer mockServer.Close()
 
 	authContext := &testAuthContext{c: c, device: s.device, user: s.localUser}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := store.NewRequestOptions("GET", endpoint)
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.localUser)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.localUser)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1533,12 +1120,12 @@ func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	s.device.Serial = ""
 	s.device.SessionMacaroon = ""
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := store.NewRequestOptions("GET", endpoint)
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1559,7 +1146,7 @@ func (s *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+	store.UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
 
 	// mock store response (requiring auth refresh)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1578,12 +1165,12 @@ func (s *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	defer mockServer.Close()
 
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := store.NewRequestOptions("GET", endpoint)
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1602,7 +1189,7 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+	store.UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
 
 	// mock store response (requiring auth refresh)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1617,13 +1204,13 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	defer mockServer.Close()
 
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := store.NewRequestOptions("GET", endpoint)
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
-	c.Assert(err, Equals, ErrInvalidCredentials)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
+	c.Assert(err, Equals, store.ErrInvalidCredentials)
 	c.Check(response, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
@@ -1682,13 +1269,13 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	// make sure device session is not set
 	s.device.SessionMacaroon = ""
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{
+	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, authContext)
 
-	reqOptions := &requestOptions{Method: "GET", URL: mockServerURL}
+	reqOptions := store.NewRequestOptions("GET", mockServerURL)
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	c.Assert(err, IsNil)
 	defer response.Body.Close()
 
@@ -1711,7 +1298,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+	store.UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
 
 	refreshSessionRequested := false
 	expiredAuth := `Macaroon root="expired-session-macaroon"`
@@ -1772,13 +1359,13 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 	// make sure device session is expired
 	s.device.SessionMacaroon = "expired-session-macaroon"
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{
+	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, authContext)
 
-	reqOptions := &requestOptions{Method: "GET", URL: mockServerURL}
+	reqOptions := store.NewRequestOptions("GET", mockServerURL)
 
-	resp, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	resp, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -1803,20 +1390,17 @@ func (s *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	sto := New(&Config{}, nil)
+	sto := store.New(&store.Config{}, nil)
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    endpoint,
-		ExtraHeaders: map[string]string{
-			"X-Foo-Header": "Bar",
-			"Content-Type": "application/bson",
-			"Accept":       "application/hal+bson",
-			"User-Agent":   "customAgent",
-		},
+	reqOptions := store.NewRequestOptions("GET", endpoint)
+	reqOptions.ExtraHeaders = map[string]string{
+		"X-Foo-Header": "Bar",
+		"Content-Type": "application/bson",
+		"Accept":       "application/hal+bson",
+		"User-Agent":   "customAgent",
 	}
 
-	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	response, err := sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1836,7 +1420,7 @@ func (s *storeTestSuite) TestLoginUser(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MacaroonACLAPI = mockServer.URL + "/acl/"
+	store.MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	discharge, err := makeTestDischarge()
 	c.Assert(err, IsNil)
@@ -1848,9 +1432,9 @@ func (s *storeTestSuite) TestLoginUser(c *C) {
 	}))
 	c.Assert(mockSSOServer, NotNil)
 	defer mockSSOServer.Close()
-	UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
+	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
+	userMacaroon, userDischarge, err := store.LoginUser("username", "password", "otp")
 
 	c.Assert(err, IsNil)
 	c.Check(userMacaroon, Equals, serializedMacaroon)
@@ -1864,9 +1448,9 @@ func (s *storeTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MacaroonACLAPI = mockServer.URL + "/acl/"
+	store.MacaroonACLAPI = mockServer.URL + "/acl/"
 
-	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
+	userMacaroon, userDischarge, err := store.LoginUser("username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: .*")
 	c.Check(userMacaroon, Equals, "")
@@ -1884,7 +1468,7 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MacaroonACLAPI = mockServer.URL + "/acl/"
+	store.MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	errorResponse := `{"code": "some-error"}`
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1893,9 +1477,9 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 	}))
 	c.Assert(mockSSOServer, NotNil)
 	defer mockSSOServer.Close()
-	UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
+	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
+	userMacaroon, userDischarge, err := store.LoginUser("username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: .*")
 	c.Check(userMacaroon, Equals, "")
@@ -1905,8 +1489,10 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 const (
 	funkyAppSnapID = "1e21e12ex4iim2xj1g2ul6f12f1"
 
-	helloWorldSnapID      = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-	helloWorldDeveloperID = "canonical"
+	helloWorldSnapID = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+	// instance key used in refresh action of snap hello-world_foo, salt "123"
+	helloWorldFooInstanceKeyWithSalt = helloWorldSnapID + ":IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk"
+	helloWorldDeveloperID            = "canonical"
 )
 
 const mockOrdersJSON = `{
@@ -2177,15 +1763,15 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		InfoFields:   []string{"abc", "def"},
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2210,9 +1796,13 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(result.License, Equals, "MIT")
 	c.Check(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Check(result.Paid, Equals, true)
-	c.Check(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+	c.Check(result.Media, DeepEquals, snap.MediaInfos{
 		{
-			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type: "icon",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
@@ -2268,26 +1858,26 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		InfoFields:   []string{},
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	info, err := sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
+	info, err := sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "hello")
 
-	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
-	c.Check(err, Equals, ErrSnapNotFound)
+	info, err = sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
+	c.Check(err, Equals, store.ErrSnapNotFound)
 	c.Check(info, IsNil)
 
-	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
-	c.Check(err, Equals, ErrSnapNotFound)
+	info, err = sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
+	c.Check(err, Equals, store.ErrSnapNotFound)
 	c.Check(info, IsNil)
 
-	info, err = sto.SnapInfo(SnapSpec{Name: "hello"}, nil)
+	info, err = sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
 	c.Check(err, ErrorMatches, `.* invalid syntax`)
 	c.Check(info, IsNil)
 }
@@ -2308,15 +1898,15 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{"abc", "def"},
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2338,15 +1928,15 @@ func (s *storeTestSuite) TestInfo500(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{},
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	_, err := sto.SnapInfo(spec, nil)
@@ -2373,14 +1963,14 @@ func (s *storeTestSuite) TestInfo500once(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2411,14 +2001,14 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2488,14 +2078,14 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	// the actual test
-	result, err := sto.SnapInfo(SnapSpec{Name: "eh"}, nil)
+	result, err := sto.SnapInfo(store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
 		"latest/stable": {Channel: "stable"},
@@ -2533,15 +2123,15 @@ func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := DefaultConfig()
+	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = mockServerURL
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "foo"
-	sto := New(cfg, nil)
+	sto := store.New(cfg, nil)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2563,15 +2153,15 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := DefaultConfig()
+	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = mockServerURL
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "fallback"
-	sto := New(cfg, &testAuthContext{c: c, device: s.device, storeID: "my-brand-store-id"})
+	sto := store.New(cfg, &testAuthContext{c: c, device: s.device, storeID: "my-brand-store-id"})
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2593,9 +2183,9 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	mockServerURL, _ := url.Parse(mockServer.URL)
 	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
-	cfg := DefaultConfig()
+	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = nowhereURL
-	sto := New(cfg, &testAuthContext{
+	sto := store.New(cfg, &testAuthContext{
 		c:             c,
 		device:        s.device,
 		proxyStoreID:  "foo",
@@ -2603,7 +2193,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	})
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2623,9 +2213,9 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := DefaultConfig()
+	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = mockServerURL
-	sto := New(cfg, &testAuthContext{
+	sto := store.New(cfg, &testAuthContext{
 		c:      c,
 		device: s.device,
 		// mock an assertion that has id but no url
@@ -2634,7 +2224,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	})
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2657,13 +2247,13 @@ func (s *storeTestSuite) TestInfoOopses(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	_, err := sto.SnapInfo(spec, nil)
@@ -2700,13 +2290,13 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	// the actual test
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "no-such-pkg",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -2714,9 +2304,10 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 	c.Assert(result, IsNil)
 }
 
-/* acquired via:
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello' | python -m json.tool | xsel -b
-Add base and prices.
+/* acquired via looking at the query snapd does for "snap find 'hello-world of snaps' --narrow" (on core) and adding size=1:
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?confinement=strict&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Clicense%2Cbase%2Cmedia%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello-world+of+snaps&size=1' | python -m json.tool | xsel -b
+
+And then add base and prices, and remove the _links dict
 */
 const MockSearchJSON = `{
     "_embedded": {
@@ -2739,10 +2330,18 @@ const MockSearchJSON = `{
                 "developer_validation": "verified",
                 "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
                 "download_url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
-                "epoch": "0",
-                "icon_url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
                 "last_updated": "2016-07-12T16:37:23.960632+00:00",
                 "license": "MIT",
+                "media": [
+                    {
+                        "type": "icon",
+                        "url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png"
+                    },
+                    {
+                        "type": "screenshot",
+                        "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                    }
+                ],
                 "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {"EUR": 2.99, "USD": 3.49},
@@ -2750,9 +2349,6 @@ const MockSearchJSON = `{
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
                 "revision": 27,
-                "screenshot_urls": [
-                    "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
-                ],
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "The 'hello-world' of snaps",
                 "support_url": "",
@@ -2760,11 +2356,6 @@ const MockSearchJSON = `{
                 "version": "6.3"
             }
         ]
-    },
-    "_links": {
-        "self": {
-            "href": "http://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello"
-        }
     }
 }
 `
@@ -2819,14 +2410,14 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{"abc", "def"},
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	for _, query := range []Search{
+	for _, query := range []store.Search{
 		{Query: "hello", Prefix: true},
 		{Query: "hello", Scope: "maastricht"},
 		{Section: "db"},
@@ -2880,11 +2471,11 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: serverURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
@@ -2913,11 +2504,11 @@ func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: serverURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device, storeID: "my-brand-store"}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
@@ -2996,7 +2587,7 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 
 	serverURL, _ := url.Parse(mockServer.URL)
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&Config{StoreBaseURL: serverURL}, authContext)
+	sto := store.New(&store.Config{StoreBaseURL: serverURL}, authContext)
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
@@ -3058,14 +2649,14 @@ func (s *storeTestSuite) TestFind(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{"abc", "def"},
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	snaps, err := sto.Find(&Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
@@ -3089,9 +2680,13 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Check(snp.License, Equals, "MIT")
 	c.Assert(snp.Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
 	c.Assert(snp.Paid, Equals, true)
-	c.Assert(snp.Screenshots, DeepEquals, []snap.ScreenshotInfo{
+	c.Assert(snp.Media, DeepEquals, snap.MediaInfos{
 		{
-			URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type: "icon",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
 	c.Check(snp.MustBuy, Equals, true)
@@ -3133,27 +2728,27 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: serverURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	_, err := sto.Find(&Search{Query: "foo", Private: true}, s.user)
+	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
-	_, err = sto.Find(&Search{Query: "foo", Private: true}, nil)
-	c.Check(err, Equals, ErrUnauthenticated)
+	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
+	c.Check(err, Equals, store.ErrUnauthenticated)
 
-	_, err = sto.Find(&Search{Query: "name:foo", Private: true}, s.user)
-	c.Check(err, Equals, ErrBadQuery)
+	_, err = sto.Find(&store.Search{Query: "name:foo", Private: true}, s.user)
+	c.Check(err, Equals, store.ErrBadQuery)
 }
 
 func (s *storeTestSuite) TestFindFailures(c *C) {
-	sto := New(&Config{StoreBaseURL: new(url.URL)}, nil)
-	_, err := sto.Find(&Search{Query: "foo:bar"}, nil)
-	c.Check(err, Equals, ErrBadQuery)
-	_, err = sto.Find(&Search{Query: "foo", Private: true, Prefix: true}, s.user)
-	c.Check(err, Equals, ErrBadQuery)
+	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
+	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
+	c.Check(err, Equals, store.ErrBadQuery)
+	_, err = sto.Find(&store.Search{Query: "foo", Private: true, Prefix: true}, s.user)
+	c.Check(err, Equals, store.ErrBadQuery)
 }
 
 func (s *storeTestSuite) TestFindFails(c *C) {
@@ -3166,13 +2761,13 @@ func (s *storeTestSuite) TestFindFails(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -3187,13 +2782,13 @@ func (s *storeTestSuite) TestFindBadContentType(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -3210,13 +2805,13 @@ func (s *storeTestSuite) TestFindBadBody(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `invalid character '<' looking for beginning of value`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -3232,13 +2827,13 @@ func (s *storeTestSuite) TestFind500(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{},
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	_, err := sto.Find(&Search{Query: "hello"}, nil)
+	_, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Assert(n, Equals, 5)
 }
@@ -3260,13 +2855,13 @@ func (s *storeTestSuite) TestFind500once(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{},
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Assert(n, Equals, 2)
@@ -3291,7 +2886,7 @@ func (s *storeTestSuite) TestFindAuthFailed(c *C) {
 			io.WriteString(w, MockSearchJSON)
 		case ordersPath:
 			c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+			c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 			c.Check(r.URL.Path, Equals, ordersPath)
 			w.WriteHeader(401)
 			io.WriteString(w, "{}")
@@ -3303,13 +2898,13 @@ func (s *storeTestSuite) TestFindAuthFailed(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&Search{Query: "foo"}, s.user)
+	snaps, err := sto.Find(&store.Search{Query: "foo"}, s.user)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.
@@ -3352,25 +2947,25 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: serverURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
-	infos, err := sto.Find(&Search{Query: "foo"}, nil)
+	infos, err := sto.Find(&store.Search{Query: "foo"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
 }
 
 func (s *storeTestSuite) TestCurrentSnap(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
 		Epoch:    *snap.E("1"),
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, NotNil)
 	c.Check(cs.SnapID, Equals, cand.SnapID)
 	c.Check(cs.Channel, Equals, cand.Channel)
@@ -3381,14 +2976,14 @@ func (s *storeTestSuite) TestCurrentSnap(c *C) {
 }
 
 func (s *storeTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:           helloWorldSnapID,
 		Channel:          "stable",
 		Revision:         snap.R(1),
 		Epoch:            *snap.E("1"),
 		IgnoreValidation: true,
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, NotNil)
 	c.Check(cs.SnapID, Equals, cand.SnapID)
 	c.Check(cs.Channel, Equals, cand.Channel)
@@ -3399,12 +2994,12 @@ func (s *storeTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
 }
 
 func (s *storeTestSuite) TestCurrentSnapNoChannel(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R(1),
 		Epoch:    *snap.E("1"),
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, NotNil)
 	c.Check(cs.SnapID, Equals, cand.SnapID)
 	c.Check(cs.Channel, Equals, "stable")
@@ -3414,42 +3009,42 @@ func (s *storeTestSuite) TestCurrentSnapNoChannel(c *C) {
 }
 
 func (s *storeTestSuite) TestCurrentSnapNilNoID(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:   "",
 		Revision: snap.R(1),
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, IsNil)
 	c.Check(s.logbuf.String(), Matches, "(?m).* an empty SnapID but a store revision!")
 }
 
 func (s *storeTestSuite) TestCurrentSnapNilLocalRevision(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R("x1"),
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, IsNil)
 	c.Check(s.logbuf.String(), Matches, "(?m).* a non-empty SnapID but a non-store revision!")
 }
 
 func (s *storeTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:   "",
 		Revision: snap.R("x1"),
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, IsNil)
 	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *storeTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
-	cand := &RefreshCandidate{
+	cand := &store.RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R("x1"),
 		Amend:    true,
 	}
-	cs := currentSnap(cand)
+	cs := store.GetCurrentSnap(cand)
 	c.Assert(cs, NotNil)
 	c.Check(cs.SnapID, Equals, cand.SnapID)
 	c.Check(cs.Revision, Equals, cand.Revision.N)
@@ -3458,33 +3053,33 @@ func (s *storeTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := authLocation()
+	before := store.AuthLocation()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := authLocation()
+	after := store.AuthLocation()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (s *storeTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := authURL()
+	before := store.AuthURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := authURL()
+	after := store.AuthURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (s *storeTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := apiURL()
+	before := store.ApiURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := apiURL()
+	after := store.ApiURL()
 
 	c.Check(before, Not(Equals), after)
 }
@@ -3492,26 +3087,26 @@ func (s *storeTestSuite) TestApiURLDependsOnEnviron(c *C) {
 func (s *storeTestSuite) TestStoreURLDependsOnEnviron(c *C) {
 	// This also depends on the API URL, but that's tested separately (see
 	// TestApiURLDependsOnEnviron).
-	api := apiURL()
+	api := store.ApiURL()
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", ""), IsNil)
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", ""), IsNil)
 
 	// Test in order of precedence (low first) leaving env vars set as we go ...
 
-	u, err := storeURL(api)
+	u, err := store.StoreURL(api)
 	c.Assert(err, IsNil)
 	c.Check(u.String(), Matches, api.String()+".*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
-	u, err = storeURL(api)
+	u, err = store.StoreURL(api)
 	c.Assert(err, IsNil)
 	c.Check(u.String(), Matches, "https://force-api.local/.*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "https://force-cpi.local/api/v1/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
-	u, err = storeURL(api)
+	u, err = store.StoreURL(api)
 	c.Assert(err, IsNil)
 	c.Check(u.String(), Matches, "https://force-cpi.local/.*")
 }
@@ -3519,38 +3114,38 @@ func (s *storeTestSuite) TestStoreURLDependsOnEnviron(c *C) {
 func (s *storeTestSuite) TestStoreURLBadEnvironAPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
-	_, err := storeURL(apiURL())
+	_, err := store.StoreURL(store.ApiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 }
 
 func (s *storeTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
-	_, err := storeURL(apiURL())
+	_, err := store.StoreURL(store.ApiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
 func (s *storeTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := storeDeveloperURL()
+	before := store.StoreDeveloperURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := storeDeveloperURL()
+	after := store.StoreDeveloperURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
-func (s *storeTestSuite) TestDefaultConfig(c *C) {
-	c.Check(defaultConfig.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
-	c.Check(defaultConfig.AssertionsBaseURL, IsNil)
+func (s *storeTestSuite) TeststoreDefaultConfig(c *C) {
+	c.Check(store.DefaultConfig().StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
+	c.Check(store.DefaultConfig().AssertionsBaseURL, IsNil)
 }
 
 func (s *storeTestSuite) TestNew(c *C) {
-	aStore := New(nil, nil)
+	aStore := store.New(nil, nil)
 	c.Assert(aStore, NotNil)
 	// check for fields
-	c.Check(aStore.detailFields, DeepEquals, defaultConfig.DetailFields)
+	c.Check(aStore.DetailFields(), DeepEquals, store.DefaultConfig().DetailFields)
 }
 
 var testAssertion = `type: snap-declaration
@@ -3587,11 +3182,11 @@ func (s *storeTestSuite) TestAssertion(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
@@ -3619,7 +3214,7 @@ func (s *storeTestSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 	mockServerURL, _ := url.Parse(mockServer.URL)
 	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
-	cfg := Config{
+	cfg := store.Config{
 		AssertionsBaseURL: nowhereURL,
 	}
 	authContext := &testAuthContext{
@@ -3628,7 +3223,7 @@ func (s *storeTestSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 		proxyStoreID:  "foo",
 		proxyStoreURL: mockServerURL,
 	}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
@@ -3650,10 +3245,10 @@ func (s *storeTestSuite) TestAssertionNotFound(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		AssertionsBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Check(asserts.IsNotFound(err), Equals, true)
@@ -3678,10 +3273,10 @@ func (s *storeTestSuite) TestAssertion500(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		AssertionsBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
@@ -3703,16 +3298,16 @@ func (s *storeTestSuite) TestSuggestedCurrency(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	// the store doesn't know the currency until after the first search, so fall back to dollars
 	c.Check(sto.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
-	spec := SnapSpec{
+	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
 	result, err := sto.SnapInfo(spec, nil)
@@ -3734,7 +3329,7 @@ func (s *storeTestSuite) TestDecorateOrders(c *C) {
 		assertRequest(c, r, "GET", ordersPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 		c.Check(r.URL.Path, Equals, ordersPath)
 		io.WriteString(w, mockOrdersJSON)
@@ -3745,10 +3340,10 @@ func (s *storeTestSuite) TestDecorateOrders(c *C) {
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3770,7 +3365,7 @@ func (s *storeTestSuite) TestDecorateOrders(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
@@ -3783,7 +3378,7 @@ func (s *storeTestSuite) TestDecorateOrdersFailedAccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
-		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
 		w.WriteHeader(401)
 		io.WriteString(w, "{}")
@@ -3793,10 +3388,10 @@ func (s *storeTestSuite) TestDecorateOrdersFailedAccess(c *C) {
 	defer mockPurchasesServer.Close()
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3818,7 +3413,7 @@ func (s *storeTestSuite) TestDecorateOrdersFailedAccess(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, NotNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -3828,8 +3423,8 @@ func (s *storeTestSuite) TestDecorateOrdersFailedAccess(c *C) {
 }
 
 func (s *storeTestSuite) TestDecorateOrdersNoAuth(c *C) {
-	cfg := Config{}
-	sto := New(&cfg, nil)
+	cfg := store.Config{}
+	sto := store.New(&cfg, nil)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3851,7 +3446,7 @@ func (s *storeTestSuite) TestDecorateOrdersNoAuth(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := sto.decorateOrders(snaps, nil)
+	err := sto.DecorateOrders(snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -3865,7 +3460,7 @@ func (s *storeTestSuite) TestDecorateOrdersAllFree(c *C) {
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Error(r.URL.Path)
-		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		requestRecieved = true
 		io.WriteString(w, `{"orders": []}`)
 	}))
@@ -3874,11 +3469,11 @@ func (s *storeTestSuite) TestDecorateOrdersAllFree(c *C) {
 	defer mockPurchasesServer.Close()
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 
-	sto := New(&cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	// This snap is free
 	helloWorld := &snap.Info{}
@@ -3891,7 +3486,7 @@ func (s *storeTestSuite) TestDecorateOrdersAllFree(c *C) {
 	snaps := []*snap.Info{helloWorld, funkyApp}
 
 	// There should be no request to the purchase server.
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, IsNil)
 	c.Check(requestRecieved, Equals, false)
 }
@@ -3900,7 +3495,7 @@ func (s *storeTestSuite) TestDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
 		io.WriteString(w, mockSingleOrderJSON)
 	}))
@@ -3910,10 +3505,10 @@ func (s *storeTestSuite) TestDecorateOrdersSingle(c *C) {
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3922,21 +3517,21 @@ func (s *storeTestSuite) TestDecorateOrdersSingle(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
 func (s *storeTestSuite) TestDecorateOrdersSingleFreeSnap(c *C) {
-	cfg := Config{}
-	sto := New(&cfg, nil)
+	cfg := store.Config{}
+	sto := store.New(&cfg, nil)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 
 	snaps := []*snap.Info{helloWorld}
 
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
@@ -3946,7 +3541,7 @@ func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 		assertRequest(c, r, "GET", ordersPath)
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
 		w.WriteHeader(404)
 		io.WriteString(w, "{}")
@@ -3957,10 +3552,10 @@ func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3969,7 +3564,7 @@ func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
@@ -3978,7 +3573,7 @@ func (s *storeTestSuite) TestDecorateOrdersTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
 		w.WriteHeader(401)
 		io.WriteString(w, "")
@@ -3989,10 +3584,10 @@ func (s *storeTestSuite) TestDecorateOrdersTokenExpired(c *C) {
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -4001,21 +3596,21 @@ func (s *storeTestSuite) TestDecorateOrdersTokenExpired(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err := sto.decorateOrders(snaps, s.user)
+	err := sto.DecorateOrders(snaps, s.user)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
 func (s *storeTestSuite) TestMustBuy(c *C) {
 	// Never need to buy a free snap.
-	c.Check(mustBuy(false, true), Equals, false)
-	c.Check(mustBuy(false, false), Equals, false)
+	c.Check(store.MustBuy(false, true), Equals, false)
+	c.Check(store.MustBuy(false, false), Equals, false)
 
 	// Don't need to buy snaps that have been bought.
-	c.Check(mustBuy(true, true), Equals, false)
+	c.Check(store.MustBuy(true, true), Equals, false)
 
 	// Need to buy snaps that aren't bought.
-	c.Check(mustBuy(true, false), Equals, true)
+	c.Check(store.MustBuy(true, false), Equals, true)
 }
 
 var buyTests = []struct {
@@ -4028,7 +3623,7 @@ var buyTests = []struct {
 	snapID            string
 	price             float64
 	currency          string
-	expectedResult    *BuyResult
+	expectedResult    *store.BuyResult
 	expectedError     string
 }{
 	{
@@ -4036,7 +3631,7 @@ var buyTests = []struct {
 		suggestedCurrency: "EUR",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
 		buyResponse:       mockOrderResponseJSON,
-		expectedResult:    &BuyResult{State: "Complete"},
+		expectedResult:    &store.BuyResult{State: "Complete"},
 	},
 	{
 		// failure due to invalid price
@@ -4108,12 +3703,12 @@ func (s *storeTestSuite) TestBuy500(c *C) {
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	buyOptions := &BuyOptions{
+	buyOptions := &store.BuyOptions{
 		SnapID:   helloWorldSnapID,
 		Currency: "USD",
 		Price:    1,
@@ -4139,7 +3734,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 			case ordersPath:
 				c.Assert(r.Method, Equals, "GET")
 				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 				c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 				io.WriteString(w, `{"orders": []}`)
 				purchaseServerGetCalled = true
@@ -4148,8 +3743,8 @@ func (s *storeTestSuite) TestBuy(c *C) {
 				// check device authorization is set, implicitly checking doRequest was used
 				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 				c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
-				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-				c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
+				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
+				c.Check(r.Header.Get("Content-Type"), Equals, store.JsonContentType)
 				c.Check(r.URL.Path, Equals, buyPath)
 				jsonReq, err := ioutil.ReadAll(r.Body)
 				c.Assert(err, IsNil)
@@ -4180,20 +3775,20 @@ func (s *storeTestSuite) TestBuy(c *C) {
 
 		mockServerURL, _ := url.Parse(mockServer.URL)
 		authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-		cfg := Config{
+		cfg := store.Config{
 			StoreBaseURL: mockServerURL,
 		}
-		sto := New(&cfg, authContext)
+		sto := store.New(&cfg, authContext)
 
 		// Find the snap first
-		spec := SnapSpec{
+		spec := store.SnapSpec{
 			Name: "hello-world",
 		}
 		snap, err := sto.SnapInfo(spec, s.user)
 		c.Assert(snap, NotNil)
 		c.Assert(err, IsNil)
 
-		buyOptions := &BuyOptions{
+		buyOptions := &store.BuyOptions{
 			SnapID:   snap.SnapID,
 			Currency: sto.SuggestedCurrency(),
 			Price:    snap.Prices[sto.SuggestedCurrency()],
@@ -4224,10 +3819,10 @@ func (s *storeTestSuite) TestBuy(c *C) {
 }
 
 func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
-	sto := New(&Config{}, nil)
+	sto := store.New(&store.Config{}, nil)
 
 	// no snap ID
-	result, err := sto.Buy(&BuyOptions{
+	result, err := sto.Buy(&store.BuyOptions{
 		Price:    1.0,
 		Currency: "USD",
 	}, s.user)
@@ -4236,7 +3831,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: snap ID missing")
 
 	// no price
-	result, err = sto.Buy(&BuyOptions{
+	result, err = sto.Buy(&store.BuyOptions{
 		SnapID:   "snap ID",
 		Currency: "USD",
 	}, s.user)
@@ -4245,7 +3840,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: invalid expected price")
 
 	// no currency
-	result, err = sto.Buy(&BuyOptions{
+	result, err = sto.Buy(&store.BuyOptions{
 		SnapID: "snap ID",
 		Price:  1.0,
 	}, s.user)
@@ -4254,7 +3849,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: currency missing")
 
 	// no user
-	result, err = sto.Buy(&BuyOptions{
+	result, err = sto.Buy(&store.BuyOptions{
 		SnapID:   "snap ID",
 		Price:    1.0,
 		Currency: "USD",
@@ -4388,7 +3983,7 @@ func (s *storeTestSuite) TestReadyToBuy(c *C) {
 				// check device authorization is set, implicitly checking doRequest was used
 				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 				c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
-				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 				c.Check(r.URL.Path, Equals, customersMePath)
 				test.Input(w)
 				purchaseServerGetCalled++
@@ -4402,10 +3997,10 @@ func (s *storeTestSuite) TestReadyToBuy(c *C) {
 
 		mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
 		authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-		cfg := Config{
+		cfg := store.Config{
 			StoreBaseURL: mockServerURL,
 		}
-		sto := New(&cfg, authContext)
+		sto := store.New(&cfg, authContext)
 
 		err := sto.ReadyToBuy(s.user)
 		test.Test(c, err)
@@ -4434,16 +4029,13 @@ func (s *storeTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
 
 	url, err := url.Parse(mockServer.URL + "/somewhere")
 	c.Assert(err, IsNil)
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    url,
-		ExtraHeaders: map[string]string{
-			"Range": "bytes=5-",
-		},
+	reqOptions := store.NewRequestOptions("GET", url)
+	reqOptions.ExtraHeaders = map[string]string{
+		"Range": "bytes=5-",
 	}
 
-	sto := New(&Config{}, nil)
-	_, err = sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
+	sto := store.New(&store.Config{}, nil)
+	_, err = sto.DoRequest(context.TODO(), sto.Client(), reqOptions, s.user)
 	c.Assert(err, IsNil)
 }
 
@@ -4467,21 +4059,21 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 }
 
 func (s *storeTestSuite) TestDownloadCacheHit(c *C) {
-	oldCache := s.store.cacher
-	defer func() { s.store.cacher = oldCache }()
 	obs := &cacheObserver{inCache: map[string]bool{"the-snaps-sha3_384": true}}
-	s.store.cacher = obs
+	restore := s.store.MockCacher(obs)
+	defer restore()
 
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Fatalf("download should not be called when results come from the cache")
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.Sha3_384 = "the-snaps-sha3_384"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
@@ -4489,22 +4081,22 @@ func (s *storeTestSuite) TestDownloadCacheHit(c *C) {
 }
 
 func (s *storeTestSuite) TestDownloadCacheMiss(c *C) {
-	oldCache := s.store.cacher
-	defer func() { s.store.cacher = oldCache }()
 	obs := &cacheObserver{inCache: map[string]bool{}}
-	s.store.cacher = obs
+	restore := s.store.MockCacher(obs)
+	defer restore()
 
 	downloadWasCalled := false
-	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		downloadWasCalled = true
 		return nil
-	}
+	})
+	defer restore()
 
 	snap := &snap.Info{}
 	snap.Sha3_384 = "the-snaps-sha3_384"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
+	err := s.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(downloadWasCalled, Equals, true)
 
@@ -4555,7 +4147,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
-		c.Check(req.Fields, DeepEquals, snapActionFields)
+		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -4597,13 +4189,13 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -4611,7 +4203,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -4665,13 +4257,13 @@ func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -4681,12 +4273,12 @@ func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
 		},
 	}, nil, nil, nil)
 	c.Check(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{NoResults: true})
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 
 	// local no-op
 	results, err = sto.SnapAction(context.TODO(), nil, nil, nil, nil)
 	c.Check(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{NoResults: true})
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 
 	c.Check(err.Error(), Equals, "no install/refresh information results from the store")
 }
@@ -4728,13 +4320,13 @@ func (s *storeTestSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -4743,7 +4335,7 @@ func (s *storeTestSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 		},
 	}, nil, nil, nil)
 	c.Check(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{NoResults: true})
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 }
 
 func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
@@ -4803,13 +4395,13 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -4818,7 +4410,7 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 			RefreshedDate:   helloRefreshedDate,
 			Block:           []snap.Revision{snap.R(26)},
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -4827,9 +4419,9 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{
+	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrNoUpdateAvailable,
+			"hello-world": store.ErrNoUpdateAvailable,
 		},
 	})
 }
@@ -4891,13 +4483,13 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -4905,7 +4497,7 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -4914,9 +4506,9 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{
+	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrNoUpdateAvailable,
+			"hello-world": store.ErrNoUpdateAvailable,
 		},
 	})
 }
@@ -4967,20 +4559,20 @@ func (s *storeTestSuite) TestSnapActionRetryOnEOF(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(1),
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -5053,13 +4645,13 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:     "hello-world",
 			SnapID:           helloWorldSnapID,
@@ -5068,13 +4660,13 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 			RefreshedDate:    helloRefreshedDate,
 			IgnoreValidation: true,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			Channel:      "stable",
-			Flags:        SnapActionEnforceValidation,
+			Flags:        store.SnapActionEnforceValidation,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -5139,20 +4731,20 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:  "hello-world",
 			SnapID:        helloWorldSnapID,
 			RefreshedDate: helloRefreshedDate,
 			Revision:      snap.R(1),
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -5232,15 +4824,15 @@ func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := DefaultConfig()
+	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = mockServerURL
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "foo"
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(cfg, authContext)
+	sto := store.New(cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5248,7 +4840,7 @@ func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			RefreshedDate:   helloRefreshedDate,
 			Revision:        snap.R(1),
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -5326,13 +4918,13 @@ func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5340,7 +4932,7 @@ func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -5412,13 +5004,13 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5426,14 +5018,14 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, &RefreshOptions{RefreshManaged: true})
+	}, nil, &store.RefreshOptions{RefreshManaged: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -5511,14 +5103,14 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
-		[]*SnapAction{
+		[]*store.SnapAction{
 			{
 				Action:       action,
 				InstanceName: "hello-world",
@@ -5549,14 +5141,14 @@ func (s *storeTestSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	_, err := sto.SnapAction(context.TODO(), nil,
-		[]*SnapAction{
+		[]*store.SnapAction{
 			{
 				Action:       "download",
 				InstanceName: "hello-world_foo",
@@ -5638,14 +5230,14 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
-		[]*SnapAction{
+		[]*store.SnapAction{
 			{
 				Action:       action,
 				InstanceName: "hello-world",
@@ -5769,13 +5361,13 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5790,7 +5382,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			InstanceName: "hello-world",
@@ -5811,13 +5403,13 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{
+	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": &RevisionNotAvailableError{
+			"hello-world": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "stable",
 			},
-			"snap2": &RevisionNotAvailableError{
+			"snap2": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "candidate",
 				Releases: []snap.Channel{
@@ -5827,13 +5419,13 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			},
 		},
 		Install: map[string]error{
-			"foo": &RevisionNotAvailableError{
+			"foo": &store.RevisionNotAvailableError{
 				Action:  "install",
 				Channel: "stable",
 			},
 		},
 		Download: map[string]error{
-			"bar": &RevisionNotAvailableError{
+			"bar": &store.RevisionNotAvailableError{
 				Action:  "download",
 				Channel: "",
 			},
@@ -5918,13 +5510,13 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5932,7 +5524,7 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -5949,15 +5541,15 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{
+	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrSnapNotFound,
+			"hello-world": store.ErrSnapNotFound,
 		},
 		Install: map[string]error{
-			"foo": ErrSnapNotFound,
+			"foo": store.ErrSnapNotFound,
 		},
 		Download: map[string]error{
-			"bar": ErrSnapNotFound,
+			"bar": store.ErrSnapNotFound,
 		},
 	})
 }
@@ -6005,13 +5597,13 @@ func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), nil, []*SnapAction{
+	results, err := sto.SnapAction(context.TODO(), nil, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "foo",
@@ -6019,7 +5611,7 @@ func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{
+	c.Check(err, DeepEquals, &store.SnapActionError{
 		Other: []error{
 			fmt.Errorf("other error one"),
 			fmt.Errorf("global error"),
@@ -6039,14 +5631,14 @@ func (s *storeTestSuite) TestSnapActionUnknownAction(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
-		[]*SnapAction{
+		[]*store.SnapAction{
 			{
 				Action:       "something unexpected",
 				InstanceName: "hello-world",
@@ -6057,12 +5649,12 @@ func (s *storeTestSuite) TestSnapActionUnknownAction(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
-	e := &SnapActionError{Refresh: map[string]error{
+	e := &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh"),
 	}}
 	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
 
-	e = &SnapActionError{Refresh: map[string]error{
+	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 		"bar": fmt.Errorf("sad refresh 2"),
 	}}
@@ -6071,12 +5663,12 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
 
-	e = &SnapActionError{Install: map[string]error{
+	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install"),
 	}}
 	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
 
-	e = &SnapActionError{Install: map[string]error{
+	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
 		"bar": fmt.Errorf("sad install 2"),
 	}}
@@ -6085,12 +5677,12 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
 
-	e = &SnapActionError{Download: map[string]error{
+	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download"),
 	}}
 	c.Check(e.Error(), Equals, `cannot download snap "foo": sad download`)
 
-	e = &SnapActionError{Download: map[string]error{
+	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download 1"),
 		"bar": fmt.Errorf("sad download 2"),
 	}}
@@ -6099,7 +5691,7 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
 
-	e = &SnapActionError{Refresh: map[string]error{
+	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 	},
 		Install: map[string]error{
@@ -6109,7 +5701,7 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 sad refresh 1: "foo"
 sad install 2: "bar"`)
 
-	e = &SnapActionError{Refresh: map[string]error{
+	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 	},
 		Download: map[string]error{
@@ -6119,7 +5711,7 @@ sad install 2: "bar"`)
 sad refresh 1: "foo"
 sad download 2: "bar"`)
 
-	e = &SnapActionError{Install: map[string]error{
+	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
 	},
 		Download: map[string]error{
@@ -6129,7 +5721,7 @@ sad download 2: "bar"`)
 sad install 1: "foo"
 sad download 2: "bar"`)
 
-	e = &SnapActionError{Refresh: map[string]error{
+	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 	},
 		Install: map[string]error{
@@ -6143,20 +5735,20 @@ sad refresh 1: "foo"
 sad install 2: "bar"
 sad download 3: "baz"`)
 
-	e = &SnapActionError{
+	e = &store.SnapActionError{
 		NoResults: true,
 		Other:     []error{fmt.Errorf("other error")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download: other error`)
 
-	e = &SnapActionError{
+	e = &store.SnapActionError{
 		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
 other error 1
 other error 2`)
 
-	e = &SnapActionError{
+	e = &store.SnapActionError{
 		Install: map[string]error{
 			"bar": fmt.Errorf("sad install"),
 		},
@@ -6167,7 +5759,7 @@ sad install: "bar"
 other error 1
 other error 2`)
 
-	e = &SnapActionError{
+	e = &store.SnapActionError{
 		NoResults: true,
 	}
 	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
@@ -6189,7 +5781,7 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+	store.UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
 
 	refreshSessionRequested := false
 	expiredAuth := `Macaroon root="expired-session-macaroon"`
@@ -6278,11 +5870,11 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 	// make sure device session is expired
 	s.device.SessionMacaroon = "expired-session-macaroon"
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := New(&Config{
+	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6290,7 +5882,7 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -6329,13 +5921,12 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 			return
 		}
 		seenPaths[r.URL.Path]++
-		return
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 	mockServerURL, _ = url.Parse(mockServer.URL)
 
-	sto := New(&Config{
+	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, nil)
 	connectivity, err := sto.ConnectivityCheck()
@@ -6351,6 +5942,11 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
+	store.MockConnCheckStrategy(&s.BaseTest, retry.LimitCount(3, retry.Exponential{
+		Initial: time.Millisecond,
+		Factor:  1.3,
+	}))
+
 	seenPaths := make(map[string]int, 2)
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -6362,13 +5958,12 @@ func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
 			return
 		}
 		seenPaths[r.URL.Path]++
-		return
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 	mockServerURL, _ = url.Parse(mockServer.URL)
 
-	sto := New(&Config{
+	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, nil)
 	connectivity, err := sto.ConnectivityCheck()
@@ -6409,7 +6004,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
-			"instance-key":     fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
@@ -6417,7 +6012,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
-			"instance-key": fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key": helloWorldFooInstanceKeyWithSalt,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
 		})
@@ -6425,7 +6020,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
-     "instance-key": "1-buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6447,13 +6042,13 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6467,19 +6062,128 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
 		},
-	}, nil, nil)
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
+	// salt "foo"
+	helloWorldFooInstanceKeyWithSaltFoo := helloWorldSnapID + ":CY2pHZ7nlQDuiO5DxIsdRttcqqBoD2ZCQiEtCJSdVcI"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSaltFoo,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldFooInstanceKeyWithSaltFoo,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:CY2pHZ7nlQDuiO5DxIsdRttcqqBoD2ZCQiEtCJSdVcI",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&cfg, authContext)
+
+	opts := &store.RefreshOptions{PrivacyKey: "foo"}
+	currentSnaps := []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}
+	action := []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			Channel:      "stable",
+			InstanceName: "hello-world_foo",
+		},
+	}
+	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+
+	// another request with the same seed, gives same result
+	resultsAgain, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
+	c.Assert(err, IsNil)
+	c.Assert(resultsAgain, DeepEquals, results)
 }
 
 func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C) {
@@ -6508,7 +6212,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
-			"instance-key":     fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
 			"revision":         float64(2),
 			"tracking-channel": "edge",
 			"refreshed-date":   helloRefreshedDateStr,
@@ -6521,7 +6225,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
-			"instance-key": fmt.Sprintf("%d-%s", 1, helloWorldSnapID),
+			"instance-key": helloWorldFooInstanceKeyWithSalt,
 			"snap-id":      helloWorldSnapID,
 		})
 		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
@@ -6543,7 +6247,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
      }
   }, {
      "result": "error",
-     "instance-key": "1-buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "error": {
@@ -6568,13 +6272,13 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6589,7 +6293,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			InstanceName: "hello-world",
@@ -6603,21 +6307,21 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			InstanceName: "other_foo",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &SnapActionError{
+	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": &RevisionNotAvailableError{
+			"hello-world": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "stable",
 			},
-			"hello-world_foo": &RevisionNotAvailableError{
+			"hello-world_foo": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "edge",
 			},
 		},
 		Install: map[string]error{
-			"other_foo": &RevisionNotAvailableError{
+			"other_foo": &store.RevisionNotAvailableError{
 				Action:  "install",
 				Channel: "stable",
 			},
@@ -6682,13 +6386,13 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6696,7 +6400,7 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "hello-world_foo",
@@ -6717,9 +6421,9 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 
 func (s *storeTestSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&Config{}, authContext)
+	sto := store.New(&store.Config{}, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6727,7 +6431,7 @@ func (s *storeTestSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:  "install",
 			Channel: "stable",
@@ -6794,13 +6498,13 @@ func (s *storeTestSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6808,7 +6512,7 @@ func (s *storeTestSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "hello-world_foo",
@@ -6876,13 +6580,13 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := Config{
+	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: s.device}
-	sto := New(&cfg, authContext)
+	sto := store.New(&cfg, authContext)
 
-	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6890,7 +6594,7 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*SnapAction{
+	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
@@ -6900,4 +6604,111 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	}, nil, nil)
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
 	c.Assert(results, IsNil)
+}
+
+func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo-2",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "foo-2-id",
+     "name": "foo-2",
+     "snap": {
+       "snap-id": "foo-2-id",
+       "name": "foo-2",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  },{
+      "error": {
+        "code": "duplicated-snap",
+         "message": "The Snap is present more than once in the request."
+      },
+      "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
+      "name": null,
+      "result": "error",
+      "snap": null,
+      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo-2",
+		},
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(err, DeepEquals, &store.SnapActionError{
+		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
+	})
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "foo-2")
+	c.Assert(results[0].SnapID, Equals, "foo-2-id")
 }

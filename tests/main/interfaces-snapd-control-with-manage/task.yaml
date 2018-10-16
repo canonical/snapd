@@ -17,7 +17,7 @@ prepare: |
     fi
 
     echo "Ensure jq is installed"
-    if ! which jq; then
+    if ! command -v jq; then
         snap install --devmode jq
     fi
 
@@ -25,12 +25,14 @@ prepare: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-    . $TESTSLIB/store.sh
-    setup_fake_store $BLOB_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    setup_fake_store "$BLOB_DIR"
 
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     snap_path=$(make_snap test-snapd-control-consumer)
-    make_snap_installable $BLOB_DIR ${snap_path}
+    make_snap_installable "$BLOB_DIR" "${snap_path}"
     cat > snap-decl.json <<'EOF'
     {
       "format": "1",
@@ -47,15 +49,16 @@ prepare: |
     }
     EOF
     fakestore new-snap-declaration --dir "${BLOB_DIR}" --snap-decl-json snap-decl.json
-    snap ack ${BLOB_DIR}/asserts/*.snap-declaration
+    snap ack "${BLOB_DIR}"/asserts/*.snap-declaration
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    . $TESTSLIB/store.sh
-    teardown_fake_store $BLOB_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$BLOB_DIR"
 
 debug: |
     jq .data.auth.device /var/lib/snapd/state.json
@@ -105,13 +108,13 @@ execute: |
     systemctl start snapd.socket snapd.service
 
     echo "Ensure that last-refresh-hit happens"
-    for i in $(seq 120); do
-        if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep $(date +%Y); then
+    for _ in $(seq 120); do
+        if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"; then
             break
         fi
         sleep 1
     done
-    jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep $(date +%Y)
+    jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"
 
     # prevent refreshes again
     systemctl stop snapd.socket snapd.service

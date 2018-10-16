@@ -20,6 +20,11 @@ prepare: |
         ln -sf $SNAP_MOUNT_DIR /snap
     fi
 
+restore: |
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
+        rm -f /snap
+    fi
+
 execute: |
     echo "Check that classic snaps work only with --classic"
     if snap install --dangerous "${CLASSIC_SNAP}_1.0_all.snap"; then
@@ -49,8 +54,3 @@ execute: |
     snap list | MATCH "$CLASSIC_SNAP .*2.0 .*classic"
     snap info "$CLASSIC_SNAP"|MATCH "installed:.* 2.0 .*classic"
     "$CLASSIC_SNAP" | MATCH lala
-
-restore: |
-    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
-        rm -f /snap
-    fi

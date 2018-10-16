@@ -4,11 +4,11 @@ details: |
     This installs a snap which define sockets for systemd socket activation.
 
 prepare: |
-    snap pack "$TESTSLIB"/snaps/socket-activation
-    snap install --dangerous socket-activation_1.0_all.snap
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local socket-activation
 
 restore: |
-    rm -f socket-activation_1.0_all.snap
     systemctl daemon-reload
 
 execute: |

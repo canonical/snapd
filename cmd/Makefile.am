@@ -7,9 +7,6 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-# FIXME: get this via something like pkgconf once it is defined there
-SYSTEMD_SYSTEM_ENV_GENERATOR_DIR=/usr/lib/systemd/system-environment-generators
-
 CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
 	-Wno-missing-field-initializers -Wno-unused-parameter
 
@@ -18,7 +15,15 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim snapd-generator snapd-env-generator
+subdirs = \
+		  libsnap-confine-private \
+		  snap-confine \
+		  snap-discard-ns \
+		  snap-gdb-shim \
+		  snap-update-ns \
+		  snapd-env-generator \
+		  snapd-generator \
+		  system-shutdown
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -181,8 +186,8 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 
 libexec_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
-dist_man_MANS += snap-confine/snap-confine.1
-CLEANFILES += snap-confine/snap-confine.1
+dist_man_MANS += snap-confine/snap-confine.8
+CLEANFILES += snap-confine/snap-confine.8
 endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
@@ -245,7 +250,7 @@ snap_confine_snap_confine_SOURCES += \
 	snap-confine/seccomp-support.h
 snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
 if STATIC_LIBSECCOMP
-snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libseccomp)
 else
 snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
 endif  # STATIC_LIBSECCOMP
@@ -254,7 +259,7 @@ endif  # SECCOMP
 if APPARMOR
 snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
-snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
 else
 snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
@@ -307,8 +312,7 @@ snap-confine/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_unit_tests
 endif  # WITH_UNIT_TESTS
 
 if HAVE_RST2MAN
-snap-confine/%.1: snap-confine/%.rst
-	mkdir -p snap-confine
+%.8: %.rst
 	$(HAVE_RST2MAN) $^ > $@
 endif
 
@@ -344,7 +348,12 @@ endif
 ## snap-mgmt
 ##
 
-libexec_PROGRAMS += snap-mgmt/snap-mgmt
+libexec_SCRIPTS = snap-mgmt/snap-mgmt
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt
+
+snap-mgmt/$(am__dirstamp):
+	mkdir -p $$(dirname $@)
+	touch $@
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
@@ -379,8 +388,8 @@ install-exec-local::
 
 libexec_PROGRAMS += snap-discard-ns/snap-discard-ns
 if HAVE_RST2MAN
-dist_man_MANS += snap-discard-ns/snap-discard-ns.5
-CLEANFILES += snap-discard-ns/snap-discard-ns.5
+dist_man_MANS += snap-discard-ns/snap-discard-ns.8
+CLEANFILES += snap-discard-ns/snap-discard-ns.8
 endif
 EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 
@@ -398,7 +407,7 @@ snap_discard_ns_snap_discard_ns_STATIC =
 if APPARMOR
 snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
-snap_discard_ns_snap_discard_ns_STATIC += $(shell pkg-config --static --libs libapparmor)
+snap_discard_ns_snap_discard_ns_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
 else
 snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
@@ -416,12 +425,6 @@ snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJE
 	$(AM_V_CCLD)$(snap_discard_ns_snap_discard_ns_LINK) $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_LDADD) $(LIBS)
 
 snap-discard-ns/snap-discard-ns$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_discard_ns_snap_discard_ns_STATIC) -Wl,-Bdynamic -pthread
-
-if HAVE_RST2MAN
-snap-discard-ns/%.5: snap-discard-ns/%.rst
-	mkdir -p snap-discard-ns
-	$(HAVE_RST2MAN) $^ > $@
-endif
 
 ##
 ## system-shutdown
@@ -463,7 +466,8 @@ snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
 ## snapd-generator
 ##
 
-libexec_PROGRAMS += snapd-generator/snapd-generator
+systemdsystemgeneratordir = $(SYSTEMD_SYSTEM_GENERATOR_DIR)
+systemdsystemgenerator_PROGRAMS = snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
@@ -480,12 +484,8 @@ snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.a
 EXTRA_DIST += snapd-env-generator/snapd-env-generator.rst
 
 if HAVE_RST2MAN
-snapd-env-generator/%.7: snapd-env-generator/%.rst
-	mkdir -p snapd-env-generator
-	$(HAVE_RST2MAN) $^ > $@
-
-dist_man_MANS += snapd-env-generator/snapd-env-generator.7
-CLEANFILES += snapd-env-generator/snapd-env-generator.7
+dist_man_MANS += snapd-env-generator/snapd-env-generator.8
+CLEANFILES += snapd-env-generator/snapd-env-generator.8
 endif
 
 ##

@@ -4,8 +4,10 @@ summary: Check that snap-mgmt.sh works
 systems: [-ubuntu-core-*]
 
 prepare: |
-    . $TESTSLIB/dirs.sh
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     snap install test-snapd-tools
     snap list | MATCH test-snapd-tools
@@ -32,15 +34,16 @@ prepare: |
     systemctl list-unit-files --type service --no-legend | MATCH 'snap.test-snapd-service\..*\.service\s+enabled'
 
     # expecting to find various files that snap installation produced
-    test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -gt 0
-    test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -gt 0
-    test $(find /etc/systemd/system -name 'snap.*.timer' | wc -l) -gt 0
+    test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
+    test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
 
 execute: |
     echo "Stop snapd before purging"
     systemctl stop snapd.service snapd.socket
 
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "A purge will really purge things"
     $LIBEXECDIR/snapd/snap-mgmt --purge
@@ -56,10 +59,10 @@ execute: |
                /var/lib/snapd/cache/ \
                "
     for d in $emptydirs ; do
-        n=$(find $d  | wc -l)
+        n=$(find "$d"  | wc -l)
         if [ "$n" -gt 1 ]; then
             echo "$d not empty after snap-mgmt.sh purge"
-            ls -lR $d
+            ls -lR "$d"
             exit 1
         fi
     done
@@ -70,15 +73,15 @@ execute: |
     ! test -f /var/lib/snapd/system-key
 
     echo "Preserved namespaces directory is not mounted"
-    ! cat /proc/mounts | MATCH "/run/snapd/ns"
+    ! MATCH "/run/snapd/ns" < /proc/mounts
 
     systemctl daemon-reload
     echo "Snap *.service files are removed"
-    ! systemctl list-unit-files --type service | MATCH "^snap.test-snapd-service.*\.service"
+    ! systemctl list-unit-files --type service | MATCH '^snap.test-snapd-service.*\.service'
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
 
-    test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -eq 0
-    test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -eq 0
-    test $(find /etc/systemd/system -name 'snap.*.timer' | wc -l) -eq 0
+    test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
+    test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0

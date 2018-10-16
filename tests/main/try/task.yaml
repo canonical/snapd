@@ -36,8 +36,6 @@ execute: |
     echo -n "Hello World" > "$READABLE_FILE"
     test-snapd-tools.cat "$READABLE_FILE" | MATCH "Hello World"
 
-    echo "====================================="
-
     echo "Given a buildable snap which access confinement-protected resources in a known directory"
     echo "When try is executed on that directory"
     snap try "$TESTSLIB"/snaps/test-snapd-tools
@@ -50,16 +48,12 @@ execute: |
         fi
     fi
 
-    echo "====================================="
-
     echo "Given a buildable snap which access confinement-protected resources in a known directory"
     echo "When try is executed on that directory with devmode enabled"
     snap try "$TESTSLIB"/snaps/test-snapd-tools --devmode
 
     echo "Then the snap command is able to access the protected resource"
     test-snapd-tools.head -1 /dev/kmsg
-
-    echo "====================================="
 
     echo "Given a buildable snap which access confinement-enabled network resources in a known directory"
     echo "When try is executed on that directory"
@@ -68,7 +62,6 @@ execute: |
     echo "Then the snap is able to access the network resource"
     network-consumer http://127.0.0.1:"$PORT" | MATCH "ok"
 
-    echo "====================================="
     n=test-snapd-classic-confinement
     s=$TESTSLIB/snaps/$n
     echo "Given a buildable snap with classic confinement:"

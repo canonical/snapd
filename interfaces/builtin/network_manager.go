@@ -197,6 +197,13 @@ dbus (receive, send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
+
 dbus(receive, send)
     bus=system
     path=/org/freedesktop/hostname1
@@ -205,12 +212,12 @@ dbus(receive, send)
     peer=(label=unconfined),
 
 # Sleep monitor inside NetworkManager needs this
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/login1
     member=Inhibit
-    interface=org.freedesktop.login1.Manager
-    peer=(label=unconfined),
+    interface=org.freedesktop.login1.Manager,
 dbus (receive)
     bus=system
     path=/org/freedesktop/login1

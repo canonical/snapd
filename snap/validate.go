@@ -21,6 +21,7 @@ package snap
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -84,8 +85,6 @@ func ValidateInstanceName(instanceName string) error {
 		return err
 	}
 	if !validInstanceKey.MatchString(instanceKey) {
-		// TODO parallel-install: extend the error message once snap
-		// install help has been updated
 		return fmt.Errorf("invalid instance key: %q", instanceKey)
 	}
 	return nil
@@ -149,7 +148,7 @@ func ValidateVersion(version string) error {
 	if !isValidVersion(version) {
 		// maybe it was too short?
 		if len(version) == 0 {
-			return fmt.Errorf("invalid snap version: cannot be empty")
+			return errors.New("invalid snap version: cannot be empty")
 		}
 		if isNonGraphicalASCII(version) {
 			// note that while this way of quoting the version can produce ugly
@@ -212,6 +211,14 @@ func ValidateHook(hook *HookInfo) error {
 	if !valid {
 		return fmt.Errorf("invalid hook name: %q", hook.Name)
 	}
+
+	// Also validate the command chain
+	for _, value := range hook.CommandChain {
+		if !commandChainContentWhitelist.MatchString(value) {
+			return fmt.Errorf("hook command-chain contains illegal %q (legal: '%s')", value, commandChainContentWhitelist)
+		}
+	}
+
 	return nil
 }
 
@@ -238,7 +245,7 @@ func validateSocketName(name string) error {
 // validateSocketmode checks that the socket mode is a valid file mode.
 func validateSocketMode(mode os.FileMode) error {
 	if mode > 0777 {
-		return fmt.Errorf("cannot use socket mode: %04o", mode)
+		return fmt.Errorf("cannot use mode: %04o", mode)
 	}
 
 	return nil
@@ -247,7 +254,7 @@ func validateSocketMode(mode os.FileMode) error {
 // validateSocketAddr checks that the value of socket addresses.
 func validateSocketAddr(socket *SocketInfo, fieldName string, address string) error {
 	if address == "" {
-		return fmt.Errorf("socket %q must define %q", socket.Name, fieldName)
+		return fmt.Errorf("%q is not defined", fieldName)
 	}
 
 	switch address[0] {
@@ -262,22 +269,23 @@ func validateSocketAddr(socket *SocketInfo, fieldName string, address string) er
 
 func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) error {
 	if clean := filepath.Clean(path); clean != path {
-		return fmt.Errorf("socket %q has invalid %q: %q should be written as %q", socket.Name, fieldName, path, clean)
+		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
 	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
 		return fmt.Errorf(
-			"socket %q has invalid %q: only $SNAP_DATA and $SNAP_COMMON prefixes are allowed", socket.Name, fieldName)
+			"invalid %q: must have a prefix of $SNAP_DATA or $SNAP_COMMON", fieldName)
 	}
 
 	return nil
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
-	// TODO parallel-install: use of proper instance/store name, discuss socket activation in parallel install world
-	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.InstanceName())
+	// this comes from snap declaration, so the prefix can only be the snap
+	// name at this point
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.SnapName())
 	if !strings.HasPrefix(path, prefix) {
-		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
+		return fmt.Errorf("path for %q must be prefixed with %q", fieldName, prefix)
 	}
 	return nil
 }
@@ -296,19 +304,20 @@ func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string)
 }
 
 func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
-	for _, validAddress := range []string{"127.0.0.1", "[::1]", "[::]"} {
-		if address == validAddress {
+	validAddresses := []string{"127.0.0.1", "[::1]", "[::]"}
+	for _, valid := range validAddresses {
+		if address == valid {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("socket %q has invalid %q address %q", socket.Name, fieldName, address)
+	return fmt.Errorf("invalid %q address %q, must be one of: %s", fieldName, address, strings.Join(validAddresses, ", "))
 }
 
 func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
 	var val uint64
 	var err error
-	retErr := fmt.Errorf("socket %q has invalid %q port number %q", socket.Name, fieldName, port)
+	retErr := fmt.Errorf("invalid %q port number %q", fieldName, port)
 	if val, err = strconv.ParseUint(port, 10, 16); err != nil {
 		return retErr
 	}
@@ -322,7 +331,7 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 func Validate(info *Info) error {
 	name := info.InstanceName()
 	if name == "" {
-		return fmt.Errorf("snap name cannot be empty")
+		return errors.New("snap name cannot be empty")
 	}
 
 	if err := ValidateName(info.SnapName()); err != nil {
@@ -349,7 +358,7 @@ func Validate(info *Info) error {
 	// validate app entries
 	for _, app := range info.Apps {
 		if err := ValidateApp(app); err != nil {
-			return err
+			return fmt.Errorf("invalid definition of application %q: %v", app.Name, err)
 		}
 	}
 
@@ -372,7 +381,12 @@ func Validate(info *Info) error {
 		}
 	}
 
-	// ensure that plug and slot have unique names
+	// Ensure that plugs and slots have appropriate names and interface names.
+	if err := plugsSlotsInterfacesNames(info); err != nil {
+		return err
+	}
+
+	// Ensure that plug and slot have unique names.
 	if err := plugsSlotsUniqueNames(info); err != nil {
 		return err
 	}
@@ -438,6 +452,25 @@ func ValidateLayoutAll(info *Info) error {
 	return nil
 }
 
+func plugsSlotsInterfacesNames(info *Info) error {
+	for plugName, plug := range info.Plugs {
+		if err := ValidatePlugName(plugName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(plug.Interface); err != nil {
+			return fmt.Errorf("invalid interface name %q for plug %q", plug.Interface, plugName)
+		}
+	}
+	for slotName, slot := range info.Slots {
+		if err := ValidateSlotName(slotName); err != nil {
+			return err
+		}
+		if err := ValidateInterfaceName(slot.Interface); err != nil {
+			return fmt.Errorf("invalid interface name %q for slot %q", slot.Interface, slotName)
+		}
+	}
+	return nil
+}
 func plugsSlotsUniqueNames(info *Info) error {
 	// we could choose the smaller collection if we wanted to optimize this check
 	for plugName := range info.Plugs {
@@ -530,20 +563,18 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	// we must be a service to request ordering
 	if len(dependencies) > 0 && !app.IsService() {
-		return fmt.Errorf("cannot define before/after in application %q as it's not a service", app.Name)
+		return errors.New("must be a service to define before/after ordering")
 	}
 
 	for _, dep := range dependencies {
 		// dependency is not defined
 		other, ok := app.Snap.Apps[dep]
 		if !ok {
-			return fmt.Errorf("application %q refers to missing application %q in before/after",
-				app.Name, dep)
+			return fmt.Errorf("before/after references a missing application %q", dep)
 		}
 
 		if !other.IsService() {
-			return fmt.Errorf("application %q refers to non-service application %q in before/after",
-				app.Name, dep)
+			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
 	}
 	return nil
@@ -556,11 +587,11 @@ func validateAppWatchdog(app *AppInfo) error {
 	}
 
 	if !app.IsService() {
-		return fmt.Errorf("cannot define watchdog-timeout in application %q as it's not a service", app.Name)
+		return errors.New("watchdog-timeout is only applicable to services")
 	}
 
 	if app.WatchdogTimeout < 0 {
-		return fmt.Errorf("cannot use a negative watchdog-timeout in application %q", app.Name)
+		return errors.New("watchdog-timeout cannot be negative")
 	}
 
 	return nil
@@ -572,20 +603,47 @@ func validateAppTimer(app *AppInfo) error {
 	}
 
 	if !app.IsService() {
-		return fmt.Errorf("cannot use timer with application %q as it's not a service", app.Name)
+		return errors.New("timer is only applicable to services")
 	}
 
 	if _, err := timeutil.ParseSchedule(app.Timer.Timer); err != nil {
-		return fmt.Errorf("application %q timer has invalid format: %v", app.Name, err)
+		return fmt.Errorf("timer has invalid format: %v", err)
 	}
 
 	return nil
 }
 
+func validateAppRestart(app *AppInfo) error {
+	// app.RestartCond value is validated when unmarshalling
+
+	if app.RestartDelay == 0 && app.RestartCond == "" {
+		return nil
+	}
+
+	if app.RestartDelay != 0 {
+		if !app.IsService() {
+			return errors.New("restart-delay is only applicable to services")
+		}
+
+		if app.RestartDelay < 0 {
+			return errors.New("restart-delay cannot be negative")
+		}
+	}
+
+	if app.RestartCond != "" {
+		if !app.IsService() {
+			return errors.New("restart-condition is only applicable to services")
+		}
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
-// will get confused.
+// will get confused. chainContentWhitelist is the same, but for the
+// command-chain, which also doesn't allow whitespace.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
+var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
@@ -623,6 +681,13 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
+	// Also validate the command chain
+	for _, value := range app.CommandChain {
+		if err := validateField("command-chain", value, commandChainContentWhitelist); err != nil {
+			return err
+		}
+	}
+
 	// Socket activation requires the "network-bind" plug
 	if len(app.Sockets) > 0 {
 		if _, ok := app.Plugs["network-bind"]; !ok {
@@ -631,12 +696,14 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	for _, socket := range app.Sockets {
-		err := validateAppSocket(socket)
-		if err != nil {
-			return err
+		if err := validateAppSocket(socket); err != nil {
+			return fmt.Errorf("invalid definition of socket %q: %v", socket.Name, err)
 		}
 	}
 
+	if err := validateAppRestart(app); err != nil {
+		return err
+	}
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
@@ -747,7 +814,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	mountPoint := layout.Path
 
 	if mountPoint == "" {
-		return fmt.Errorf("layout cannot use an empty path")
+		return errors.New("layout cannot use an empty path")
 	}
 
 	if err := ValidatePathVariables(mountPoint); err != nil {

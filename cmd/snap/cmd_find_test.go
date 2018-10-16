@@ -137,7 +137,7 @@ func (s *SnapSuite) TestFindSnapName(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello"})
 
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
@@ -230,7 +230,7 @@ func (s *SnapSuite) TestFindHello(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
@@ -257,7 +257,7 @@ func (s *SnapSuite) TestFindHelloNarrow(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find", "--narrow", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--narrow", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
@@ -320,7 +320,7 @@ func (s *SnapSuite) TestFindPriced(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
@@ -381,7 +381,7 @@ func (s *SnapSuite) TestFindPricedAndBought(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
@@ -405,7 +405,7 @@ func (s *SnapSuite) TestFindNothingMeansFeaturedSection(c *check.C) {
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"find"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 1)
@@ -463,7 +463,7 @@ func (s *SnapSuite) TestFindNetworkTimeoutError(c *check.C) {
 
 		n++
 	})
-	_, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.ErrorMatches, `unable to contact snap store`)
 	c.Check(s.Stdout(), check.Equals, "")
 }
@@ -485,7 +485,7 @@ func (s *SnapSuite) TestFindSnapSectionOverview(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser().ParseArgs([]string{"find", "--section"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section"})
 
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
@@ -517,7 +517,7 @@ func (s *SnapSuite) TestFindSnapInvalidSection(c *check.C) {
 
 		n++
 	})
-	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
 	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
 }
 
@@ -548,7 +548,7 @@ func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "No matching snaps for \"hello\" in section \"foobar\"\n")
 	c.Check(s.Stdout(), check.Equals, "")
@@ -571,13 +571,13 @@ func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
 	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0755)
 	ioutil.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0644)
 
-	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
 	c.Logf("stdout: %s", s.Stdout())
 	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
 
 	s.ResetStdStreams()
 
-	rest, err := snap.Parser().ParseArgs([]string{"find", "--section"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section"})
 
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})

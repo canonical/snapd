@@ -52,6 +52,7 @@ ptrace (read),
 deny ptrace (trace),
 
 # Other miscellaneous accesses for observing the system
+@{PROC}/modules r,
 @{PROC}/stat r,
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
@@ -74,20 +75,20 @@ deny ptrace (trace),
 
 #include <abstractions/dbus-strict>
 
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
-    member=Get{,All}
-    peer=(label=unconfined),
+    member=Get{,All},
 
 # Allow clients to introspect hostname1
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Introspectable
-    member=Introspect
-    peer=(label=unconfined),
+    member=Introspect,
 
 # Allow clients to enumerate DBus connection names on common buses
 dbus (send)

@@ -145,3 +145,13 @@ func MockEtcFstab(text string) (restore func()) {
 		etcFstab = old
 	}
 }
+
+// MockUname mocks syscall.Uname as used by MachineName and KernelVersion
+func MockUname(f func(*syscall.Utsname) error) (restore func()) {
+	old := syscallUname
+	syscallUname = f
+
+	return func() {
+		syscallUname = old
+	}
+}

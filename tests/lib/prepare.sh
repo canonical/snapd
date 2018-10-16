@@ -107,14 +107,14 @@ update_core_snap_for_classic_reexec() {
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs -no-progress "$snap"
     # clean the old snapd binaries, just in case
-    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
+    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
-    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
     if [ ! -L squashfs-root/usr/bin/snapctl ]; then
-        mv squashfs-root/usr/bin/snapctl squashfs-root/usr/lib/snapd
+        rm -f squashfs-root/usr/bin/snapctl
         ln -s ../lib/snapd/snapctl squashfs-root/usr/bin/snapctl
     fi
 
@@ -230,6 +230,9 @@ prepare_classic() {
 
     # Snapshot the state including core.
     if ! is_snapd_state_saved; then
+        # need to be seeded to proceed with snap install
+        # also make sure the captured state is seeded
+        snap wait system seed.loaded
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -291,6 +294,9 @@ setup_reflash_magic() {
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
 
+    # need to be seeded to proceed with snap install
+    snap wait system seed.loaded
+
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
@@ -323,31 +329,7 @@ setup_reflash_magic() {
         
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-        
         IMAGE=core18-amd64.img
-            
-        # TODO: once we have a real "canonical" signed core18 model
-        # use this and remove the extra assertions setup below.
-        #
-        # Note we don't need teardown, once the image is written
-        # the system reboots anyway.
-        #
-        # We can do this once https://forum.snapcraft.io/t/5947 is
-        # answered.
-        echo "Added needed assertions so that ubuntu-core-18-amd64.model works"
-        # shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB/store.sh"
-        STORE_DIR="$(pwd)/fake-store-blobdir"
-        export STORE_DIR
-        STORE_ADDR="localhost:11028"
-        export STORE_ADDR
-        setup_fake_store "$STORE_DIR"
-        cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR"/asserts
-        cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR"/asserts
-        # have snap use the fakestore for assertions (but nothing else)
-        SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
-        export SNAPPY_FORCE_SAS_URL
-        # -----------------------8<----------------------------
     else
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
@@ -410,7 +392,7 @@ EOF
     fi
 
     # extra_snap should contain only ONE snap
-    if "${#extra_snap[@]}" -ne 1; then
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
         echo "unexpected number of globbed snaps: ${extra_snap[*]}"
         exit 1
     fi

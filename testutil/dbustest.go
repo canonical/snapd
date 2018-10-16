@@ -20,6 +20,7 @@
 package testutil
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -50,10 +51,17 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	}
 
 	s.tmpdir = c.MkDir()
-	s.dbusDaemon = exec.Command("dbus-daemon", "--session", fmt.Sprintf("--address=unix:%s/user_bus_socket", s.tmpdir))
-	err := s.dbusDaemon.Start()
+	s.dbusDaemon = exec.Command("dbus-daemon", "--session", "--print-address", fmt.Sprintf("--address=unix:path=%s/user_bus_socket", s.tmpdir))
+	pout, err := s.dbusDaemon.StdoutPipe()
 	c.Assert(err, IsNil)
+	err = s.dbusDaemon.Start()
+	c.Assert(err, IsNil)
+
+	scanner := bufio.NewScanner(pout)
+	scanner.Scan()
+	c.Assert(scanner.Err(), IsNil)
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
+	os.Setenv("DBUS_SESSION_BUS_ADDRESS", scanner.Text())
 
 	s.SessionBus, err = dbus.SessionBus()
 	c.Assert(err, IsNil)
@@ -64,6 +72,8 @@ func (s *DBusTest) TearDownSuite(c *C) {
 	if s.dbusDaemon != nil && s.dbusDaemon.Process != nil {
 		err := s.dbusDaemon.Process.Kill()
 		c.Assert(err, IsNil)
+		err = s.dbusDaemon.Wait() // do cleanup
+		c.Assert(err, ErrorMatches, `(?i)signal: killed`)
 	}
 
 }

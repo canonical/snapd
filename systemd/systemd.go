@@ -69,6 +69,19 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	}
 }
 
+// MockStopDelays is used from tests so that Stop can be less
+// forgiving there.
+func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
+	oldCheckDelay := stopCheckDelay
+	oldNotifyDelay := stopNotifyDelay
+	stopCheckDelay = checkDelay
+	stopNotifyDelay = notifyDelay
+	return func() {
+		stopCheckDelay = oldCheckDelay
+		stopNotifyDelay = oldNotifyDelay
+	}
+}
+
 func Available() error {
 	_, err := systemctlCmd("--version")
 	return err
@@ -131,7 +144,7 @@ const (
 	ServicesTarget = "multi-user.target"
 
 	// the target prerequisite for systemd units we generate
-	PrerequisiteTarget = "network-online.target"
+	PrerequisiteTarget = "network.target"
 
 	// the default target for systemd socket units that we generate
 	SocketsTarget = "sockets.target"

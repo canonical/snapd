@@ -5,11 +5,18 @@ summary: Run snap sign to sign a model assertion
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*]
 
 prepare: |
+    #shellcheck source=tests/lib/mkpinentry.sh
     . "$TESTSLIB"/mkpinentry.sh
+    #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
     kill_gpg_agent
 
+restore: |
+    rm -f pi3.model
+    rm -f pi3-model.json
+
 debug: |
+    #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
     debug_random
 
@@ -40,7 +47,3 @@ execute: |
 
     echo "Verify that the resulting model assertion is signed"
     MATCH "sign-key-sha3-384: $key" < pi3.model
-
-restore: |
-    rm -f pi3.model
-    rm -f pi3-model.json

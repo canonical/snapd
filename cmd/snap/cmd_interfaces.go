@@ -28,13 +28,14 @@ import (
 )
 
 type cmdInterfaces struct {
+	clientMixin
 	Interface   string `short:"i"`
 	Positionals struct {
 		Query interfacesSlotOrPlugSpec `skip-help:"true"`
 	} `positional-args:"true"`
 }
 
-var shortInterfacesHelp = i18n.G("List interfaces in the system")
+var shortInterfacesHelp = i18n.G("List interfaces' slots and plugs")
 var longInterfacesHelp = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
@@ -58,11 +59,12 @@ func init() {
 	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
 	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"i": i18n.G("Constrain listing to specific interfaces"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<snap>:<slot or plug>"),
-		// TRANSLATORS: This should probably not start with a lowercase letter.
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
 	}})
 }
@@ -72,7 +74,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := Client().Connections()
+	ifaces, err := x.client.Connections()
 	if err != nil {
 		return err
 	}
@@ -91,6 +93,18 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if wantedSnap == slot.Snap {
 				ok = true
 			}
+			// Normally snap nicknames are handled internally in the snapd
+			// layer. This specific command is an exception as it does
+			// client-side filtering. As a special case, when the user asked
+			// for the snap "core" but we see the "system" nickname or the
+			// "snapd" snap, treat that as a match.
+			//
+			// The system nickname was returned in 2.35.
+			// The snapd snap is returned by 2.36+ if snapd snap is installed
+			// and is the host for implicit interfaces.
+			if (wantedSnap == "core" || wantedSnap == "snapd" || wantedSnap == "system") && (slot.Snap == "core" || slot.Snap == "snapd" || slot.Snap == "system") {
+				ok = true
+			}
 
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
 				if wantedSnap == slot.Connections[i].Snap {
@@ -107,9 +121,10 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		if x.Interface != "" && slot.Interface != x.Interface {
 			continue
 		}
-		// The OS snap is special and enable abbreviated
-		// display syntax on the slot-side of the connection.
-		if slot.Snap == "system" {
+		// There are two special snaps, the "core" and "snapd" snaps are
+		// abbreviated to an empty snap name. The "system" snap name is still
+		// here in case we talk to older snapd for some reason.
+		if slot.Snap == "core" || slot.Snap == "snapd" || slot.Snap == "system" {
 			fmt.Fprintf(w, ":%s\t", slot.Name)
 		} else {
 			fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)
