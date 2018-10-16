@@ -76,7 +76,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("adduser failed with %s: %s", err, output)
+		return fmt.Errorf("adduser failed with: %s", OutputErr(output, err))
 	}
 
 	if opts.Sudoer {
