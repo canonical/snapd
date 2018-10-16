@@ -179,9 +179,11 @@ struct sc_mount_ns {
 	// Descriptor to the namespace group control directory.  This descriptor is
 	// opened with O_PATH|O_DIRECTORY so it's only used for openat() calls.
 	int dir_fd;
-	// Descriptor for a pair for a pipe file descriptors (read end, write end)
-	// that snap-confine uses to send messages to the helper process.
-	int pipe_fd[2];
+	// Pair of descriptors for a pair for a pipe file descriptors (read end,
+	// write end) that snap-confine uses to send messages to the helper
+	// process and back.
+	int pipe_helper[2];
+	int pipe_master[2];
 	// Identifier of the child process that is used during the one-time (per
 	// group) initialization and capture process.
 	pid_t child;
@@ -194,8 +196,10 @@ static struct sc_mount_ns *sc_alloc_mount_ns(void)
 		die("cannot allocate memory for sc_mount_ns");
 	}
 	group->dir_fd = -1;
-	group->pipe_fd[0] = -1;
-	group->pipe_fd[1] = -1;
+	group->pipe_helper[0] = -1;
+	group->pipe_helper[1] = -1;
+	group->pipe_master[0] = -1;
+	group->pipe_master[1] = -1;
 	// Redundant with calloc but some functions check for the non-zero value so
 	// I'd like to keep this explicit in the code.
 	group->child = 0;
@@ -228,8 +232,10 @@ void sc_close_mount_ns(struct sc_mount_ns *group)
 		sc_wait_for_helper(group);
 	}
 	sc_cleanup_close(&group->dir_fd);
-	sc_cleanup_close(&group->pipe_fd[0]);
-	sc_cleanup_close(&group->pipe_fd[1]);
+	sc_cleanup_close(&group->pipe_master[0]);
+	sc_cleanup_close(&group->pipe_master[1]);
+	sc_cleanup_close(&group->pipe_helper[0]);
+	sc_cleanup_close(&group->pipe_helper[1]);
 	free(group->name);
 	free(group);
 }
@@ -457,7 +463,6 @@ static void helper_fork(struct sc_mount_ns *group,
 static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 			pid_t parent);
 static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
-static void helper_exit(void);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
@@ -538,8 +543,11 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 {
 	// Create a pipe for sending commands to the helper process.
-	if (pipe2(group->pipe_fd, O_CLOEXEC | O_DIRECT) < 0) {
+	if (pipe2(group->pipe_master, O_CLOEXEC | O_DIRECT) < 0) {
 		die("cannot create pipes for commanding the helper process");
+	}
+	if (pipe2(group->pipe_helper, O_CLOEXEC | O_DIRECT) < 0) {
+		die("cannot create pipes for responding to master process");
 	}
 	// Store the PID of the "parent" process. This done instead of calls to
 	// getppid() because then we can reliably track the PID of the parent even
@@ -553,8 +561,15 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 		die("cannot fork helper process for mount namespace capture");
 	}
 	if (pid == 0) {
+		/* helper */
+		sc_cleanup_close(&group->pipe_master[1]);
+		sc_cleanup_close(&group->pipe_helper[0]);
 		helper_main(group, apparmor, parent);
 	} else {
+		/* master */
+		sc_cleanup_close(&group->pipe_master[0]);
+		sc_cleanup_close(&group->pipe_helper[1]);
+
 		// Glibc defines pid as a signed 32bit integer. There's no standard way to
 		// print pid's portably so this is the best we can do.
 		debug("forked support process %d", (int)pid);
@@ -605,27 +620,27 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		die("cannot move to directory with preserved namespaces");
 	}
 	int command = -1;
-	for (;;) {
+	int run = 1;
+	while (run) {
 		debug("helper process waiting for command");
 		sc_enable_sanity_timeout();
-		if (read(group->pipe_fd[0], &command, sizeof command) < 0) {
+		if (read(group->pipe_master[0], &command, sizeof command) < 0) {
 			die("cannot read command from the pipe");
 		}
 		sc_disable_sanity_timeout();
 		debug("helper process received command %d", command);
 		switch (command) {
 		case HELPER_CMD_EXIT:
-			helper_exit();
+			run = 0;
 			break;
 		case HELPER_CMD_CAPTURE_NS:
 			helper_capture_ns(group, parent);
 			break;
 		}
+		if (write(group->pipe_helper[1], &command, sizeof command) < 0) {
+			die("cannot write ack");
+		}
 	}
-}
-
-static void helper_exit(void)
-{
 	debug("helper process exiting");
 	exit(0);
 }
@@ -648,21 +663,32 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 
 static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 {
+	int ack;
 	if (group->child == 0) {
 		die("precondition failed: we don't have a helper process");
 	}
-	if (group->pipe_fd[1] < 0) {
+	if (group->pipe_master[1] < 0) {
+		die("precondition failed: we don't have an pipe");
+	}
+	if (group->pipe_helper[0] < 0) {
 		die("precondition failed: we don't have an pipe");
 	}
 	debug("sending command %d to helper process (pid: %d)",
 	      command_id, group->child);
-	if (write(group->pipe_fd[1], &command_id, sizeof command_id) < 0) {
+	if (write(group->pipe_master[1], &command_id, sizeof command_id) < 0) {
 		die("cannot send command %d to helper process", command_id);
+	}
+	debug("waiting for response from helper\n");
+	if (read(group->pipe_helper[0], &ack, sizeof ack) < 0) {
+		die("cannot receive ack from helper process");
 	}
 }
 
 static void sc_wait_for_capture_helper(struct sc_mount_ns *group)
 {
+	if (group->child == 0) {
+		die("precondition failed: we don't have a helper process");
+	}
 	debug("waiting for the helper process to exit");
 	int status = 0;
 	errno = 0;
