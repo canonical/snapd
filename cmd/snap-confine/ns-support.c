@@ -79,7 +79,7 @@ static const char *sc_ns_dir = SC_NS_DIR;
  * We do this because /run/snapd/ns cannot be shared with any other peers as per:
  * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
  **/
-static bool sc_is_ns_group_dir_private(void)
+static bool sc_is_mount_ns_dir_private(void)
 {
 	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	info = sc_parse_mountinfo(NULL);
@@ -157,13 +157,13 @@ void sc_reassociate_with_pid1_mount_ns(void)
 	}
 }
 
-void sc_initialize_ns_groups(void)
+void sc_initialize_mount_ns(void)
 {
 	debug("creating namespace group directory %s", sc_ns_dir);
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create namespace group directory %s", sc_ns_dir);
 	}
-	if (!sc_is_ns_group_dir_private()) {
+	if (!sc_is_mount_ns_dir_private()) {
 		debug
 		    ("bind mounting the namespace group directory over itself");
 		if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) <
@@ -181,7 +181,7 @@ void sc_initialize_ns_groups(void)
 	}
 }
 
-struct sc_ns_group {
+struct sc_mount_ns {
 	// Name of the namespace group ($SNAP_NAME).
 	char *name;
 	// Descriptor to the namespace group control directory.  This descriptor is
@@ -197,9 +197,9 @@ struct sc_ns_group {
 	bool should_populate;
 };
 
-static struct sc_ns_group *sc_alloc_ns_group(void)
+static struct sc_mount_ns *sc_alloc_mount_ns(void)
 {
-	struct sc_ns_group *group = calloc(1, sizeof *group);
+	struct sc_mount_ns *group = calloc(1, sizeof *group);
 	if (group == NULL) {
 		die("cannot allocate memory for namespace group");
 	}
@@ -211,10 +211,10 @@ static struct sc_ns_group *sc_alloc_ns_group(void)
 	return group;
 }
 
-struct sc_ns_group *sc_open_ns_group(const char *group_name,
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
 				     const unsigned flags)
 {
-	struct sc_ns_group *group = sc_alloc_ns_group();
+	struct sc_mount_ns *group = sc_alloc_mount_ns();
 	debug("opening namespace group directory %s", sc_ns_dir);
 	group->dir_fd =
 	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
@@ -232,7 +232,7 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
 	return group;
 }
 
-void sc_close_ns_group(struct sc_ns_group *group)
+void sc_close_mount_ns(struct sc_mount_ns *group)
 {
 	debug("releasing resources associated with namespace group %s",
 	      group->name);
@@ -467,7 +467,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	return EAGAIN;
 }
 
-int sc_create_or_join_ns_group(struct sc_ns_group *group,
+int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 			       struct sc_apparmor *apparmor,
 			       const char *base_snap_name,
 			       const char *snap_name)
@@ -481,7 +481,7 @@ int sc_create_or_join_ns_group(struct sc_ns_group *group,
 	// doesn't have to be a mounted namespace.
 	//
 	// If the mounted namespace is discarded with
-	// sc_discard_preserved_ns_group() it will revert to a regular file.  If
+	// sc_discard_preserved_mount_ns() it will revert to a regular file.  If
 	// snap-confine is killed for whatever reason after the file is created but
 	// before the file is bind-mounted it will also be a regular file.
 	mnt_fd = openat(group->dir_fd, mnt_fname,
@@ -647,12 +647,12 @@ int sc_create_or_join_ns_group(struct sc_ns_group *group,
 	return 0;
 }
 
-bool sc_should_populate_ns_group(struct sc_ns_group * group)
+bool sc_should_populate_mount_ns(struct sc_mount_ns * group)
 {
 	return group->should_populate;
 }
 
-void sc_preserve_populated_ns_group(struct sc_ns_group *group)
+void sc_preserve_populated_mount_ns(struct sc_mount_ns *group)
 {
 	if (group->child == 0) {
 		die("precondition failed: we don't have a support process for mount namespace capture");
@@ -680,7 +680,7 @@ void sc_preserve_populated_ns_group(struct sc_ns_group *group)
 	group->child = 0;
 }
 
-void sc_discard_preserved_ns_group(struct sc_ns_group *group)
+void sc_discard_preserved_mount_ns(struct sc_mount_ns *group)
 {
 	// Remember the current working directory
 	int old_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
