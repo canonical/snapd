@@ -2831,9 +2831,19 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		follow = f
 	}
 
+	// handle "snapd" logs - they are always there
+	var serviceNames []string
+	names := splitQS(query.Get("names"))
+	for i, name := range names {
+		if name == "snapd" {
+			serviceNames = append(serviceNames, "snapd.service")
+			names = append(names[:i], names[i+1:]...)
+		}
+	}
+
 	// only services have logs for now
 	opts := appInfoOptions{service: true}
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), names, opts)
 	if rsp != nil {
 		return rsp
 	}
@@ -2841,9 +2851,8 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	serviceNames := make([]string, len(appInfos))
-	for i, appInfo := range appInfos {
-		serviceNames[i] = appInfo.ServiceName()
+	for _, appInfo := range appInfos {
+		serviceNames = append(serviceNames, appInfo.ServiceName())
 	}
 
 	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)

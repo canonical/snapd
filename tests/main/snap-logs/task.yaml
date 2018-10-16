@@ -21,6 +21,9 @@ execute: |
     echo "check output lines for the logs"
     snap logs -n=1 test-snapd-service | MATCH "running"
     snap logs -n=all test-snapd-service | MATCH "running"
+
+    echo "check that the snapd service logs can be obtained"
+    snap logs snapd | MATCH "started snapd/.*"
     
     echo "check -f option works"
     snap logs -f test-snapd-service > service.log &    
