@@ -179,7 +179,7 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 
 		stateSlots, err := getHotplugSlots(st)
 		if err != nil {
-			logger.Noticef(err.Error())
+			logger.Noticef("internal error obtaining hotplug slots: %v", err.Error())
 			return
 		}
 
@@ -276,6 +276,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	devs := m.hotplugDevicePaths[devPath]
 	delete(m.hotplugDevicePaths, devPath)
 
+	var changed bool
 	for _, dev := range devs {
 		hotplugKey := dev.hotplugKey
 		ifaceName := dev.ifaceName
@@ -297,9 +298,11 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of interface %s", ifaceName))
 		ts := removeDevice(st, ifaceName, hotplugKey)
 		chg.AddAll(ts)
+
+		changed = true
 	}
 
-	if len(devs) > 0 {
+	if changed {
 		st.EnsureBefore(0)
 	}
 }

@@ -1228,12 +1228,6 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 				continue
 			}
 
-			connRef := interfaces.NewConnRef(plug, slot)
-			key := connRef.ID()
-			if conn, ok := conns[key]; ok && !conn.HotplugGone {
-				// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
-				continue
-			}
 			if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 				if _, retry := err.(*state.Retry); retry {
 					logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", instanceName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
@@ -1242,6 +1236,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 				}
 				return fmt.Errorf("auto-connect conflict check failed: %s", err)
 			}
+			connRef := interfaces.NewConnRef(plug, slot)
 			newconns = append(newconns, connRef)
 		}
 
@@ -1271,7 +1266,9 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		conn := conns[id]
 		// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection
 		if conn.HotplugGone {
-			recreate = append(recreate, id)
+			if !conn.Undesired {
+				recreate = append(recreate, id)
+			}
 		} else {
 			// we have never observed remove event for this device: check if any attributes of the slot changed
 			slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
