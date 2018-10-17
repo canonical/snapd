@@ -4,17 +4,28 @@ git:
 jobs:
   include:
     - stage: quick
-      name: go 1.6/trusty static and unit test suites
+      name: go 1.6/trusty unit test suite
       go: 1.6
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
-        - sudo apt --quiet -o Dpkg::Progress-Fancy=false install python3-yaml
+        - ./get-deps.sh
+      script:
+        - ./run-checks --short-unit
+    - stage: quick
+      name: go 1.6/trusty static test suite
+      go: 1.6
+      addons:
+        apt:
+          packages:
+            - python3-yaml
+            - snapd
+      install:
+        - sudo snap install --edge shellcheck
         - ./get-deps.sh
       script:
         - ./run-checks --static
-        - ./run-checks --short-unit
     - stage: quick
       go: 1.10
       name: OSX build and minimal runtime sanity check

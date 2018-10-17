@@ -24,8 +24,6 @@ from multiprocessing import cpu_count
 import yaml
 
 
-# default shell for shellcheck
-SHELLCHECK_SHELL = os.getenv('SHELLCHECK_SHELL', 'bash')
 # set to non-empty to ignore all errors
 NO_FAIL = os.getenv('NO_FAIL')
 # set to non empty to enable 'set -x'
@@ -104,11 +102,10 @@ class ShellcheckFailures(Exception):
 def checksection(data):
     # spread shell snippets are executed under 'set -e' shell, make sure
     # shellcheck knows about that
-    data = 'set -e\n' + data
-    proc = subprocess.Popen("shellcheck -s {} -x -".format(SHELLCHECK_SHELL),
+    data = 'set -eu\n' + data
+    proc = subprocess.Popen(["shellcheck", "-s", "bash",  "-x", "-"],
                             stdout=subprocess.PIPE,
-                            stdin=subprocess.PIPE,
-                            shell=True)
+                            stdin=subprocess.PIPE)
     stdout, _ = proc.communicate(input=data.encode('utf-8'), timeout=10)
     if proc.returncode != 0:
         raise ShellcheckRunError(stdout)
@@ -237,8 +234,19 @@ def main(opts):
 
 
 if __name__ == '__main__':
+    # fiddle with PATH so we pick up a snapped shellcheck first
+    if "/snap/bin" in os.environ["PATH"]:
+        path = []
+        for e in os.environ["PATH"].split(":"):
+            if "/snap/bin" in e:
+                path.insert(0, e)
+            else:
+                path.append(e)
+        os.environ["PATH"] = ":".join(path)
+
     opts = parse_arguments()
     if opts.verbose or D or V:
+        subprocess.call(["shellcheck", "--version"])
         lvl = logging.DEBUG
     else:
         lvl = logging.INFO
