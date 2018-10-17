@@ -418,7 +418,7 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
-		if client.IsRetryableError(err) {
+		if client.IsRetryable(err) {
 			os.Exit(10)
 		}
 		os.Exit(1)

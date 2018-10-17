@@ -422,13 +422,13 @@ func (cs *clientSuite) TestIsTwoFactor(c *C) {
 	c.Check(client.IsTwoFactorError((*client.Error)(nil)), Equals, false)
 }
 
-func (cs *clientSuite) TestIsRetryableError(c *C) {
+func (cs *clientSuite) TestIsRetryable(c *C) {
 	// unhappy
-	c.Check(client.IsRetryableError(nil), Equals, false)
-	c.Check(client.IsRetryableError(errors.New("some-error")), Equals, false)
-	c.Check(client.IsRetryableError(&client.Error{Kind: "something-else"}), Equals, false)
+	c.Check(client.IsRetryable(nil), Equals, false)
+	c.Check(client.IsRetryable(errors.New("some-error")), Equals, false)
+	c.Check(client.IsRetryable(&client.Error{Kind: "something-else"}), Equals, false)
 	// happy
-	c.Check(client.IsRetryableError(&client.Error{Kind: client.ErrorKindChangeConflict}), Equals, true)
+	c.Check(client.IsRetryable(&client.Error{Kind: client.ErrorKindChangeConflict}), Equals, true)
 }
 
 func (cs *clientSuite) TestClientCreateUser(c *C) {
