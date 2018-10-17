@@ -282,29 +282,69 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	//       (Status doesn't _need_ it, but benefits from it)
 	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 
-	out := make([]client.AppInfo, len(apps))
-	for i, app := range apps {
-		out[i] = client.AppInfo{
+	out := make([]client.AppInfo, 0, len(apps))
+	for _, app := range apps {
+		appInfo := client.AppInfo{
 			Snap:     app.Snap.InstanceName(),
 			Name:     app.Name,
 			CommonID: app.CommonID,
 		}
 		if fn := app.DesktopFile(); osutil.FileExists(fn) {
-			out[i].DesktopFile = fn
+			appInfo.DesktopFile = fn
 		}
 
-		out[i].Daemon = app.Daemon
-		if app.IsService() && app.Snap.IsActive() {
-			// TODO: look into making a single call to Status for all services
-			if sts, err := sysd.Status(app.ServiceName()); err != nil {
-				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
-			} else if len(sts) != 1 {
-				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
-			} else {
-				out[i].Enabled = sts[0].Enabled
-				out[i].Active = sts[0].Active
-			}
+		appInfo.Daemon = app.Daemon
+		if !app.IsService() || !app.Snap.IsActive() {
+			out = append(out, appInfo)
+			continue
 		}
+
+		// collect all services for a single call to systemctl
+		serviceNames := make([]string, 0, 1+len(app.Sockets)+1)
+		serviceNames = append(serviceNames, app.ServiceName())
+
+		sockSvcFileToName := make(map[string]string, len(app.Sockets))
+		for _, sock := range app.Sockets {
+			sockSvc := filepath.Base(sock.File())
+			sockSvcFileToName[sockSvc] = sock.Name
+			serviceNames = append(serviceNames, sockSvc)
+		}
+		if app.Timer != nil {
+			serviceNames = append(serviceNames, filepath.Base(app.Timer.File()))
+		}
+
+		sts, err := sysd.Status(serviceNames...)
+		if err != nil {
+			logger.Noticef("cannot get status of services of app %q: %v", app.Name, err)
+			continue
+		}
+		if len(sts) != len(serviceNames) {
+			logger.Noticef("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
+			continue
+		}
+		appInfo.Enabled = sts[0].Enabled
+		appInfo.Active = sts[0].Active
+
+		for _, st := range sts[1 : 1+len(app.Sockets)] {
+			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+				Name:    sockSvcFileToName[st.UnitName],
+				Enabled: st.Enabled,
+				Active:  st.Active,
+				Type:    "socket",
+			})
+		}
+
+		if app.Timer != nil {
+			st := sts[len(sts)-1]
+			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+				Name:    app.Name,
+				Enabled: st.Enabled,
+				Active:  st.Active,
+				Type:    "timer",
+			})
+		}
+
+		out = append(out, appInfo)
 	}
 
 	return out
