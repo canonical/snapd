@@ -65,7 +65,7 @@ func supported(di *hotplug.HotplugDeviceInfo) bool {
 	return true
 }
 
-func (iface *dummyInterface) HotplugDeviceKey(di *hotplug.HotplugDeviceInfo) (string, error) {
+func (iface *dummyInterface) HotplugKey(di *hotplug.HotplugDeviceInfo) (string, error) {
 	if !supported(di) {
 		return "", nil
 	}

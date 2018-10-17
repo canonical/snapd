@@ -22,6 +22,7 @@ package ifacestate_test
 import (
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -48,8 +49,10 @@ type hotplugSuite struct {
 	testutil.BaseTest
 	AssertsMock
 
-	o     *overlord.Overlord
-	state *state.State
+	o           *overlord.Overlord
+	state       *state.State
+	secBackend  *ifacetest.TestSecurityBackend
+	mockSnapCmd *testutil.MockCmd
 
 	udevMon *udevMonitorMock
 	mgr     *ifacestate.InterfaceManager
@@ -59,10 +62,16 @@ var _ = Suite(&hotplugSuite{})
 
 func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.secBackend = &ifacetest.TestSecurityBackend{}
+	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
 
 	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+
+	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	s.SetupAsserts(c, s.state)
 
@@ -104,7 +113,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	testIface1 := &ifacetest.TestHotplugInterface{
 		TestInterface: ifacetest.TestInterface{InterfaceName: "test-a"},
-		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-1", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
@@ -119,7 +128,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	testIface2 := &ifacetest.TestHotplugInterface{
 		TestInterface: ifacetest.TestInterface{InterfaceName: "test-b"},
-		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-2", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
@@ -131,7 +140,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
 	testIface3 := &ifacetest.TestHotplugInterface{
 		TestInterface: ifacetest.TestInterface{InterfaceName: "test-c"},
-		HotplugDeviceKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-3", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
@@ -162,6 +171,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 func (s *hotplugSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
+	dirs.SetRootDir("")
+	s.mockSnapCmd.Restore()
 }
 
 func testPlugSlotRefs(c *C, t *state.Task, plugSnap, plugName, slotSnap, slotName string) {
@@ -178,6 +189,12 @@ func testHotplugTaskAttrs(c *C, t *state.Task, ifaceName, hotplugKey string) {
 	c.Assert(err, IsNil)
 	c.Assert(key, Equals, hotplugKey)
 	c.Assert(iface, Equals, ifaceName)
+}
+
+func testByHotplugTaskFlag(c *C, t *state.Task) {
+	var byHotplug bool
+	c.Assert(t.Get("by-hotplug", &byHotplug), IsNil)
+	c.Assert(byHotplug, Equals, true)
 }
 
 func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
@@ -328,16 +345,16 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 			c.Fatalf("unexpected task: %s", t.Kind())
 		}
 
+		c.Assert(t.Status(), Equals, state.DoneStatus)
+
 	}
 	c.Assert(seenHooks, DeepEquals, map[string]string{
-		"prepare-plug-plug":          "consumer",
-		"prepare-slot-hotplugslot-a": "core",
-		"connect-slot-hotplugslot-a": "core",
-		"connect-plug-plug":          "consumer",
+		"prepare-plug-plug": "consumer",
+		"connect-plug-plug": "consumer",
 	})
 	c.Assert(seenKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
 	c.Assert(seenConnect, Equals, 1)
-	c.Assert(tasks, HasLen, 7)
+	c.Assert(tasks, HasLen, 5)
 
 	// make sure slots have been created in the repo
 	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
@@ -357,6 +374,9 @@ version: 1
 plugs:
  plug:
   interface: test-a
+hooks:
+ prepare-plug-plug:
+ connect-plug-plug:
 `
 
 func (s *hotplugSuite) TestHotplugRemove(c *C) {
@@ -450,6 +470,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 			c.Assert(err, IsNil)
 			seenKeys[key] = iface
 		case t.Kind() == "disconnect":
+			testByHotplugTaskFlag(c, t)
+			testPlugSlotRefs(c, t, "consumer", "plug", "core", "hotplugslot")
 			seenDisonnect++
 		default:
 			c.Fatalf("unexpected task: %s", t.Kind())
@@ -686,6 +708,7 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 			testPlugSlotRefs(c, t, "consumer", "plug", "core", "hotplugslot-a")
 			seenConnect++
 		case t.Kind() == "disconnect":
+			testByHotplugTaskFlag(c, t)
 			testPlugSlotRefs(c, t, "consumer", "plug", "core", "hotplugslot-a")
 			seenDisconnect++
 		case t.Kind() == "hotplug-disconnect":
@@ -707,8 +730,6 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		"disconnect-plug-plug":          "consumer",
 		"disconnect-slot-hotplugslot-a": "core",
 		"prepare-plug-plug":             "consumer",
-		"prepare-slot-hotplugslot-a":    "core",
-		"connect-slot-hotplugslot-a":    "core",
 		"connect-plug-plug":             "consumer"})
 	c.Assert(seenConnect, Equals, 1)
 	c.Assert(seenDisconnect, Equals, 1)
@@ -716,7 +737,7 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 	// we see 2 hotplug-connect tasks because of interface test-a and test-b (the latter does nothing as there is no change)
 	c.Assert(seenHotplugConnect, Equals, 2)
 	c.Assert(seenHotplugConnectKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Assert(tasks, HasLen, 12)
+	c.Assert(tasks, HasLen, 10)
 
 	// make sure slots for new device have been updated in the repo
 	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
