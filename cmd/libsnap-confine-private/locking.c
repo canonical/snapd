@@ -112,11 +112,11 @@ static int sc_lock_generic(const char *scope, uid_t uid)
 	}
 
 	// Open the lock file and acquire an exclusive lock.
-	debug("opening lock file: %s", lock_fname);
+	debug("opening lock file: %s/%s", sc_lock_dir, lock_fname);
 	int lock_fd = openat(dir_fd, lock_fname,
 			     O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (lock_fd < 0) {
-		die("cannot open lock file: %s", lock_fname);
+		die("cannot open lock file: %s/%s", sc_lock_dir, lock_fname);
 	}
 
 	sc_enable_sanity_timeout();
