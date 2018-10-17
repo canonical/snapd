@@ -510,7 +510,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	// we want to keep information of the connection and just mark it as hotplug-gone.
 	var byHotplug bool
 	if err := task.Get("by-hotplug", &byHotplug); err != nil && err != state.ErrNoState {
-		return fmt.Errorf("internal error: cannot read 'hotplug-disconnect' flag: %s", err)
+		return fmt.Errorf("internal error: cannot read 'by-hotplug' flag: %s", err)
 	}
 
 	switch {
@@ -1190,7 +1190,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
 	// find old connections for slots of this device - note we can't ask the repository since we need
@@ -1330,7 +1330,7 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
 	connections, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
@@ -1386,7 +1386,7 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
 	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
@@ -1401,7 +1401,7 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	stateSlots, err := getHotplugSlots(st)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
 	}
 
 	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
@@ -1437,7 +1437,7 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 	var attrs map[string]interface{}
 	if err := task.Get("slot-attrs", &attrs); err != nil {
@@ -1446,7 +1446,7 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 
 	stateSlots, err := getHotplugSlots(st)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
 	}
 
 	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
