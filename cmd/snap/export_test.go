@@ -35,6 +35,8 @@ var RunMain = run
 var (
 	Client = mkClient
 
+	FirstNonOptionIsRun = firstNonOptionIsRun
+
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced

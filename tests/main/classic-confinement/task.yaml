@@ -54,3 +54,8 @@ execute: |
     snap list | MATCH "$CLASSIC_SNAP .*2.0 .*classic"
     snap info "$CLASSIC_SNAP"|MATCH "installed:.* 2.0 .*classic"
     "$CLASSIC_SNAP" | MATCH lala
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        echo "Verify we get 'change_profile unsafe' for classic confinement"
+        MATCH "change_profile unsafe" < /var/lib/snapd/apparmor/profiles/snap.test-snapd-classic-confinement.test-snapd-classic-confinement
+    fi

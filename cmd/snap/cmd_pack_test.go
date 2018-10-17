@@ -52,7 +52,7 @@ apps:
 	snapDir := makeSnapDirForPack(c, snapYaml)
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
-	c.Assert(err, check.ErrorMatches, "snap name cannot be empty")
+	c.Assert(err, check.ErrorMatches, `cannot validate snap "": snap name cannot be empty`)
 }
 
 func (s *SnapSuite) TestPackCheckSkeletonConflictingCommonID(c *check.C) {
@@ -68,7 +68,7 @@ apps:
 	snapDir := makeSnapDirForPack(c, snapYaml)
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
-	c.Assert(err, check.ErrorMatches, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
+	c.Assert(err, check.ErrorMatches, `cannot validate snap "foo": application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
 }
 
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {

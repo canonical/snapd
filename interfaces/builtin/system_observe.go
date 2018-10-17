@@ -38,20 +38,12 @@ const systemObserveConnectedPlugAppArmor = `
 # Needed by 'ps'
 @{PROC}/tty/drivers r,
 
-# This ptrace is an information leak
+# This ptrace is an information leak. Intentionlly omit 'ptrace (trace)' here
+# since since ps doesn't actually need to trace other processes.
 ptrace (read),
 
-# ptrace can be used to break out of the seccomp sandbox, but ps requests
-# 'ptrace (trace)' even though it isn't tracing other processes. Unfortunately,
-# this is due to the kernel overloading trace such that the LSMs are unable to
-# distinguish between tracing other processes and other accesses. We deny the
-# trace here to silence the log.
-# Note: for now, explicitly deny to avoid confusion and accidentally giving
-# away this dangerous access frivolously. We may conditionally deny this in the
-# future.
-deny ptrace (trace),
-
 # Other miscellaneous accesses for observing the system
+@{PROC}/modules r,
 @{PROC}/stat r,
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
@@ -129,5 +121,6 @@ func init() {
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,
+		suppressPtraceTrace:   true,
 	})
 }

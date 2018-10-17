@@ -61,6 +61,7 @@ var (
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = release.AppArmorFeatures
+	parserFeatures        = release.AppArmorParserFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -418,12 +419,12 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -474,19 +475,14 @@ func downgradeConfinement() bool {
 			return false
 		}
 	case release.DistroLike("arch"):
-		if strings.HasSuffix(kver, "-hardened") {
-			if cmp, _ := strutil.VersionCompare(kver, "4.17.4"); cmp >= 0 {
-				// The linux-hardened 4.17.4+ package has
-				// apparmor enabled, do not downgrade the
-				// confinement template.
-				return false
-			}
-		}
+		// The default kernel has AppArmor enabled since 4.18.8, the
+		// hardened one since 4.17.4
+		return false
 	}
 	return true
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, spec *Specification) {
 	// Normally we use a specific apparmor template for all snap programs.
 	policy := defaultTemplate
 	ignoreSnippets := false
@@ -525,6 +521,13 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 			return templateVariables(snapInfo, securityTag)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###CHANGEPROFILE_RULE###":
+			for _, f := range parserFeatures() {
+				if f == "unsafe" {
+					return fmt.Sprintf("change_profile unsafe /**,")
+				}
+			}
+			return fmt.Sprintf("change_profile,")
 		case "###SNIPPETS###":
 			var tagSnippets string
 			if opts.Classic && opts.JailMode {
@@ -550,6 +553,17 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 					tagSnippets += snippet
 				}
 			}
+
+			if !ignoreSnippets {
+				// For policy with snippets that request
+				// suppression of 'ptrace (trace)' denials, add
+				// the suppression rule unless another
+				// interface said it uses them.
+				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
+					tagSnippets += ptraceTraceDenySnippet
+				}
+			}
+
 			return tagSnippets
 		}
 		return ""
@@ -573,11 +587,18 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 
 	features := kernelFeatures()
-	tags := make([]string, 0, len(features))
+	pFeatures := parserFeatures()
+	tags := make([]string, 0, len(features)+len(pFeatures))
 	for _, feature := range features {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
+	}
+
+	for _, feature := range pFeatures {
+		// Prepend "parser:" to apparmor kernel features to namespace
+		// them and allow us to introduce our own tags later.
+		tags = append(tags, "parser:"+feature)
 	}
 
 	level := "full"
