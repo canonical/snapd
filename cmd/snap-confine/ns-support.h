@@ -29,7 +29,7 @@
  * of pid 1. In case they differ the current process is re-associated with the
  * mount namespace of pid 1.
  *
- * This function should be called before sc_initialize_ns_groups().
+ * This function should be called before sc_initialize_mount_ns().
  **/
 void sc_reassociate_with_pid1_mount_ns(void);
 
@@ -54,12 +54,12 @@ void sc_reassociate_with_pid1_mount_ns(void);
  *
  * For more details see namespaces(7).
  **/
-void sc_initialize_ns_groups(void);
+void sc_initialize_mount_ns(void);
 
 /**
  * Data required to manage namespaces amongst a group of processes.
  */
-struct sc_ns_group;
+struct sc_mount_ns;
 
 enum {
 	SC_NS_FAIL_GRACEFULLY = 1
@@ -76,12 +76,12 @@ enum {
  *
  * The following methods should be called only while holding a lock protecting
  * that specific snap namespace:
- * - sc_create_or_join_ns_group()
- * - sc_should_populate_ns_group()
- * - sc_preserve_populated_ns_group()
- * - sc_discard_preserved_ns_group()
+ * - sc_create_or_join_mount_ns()
+ * - sc_should_populate_mount_ns()
+ * - sc_preserve_populated_mount_ns()
+ * - sc_discard_preserved_mount_ns()
  */
-struct sc_ns_group *sc_open_ns_group(const char *group_name,
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
 				     const unsigned flags);
 
 /**
@@ -89,26 +89,26 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
  *
  * This will close all of the open file descriptors and release allocated memory.
  */
-void sc_close_ns_group(struct sc_ns_group *group);
+void sc_close_mount_ns(struct sc_mount_ns *group);
 
 /**
  * Join the mount namespace associated with this group if one exists.
  *
  * Technically the function opens /run/snapd/ns/${group_name}.mnt and tries to
  * use setns() with the obtained file descriptor. If the call succeeds then the
- * function returns and subsequent call to sc_should_populate_ns_group() will
+ * function returns and subsequent call to sc_should_populate_mount_ns() will
  * return false.
  *
  * If the call fails then an eventfd is constructed and a support process is
  * forked. The child process waits until data is written to the eventfd (this
- * can be done by calling sc_preserve_populated_ns_group()). In the meantime
+ * can be done by calling sc_preserve_populated_mount_ns()). In the meantime
  * the parent process unshares the mount namespace and sets a flag so that
- * sc_should_populate_ns_group() returns true.
+ * sc_should_populate_mount_ns() returns true.
  *
  * @returns 0 on success and EAGAIN if the namespace was stale and needs
  * to be re-made.
  **/
-int sc_create_or_join_ns_group(struct sc_ns_group *group,
+int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 			       struct sc_apparmor *apparmor,
 			       const char *base_snap_name,
 			       const char *snap_name);
@@ -118,16 +118,16 @@ int sc_create_or_join_ns_group(struct sc_ns_group *group,
  *
  * If the return value is true then at this stage the namespace is already
  * unshared. The caller should perform any mount operations that are desired
- * and then proceed to call sc_preserve_populated_ns_group().
+ * and then proceed to call sc_preserve_populated_mount_ns().
  **/
-bool sc_should_populate_ns_group(struct sc_ns_group *group);
+bool sc_should_populate_mount_ns(struct sc_mount_ns *group);
 
 /**
  * Preserve prepared namespace group.
  *
  * This function signals the child support process for namespace capture to
  * perform the capture and shut down. It must be called after the call to
- * sc_create_or_join_ns_group() and only when sc_should_populate_ns_group()
+ * sc_create_or_join_mount_ns() and only when sc_should_populate_mount_ns()
  * returns true.
  *
  * Technically this function writes to an eventfd that causes the child process
@@ -135,7 +135,7 @@ bool sc_should_populate_ns_group(struct sc_ns_group *group);
  * and then exit. The parent process (the caller) then collects the child
  * process and returns.
  **/
-void sc_preserve_populated_ns_group(struct sc_ns_group *group);
+void sc_preserve_populated_mount_ns(struct sc_mount_ns *group);
 
 /**
  * Discard the preserved namespace group.
@@ -143,6 +143,6 @@ void sc_preserve_populated_ns_group(struct sc_ns_group *group);
  * This function unmounts the bind-mounted files representing the kernel mount
  * namespace.
  **/
-void sc_discard_preserved_ns_group(struct sc_ns_group *group);
+void sc_discard_preserved_mount_ns(struct sc_mount_ns *group);
 
 #endif

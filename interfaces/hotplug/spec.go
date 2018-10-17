@@ -32,6 +32,11 @@ type Definer interface {
 	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
 }
 
+// HotplugKeyHandler can be implemented by interfaces that need to provide a non-standard key for hotplug devices
+type HotplugKeyHandler interface {
+	HotplugKey(di *HotplugDeviceInfo) (string, error)
+}
+
 // RequestedSlotSpec is a definition of the slot to create in response to hotplug event.
 type RequestedSlotSpec struct {
 	// Name is how the interface wants to name the slot. When left empty,

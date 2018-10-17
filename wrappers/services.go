@@ -389,6 +389,9 @@ X-Snappy=yes
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
+{{- if .App.RestartDelay}}
+RestartSec={{.App.RestartDelay.Seconds}}
+{{- end}}
 WorkingDirectory={{.App.Snap.DataDir}}
 {{- if .App.StopCommand}}
 ExecStop={{.App.LauncherStopCommand}}

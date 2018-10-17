@@ -361,6 +361,117 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 }
 
+func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	hooksTests := []struct {
+		consumer  []string
+		producer  []string
+		waitChain []string
+	}{
+		{
+			consumer:  []string{"prepare-plug-plug"},
+			producer:  []string{"prepare-slot-slot"},
+			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect"},
+		},
+		{
+			consumer:  []string{"prepare-plug-plug"},
+			producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect", "connect-slot-slot"},
+		},
+		{
+			consumer:  []string{"prepare-plug-plug"},
+			producer:  []string{"connect-slot-slot"},
+			waitChain: []string{"prepare-plug-plug", "connect", "connect-slot-slot"},
+		},
+		{
+			consumer:  []string{"connect-plug-plug"},
+			producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+			waitChain: []string{"prepare-slot-slot", "connect", "connect-slot-slot", "connect-plug-plug"},
+		},
+		{
+			consumer:  []string{"connect-plug-plug"},
+			producer:  []string{"connect-slot-slot"},
+			waitChain: []string{"connect", "connect-slot-slot", "connect-plug-plug"},
+		},
+		{
+			consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
+			producer:  []string{"prepare-slot-slot"},
+			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect", "connect-plug-plug"},
+		},
+		{
+			consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
+			producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect", "connect-slot-slot", "connect-plug-plug"},
+		},
+	}
+
+	hookNameOrTaskKind := func(t *state.Task) string {
+		if t.Kind() == "run-hook" {
+			var hookSup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &hookSup), IsNil)
+			return hookSup.Hook
+		}
+		return t.Kind()
+	}
+
+	_ = s.manager(c)
+	for _, hooks := range hooksTests {
+		var hooksYaml string
+		for _, name := range hooks.consumer {
+			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
+		}
+		consumer := fmt.Sprintf(consumerYaml3, hooksYaml)
+
+		hooksYaml = ""
+		for _, name := range hooks.producer {
+			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
+		}
+		producer := fmt.Sprintf(producerYaml3, hooksYaml)
+
+		s.mockSnap(c, consumer)
+		s.mockSnap(c, producer)
+
+		s.state.Lock()
+
+		ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+		c.Assert(err, IsNil)
+		c.Assert(ts.Tasks(), HasLen, len(hooks.producer)+len(hooks.consumer)+1)
+		c.Assert(ts.Tasks(), HasLen, len(hooks.waitChain))
+
+		undoHooks := map[string]string{
+			"prepare-plug-plug": "unprepare-plug-plug",
+			"prepare-slot-slot": "unprepare-slot-slot",
+			"connect-plug-plug": "disconnect-plug-plug",
+			"connect-slot-slot": "disconnect-slot-slot",
+		}
+
+		for i, t := range ts.Tasks() {
+			c.Assert(hooks.waitChain[i], Equals, hookNameOrTaskKind(t))
+			waits := t.WaitTasks()
+			if i == 0 {
+				c.Assert(waits, HasLen, 0)
+			} else {
+				c.Assert(waits, HasLen, 1)
+				waiting := hookNameOrTaskKind(waits[0])
+				// check that this task waits on previous one
+				c.Assert(waiting, Equals, hooks.waitChain[i-1])
+			}
+
+			// check undo hook setup if applicable
+			if t.Kind() == "run-hook" {
+				var hooksup hookstate.HookSetup
+				var undosup hookstate.HookSetup
+				c.Assert(t.Get("hook-setup", &hooksup), IsNil)
+				c.Assert(t.Get("undo-hook-setup", &undosup), IsNil)
+				c.Assert(undosup.Hook, Equals, undoHooks[hooksup.Hook], Commentf("unexpected undo hook: %s", undosup.Hook))
+			}
+		}
+
+		s.state.Unlock()
+	}
+}
+
 func (s *interfaceManagerSuite) TestParallelInstallConnectTask(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnapInstance(c, "consumer_foo", consumerYaml)
@@ -852,6 +963,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "otherplug", "producer", "slot")
 	c.Assert(err, IsNil)
+
 	c.Assert(ts.Tasks(), HasLen, 5)
 	c.Check(ts.Tasks()[2].Kind(), Equals, "connect")
 	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
@@ -1550,6 +1662,15 @@ plugs:
   attr1: value1
  otherplug:
   interface: test2
+hooks:
+ prepare-plug-plug:
+ unprepare-plug-plug:
+ connect-plug-plug:
+ disconnect-plug-plug:
+ prepare-plug-otherplug:
+ unprepare-plug-otherplug:
+ connect-plug-otherplug:
+ disconnect-plug-otherplug:
 `
 
 var consumer2Yaml = `
@@ -1561,6 +1682,16 @@ plugs:
   attr1: value1
 `
 
+var consumerYaml3 = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+hooks:
+%s
+`
+
 var producerYaml = `
 name: producer
 version: 1
@@ -1568,6 +1699,11 @@ slots:
  slot:
   interface: test
   attr2: value2
+hooks:
+  prepare-slot-slot:
+  unprepare-slot-slot:
+  connect-slot-slot:
+  disconnect-slot-slot:
 `
 
 var producer2Yaml = `
@@ -1577,6 +1713,16 @@ slots:
  slot:
   interface: test
   attr2: value2
+`
+
+var producerYaml3 = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+hooks:
+%s
 `
 
 var httpdSnapYaml = `name: httpd
@@ -1595,6 +1741,15 @@ slots:
 plugs:
  plug:
   interface: test
+hooks:
+ prepare-plug-plug:
+ unprepare-plug-plug:
+ connect-plug-plug:
+ disconnect-plug-plug:
+ prepare-slot-slot:
+ unprepare-slot-slot:
+ connect-slot-slot:
+ disconnect-slot-slot:
 `
 
 // The auto-connect task will not auto-connect a plug that was previously
@@ -4363,7 +4518,9 @@ volumes:
 
 	c.Assert(chg.Err(), IsNil)
 	tasks := chg.Tasks()
-	c.Assert(tasks, HasLen, 6)
+	c.Assert(tasks, HasLen, 2)
+	c.Assert(tasks[0].Kind(), Equals, "gadget-connect")
+	c.Assert(tasks[1].Kind(), Equals, "connect")
 
 	s.state.Unlock()
 	s.settle(c)

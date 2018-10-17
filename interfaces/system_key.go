@@ -64,10 +64,11 @@ type systemKey struct {
 	// kernel version or similar settings. If those change we may
 	// need to change the generated profiles (e.g. when the user
 	// boots into a more featureful seccomp).
-	AppArmorFeatures []string `json:"apparmor-features"`
-	NFSHome          bool     `json:"nfs-home"`
-	OverlayRoot      string   `json:"overlay-root"`
-	SecCompActions   []string `json:"seccomp-features"`
+	AppArmorFeatures       []string `json:"apparmor-features"`
+	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
+	NFSHome                bool     `json:"nfs-home"`
+	OverlayRoot            string   `json:"overlay-root"`
+	SecCompActions         []string `json:"seccomp-features"`
 }
 
 var (
@@ -117,6 +118,9 @@ func generateSystemKey() (*systemKey, error) {
 
 	// Add apparmor-features (which is already sorted)
 	sk.AppArmorFeatures = release.AppArmorFeatures()
+
+	// Add apparmor-parser-features (which is already sorted)
+	sk.AppArmorParserFeatures = release.AppArmorParserFeatures()
 
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
