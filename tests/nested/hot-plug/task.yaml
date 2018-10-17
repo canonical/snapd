@@ -25,5 +25,7 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    add_usb_tablet_device my-tablet
-    del_device my-tablet
+    add_chardev my-chardev 9022
+    add_usb_serial_device my-usb-serial my-chardev
+    del_device my-usb-serial
+    remove_chardev my-chardev
