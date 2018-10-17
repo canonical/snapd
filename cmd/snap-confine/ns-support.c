@@ -139,7 +139,7 @@ void sc_reassociate_with_pid1_mount_ns(void)
 	}
 	memset(self_buf, 0, sizeof self_buf);
 	if (readlinkat(self_mnt_fd, "", self_buf, sizeof self_buf) < 0) {
-		die("cannot read mount namespace identifier of this process");
+		die("cannot read mount namespace identifier of the current process");
 	}
 	if (memcmp(init_buf, self_buf, sizeof init_buf) != 0) {
 		debug("moving to mount namespace of pid 1");
@@ -387,7 +387,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			}
 		}
 
-		debug("joining preserved mount namespace (for inspection)");
+		debug("joining preserved mount namespace for inspection");
 		// Move to the mount namespace of the snap we're trying to inspect.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved mount namespace");

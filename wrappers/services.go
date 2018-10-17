@@ -130,7 +130,18 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		}(app)
 
 		if len(app.Sockets) == 0 && app.Timer == nil {
-			services = append(services, app.ServiceName())
+			// check if the service is disabled, if so don't start it up
+			// this could happen for example if the service was disabled in
+			// the install hook by snapctl or if the service was disabled in
+			// the previous installation
+			isEnabled, err := sysd.IsEnabled(app.ServiceName())
+			if err != nil {
+				return err
+			}
+
+			if isEnabled {
+				services = append(services, app.ServiceName())
+			}
 		}
 
 		for _, socket := range app.Sockets {
@@ -156,7 +167,6 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 				return err
 			}
 		}
-
 	}
 
 	if len(services) > 0 {
