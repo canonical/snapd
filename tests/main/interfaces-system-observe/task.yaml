@@ -44,6 +44,9 @@ execute: |
     fi
 
     if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And the policy has the ptrace suppression rule"
+        MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-system-observe-consumer.consumer
+
         echo "When the plug is disconnected"
         snap disconnect test-snapd-system-observe-consumer:system-observe
 
