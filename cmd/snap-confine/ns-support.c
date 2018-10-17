@@ -589,7 +589,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 			die("cannot preserve mount namespace of process %d as %s", (int)parent, dst);
 		}
-		debug("preserved mount namespace of process %d as %s",
+		debug("mount namespace of process %d preserved as %s",
 		      (int)parent, dst);
 		exit(0);
 	} else {
