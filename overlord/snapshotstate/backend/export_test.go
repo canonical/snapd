@@ -27,9 +27,9 @@ import (
 )
 
 var (
-	AddDirToZip         = addDirToZip
-	MaybeRunuserCommand = maybeRunuserCommand
-	PickUserWrapper     = pickUserWrapper
+	AddDirToZip     = addDirToZip
+	TarAsUser       = tarAsUser
+	PickUserWrapper = pickUserWrapper
 )
 
 func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
@@ -80,10 +80,10 @@ func MockExecLookPath(newLookPath func(string) (string, error)) (restore func())
 	}
 }
 
-func SetUserWrapper(newSudo string) (restore func()) {
-	oldSudo := sudo
-	sudo = newSudo
+func SetUserWrapper(newUserWrapper string) (restore func()) {
+	oldUserWrapper := userWrapper
+	userWrapper = newUserWrapper
 	return func() {
-		sudo = oldSudo
+		userWrapper = oldUserWrapper
 	}
 }

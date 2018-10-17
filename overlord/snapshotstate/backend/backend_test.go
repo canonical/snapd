@@ -31,6 +31,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"golang.org/x/net/context"
@@ -611,59 +612,68 @@ func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
 	uid := sys.UserID(0)
 	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
 	defer backend.SetUserWrapper("/sbin/runuser")()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
 		Path: "/sbin/runuser",
-		Args: []string{"/sbin/runuser", "-u", "test", "--", "cat", "--bar"},
+		Args: []string{"/sbin/runuser", "-u", "test", "--", "tar", "--bar"},
 	})
-	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
 	uid = 42
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
+	c.Check(logbuf.String(), check.Equals, "")
 }
 
 func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
 	uid := sys.UserID(0)
 	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
 	defer backend.SetUserWrapper("/usr/bin/sudo")()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
-	cmd := backend.MaybeRunuserCommand("test", "cat", "--bar")
+	cmd := backend.TarAsUser("test", "--bar")
 	c.Check(cmd, check.DeepEquals, &exec.Cmd{
 		Path: "/usr/bin/sudo",
-		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "cat", "--bar"},
+		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "tar", "--bar"},
 	})
-	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
 	uid = 42
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
+	c.Check(logbuf.String(), check.Equals, "")
 }
 
 func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	uid := sys.UserID(0)
 	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
 	defer backend.SetUserWrapper("")()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
-	c.Check(backend.MaybeRunuserCommand("root", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
 	uid = 42
-	c.Check(backend.MaybeRunuserCommand("test", "cat", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/cat",
-		Args: []string{"cat", "--bar"},
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/bin/tar",
+		Args: []string{"tar", "--bar"},
 	})
+	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }

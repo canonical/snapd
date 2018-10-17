@@ -171,35 +171,39 @@ func pickUserWrapper() string {
 	return ""
 }
 
-var sudo = pickUserWrapper()
+var userWrapper = pickUserWrapper()
 
-// maybeRunuserCommand returns an exec.Cmd that will, if the current
-// effective user id is 0 and username is not "root", call runuser(1)
-// (or sudo(8) if runuser(1) isn't available) to change to the given
-// username before running the given command.
+// tarAsUser returns an exec.Cmd that will, if the current effective user id is
+// 0 and username is not "root", and if either runuser(1) or sudo(8) are found
+// on the PATH, run tar as the given user.
 //
-// If username is "root", or the effective user id is 0, the given
-// command is passed directly to exec.Command.
+// If the effective user id is not 0, or username is "root", exec.Command is
+// used directly; changing the user id would fail (in the first case) or be a
+// no-op (in the second).
 //
-// TODO: maybe move this to osutil
-func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
-	if sysGeteuid() == 0 && username != "root" && sudo != "" {
-		sudoArgs := make([]string, len(args)+4)
-		copy(sudoArgs[4:], args)
-		sudoArgs[0] = sudo
-		sudoArgs[1] = "-u"
-		sudoArgs[2] = username
-		sudoArgs[3] = "--"
-		return &exec.Cmd{
-			Path: sudo,
-			Args: sudoArgs,
+// If neither runuser nor sudo are found on the path, exec.Command is also used
+// directly. This will result in tar running as root in this situation (so it
+// will fail if on NFS; I don't think there's an attack vector though).
+func tarAsUser(username string, args ...string) *exec.Cmd {
+	if sysGeteuid() == 0 && username != "root" {
+		if userWrapper != "" {
+			uwArgs := make([]string, len(args)+5)
+			copy(uwArgs[5:], args)
+			uwArgs[0] = userWrapper
+			uwArgs[1] = "-u"
+			uwArgs[2] = username
+			uwArgs[3] = "--"
+			uwArgs[4] = "tar"
+			return &exec.Cmd{
+				Path: userWrapper,
+				Args: uwArgs,
+			}
 		}
+		// TODO: use warnings instead
+		logger.Noticef("No user wrapper found; running tar for user data as root. Please make sure 'sudo' or 'runuser' (from util-linux) is on $PATH to avoid this.")
 	}
 
-	// TODO: use warnings instead
-	logger.Noticef("No user wrapper found; running tar for user data as root. Please make sure 'sudo' or 'runuser' (from util-linux) is on $PATH to avoid this.")
-
-	return exec.Command(args[0], args[1:]...)
+	return exec.Command("tar", args...)
 }
 
 func MockUserLookup(newLookup func(string) (*user.User, error)) func() {
