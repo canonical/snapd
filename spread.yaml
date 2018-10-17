@@ -467,6 +467,8 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         debug: |
             systemctl status snapd.socket || true
+            systemctl status snapd.service || true
+            systemctl status snapd.seeded.service || true
             journalctl -xe
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
