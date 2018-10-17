@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 )
@@ -206,6 +207,24 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}==
 func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+	if di.Subsystem() == "tty" && strings.HasPrefix(di.DeviceName(), "/dev/ttyUSB") {
+		slot := hotplug.RequestedSlotSpec{
+			Attrs: map[string]interface{}{
+				"path": di.DeviceName(),
+			},
+		}
+		if vendor, ok := di.Attribute("ID_VENDOR_ID"); ok {
+			slot.Attrs["usb-vendor"] = vendor
+		}
+		if product, ok := di.Attribute("ID_MODEL_ID"); ok {
+			slot.Attrs["usb-product"] = product
+		}
+		return spec.SetSlot(&slot)
+	}
+	return nil
 }
 
 func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
