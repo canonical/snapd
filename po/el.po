@@ -1,21 +1,21 @@
 # Greek translation for snapd
-# Copyright (c) 2016 Rosetta Contributors and Canonical Ltd 2016
+# Copyright (c) 2018 Rosetta Contributors and Canonical Ltd 2018
 # This file is distributed under the same license as the snapd package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2016.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2017-10-14 00:51+0000\n"
-"PO-Revision-Date: 2016-09-04 11:48+0000\n"
+"POT-Creation-Date: 2018-04-03 12:06+0200\n"
+"PO-Revision-Date: 2018-09-27 14:02+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Greek <el@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2017-10-18 08:37+0000\n"
-"X-Generator: Launchpad (build 18476)\n"
+"X-Launchpad-Export-Date: 2018-10-05 14:20+0000\n"
+"X-Generator: Launchpad (build 18785)\n"
 
 #, c-format
 msgid ""
@@ -23,15 +23,19 @@ msgid ""
 "\n"
 "Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
 msgstr ""
+"Το %q δεν περιέχει ένα απακετάριστο snap.\n"
+"\n"
+"Δοκιμάστε με «snapcraft prime» μέσα στον κατάλογο του έργου, και μετά «snap "
+"try» ξανά."
 
 #, c-format
 msgid "%q switched to the %q channel\n"
-msgstr ""
+msgstr "Το %q άλλαξε προς στο κανάλι %q\n"
 
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #, c-format
 msgid "%s %s mounted from %s\n"
-msgstr ""
+msgstr "Το %s %s είναι προσαρτημένο από %s\n"
 
 #, c-format
 msgid "%s (delta)"
@@ -40,52 +44,57 @@ msgstr ""
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (see \"snap login --help\")"
-msgstr ""
+msgstr "%s (δείτε «snap login --help»)"
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (try with sudo)"
-msgstr ""
+msgstr "%s (δοκιμάστε με sudo)"
 
 #, c-format
 msgid "%s already installed\n"
-msgstr ""
+msgstr "Το %s είναι ήδη εγκατεστημένο\n"
 
 #, c-format
 msgid "%s disabled\n"
-msgstr ""
+msgstr "Το %s έχει απενεργοποιηθεί\n"
 
 #, c-format
 msgid "%s enabled\n"
-msgstr ""
+msgstr "Το %s έχει ενεργοποιηθεί\n"
 
 #, c-format
 msgid "%s not installed\n"
-msgstr ""
+msgstr "Το %s δεν είναι εγκατεστημένο\n"
 
 #, c-format
 msgid "%s removed\n"
-msgstr ""
+msgstr "Το %s έχει αφαιρεθεί\n"
 
+#. TRANSLATORS: first %s is a snap name, second %s is a revision
 #, c-format
 msgid "%s reverted to %s\n"
-msgstr ""
+msgstr "Το %s έχει επαναφερθεί στην έκδοση %s\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 #, c-format
 msgid "%s%s %s from '%s' installed\n"
-msgstr ""
+msgstr "Το %s%s %s από «%s» έχει εγκατασταθεί\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
 #, c-format
 msgid "%s%s %s from '%s' refreshed\n"
-msgstr ""
+msgstr "Το %s%s %s αποό «%s» έχει ανανεωθεί\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 #, c-format
 msgid "%s%s %s installed\n"
-msgstr ""
+msgstr "Το %s%s %s έχει εγκατασταθεί\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 #, c-format
 msgid "%s%s %s refreshed\n"
-msgstr ""
+msgstr "Το %s%s %s έχει ανανεωθεί\n"
 
 msgid "--list does not take mode nor channel flags"
 msgstr ""
@@ -94,137 +103,205 @@ msgid "--time does not take mode nor channel flags"
 msgstr ""
 
 msgid "-r can only be used with --hook"
-msgstr ""
+msgstr "το -r μπορεί να χρησιμοποιηθεί μόνο με --hook"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<alias-or-snap>"
-msgstr ""
+msgstr "<ψευδώνυμο-ή-πακέτο-snap>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<alias>"
-msgstr ""
+msgstr "<ψευδώνυμο>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion file>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion type>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<change-id>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<conf value>"
 msgstr ""
 
-#. TRANSLATORS: noun
-#. TRANSLATORS: noun
+#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 msgid "<email>"
-msgstr ""
+msgstr "<ηλεκ. διεύθυνση>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<filename>"
-msgstr ""
+msgstr "<όνομα αρχείου>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<header filter>"
-msgstr ""
+msgstr "<φίλτρο κεφαλίδας>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<interface>"
-msgstr ""
+msgstr "<διεπαφή>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<key-name>"
-msgstr ""
+msgstr "<κλειδί-όνομα>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<key>"
-msgstr ""
+msgstr "<κλειδί>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<model-assertion>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<query>"
-msgstr ""
+msgstr "<λεκτικό αναζήτησης>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<root-dir>"
+msgstr "<γονικός-κατάλογος>"
+
+#. TRANSLATORS: This needs to be wrapped in <>s.
+msgid "<service>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<plug>"
-msgstr ""
+msgstr "<snap>:<plug>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<slot or plug>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<slot>"
 msgstr ""
 
-msgid "Abort a pending change"
+msgid ""
+"A service specification, which can be just a snap name (for all services in "
+"the snap), or <snap>.<app> for a single service."
 msgstr ""
 
+msgid "Abort a pending change"
+msgstr "Εγκατάλειψη εκκρεμούς αλλαγής"
+
 msgid "Added"
-msgstr ""
+msgstr "Προστέθηκε"
 
 msgid "Adds an assertion to the system"
 msgstr ""
 
-msgid "Alias for --dangerous (DEPRECATED)"
+msgid "Advise on available snaps."
 msgstr ""
 
+msgid "Advise on snaps that provide the given command"
+msgstr ""
+
+msgid "Alias for --dangerous (DEPRECATED)"
+msgstr "Ψευδώνυμο για --dangerous (ΠΑΡΩΧΗΜΕΝΟ)"
+
 msgid "All snaps up to date."
+msgstr "Όλα τα πακέτα snap είναι ενημερωμένα."
+
+msgid "Allow opening file?"
+msgstr ""
+
+msgid "Allow refresh attempt on snap unknown to the store"
+msgstr ""
+
+msgid "Allow settings change?"
+msgstr ""
+
+#, c-format
+msgid "Allow snap %q to change %q to %q ?"
+msgstr ""
+
+#, c-format
+msgid "Allow snap %q to open file %q?"
 msgstr ""
 
 msgid "Alternative command to run"
-msgstr ""
+msgstr "Εναλλακτική εντολή για εκτέλεση"
 
 msgid "Always return document, even with single key"
-msgstr ""
+msgstr "Πάντα επιστροφή εγγράφου, ακόμα και με μονό κλειδί"
 
-#. TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+msgid "Always return list, even with single key"
+msgstr "Πάντα επιστροφή λίστας, ακόμα και με μονό κλειδί"
+
+#. TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
+msgstr "Μια ηλεκτρονική διεύθυνση χρήστη στο login.ubuntu.com"
+
+msgid ""
+"As well as starting the service now, arrange for it to be started on boot."
 msgstr ""
 
+msgid ""
+"As well as stopping the service now, arrange for it to no longer be started "
+"on boot."
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Assertion file"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Assertion type name"
 msgstr ""
 
 msgid "Authenticates on snapd and the store"
-msgstr ""
+msgstr "Ταυτοποίηση χρήστη στο snapd και το κατάστημα"
 
 #, c-format
 msgid "Auto-refresh %d snaps"
-msgstr ""
+msgstr "Αυτόματη ανανέωση %d snaps"
 
 #, c-format
 msgid "Auto-refresh snap %q"
-msgstr ""
+msgstr "Αυτόματη ανανέωση του snap %q"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Auto-refresh snaps %s"
+msgstr "Αυτόματη ανανέωση των snaps %s"
+
+#, c-format
+msgid "Automatically connect eligible plugs and slots of snap %q"
 msgstr ""
 
 msgid "Bad code. Try again: "
 msgstr ""
 
 msgid "Buys a snap"
-msgstr ""
+msgstr "Αγορά πακέτου snap"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Change ID"
-msgstr ""
+msgstr "Αλλαγή αναγνωριστικού"
 
 msgid "Changes configuration options"
 msgstr ""
 
-msgid ""
-"Classic dimension disabled on this system.\n"
-"Use \"sudo snap install --devmode classic && sudo classic.create\" to enable "
-"it."
-msgstr ""
-
 msgid "Command\tAlias\tNotes"
-msgstr ""
+msgstr "Εντολή\tΨευδώνυμο\tΣημειώσεις"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Configuration value (key=value)"
 msgstr ""
 
 msgid "Confirm passphrase: "
-msgstr ""
+msgstr "Επιβεβαίωση φράσης πρόσβασης: "
 
 #, c-format
 msgid "Connect %s:%s to %s:%s"
@@ -233,12 +310,14 @@ msgstr ""
 msgid "Connects a plug to a slot"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
-msgstr ""
+msgstr "Περιορισμός λίστας σε συγκεκριμένο snap ή snap:όνομα"
 
 msgid "Constrain listing to specific interfaces"
-msgstr ""
+msgstr "Περιορισμός λίστας σε συγκεκριμένη διεπαφή"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
 msgstr ""
 
@@ -251,7 +330,7 @@ msgid ""
 msgstr ""
 
 msgid "Create cryptographic key pair"
-msgstr ""
+msgstr "Δημιουργία κρυπτογραφικού ζεύγους κλειδιών"
 
 msgid "Create snap build assertion"
 msgstr ""
@@ -260,28 +339,29 @@ msgid "Create snap-build assertion for the provided snap file."
 msgstr ""
 
 msgid "Creates a local system user"
-msgstr ""
+msgstr "Δημιουργία χρήστη τοπικού συστήματος"
 
 msgid "Delete cryptographic key pair"
-msgstr ""
+msgstr "Διαγραφή κρυπτογραφικού ζεύγους κλειδιών"
 
 msgid "Delete the local cryptographic key pair with the given name."
 msgstr ""
+"Διαγραφή τοπικού κρυπτογραφικού ζεύγους κλειδιών με το συγκεκριμένο όνομα."
 
 #, c-format
 msgid "Disable %q snap"
-msgstr ""
+msgstr "Απενεργοποίηση του snap %q"
 
 #, c-format
 msgid "Disable aliases for snap %q"
-msgstr ""
+msgstr "Απενεργοποίηση ψευδωνύμων για το snap %q"
 
 #, c-format
 msgid "Disable all aliases for snap %q"
-msgstr ""
+msgstr "Απενεργοποίηση όλων των ψευδωνύμων για το snap %q"
 
 msgid "Disables a snap in the system"
-msgstr ""
+msgstr "Απενεργοποίηση snap στο σύστημα"
 
 #, c-format
 msgid "Discard interface connections for snap %q (%s)"
@@ -307,19 +387,20 @@ msgid ""
 msgstr ""
 
 msgid "Downloads the given snap"
-msgstr ""
+msgstr "Λήψη του συγκεκριμένου snap"
 
 msgid "Email address: "
-msgstr ""
+msgstr "Ηλεκτρονική διεύθυνση: "
 
 #, c-format
 msgid "Enable %q snap"
-msgstr ""
+msgstr "Ενεργοποίση του πακέτου snap %q"
 
 msgid "Enables a snap in the system"
-msgstr ""
+msgstr "Ενεργοποίηση snap στο σύστημα"
 
-msgid "Entering classic dimension"
+#, c-format
+msgid "Ensure prerequisites for %q are available"
 msgstr ""
 
 msgid ""
@@ -327,7 +408,7 @@ msgid ""
 msgstr ""
 
 msgid "Export cryptographic public key"
-msgstr ""
+msgstr "Εξαγωγη κρυπτογραφικού ζεύγους κλειδιών"
 
 #, c-format
 msgid "Fetch and check assertions for snap %q%s"
@@ -339,13 +420,14 @@ msgstr ""
 
 #, c-format
 msgid "Fetching snap %q\n"
-msgstr ""
+msgstr "Ανάκτηση snap %q\n"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
 msgstr ""
 
 msgid "Finds packages to install"
-msgstr ""
+msgstr "Αναζήτηση πακέτων προς εγκατάσταση"
 
 msgid "Force adding the user, even if the device is already managed"
 msgstr ""
@@ -359,7 +441,7 @@ msgid ""
 msgstr ""
 
 msgid "Generate device key"
-msgstr ""
+msgstr "Δημιουργία κλειδιού συσκευής"
 
 msgid "Generate the manpage"
 msgstr ""
@@ -371,18 +453,21 @@ msgid "Grant sudo access to the created user"
 msgstr ""
 
 msgid "Help"
-msgstr ""
+msgstr "Βοήθεια"
 
 msgid "Hook to run"
 msgstr ""
 
 msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
-msgstr ""
+msgstr "Ταυτότητα\tΚατάσταση\tΣτιγμή εκκίνησης\tΣε λειτουργία\tΠερίληψη\n"
 
 msgid "Identifier of the signer"
 msgstr ""
 
 msgid "Identifier of the snap package associated with the build"
+msgstr ""
+
+msgid "If the service has a reload command, use it instead of restarting."
 msgstr ""
 
 msgid "Ignore validation by other snaps blocking the refresh"
@@ -410,40 +495,40 @@ msgstr ""
 
 #, c-format
 msgid "Install %q snap"
-msgstr ""
+msgstr "Εγκατάσταση snap %q"
 
 #, c-format
 msgid "Install %q snap from %q channel"
-msgstr ""
+msgstr "Εγκατάσταση snap %q από το κανάλι %q"
 
 #, c-format
 msgid "Install %q snap from file"
-msgstr ""
+msgstr "Εγκατάσταση snap %q από αρχείο"
 
 #, c-format
 msgid "Install %q snap from file %q"
-msgstr ""
+msgstr "Εγκατάσταση snap %q από το αρχείο %q"
 
 msgid "Install from the beta channel"
-msgstr ""
+msgstr "Εγκατάσταση από το κανάλι beta"
 
 msgid "Install from the candidate channel"
-msgstr ""
+msgstr "Εγκατάσταση από το κανάλι candidate"
 
 msgid "Install from the edge channel"
-msgstr ""
+msgstr "Εγκατάσταση από το κανάλι edge"
 
 msgid "Install from the stable channel"
-msgstr ""
+msgstr "Εγκατάσταση από το κανάλι stable"
 
 #, c-format
 msgid "Install snap %q"
-msgstr ""
+msgstr "Εγκατάσταση snap %q"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Install snaps %s"
-msgstr ""
+msgstr "Εγκατάσταση snaps %s"
 
 msgid ""
 "Install the given revision of a snap, to which you must have developer access"
@@ -458,9 +543,18 @@ msgstr ""
 msgid "Install the given snap without enabling its automatic aliases"
 msgstr ""
 
-msgid "Installs a snap to the system"
+#, c-format
+msgid ""
+"Install the snap with:\n"
+"   snap ack %s\n"
+"   snap install %s\n"
 msgstr ""
 
+msgid "Installs a snap to the system"
+msgstr "Εγκατάσταση snap στο σύστημα"
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Key of interest within the configuration"
 msgstr ""
 
@@ -474,12 +568,15 @@ msgid "List cryptographic keys that can be used for signing assertions."
 msgstr ""
 
 msgid "List installed snaps"
-msgstr ""
+msgstr "Προβολή των εγκατεστημένων πακέτων snap"
 
 msgid "List system changes"
 msgstr ""
 
 msgid "Lists aliases in the system"
+msgstr ""
+
+msgid "Lists all repairs"
 msgstr ""
 
 msgid "Lists interfaces in the system"
@@ -489,7 +586,7 @@ msgid "Lists snap interfaces"
 msgstr ""
 
 msgid "Log out of the store"
-msgstr ""
+msgstr "Αποσύνδεση από το κατάστημα"
 
 msgid "Login successful"
 msgstr "Επιτυχής σύνδεση"
@@ -521,14 +618,17 @@ msgstr ""
 msgid "Mount snap %q%s"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to delete"
-msgstr ""
+msgstr "Όνομα κλειδιού προς διαγραφή"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to export"
-msgstr ""
+msgstr "Όνομα κλειδιού προς εξαγωγή"
 
 msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
 msgstr ""
@@ -537,32 +637,80 @@ msgid "Name of the key to use, otherwise use the default key"
 msgstr ""
 
 msgid "Name\tSHA3-384"
-msgstr ""
+msgstr "Όνομα πακέτου\tSHA3-384"
 
 msgid "Name\tSummary"
-msgstr ""
+msgstr "Όνομα πακέτου\tΠερίληψη"
 
 msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
-msgstr ""
+msgstr "Όνομα πακέτου\tΈκδοση\tΣυντελεστής\tΣημειώσεις\tΠερίληψη"
 
 msgid "Name\tVersion\tRev\tDeveloper\tNotes"
+msgstr "Όνομα πακέτου\tΈκδοση\tΑναθεώρηση\tΣυντελεστής\tΣημειώσεις"
+
+msgid "Name\tVersion\tRev\tTracking\tDeveloper\tNotes"
+msgstr ""
+
+#, c-format
+msgid "No aliases are currently defined for snap %q.\n"
+msgstr ""
+
+msgid "No aliases are currently defined."
+msgstr ""
+
+#, c-format
+msgid "No command %q found, did you mean:\n"
+msgstr ""
+
+msgid "No connections to disconnect"
+msgstr ""
+
+#. TRANSLATORS: the %q is the (quoted) name of the section the user entered
+#, c-format
+msgid "No matching section %q, use --section to list existing sections"
+msgstr ""
+
+#. TRANSLATORS: the first %q is the (quoted) query, the
+#. second %q is the (quoted) name of the section the
+#. user entered
+#, c-format
+msgid "No matching snaps for %q in section %q\n"
+msgstr ""
+
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#, c-format
+msgid "No matching snaps for %q\n"
+msgstr ""
+
+msgid ""
+"No search term specified. Here are some interesting snaps:\n"
+"\n"
+msgstr ""
+
+msgid "No section specified. Available sections:\n"
 msgstr ""
 
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr ""
-
-msgid "No snaps to auto-refresh found"
-msgstr ""
+"Κανένα span δεν έχει εγκατασταθεί ακόμα. Δοκιμάστε «snap install hello-"
+"world»."
 
 msgid "Output results in JSON format"
-msgstr ""
+msgstr "Η έξοδος καταλήγει σε μορφή JSON"
 
-msgid "Passphrase: "
+msgid "Pack the given target dir as a snap"
 msgstr ""
 
 #, c-format
-msgid "Password of %q: "
+msgid "Packages matching %q:\n"
 msgstr ""
+
+msgid "Passphrase: "
+msgstr "Φράση προσβασης: "
+
+#, c-format
+msgid "Password of %q: "
+msgstr "Κωδικός πρόσβασης του %q: "
 
 #. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
 #, c-format
@@ -571,19 +719,22 @@ msgid ""
 "for %s. Press ctrl-c to cancel."
 msgstr ""
 
+msgid "Please try: snap find --section=<selected section>\n"
+msgstr ""
+
 #, c-format
 msgid "Prefer aliases for snap %q"
 msgstr ""
 
 msgid "Prefer aliases from a snap and disable conflicts"
-msgstr ""
+msgstr "Προτίμηση ψευδώνυμα από snap και απενεργοποίηση συγκρούσεων"
 
 #, c-format
 msgid "Prefer aliases of snap %q"
-msgstr ""
+msgstr "Προτίμηση ψευδωνύμων του snap %q"
 
 msgid "Prepare a snappy image"
-msgstr ""
+msgstr "Προετοιμασία εικόνας snappy"
 
 #, c-format
 msgid "Prepare snap %q (%s)"
@@ -594,15 +745,15 @@ msgid "Prepare snap %q%s"
 msgstr ""
 
 msgid "Print the version and exit"
-msgstr ""
+msgstr "Εκτύπωση έκδοσης και έξοδος"
 
 msgid "Prints configuration options"
-msgstr ""
+msgstr "Εμφάνιση των επιλογών ρυθμίσεων"
 
 msgid "Prints the confinement mode the system operates in"
 msgstr ""
 
-msgid "Prints the email the user is logged in with."
+msgid "Prints the email the user is logged in with"
 msgstr ""
 
 msgid "Prints whether system is managed"
@@ -626,42 +777,42 @@ msgstr ""
 
 #, c-format
 msgid "Refresh %q snap"
-msgstr ""
+msgstr "Ανανέωση snap %q"
 
 #, c-format
 msgid "Refresh %q snap from %q channel"
-msgstr ""
+msgstr "Ανανέωση snap %q από το κανάλι %q"
 
 #, c-format
 msgid "Refresh aliases for snap %q"
 msgstr ""
 
 msgid "Refresh all snaps: no updates"
-msgstr ""
+msgstr "Ανανέωση όλων των snaps: καμία ενημέρωση"
 
 #, c-format
 msgid "Refresh snap %q"
-msgstr ""
+msgstr "Ανανέωση snap %q"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s"
-msgstr ""
+msgstr "Ανανέωση snaps %s"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s: no updates"
-msgstr ""
+msgstr "Ανανέωση snaps %s: καμία ενημέρωση"
 
 msgid "Refresh to the given revision"
-msgstr ""
+msgstr "Ανανέωση στη συγκεκριμένη αναθεώρηση"
 
 msgid "Refreshes a snap in the system"
-msgstr ""
+msgstr "Ανανέωση των πακέτων snap του συστήματος"
 
 #, c-format
 msgid "Remove %q snap"
-msgstr ""
+msgstr "Αφαίρεση snap %q"
 
 #, c-format
 msgid "Remove aliases for snap %q"
@@ -673,10 +824,10 @@ msgstr ""
 
 #, c-format
 msgid "Remove manual alias %q for snap %q"
-msgstr ""
+msgstr "Αφαίρεση χειροκίνητου ψευδώνυμου %q για το snap %q"
 
 msgid "Remove only the given revision"
-msgstr ""
+msgstr "Αφαίρεση μόνο της συγκεκριμένης αναθεώρησης"
 
 #, c-format
 msgid "Remove security profile for snap %q (%s)"
@@ -688,7 +839,7 @@ msgstr ""
 
 #, c-format
 msgid "Remove snap %q"
-msgstr ""
+msgstr "Αφαίρεση snap %q"
 
 #, c-format
 msgid "Remove snap %q (%s) from the system"
@@ -697,22 +848,22 @@ msgstr ""
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Remove snaps %s"
-msgstr ""
+msgstr "Αφαίρεση snaps %s"
 
 msgid "Removed"
-msgstr ""
+msgstr "Αφαιρέθηκε"
 
 msgid "Removes a snap from the system"
-msgstr ""
+msgstr "Αφαίρεση πακέτου snap από το σύστημα"
 
 msgid "Request device serial"
 msgstr ""
 
 msgid "Restart services"
-msgstr ""
+msgstr "Επανεκκίνηση υπηρεσιών"
 
 msgid "Restarted.\n"
-msgstr ""
+msgstr "Επανεκκινήθηκε.\n"
 
 msgid "Restrict the search to a given section"
 msgstr ""
@@ -728,6 +879,9 @@ msgid "Reverts the given snap to the previous state"
 msgstr ""
 
 msgid "Run a shell instead of the command (useful for debugging)"
+msgstr "Εκτέλεση ενός φλοιού αντί μιας εντολής (χρήσιμο στην εκσφαλμάτωση)"
+
+msgid "Run as a timer service with given schedule"
 msgstr ""
 
 #, c-format
@@ -750,6 +904,10 @@ msgstr ""
 msgid "Run post-refresh hook of %q snap if present"
 msgstr ""
 
+#, c-format
+msgid "Run pre-refresh hook of %q snap if present"
+msgstr ""
+
 msgid "Run prepare-device hook"
 msgstr ""
 
@@ -757,21 +915,32 @@ msgstr ""
 msgid "Run remove hook of %q snap if present"
 msgstr ""
 
-msgid "Run the given snap command"
+msgid ""
+"Run the command under strace (useful for debugging). Extra strace options "
+"can be specified as well here."
 msgstr ""
+
+msgid "Run the command with gdb"
+msgstr ""
+
+msgid "Run the given snap command"
+msgstr "Εκτέλεση συγκεκριμένης εντολής snap"
 
 msgid "Run the given snap command with the right confinement and environment"
 msgstr ""
 
 msgid "Runs debug commands"
-msgstr ""
+msgstr "Εκτέλεση εντολών αποσφαλμάτωσης"
 
 msgid "Search private snaps"
-msgstr ""
+msgstr "Αναζήτηση ιδιωτικών snaps"
 
 msgid ""
 "Select last change of given type (install, refresh, remove, try, auto-"
 "refresh etc.)"
+msgstr ""
+
+msgid "Service\tStartup\tCurrent"
 msgstr ""
 
 #, c-format
@@ -806,25 +975,36 @@ msgid "Setup snap %q%s security profiles (phase 2)"
 msgstr ""
 
 msgid "Show all revisions"
-msgstr ""
+msgstr "Εμφάνιση όλων των αναθεωρήσεων"
 
 msgid "Show auto refresh information but do not perform a refresh"
 msgstr ""
 
 msgid "Show available snaps for refresh but do not perform a refresh"
 msgstr ""
+"Εμφάνιση διαθέσιμων snaps για ανανέωση αλλά να μην εκτελεστεί η ανανέωση"
 
-msgid "Show details of a specific interface"
+msgid "Show detailed information about a snap"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+msgid "Show details of a specific interface"
+msgstr "Εμφάνιση λεπτομερειών συγκεκριμένης διεπαφής"
+
 msgid "Show interface attributes"
+msgstr "Εμφάνιση ιδιοτήτων διεπαφής"
+
+msgid "Show only the given number of lines, or 'all'."
 msgstr ""
 
 msgid "Shows known assertions of the provided type"
 msgstr ""
 
+msgid "Shows specific repairs"
+msgstr "Εμφάνιση συγκεκριμένων επιδιορθώσεων"
+
 msgid "Shows version details"
-msgstr ""
+msgstr "Εμφάνιση λεπτομερειών έκδοσης"
 
 msgid "Sign an assertion"
 msgstr ""
@@ -838,11 +1018,15 @@ msgstr ""
 msgid "Slot\tPlug"
 msgstr ""
 
-msgid "Snap name"
+#. TRANSLATORS: first %s is a snap name, following %s is a channel name
+#, c-format
+msgid "Snap %s is no longer tracking %s.\n"
 msgstr ""
 
-msgid "Snap\tService\tStartup\tCurrent"
-msgstr ""
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+msgid "Snap name"
+msgstr "Όνομα snap"
 
 msgid ""
 "Sorry, your payment method has been declined by the issuer. Please review "
@@ -851,7 +1035,7 @@ msgid ""
 msgstr ""
 
 msgid "Start services"
-msgstr ""
+msgstr "Εκκίνηση υπηρεσιών"
 
 #, c-format
 msgid "Start snap %q (%s) services"
@@ -865,16 +1049,16 @@ msgid "Start snap services"
 msgstr ""
 
 msgid "Start the userd service"
-msgstr ""
+msgstr "Εκκίνηση υπηρεσίας userd"
 
 msgid "Started.\n"
-msgstr ""
+msgstr "Εκκινήθηκε.\n"
 
 msgid "Status\tSpawn\tReady\tSummary\n"
-msgstr ""
+msgstr "Κατάσταση\tΣτιγμή εκκίνησης\tΣε λειτουργία\tΠερίληψη\n"
 
 msgid "Stop services"
-msgstr ""
+msgstr "Διακοπή υπηρεσιών"
 
 #, c-format
 msgid "Stop snap %q (%s) services"
@@ -906,13 +1090,13 @@ msgid "Switch snap %q to %s"
 msgstr ""
 
 msgid "Switches snap to a different channel"
-msgstr ""
+msgstr "Αλλάζει το κανάλι σε ένα πακέτο snap"
 
 msgid "Temporarily mount device before inspecting"
 msgstr ""
 
 msgid "Tests a snap in the system"
-msgstr ""
+msgstr "Δοκιμή πακέτου snap στο σύστημα"
 
 #. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
 #, c-format
@@ -925,34 +1109,45 @@ msgid ""
 "The get command prints configuration and interface connection settings."
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The login.ubuntu.com email to login as"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The model assertion name"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The output directory"
-msgstr ""
+msgstr "Κατάλογος εξόδου"
 
-#. TRANSLATORS: the %q is the (quoted) query the user entered
 #, c-format
-msgid "The search %q returned 0 snaps\n"
+msgid "The program %q can be found in the following snaps:\n"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
-msgstr ""
+msgstr "Snap προς ρύθμιση (π.χ. hello-world)"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
 msgstr ""
 
 msgid "The userd command starts the snap user session service."
-msgstr ""
+msgstr "Η εντολή userd εκκινεί την υπηρεσία συνεδρίας χρήστη."
 
 msgid "This command logs the current user out of the store"
 msgstr ""
 
-msgid "Tool to interact with snaps"
+msgid "This dialog will close automatically after 5 minutes of inactivity."
 msgstr ""
+
+#, c-format
+msgid "Toggle snap %q flags"
+msgstr ""
+
+msgid "Tool to interact with snaps"
+msgstr "Εργαλείο για αλληλεπίδραση με τα snaps"
 
 #, c-format
 msgid "Transition security profiles from %q to %q"
@@ -963,6 +1158,9 @@ msgstr ""
 
 #, c-format
 msgid "Try %q snap from %s"
+msgstr "Δοκιμή snap %q από %s"
+
+msgid "Try: snap install <selected snap>\n"
 msgstr ""
 
 msgid "Two-factor code: "
@@ -977,18 +1175,29 @@ msgstr ""
 msgid "Use known assertions for user creation"
 msgstr ""
 
+msgid "Use the given output format (pretty or json)"
+msgstr ""
+
 msgid "Use this channel instead of stable"
+msgstr "Να χρησιμοποιηθεί αυτό το κανάλι αντί του stable"
+
+msgid ""
+"WARNING: The output of \"snap get\" will become a list with columns - use -d "
+"or -l to force the output format.\n"
 msgstr ""
 
 #, c-format
 msgid "WARNING: failed to activate logging: %v\n"
 msgstr ""
 
-msgid "Waiting for server to restart"
+msgid "Wait for new lines and print them as they come in."
 msgstr ""
 
+msgid "Waiting for server to restart"
+msgstr "Αναμονή για επανεκκίνηση του διακομιστή"
+
 msgid "Watch a change in progress"
-msgstr ""
+msgstr "Παρακολούθηση αλλαγής σε εξέλιξη"
 
 msgid "Wrong again. Once more: "
 msgstr ""
@@ -1004,6 +1213,8 @@ msgid ""
 "You need to be logged in to purchase software. Please run 'snap login' and "
 "try again."
 msgstr ""
+"Πρέπει να συνδεθείτε για αγορά λογισμικού. Παρακαλώ εκτελέστε «snap login» "
+"και δοκιμάστε ξανά."
 
 #, c-format
 msgid ""
@@ -1018,6 +1229,7 @@ msgstr ""
 #, c-format
 msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
 msgstr ""
+"Η εντολή «snap changes» αναμένει όνομα snap, δοκιμάστε: «snap tasks %s»"
 
 msgid ""
 "\n"
@@ -1028,6 +1240,24 @@ msgid ""
 "\n"
 "This is the CLI for snapd, a background service that takes care of\n"
 "snaps on the system. Start with 'snap list' to see installed snaps.\n"
+msgstr ""
+"\n"
+"Εγκατάσταση, ρύθμιση, ανανέωση και απεγκατάσταση πακέτων snap. \n"
+"Τα πακέτα snap είναι «γενικά» πακέτα που μπορούν να εγκατασταθούν \n"
+"σε πολλές διαφορετικές διανομές Linux, επιτρέποντας της ασφαλή διάθεση\n"
+"εφαρμογών και εργαλείων για το σύννεφο, τους διακομιστές, τους "
+"επιτραπέζιους\n"
+"υπολογιστές και φορητούς καθώς και το Διαδίκτυο των πραγμάτων.\n"
+"\n"
+"Αυτό εδώ είναι το εργαλείο γραμμής εντολής για το snapd, μιας υπηρεσίας "
+"παρασκηνίου\n"
+"που διαχειρίζεται τα πακέτα snap στο σύστημα. Εκτελέστε την εντολή «snap "
+"list»\n"
+"για να δείτε τα ήδη εγκατεστημένα πακέτα snap.\n"
+
+msgid ""
+"\n"
+"Provide a search term for more specific results.\n"
 msgstr ""
 
 msgid ""
@@ -1046,6 +1276,12 @@ msgid ""
 "To succeed the assertion must be valid, its signature verified with a known\n"
 "public key and the assertion consistent with and its prerequisite in the\n"
 "database.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The advise-snap command shows what snaps with the given command are\n"
+"available.\n"
 msgstr ""
 
 msgid ""
@@ -1089,12 +1325,17 @@ msgid ""
 "\n"
 "The buy command buys a snap from the store.\n"
 msgstr ""
+"\n"
+"Η εντολή buy αγοράζει ένα πακέτο snap από το κατάστημα.\n"
 
 msgid ""
 "\n"
 "The changes command displays a summary of the recent system changes "
 "performed."
 msgstr ""
+"\n"
+"Η εντολή change προβάλει περίληψη των πρόσφατων αλλαγών συστήματος που "
+"εκτελέστηκαν."
 
 msgid ""
 "\n"
@@ -1151,6 +1392,11 @@ msgid ""
 "snap will no longer be available. But all the data is still available\n"
 "and the snap can easily be enabled again.\n"
 msgstr ""
+"\n"
+"Η εντολή disable απενεργοποιεί το snap. Τα εκτελέσιμα και οι υπηρεσίες του\n"
+"snap δεν θα είναι πλέον διαθέσιμα. Αλλά τα δεδομένα θα είναι ακόμα "
+"διαθέσιμα\n"
+"και το snap μπορεί εύκολα να ενεργοποιηθεί ξανά.\n"
 
 msgid ""
 "\n"
@@ -1178,6 +1424,9 @@ msgid ""
 "\n"
 "The enable command enables a snap that was previously disabled.\n"
 msgstr ""
+"\n"
+"Η εντολή enable ενεργοποιεί το πακέτο snap που ήταν προηγουμένως "
+"απενεργοποιημένο.\n"
 
 msgid ""
 "\n"
@@ -1300,6 +1549,9 @@ msgid ""
 "\n"
 "The list command displays a summary of snaps installed in the current system."
 msgstr ""
+"\n"
+"Η εντολή list προβάλει μια περίληψη των εγκατεστημένων snaps στο τρέχον "
+"σύστημα"
 
 msgid ""
 "\n"
@@ -1316,8 +1568,22 @@ msgstr ""
 
 msgid ""
 "\n"
+"The logs command fetches logs of the given services and displays them in "
+"chronological order.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The managed command will print true or false informing whether\n"
 "snapd has registered users.\n"
+msgstr ""
+"\n"
+"Η εντολή managed θα εκτυπώσει true ή false ενημερώνοντας αν\n"
+"το snapd έχει καταχωρημένους χρήστες.\n"
+
+msgid ""
+"\n"
+"The pack command packs the given snap-dir as a snap."
 msgstr ""
 
 msgid ""
@@ -1349,6 +1615,8 @@ msgid ""
 "\n"
 "The refresh command refreshes (updates) the named snap.\n"
 msgstr ""
+"\n"
+"Η εντολή refresh ανανεώνει το πακέτο snap που δηλώσατε.\n"
 
 msgid ""
 "\n"
@@ -1363,12 +1631,46 @@ msgstr ""
 
 msgid ""
 "\n"
+"The repair command shows the details about one or multiple repairs.\n"
+msgstr ""
+"\n"
+"Η εντολή repair εμφανίζει τις λεπτομέρειες για μία ή περισσότερες "
+"επιδιορθώσεις.\n"
+
+msgid ""
+"\n"
+"The repairs command lists all processed repairs for this device.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The restart command restarts the given services of the snap. If executed "
+"from the\n"
+"\"configure\" hook, the services will be restarted after the hook finishes."
+msgstr ""
+
+msgid ""
+"\n"
+"The restart command restarts the given services.\n"
+"\n"
+"If the --reload option is given, for each service whose app has a reload "
+"command, a reload is performed instead of a restart.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The revert command reverts the given snap to its state before\n"
 "the latest refresh. This will reactivate the previous snap revision,\n"
 "and will use the original data that was associated with that revision,\n"
 "discarding any data changes that were done by the latest revision. As\n"
 "an exception, data which the snap explicitly chooses to share across\n"
 "revisions is not touched by the revert process.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The services command lists information about the services specified, or "
+"about the services in all currently installed snaps.\n"
 msgstr ""
 
 msgid ""
@@ -1407,15 +1709,44 @@ msgstr ""
 
 msgid ""
 "\n"
+"The start command starts the given services of the snap. If executed from "
+"the\n"
+"\"configure\" hook, the services will be started after the hook finishes."
+msgstr ""
+
+msgid ""
+"\n"
+"The start command starts, and optionally enables, the given services.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The stop command stops the given services of the snap. If executed from the\n"
+"\"configure\" hook, the services will be stopped after the hook finishes."
+msgstr ""
+
+msgid ""
+"\n"
+"The stop command stops, and optionally disables, the given services.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The switch command switches the given snap to a different channel without\n"
 "doing a refresh.\n"
 msgstr ""
+"\n"
+"Η εντολή switch αλλάζει σε ένα πακέτο snap το κανάλι του χωρίς να κάνει "
+"ταυτόχρονα ανανέωση (refresh).\n"
 
 msgid ""
 "\n"
 "The tasks command displays a summary of tasks associated to an individual "
 "change."
 msgstr ""
+"\n"
+"Η εντολή tasks προβάλει περίληψη των συσχετισμένων εργασιών σε μεμονωμένη "
+"αλλαγή."
 
 msgid ""
 "\n"
@@ -1444,6 +1775,9 @@ msgid ""
 "The version command displays the versions of the running client, server,\n"
 "and operating system.\n"
 msgstr ""
+"\n"
+"Η εντολή version προβάλει τις εκδόσεις του εκτελούμενου πελάτη, διακομιστή,\n"
+"και λειτουργικού συστήματος.\n"
 
 msgid ""
 "\n"
@@ -1456,6 +1790,9 @@ msgid ""
 "\n"
 "The whoami command prints the email the user is logged in with.\n"
 msgstr ""
+"\n"
+"Η εντολή whoami εμφανίζει την ηλεκτρονική διεύθυνση του χρήστη που έχει "
+"συνδεθεί.\n"
 
 #, c-format
 msgid ""
@@ -1472,9 +1809,7 @@ msgstr ""
 
 msgid ""
 "\n"
-"\n"
-"The home directory is shared between snappy and the classic dimension.\n"
-"Run \"exit\" to leave the classic shell.\n"
+"Use snap alias --help to learn how to create aliases manually."
 msgstr ""
 
 msgid "a single snap name is needed to specify mode or channel flags"
@@ -1487,29 +1822,36 @@ msgid "a single snap name must be specified when ignoring validation"
 msgstr ""
 
 msgid "active"
+msgstr "ενεργό"
+
+msgid "auto-refresh: all snaps are up-to-date"
 msgstr ""
 
 msgid "bought"
-msgstr ""
+msgstr "αγορασμένο"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "broken"
+msgstr "χαλασμένο"
+
+#, c-format
+msgid "cannot %s without a context"
 msgstr ""
 
 #, c-format
 msgid "cannot buy snap: %v"
-msgstr ""
+msgstr "αδυναμία αγοράς snap: %v"
 
 msgid "cannot buy snap: invalid characters in name"
-msgstr ""
+msgstr "αδυναμία αγοράς snap: μη έγκυροι χαρακτήρες στο όνομα"
 
 msgid "cannot buy snap: it has already been bought"
-msgstr ""
+msgstr "αδυναμία αγοράς snap: είναι ήδη αγορασμένο"
 
 #. TRANSLATORS: %q is the directory whose creation failed, %v the error message
 #, c-format
 msgid "cannot create %q: %v"
-msgstr ""
+msgstr "αδυναμία δημιουργίας του %q: %v"
 
 #, c-format
 msgid "cannot create assertions file: %v"
@@ -1522,30 +1864,29 @@ msgstr ""
 
 #, c-format
 msgid "cannot find app %q in %q"
-msgstr ""
+msgstr "αδυναμία εύρεσης εφαρμογής %q στο %q"
 
 #, c-format
 msgid "cannot find hook %q in %q"
 msgstr ""
 
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
-#. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
 #, c-format
 msgid "cannot get data for %q: %v"
-msgstr ""
+msgstr "αδυναμία απόκτησης δεδομένων για το %q: %v"
 
 #. TRANSLATORS: %q gets what the user entered, %v gets the resulting error message
 #, c-format
 msgid "cannot get full path for %q: %v"
-msgstr ""
+msgstr "αδυναμία απόκτησης πλήρους μονοπατιού για το %q: %v"
 
 #, c-format
 msgid "cannot get the current user: %s"
-msgstr ""
+msgstr "αδυναμία απόκτησης τρέχοντος χρήστη: %s"
 
 #, c-format
 msgid "cannot get the current user: %v"
-msgstr ""
+msgstr "αδυναμία απόκτησης τρέχοντος χρήστη: %v"
 
 #, c-format
 msgid "cannot mark boot successful: %s"
@@ -1579,10 +1920,7 @@ msgstr ""
 #. TRANSLATORS: %q is the key name, %v the error message
 #, c-format
 msgid "cannot use %q key: %v"
-msgstr ""
-
-msgid "cannot use --hook and --command together"
-msgstr ""
+msgstr "αδυναμία χρήσης κλειδιού %q: %v"
 
 msgid "cannot use change ID and type together"
 msgstr ""
@@ -1592,11 +1930,11 @@ msgstr ""
 
 #, c-format
 msgid "cannot validate owner of file %s"
-msgstr ""
+msgstr "αδυναμία επαλήθευσης κατόχου του αρχείου %s"
 
 #, c-format
 msgid "cannot write new Xauthority file at %s: %s"
-msgstr ""
+msgstr "αδυναμία εγγραφής αρχείου Xauthority στο %s: %s"
 
 #, c-format
 msgid "change finished in status %q with no error message"
@@ -1609,21 +1947,25 @@ msgstr ""
 
 #, c-format
 msgid "created user %q\n"
+msgstr "δημιουργία χρήστη %q\n"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
+msgid "d"
 msgstr ""
 
 #. TRANSLATORS: if possible, a single short word
 msgid "disabled"
-msgstr ""
+msgstr "απενεργοποιημένο"
 
 msgid "email:"
-msgstr ""
+msgstr "ηλεκτρονική διεύθυνση:"
 
 msgid "enabled"
-msgstr ""
+msgstr "ενεργοποιημένο"
 
 #, c-format
 msgid "error: %v\n"
-msgstr ""
+msgstr "σφάλμα: %v\n"
 
 msgid ""
 "error: the `<snap-dir>` argument was not provided and couldn't be inferred"
@@ -1632,8 +1974,15 @@ msgstr ""
 msgid "get which option?"
 msgstr ""
 
-msgid "inactive"
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
+msgid "h"
 msgstr ""
+
+msgid "ignore-validation"
+msgstr ""
+
+msgid "inactive"
+msgstr "ανενεργό"
 
 msgid ""
 "interface attributes can only be read during the execution of interface hooks"
@@ -1661,10 +2010,12 @@ msgid ""
 "invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
 "“all”."
 msgstr ""
+"μη έγκυρη παράμετρος για τη σημαία «-n»: αναμένει μια μη-αρνητική παράμετρο, "
+"ή «όλα»."
 
 #, c-format
 msgid "invalid attribute: %q (want key=value)"
-msgstr ""
+msgstr "μη έγκυρη ιδιότητα: %q (επιθυμητό κλειδί=τιμή)"
 
 #, c-format
 msgid "invalid configuration: %q (want key=value)"
@@ -1672,7 +2023,7 @@ msgstr ""
 
 #, c-format
 msgid "invalid header filter: %q (want key=value)"
-msgstr ""
+msgstr "μη έγκυρο φίλτρο επικαφαλίδας: %q (επιθυμητό κλειδί=τιμή)"
 
 #, c-format
 msgid "invalid parameter: %q (want key=value)"
@@ -1680,11 +2031,19 @@ msgstr ""
 
 #, c-format
 msgid "invalid value: %q (want snap:name or snap)"
-msgstr ""
+msgstr "μη έγκυρη τιμή: %q (επιθυμητό snap:όνομα ή snap)"
 
 #, c-format
 msgid ""
 "key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"
+msgstr ""
+
+#, c-format
+msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
+msgid "m"
 msgstr ""
 
 msgid "missing snap-confine: try updating your snapd package"
@@ -1694,28 +2053,25 @@ msgid "need the application to run as argument"
 msgstr ""
 
 msgid "no changes found"
-msgstr ""
+msgstr "καμία αλλαγή δεν βρέθηκε"
 
 #, c-format
 msgid "no changes of type %q found"
-msgstr ""
+msgstr "καμία αλλαγή τύπου %q δεν βρέθηκε"
 
 msgid "no interfaces currently connected"
-msgstr ""
+msgstr "καμία διεπαφή δεν έχει συνδεθεί"
 
 msgid "no interfaces found"
-msgstr ""
+msgstr "καμία διεπαφή δεν βρέθηκε"
 
 msgid "no matching snaps installed"
 msgstr ""
 
 msgid "no such interface"
-msgstr ""
+msgstr "καμία τέτοια διεπαφή"
 
 msgid "no valid snaps given"
-msgstr ""
-
-msgid "not a valid snap"
 msgstr ""
 
 msgid "please provide change ID or type with --last=<type>"
@@ -1723,11 +2079,19 @@ msgstr ""
 
 #. TRANSLATORS: if possible, a single short word
 msgid "private"
-msgstr ""
+msgstr "ιδιωτικό"
 
 msgid ""
 "reboot scheduled to update the system - temporarily cancel with 'sudo "
 "shutdown -c'"
+msgstr ""
+
+msgid "repairs are not available on a classic system"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
+#. (I fully expect this to always be "s", given it's a SI unit)
+msgid "s"
 msgstr ""
 
 #, c-format
@@ -1737,38 +2101,31 @@ msgstr ""
 msgid "set which option?"
 msgstr ""
 
-msgid "show detailed information about a snap"
-msgstr ""
-
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
 #, c-format
 msgid "snap %%q not found (at least at revision %q)"
-msgstr ""
+msgstr "κανένα snap %%q δεν βρέθηκε (τουλάχιστον στην αναθεώρηση %q)"
 
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
 #, c-format
 msgid "snap %%q not found (at least in channel %q)"
-msgstr ""
+msgstr "κανένα snap %%q δεν βρέθηκε (τουλάχιστον στο κανάλι %q)"
 
 #, c-format
 msgid "snap %q has no updates available"
-msgstr ""
+msgstr "το snap %q δεν έχει καμία διαθέσιμη ενημέρωση"
 
 #, c-format
 msgid "snap %q is already installed, see \"snap refresh --help\""
 msgstr ""
 
 #, c-format
-msgid "snap %q is local"
-msgstr ""
-
-#, c-format
 msgid "snap %q not found"
-msgstr ""
+msgstr "το snap %q δεν βρέθηκε"
 
 #. TRANSLATORS: free as in gratis
 msgid "snap is free"
-msgstr ""
+msgstr "το snap είναι δωρέαν"
 
 msgid "too many arguments for command"
 msgstr ""
@@ -1783,8 +2140,11 @@ msgstr ""
 msgid "too many arguments: %s"
 msgstr ""
 
-msgid "unavailable"
+msgid "unable to contact snap store"
 msgstr ""
+
+msgid "unavailable"
+msgstr "μη διαθέσιμη"
 
 #, c-format
 msgid "unknown attribute %q"
@@ -1799,5 +2159,31 @@ msgid "unknown plug or slot %q"
 msgstr ""
 
 #, c-format
-msgid "unsupported shell %v"
+msgid "unknown service: %q"
 msgstr ""
+
+#, c-format
+msgid "warning:\tno snap found for %q\n"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+msgid "y"
+msgstr ""
+
+msgid "Authenticate on snap daemon"
+msgstr "Ταυτοποίηση στην υπηρεσία snap"
+
+msgid "Authorization is required to authenticate on the snap daemon"
+msgstr "Απαιτείται εξουσιοδότηση για ταυτοποίηση στην υπηρεσία snap"
+
+msgid "Install, update, or remove packages"
+msgstr "Εγκατάσταση, ενημέρωση ή αφαίρεση πακέτων"
+
+msgid "Authentication is required to install, update, or remove packages"
+msgstr "Ταυτοποίηση απαιτείται για εγκατάσταση ή αφαίρεση πακέτων"
+
+msgid "Connect, disconnect interfaces"
+msgstr "Σύνδεση, αποσύνδεση διεπαφών"
+
+msgid "Authentication is required to connect or disconnect interfaces"
+msgstr "Ταυτοποίηση απαιτείται για σύνδεση ή αποσύνδεση διεπαφών"

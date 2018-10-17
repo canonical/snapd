@@ -345,10 +345,13 @@ EOF
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {
+	// please keep TestBuildUsesExcludes in sync with this one so it makes sense.
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
 	c.Assert(err, IsNil)
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
@@ -362,11 +365,72 @@ func (s *SquashfsTestSuite) TestBuild(c *C) {
 	c.Assert(err, IsNil)
 	split := strings.Split(string(outputWithHeader), "\n")
 	output := strings.Join(split[3:], "\n")
-	c.Assert(string(output), Equals, `squashfs-root
+	c.Assert(string(output), Equals, `
+squashfs-root
 squashfs-root/data.bin
 squashfs-root/random
+squashfs-root/random/data.bin
 squashfs-root/random/dir
-`)
+`[1:]) // skip the first newline :-)
+}
+
+func (s *SquashfsTestSuite) TestBuildUsesExcludes(c *C) {
+	// please keep TestBuild in sync with this one so it makes sense.
+	buildDir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
+	c.Assert(err, IsNil)
+
+	excludesFilename := filepath.Join(buildDir, ".snapignore")
+	err = ioutil.WriteFile(excludesFilename, []byte(`
+# ignore just one of the data.bin files we just added (the toplevel one)
+data.bin
+# also ignore ourselves
+.snapignore
+# oh and anything called "dir" anywhere
+... dir
+`), 0644)
+	c.Assert(err, IsNil)
+
+	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
+	err = snap.Build(buildDir, "app", excludesFilename)
+	c.Assert(err, IsNil)
+
+	outputWithHeader, err := exec.Command("unsquashfs", "-n", "-l", snap.Path()).Output()
+	c.Assert(err, IsNil)
+	split := strings.Split(string(outputWithHeader), "\n")
+	output := strings.Join(split[3:], "\n")
+	// compare with TestBuild
+	c.Assert(string(output), Equals, `
+squashfs-root
+squashfs-root/random
+squashfs-root/random/data.bin
+`[1:]) // skip the first newline :-)
+}
+
+func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcardsFlag(c *C) {
+	defer squashfs.MockFromCore(func(cmd string, args ...string) (*exec.Cmd, error) {
+		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
+		return nil, errors.New("bzzt")
+	})()
+	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	defer mksq.Restore()
+
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(snapPath)
+	err := snap.Build(c.MkDir(), "core", "exclude1", "exclude2", "exclude3")
+	c.Assert(err, IsNil)
+	calls := mksq.Calls()
+	c.Assert(calls, HasLen, 1)
+	c.Check(calls[0], DeepEquals, []string{
+		// the usual:
+		"mksquashfs", ".", snapPath, "-noappend", "-comp", "xz", "-no-fragments", "-no-progress",
+		// the interesting bits:
+		"-wildcards", "-ef", "exclude1", "-ef", "exclude2", "-ef", "exclude3",
+	})
 }
 
 func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
