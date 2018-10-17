@@ -42,27 +42,30 @@ func (s *hotplugSpecSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *hotplugSpecSuite) TestAddSlot(c *C) {
+func (s *hotplugSpecSuite) TestSetSlot(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
-	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}}), IsNil)
-
-	c.Assert(spec.Slots(), DeepEquals, []*SlotSpec{
-		{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
-		{Name: "slot2", Label: "A slot", Attrs: map[string]interface{}{"baz": "booze"}},
-	})
-
-	c.Assert(spec.AddSlot(&SlotSpec{Name: "---", Label: "A slot", Attrs: map[string]interface{}{}}), ErrorMatches, `invalid slot name: "---"`)
+	c.Assert(spec.SetSlot(&RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	c.Assert(spec.Slot(), DeepEquals, &RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
-func (s *hotplugSpecSuite) TestAddSlotDuplicate(c *C) {
+func (s *hotplugSpecSuite) TestSetSlotEmptyName(c *C) {
 	spec := NewSpecification()
-	c.Assert(spec.AddSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
-	err := spec.AddSlot(&SlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `slot "slot1" already exists`)
+	c.Assert(spec.SetSlot(&RequestedSlotSpec{Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	c.Assert(spec.Slot(), DeepEquals, &RequestedSlotSpec{Name: "", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+}
 
-	c.Assert(spec.Slots(), DeepEquals, []*SlotSpec{
-		{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}},
-	})
+func (s *hotplugSpecSuite) TestSetSlotInvalidName(c *C) {
+	spec := NewSpecification()
+	err := spec.SetSlot(&RequestedSlotSpec{Name: "slot!", Label: "A slot"})
+	c.Assert(err, ErrorMatches, `invalid slot name: "slot!"`)
+}
+
+func (s *hotplugSpecSuite) TestAddSlotAlreadyCreated(c *C) {
+	spec := NewSpecification()
+	c.Assert(spec.SetSlot(&RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}), IsNil)
+	err := spec.SetSlot(&RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `slot specification already created`)
+
+	c.Assert(spec.Slot(), DeepEquals, &RequestedSlotSpec{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }

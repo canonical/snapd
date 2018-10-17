@@ -19,7 +19,10 @@
 
 package release
 
-var ReadOSRelease = readOSRelease
+var (
+	ReadOSRelease       = readOSRelease
+	ProbeAppArmorParser = probeAppArmorParser
+)
 
 func MockOSReleasePath(filename string) (restore func()) {
 	old := osReleasePath

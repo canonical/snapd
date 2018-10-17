@@ -50,7 +50,7 @@ func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -81,7 +81,7 @@ func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -132,7 +132,7 @@ func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -143,7 +143,7 @@ func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 
 	s.SetUpTest(c)
 	// should be the same
-	rest, err = Parser().ParseArgs([]string{"interfaces", "canonical-pi2"})
+	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "canonical-pi2"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
@@ -151,7 +151,7 @@ func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 
 	s.SetUpTest(c)
 	// and the same again
-	rest, err = Parser().ParseArgs([]string{"interfaces", "keyboard-lights"})
+	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "keyboard-lights"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
@@ -189,7 +189,7 @@ func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -256,7 +256,7 @@ func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -323,7 +323,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -372,7 +372,7 @@ func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces", "-i=serial-port"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "-i=serial-port"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -415,7 +415,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces", "wake-up-alarm"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "wake-up-alarm"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -459,7 +459,7 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces", "system"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "system"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -471,7 +471,7 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 	s.ResetStdStreams()
 
 	// when called with system nickname we get the same output
-	rest, err = Parser().ParseArgs([]string{"interfaces", "system"})
+	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "system"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdoutSystem := "" +
@@ -514,7 +514,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces", "wake-up-alarm:snooze"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "wake-up-alarm:snooze"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -536,7 +536,7 @@ func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
 			"result": client.Connections{},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
 	c.Assert(err, ErrorMatches, "no interfaces found")
 	// XXX: not sure why this is returned, I guess that's what happens when a
 	// command Execute returns an error.
@@ -578,7 +578,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interfaces", "-i", "bool-file"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "-i", "bool-file"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -607,7 +607,7 @@ func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	defer os.Unsetenv("GO_FLAGS_COMPLETION")
 
 	expected := []flags.Completion{}
-	parser := Parser()
+	parser := Parser(Client())
 	parser.CompletionHandler = func(obtained []flags.Completion) {
 		c.Check(obtained, DeepEquals, expected)
 	}
@@ -625,5 +625,50 @@ func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestConnectionsCoreNicknamedSystem(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "core", "system")
+}
+
+func (s *SnapSuite) TestConnectionsSnapdNicknamedSystem(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "snapd", "system")
+}
+
+func (s *SnapSuite) TestConnectionsSnapdNicknamedCore(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "snapd", "core")
+}
+
+func (s *SnapSuite) TestConnectionsCoreSnap(c *C) {
+	s.checkConnectionsSystemCoreRemapping(c, "core", "core")
+}
+
+func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSnapName string) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Connections{
+				Slots: []client.Slot{
+					{
+						Snap: apiSnapName,
+						Name: "network",
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", cliSnapName})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Slot      Plug\n" +
+		":network  -\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }

@@ -60,7 +60,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 6
-
+            - ubuntu-18.10-64:
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1810-cosmic-v20181002
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -387,12 +389,24 @@ prepare: |
         # increase the number of download attempts libzypp will try to
         # workaround that.
         cat <<-EOF >> /etc/zypp/zypp.conf
-
     # added by spread tests
     download.max_silent_tries = 20
     EOF
-
     fi
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Possible that AppArmor was not started and is not enabled in the
+        # image, do both now
+        if systemctl show -p LoadState apparmor.service | MATCH 'LoadState=loaded' ; then
+            if ! systemctl is-enabled apparmor.service; then
+                systemctl enable apparmor.service
+            fi
+            systemctl start apparmor.service
+        else
+            exit 1
+        fi
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -582,28 +596,13 @@ suites:
         # drop this blacklist.
         systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
         prepare: |
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            #shellcheck source=tests/lib/systems.sh
-            . "$TESTSLIB"/systems.sh
-            if is_core_system; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            #shellcheck source=tests/lib/reset.sh
-            "$TESTSLIB"/reset.sh --reuse-core
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            #shellcheck source=tests/lib/reset.sh
-            "$TESTSLIB"/reset.sh
-            #shellcheck source=tests/lib/systems.sh
-            . "$TESTSLIB"/systems.sh
-            if is_classic_system; then
-                #shellcheck source=tests/lib/pkgdb.sh
-                . "$TESTSLIB"/pkgdb.sh
-                distro_purge_package snapd
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/nested/:
         summary: Tests for nested images

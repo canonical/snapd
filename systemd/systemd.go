@@ -69,6 +69,19 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	}
 }
 
+// MockStopDelays is used from tests so that Stop can be less
+// forgiving there.
+func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
+	oldCheckDelay := stopCheckDelay
+	oldNotifyDelay := stopNotifyDelay
+	stopCheckDelay = checkDelay
+	stopNotifyDelay = notifyDelay
+	return func() {
+		stopCheckDelay = oldCheckDelay
+		stopNotifyDelay = oldNotifyDelay
+	}
+}
+
 func Available() error {
 	_, err := systemctlCmd("--version")
 	return err
@@ -117,6 +130,7 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
+	IsEnabled(service string) (bool, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
@@ -131,7 +145,7 @@ const (
 	ServicesTarget = "multi-user.target"
 
 	// the target prerequisite for systemd units we generate
-	PrerequisiteTarget = "network-online.target"
+	PrerequisiteTarget = "network.target"
 
 	// the default target for systemd socket units that we generate
 	SocketsTarget = "sockets.target"
@@ -286,6 +300,21 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 	}
 
 	return sts, nil
+}
+
+// IsEnabled checkes whether the given service is enabled
+func (s *systemd) IsEnabled(serviceName string) (bool, error) {
+	_, err := systemctlCmd("--root", s.rootDir, "is-enabled", serviceName)
+	if err == nil {
+		return true, nil
+	}
+	// "systemctl is-enabled <name>" prints `disabled\n` to stderr and returns exit code 1
+	// for disabled services
+	sysdErr, ok := err.(*Error)
+	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+		return false, nil
+	}
+	return false, err
 }
 
 // Stop the given service, and wait until it has stopped.

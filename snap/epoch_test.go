@@ -229,3 +229,34 @@ func (s *epochSuite) TestE(c *check.C) {
 		c.Check(test.e.String(), check.Equals, test.s, check.Commentf(test.s))
 	}
 }
+
+func (s *epochSuite) TestCanRead(c *check.C) {
+	tests := []struct {
+		a, b   *snap.Epoch
+		ab, ba bool
+	}{
+		{ab: true, ba: true},                                     // nil should work (for tests!)
+		{a: &snap.Epoch{}, b: &snap.Epoch{}, ab: true, ba: true}, // test for empty epoch
+		{a: snap.E("0"), ab: true, ba: true},                     // hybrid empty / zero
+		{a: snap.E("0"), b: snap.E("1"), ab: false, ba: false},
+		{a: snap.E("0"), b: snap.E("1*"), ab: false, ba: true},
+		{a: snap.E("0"), b: snap.E("2*"), ab: false, ba: false},
+
+		{
+			a:  &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{2}},
+			b:  &snap.Epoch{Read: []uint32{1, 3, 4}, Write: []uint32{4}},
+			ab: false,
+			ba: false,
+		},
+		{
+			a:  &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3}},
+			b:  &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{2}},
+			ab: true,
+			ba: true,
+		},
+	}
+	for i, test := range tests {
+		c.Assert(test.a.CanRead(test.b), check.Equals, test.ab, check.Commentf("ab/%d", i))
+		c.Assert(test.b.CanRead(test.a), check.Equals, test.ba, check.Commentf("ba/%d", i))
+	}
+}

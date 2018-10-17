@@ -28,14 +28,6 @@ var (
 	AddDirToZip = addDirToZip
 )
 
-func MockUserLookup(newLookup func(string) (*user.User, error)) func() {
-	oldLookup := userLookup
-	userLookup = newLookup
-	return func() {
-		userLookup = oldLookup
-	}
-}
-
 func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
 	oldLookupId := userLookupId
 	userLookupId = newLookupId

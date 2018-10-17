@@ -19,12 +19,13 @@ systems: [-ubuntu-core-*]
 prepare: |
     # We will need the Swiss-army-knife shell snap. We want to use it in
     # devmode so that we can look at /customized file which is non-standard.
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local_devmode test-snapd-sh
 
     # We will also need to prepare a hacked core snap that just differs from
     # our own in some detail that we can measure.
-    unsquashfs -no-progress $(ls /var/lib/snapd/snaps/core_*.snap | sort -r -n | head -n 1)
+    unsquashfs -no-progress "$(find /var/lib/snapd/snaps -name 'core_*.snap' | sort -r -n | head -n 1)"
     touch squashfs-root/customized
     sed -i -e 's/version: .*/version: customized/' squashfs-root/meta/snap.yaml
 
@@ -36,12 +37,13 @@ restore: |
 
 execute: |
     # Start a "sleep" process in the background
+    #shellcheck disable=SC2016
     test-snapd-sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
     pid=$!
 
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
-    for i in $(seq 30); do
+    for _ in $(seq 30); do
         test -e /var/snap/test-snapd-sh/current/stamp && break
         sleep 0.1
     done

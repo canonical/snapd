@@ -31,6 +31,9 @@ var (
 	ProfileGlobs               = profileGlobs
 	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
 	DowngradeConfinement       = downgradeConfinement
+	LoadProfiles               = loadProfiles
+	UnloadProfiles             = unloadProfiles
+	SetupSnapConfineReexec     = setupSnapConfineReexec
 )
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
@@ -96,5 +99,13 @@ func MockKernelFeatures(f func() []string) (resture func()) {
 	kernelFeatures = f
 	return func() {
 		kernelFeatures = old
+	}
+}
+
+func MockParserFeatures(f func() []string) (resture func()) {
+	old := parserFeatures
+	parserFeatures = f
+	return func() {
+		parserFeatures = old
 	}
 }

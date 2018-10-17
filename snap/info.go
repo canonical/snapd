@@ -38,8 +38,12 @@ import (
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
-	// InstanceName returns the name of the snap.
+	// InstanceName returns the name of the snap decorated with instance
+	// key, if any.
 	InstanceName() string
+
+	// SnapName returns the name of the snap.
+	SnapName() string
 
 	// MountDir returns the base directory of the snap.
 	MountDir() string
@@ -81,9 +85,14 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
+// BaseDir returns the system level directory of given snap.
+func BaseDir(name string) string {
+	return filepath.Join(dirs.SnapMountDir, name)
+}
+
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapMountDir, name, revision.String())
+	return filepath.Join(BaseDir(name), revision.String())
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
@@ -117,10 +126,15 @@ func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
 }
 
-// DataDir returns the data directory for given snap name. The name can be
+// BaseDataDir returns the base directory for snap data locations.
+func BaseDataDir(name string) string {
+	return filepath.Join(dirs.SnapDataDir, name)
+}
+
+// DataDir returns the data directory for given snap name and revision. The name can be
 // either a snap name or snap instance name.
 func DataDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapDataDir, name, revision.String())
+	return filepath.Join(BaseDataDir(name), revision.String())
 }
 
 // CommonDataDir returns the common data directory for given snap name. The name
@@ -223,13 +237,12 @@ type Info struct {
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
-	IconURL string
 	Prices  map[string]float64
 	MustBuy bool
 
 	Publisher StoreAccount
 
-	Screenshots []ScreenshotInfo
+	Media MediaInfos
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -421,7 +434,8 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
+// snap's mount namespace.
 func (s *Info) ExpandSnapVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
@@ -430,12 +444,11 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			// TODO parallel-install: use of proper instance/store name
-			return filepath.Join(dirs.CoreSnapMountDir, s.InstanceName(), s.Revision.String())
+			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
-			return s.DataDir()
+			return DataDir(s.SnapName(), s.Revision)
 		case "SNAP_COMMON":
-			return s.CommonDataDir()
+			return CommonDataDir(s.SnapName())
 		}
 		return ""
 	})
@@ -639,6 +652,11 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// HotplugKey is a unique key built by the slot's interface using properties of a
+	// hotplugged so that the same slot may be made available if the device is reinserted.
+	// It's empty for regular slots.
+	HotplugKey string
 }
 
 // SocketInfo provides information on application sockets.
@@ -701,6 +719,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     RestartCondition
+	RestartDelay    timeout.Timeout
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
@@ -728,9 +747,42 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string
-	Width  int64
-	Height int64
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+}
+
+type MediaInfo struct {
+	Type   string `json:"type"`
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+}
+
+type MediaInfos []MediaInfo
+
+func (mis MediaInfos) Screenshots() []ScreenshotInfo {
+	shots := make([]ScreenshotInfo, 0, len(mis))
+	for _, mi := range mis {
+		if mi.Type != "screenshot" {
+			continue
+		}
+		shots = append(shots, ScreenshotInfo{
+			URL:    mi.URL,
+			Width:  mi.Width,
+			Height: mi.Height,
+		})
+	}
+	return shots
+}
+
+func (mis MediaInfos) IconURL() string {
+	for _, mi := range mis {
+		if mi.Type == "icon" {
+			return mi.URL
+		}
+	}
+	return ""
 }
 
 // HookInfo provides information about a hook.
