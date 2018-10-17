@@ -11,7 +11,7 @@ execute: |
     while true; do
         if snap changes |grep "Doing.*Install"; then
             if snap install test-snapd-tools; then
-                echo "snap install should retrun a change-conflict: test brokwn"
+                echo "snap install should return a change-conflict: test broken"
                 exit 1
             else
                 errCode=$?
