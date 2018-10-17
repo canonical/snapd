@@ -41,6 +41,8 @@ func (s *utilsSuite) TestNormalizeInterfaceAttributes(c *C) {
 	c.Assert(normalize(nil), Equals, nil)
 	c.Assert(normalize(42), Equals, int64(42))
 	c.Assert(normalize(3.14), Equals, float64(3.14))
+	// Funny that, I noticed it only because of missing test coverage.
+	c.Assert(normalize(float32(3.14)), Equals, float64(3.140000104904175))
 	c.Assert(normalize("banana"), Equals, "banana")
 	c.Assert(normalize([]interface{}{42, 3.14, "banana"}), DeepEquals,
 		[]interface{}{int64(42), float64(3.14), "banana"})
