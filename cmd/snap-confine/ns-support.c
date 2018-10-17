@@ -537,7 +537,6 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 	// Glibc defines pid as a signed 32bit integer. There's no standard way to
 	// print pid's portably so this is the best we can do.
 	pid_t pid = fork();
-	debug("forked support process has pid %d", (int)pid);
 	if (pid < 0) {
 		die("cannot fork support process for mount namespace capture");
 	}
@@ -594,6 +593,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		      (int)parent, dst);
 		exit(0);
 	} else {
+		debug("forked support process %d", (int)pid);
 		group->child = pid;
 		// Unshare the mount namespace and set a flag instructing the caller that
 		// the namespace is pristine and needs to be populated now.
