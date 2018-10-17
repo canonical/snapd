@@ -215,7 +215,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
 foo.bar  enabled  inactive  timer-activated
-foo.baz  enabled  inactive  socket-activated,see-details
+foo.baz  enabled  inactive  socket-activated
 foo.zed  enabled  active    -
 `)
 	// ensure that the fake server api was actually hit

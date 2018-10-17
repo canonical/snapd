@@ -141,9 +141,6 @@ func notesForSvc(app *client.AppInfo) string {
 		}
 
 	}
-	if !allActivatorsRunning {
-		notes = append(notes, "see-details")
-	}
 	if len(notes) == 0 {
 		return "-"
 	}
