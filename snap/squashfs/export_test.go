@@ -51,6 +51,8 @@ func MockFromCore(newFromCore func(string, ...string) (*exec.Cmd, error)) (resto
 	}
 }
 
+// Alike compares to os.FileInfo to determine if they are sufficiently
+// alike to say they refer to the same thing.
 func Alike(a, b os.FileInfo, c *check.C, comment check.CommentInterface) {
 	c.Check(a, check.NotNil, comment)
 	c.Check(b, check.NotNil, comment)
