@@ -306,14 +306,13 @@ Potatoes=false
 func (s *SystemdTestSuite) TestStatusMissingRequiredFieldService(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
-Type=simple
 Id=foo.service
 ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo.service")
-	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type .*`)
 	c.Check(out, IsNil)
 }
 

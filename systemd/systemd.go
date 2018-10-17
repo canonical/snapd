@@ -224,16 +224,22 @@ type UnitStatus struct {
 	Active   bool
 }
 
-func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
-	// expected properties for timers and sockets
-	expectedBase := []string{"Id", "ActiveState", "UnitFileState"}
-	// for services and mounts
-	expectedAll := append(expectedBase, "Type")
+var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
+var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type"}
+var unitProperties = map[string][]string{
+	".timer":  baseProperties,
+	".socket": baseProperties,
+	// in service units, Type is the daemon type
+	".service": extendedProperties,
+	// in mount units, Type is the fs type
+	".mount": extendedProperties,
+}
 
+func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"
 	// ask for all properties, regardless of unit type
-	cmd[1] = "--property=" + strings.Join(expectedAll, ",")
+	cmd[1] = "--property=" + strings.Join(extendedProperties, ",")
 	copy(cmd[2:], unitNames)
 	bs, err := systemctlCmd(cmd...)
 	if err != nil {
@@ -248,9 +254,9 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 		if len(bs[0]) == 0 {
 			// systemctl separates data pertaining to particular services by an empty line
 			unitType := filepath.Ext(cur.UnitName)
-			expected := expectedAll
-			if unitType == ".timer" || unitType == ".socket" {
-				expected = expectedBase
+			expected := unitProperties[unitType]
+			if expected == nil {
+				expected = baseProperties
 			}
 
 			missing := make([]string, 0, len(expected))
