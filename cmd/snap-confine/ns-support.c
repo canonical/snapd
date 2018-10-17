@@ -473,14 +473,14 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 	// We can just ensure that this is the case thanks to fstatfs.
 	struct statfs ns_statfs_buf;
 	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
-		die("cannot inspect filesystem of file with preserved namespace");
+		die("cannot inspect filesystem of preserved mount namespace file");
 	}
 	// Stat the mount namespace as well, this is later used to check if the
 	// namespace is used by other processes if we are considering discarding a
 	// stale namespace.
 	struct stat ns_stat_buf;
 	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
-		die("cannot inspect file with preserved namespace");
+		die("cannot inspect preserved mount namespace file");
 	}
 #ifndef NSFS_MAGIC
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
@@ -510,8 +510,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
-			debug("cannot remain in %s,"
-			      " moving to the void directory", vanilla_cwd);
+			debug("cannot enter %s, moving to void", vanilla_cwd);
 			if (chdir(SC_VOID_DIR) != 0) {
 				die("cannot change directory to %s",
 				    SC_VOID_DIR);
