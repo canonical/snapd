@@ -20,6 +20,8 @@
 package ifacestate
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -522,9 +525,16 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]connState, err error) {
-	err = st.Get("conns", &conns)
+	var raw *json.RawMessage
+	err = st.Get("conns", &raw)
 	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
+	}
+	if raw != nil {
+		err = jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns)
+		if err != nil {
+			return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+		}
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
