@@ -130,6 +130,7 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
+	IsEnabled(service string) (bool, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
@@ -299,6 +300,21 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 	}
 
 	return sts, nil
+}
+
+// IsEnabled checkes whether the given service is enabled
+func (s *systemd) IsEnabled(serviceName string) (bool, error) {
+	_, err := systemctlCmd("--root", s.rootDir, "is-enabled", serviceName)
+	if err == nil {
+		return true, nil
+	}
+	// "systemctl is-enabled <name>" prints `disabled\n` to stderr and returns exit code 1
+	// for disabled services
+	sysdErr, ok := err.(*Error)
+	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+		return false, nil
+	}
+	return false, err
 }
 
 // Stop the given service, and wait until it has stopped.
