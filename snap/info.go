@@ -237,12 +237,13 @@ type Info struct {
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
+	IconURL string
 	Prices  map[string]float64
 	MustBuy bool
 
 	Publisher StoreAccount
 
-	Media MediaInfos
+	Screenshots []ScreenshotInfo
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -747,42 +748,9 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string `json:"url"`
-	Width  int64  `json:"width,omitempty"`
-	Height int64  `json:"height,omitempty"`
-}
-
-type MediaInfo struct {
-	Type   string `json:"type"`
-	URL    string `json:"url"`
-	Width  int64  `json:"width,omitempty"`
-	Height int64  `json:"height,omitempty"`
-}
-
-type MediaInfos []MediaInfo
-
-func (mis MediaInfos) Screenshots() []ScreenshotInfo {
-	shots := make([]ScreenshotInfo, 0, len(mis))
-	for _, mi := range mis {
-		if mi.Type != "screenshot" {
-			continue
-		}
-		shots = append(shots, ScreenshotInfo{
-			URL:    mi.URL,
-			Width:  mi.Width,
-			Height: mi.Height,
-		})
-	}
-	return shots
-}
-
-func (mis MediaInfos) IconURL() string {
-	for _, mi := range mis {
-		if mi.Type == "icon" {
-			return mi.URL
-		}
-	}
-	return ""
+	URL    string
+	Width  int64
+	Height int64
 }
 
 // HookInfo provides information about a hook.

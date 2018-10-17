@@ -64,9 +64,8 @@ type Snap struct {
 	CommonIDs        []string      `json:"common-ids,omitempty"`
 	MountedFrom      string        `json:"mounted-from,omitempty"`
 
-	Prices      map[string]float64    `json:"prices,omitempty"`
-	Screenshots []snap.ScreenshotInfo `json:"screenshots,omitempty"`
-	Media       snap.MediaInfos       `json:"media,omitempty"`
+	Prices      map[string]float64 `json:"prices,omitempty"`
+	Screenshots []Screenshot       `json:"screenshots,omitempty"`
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*snap.ChannelSnapInfo `json:"channels,omitempty"`
@@ -88,6 +87,12 @@ func (s *Snap) MarshalJSON() ([]byte, error) {
 		m.InstallDate = &s.InstallDate
 	}
 	return json.Marshal(&m)
+}
+
+type Screenshot struct {
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
 }
 
 // Statuses and types a snap may have.

@@ -1926,16 +1926,14 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Type:    snap.TypeApp,
 		Version: "v2",
-		Media: []snap.MediaInfo{
+		Screenshots: []snap.ScreenshotInfo{
 			{
-				Type:   "screenshot",
 				URL:    "http://example.com/screenshot.png",
 				Width:  800,
 				Height: 1280,
 			},
 			{
-				Type: "screenshot",
-				URL:  "http://example.com/screenshot2.png",
+				URL: "http://example.com/screenshot2.png",
 			},
 		},
 		MustBuy: true,
@@ -3249,7 +3247,7 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 }
 
 func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
-	info := &snap.Info{SuggestedName: "notInstalledSnap", Media: []snap.MediaInfo{{Type: "icon", URL: "icon.svg"}}}
+	info := &snap.Info{SuggestedName: "notInstalledSnap", IconURL: "icon.svg"}
 	iconfile := snapIcon(info)
 	c.Check(iconfile, testutil.Contains, "icon.svg")
 }
