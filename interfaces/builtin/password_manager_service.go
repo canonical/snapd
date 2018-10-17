@@ -19,7 +19,7 @@
 
 package builtin
 
-const passwordManagerServiceSummary = `allow access to common password manager services`
+const passwordManagerServiceSummary = `allows access to common password manager services`
 
 const passwordManagerBaseDeclarationSlots = `
   password-manager-service:
