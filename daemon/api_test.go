@@ -562,6 +562,18 @@ apps:
   svc4:
     command: somed4
     daemon: notify
+  svc5:
+    command: some5
+    timer: mon1,12:15
+    daemon: simple
+  svc6:
+    command: some6
+    daemon: simple
+    sockets:
+       sock:
+         listen-stream: $SNAP_COMMON/run.sock
+       other-sock:
+         listen-stream: $SNAP_COMMON/other-run.sock
 `)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
 	s.sysctlBufs = [][]byte{
@@ -584,6 +596,28 @@ UnitFileState=static
 Id=snap.foo.svc4.service
 ActiveState=inactive
 UnitFileState=potatoes
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc5.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc5.timer
+ActiveState=active
+UnitFileState=enabled
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc6.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc6.sock.socket
+ActiveState=active
+UnitFileState=enabled
+
+Id=snap.foo.svc6.other-sock.socket
+ActiveState=inactive
+UnitFileState=enabled
 `),
 	}
 
@@ -681,6 +715,23 @@ UnitFileState=potatoes
 					Daemon:  "notify",
 					Enabled: false,
 					Active:  false,
+				}, {
+					Snap: "foo", Name: "svc5",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "svc5", Type: "timer", Active: true, Enabled: true},
+					},
+				}, {
+					Snap: "foo", Name: "svc6",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "sock", Type: "socket", Active: true, Enabled: true},
+						{Name: "other-sock", Type: "socket", Active: false, Enabled: true},
+					},
 				},
 			},
 			Broken:    "",
