@@ -159,10 +159,12 @@ var (
 )
 
 func pickUserWrapper() string {
-	// runuser and sudo happen to work the same way in this case.
-	// The main reason to prefer runuser over sudo is that runuser
-	// is part of util-linux, which is considered essential,
-	// whereas sudo is an addon which could be removed.
+	// runuser and sudo happen to work the same way in this case.  The main
+	// reason to prefer runuser over sudo is that runuser is part of
+	// util-linux, which is considered essential, whereas sudo is an addon
+	// which could be removed.  However util-linux < 2.23 does not have
+	// runuser, and we support some distros that ship things older than that
+	// (e.g. Ubuntu 14.04)
 	for _, cmd := range []string{"runuser", "sudo"} {
 		if lp, err := execLookPath(cmd); err == nil {
 			return lp
@@ -188,12 +190,12 @@ func tarAsUser(username string, args ...string) *exec.Cmd {
 	if sysGeteuid() == 0 && username != "root" {
 		if userWrapper != "" {
 			uwArgs := make([]string, len(args)+5)
-			copy(uwArgs[5:], args)
 			uwArgs[0] = userWrapper
 			uwArgs[1] = "-u"
 			uwArgs[2] = username
 			uwArgs[3] = "--"
 			uwArgs[4] = "tar"
+			copy(uwArgs[5:], args)
 			return &exec.Cmd{
 				Path: userWrapper,
 				Args: uwArgs,
