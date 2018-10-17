@@ -445,9 +445,9 @@ const (
 	ErrorKindDaemonRestart = "daemon-restart"
 )
 
-// IsRetryableError returns true if the given error is an error
+// IsRetryable returns true if the given error is an error
 // that can be retried later.
-func IsRetryableError(err error) bool {
+func IsRetryable(err error) bool {
 	switch e := err.(type) {
 	case *Error:
 		return e.Kind == ErrorKindChangeConflict
