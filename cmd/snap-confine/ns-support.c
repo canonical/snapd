@@ -392,10 +392,9 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
-		if (eventfd_write
-		    (event_fd,
-		     should_discard ? SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
-			die("cannot send information about freshness of preserved mount namespace");
+		if (eventfd_write(event_fd, should_discard ?
+				  SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
+			die("cannot send information to %s preserved mount namespace", should_discard ? "discard" : "keep");
 		}
 		// Exit, we're done.
 		exit(0);
