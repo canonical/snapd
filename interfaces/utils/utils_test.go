@@ -61,3 +61,19 @@ func (s *utilsSuite) TestNormalizeInterfaceAttributes(c *C) {
 	c.Assert(mapIn, DeepEquals, map[string]interface{}{"i": 42})
 	c.Assert(mapOut, DeepEquals, map[string]interface{}{"i": int64(42)})
 }
+
+func (s *utilsSuite) TestCopyAttributes(c *C) {
+	cpattr := utils.CopyAttributes
+
+	attrsIn := map[string]interface{}{"i": 42}
+	attrsOut := cpattr(attrsIn)
+	attrsIn["i"] = "changed"
+	c.Assert(attrsIn, DeepEquals, map[string]interface{}{"i": "changed"})
+	c.Assert(attrsOut, DeepEquals, map[string]interface{}{"i": 42})
+
+	attrsIn = map[string]interface{}{"ao": []interface{}{1, 2, 3}}
+	attrsOut = cpattr(attrsIn)
+	attrsIn["ao"].([]interface{})[1] = "changed"
+	c.Assert(attrsIn, DeepEquals, map[string]interface{}{"ao": []interface{}{1, "changed", 3}})
+	c.Assert(attrsOut, DeepEquals, map[string]interface{}{"ao": []interface{}{1, 2, 3}})
+}
