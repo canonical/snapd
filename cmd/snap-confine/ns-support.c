@@ -137,7 +137,7 @@ void sc_reassociate_with_pid1_mount_ns(void)
 		die("cannot read mount namespace identifier of this process");
 	}
 	if (memcmp(init_buf, self_buf, sizeof init_buf) != 0) {
-		debug("NOTE: moving to mount namespace of pid 1");
+		debug("moving to mount namespace of pid 1");
 		// We cannot use O_NOFOLLOW here because that file will always be a
 		// symbolic link. We actually want to open it this way.
 		int init_mnt_fd_real SC_CLEANUP(sc_cleanup_close) = -1;
@@ -373,8 +373,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			}
 		}
 
-		debug
-		    ("NOTE: joining preserved mount namespace (for inspection)");
+		debug("joining preserved mount namespace (for inspection)");
 		// Move to the mount namespace of the snap we're trying to inspect.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved mount namespace");
@@ -422,7 +421,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// If the namespace is up-to-date then we are done.
 	if (value == SC_DISCARD_NO) {
-		debug("NOTE: preserved mount namespace can be reused");
+		debug("preserved mount namespace can be reused");
 		return 0;
 	}
 	// The namespace is stale, let's check if we can discard it.
@@ -430,7 +429,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// Some processes are still using the namespace so we cannot discard it
 		// as that would fracture the view that the set of processes inside
 		// have on what is mounted.
-		debug("NOTE: preserved mount namespace is stale but occupied");
+		debug("preserved mount namespace is stale but occupied");
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
@@ -441,7 +440,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
 		die("cannot discard stale mount namespace %s", mnt_fname);
 	}
-	debug("NOTE: stale mount namespace discarded");
+	debug("stale mount namespace discarded");
 	return EAGAIN;
 }
 
@@ -506,12 +505,12 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 			die("cannot join preserved mount namespace %s",
 			    group->name);
 		}
-		debug("NOTE: joined preserved mount namespace %s", group->name);
+		debug("joined preserved mount namespace %s", group->name);
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
-			debug("NOTE: cannot remain in %s,"
+			debug("cannot remain in %s,"
 			      " moving to the void directory", vanilla_cwd);
 			if (chdir(SC_VOID_DIR) != 0) {
 				die("cannot change directory to %s",
@@ -539,7 +538,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 	// Glibc defines pid as a signed 32bit integer. There's no standard way to
 	// print pid's portably so this is the best we can do.
 	pid_t pid = fork();
-	debug("NOTE: forked support process has pid %d", (int)pid);
+	debug("forked support process has pid %d", (int)pid);
 	if (pid < 0) {
 		die("cannot fork support process for mount namespace capture");
 	}
@@ -592,7 +591,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 			die("cannot preserve mount namespace of process %d as %s", (int)parent, dst);
 		}
-		debug("NOTE: preserved mount namespace of process %d as %s",
+		debug("preserved mount namespace of process %d as %s",
 		      (int)parent, dst);
 		exit(0);
 	} else {
@@ -602,7 +601,7 @@ int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		debug("NOTE: created new mount namespace");
+		debug("created new mount namespace");
 		group->should_populate = true;
 	}
 	return 0;
