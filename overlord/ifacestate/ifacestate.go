@@ -114,7 +114,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		return nil, err
 	}
 	connRef := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
-	if conn, ok := conns[connRef.ID()]; ok && conn.Undesired == false {
+	if conn, ok := conns[connRef.ID()]; ok && conn.Undesired == false && conn.HotplugGone == false {
 		return nil, &ErrAlreadyConnected{Connection: connRef}
 	}
 
@@ -307,6 +307,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 
 type disconnectOpts struct {
 	AutoDisconnect bool
+	ByHotplug      bool
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -337,6 +338,9 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 
 	if flags.AutoDisconnect {
 		disconnectTask.Set("auto-disconnect", true)
+	}
+	if flags.ByHotplug {
+		disconnectTask.Set("by-hotplug", true)
 	}
 
 	ts := state.NewTaskSet()
