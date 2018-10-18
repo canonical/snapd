@@ -44,6 +44,7 @@ func (s *SnapSuite) TestCmdWatch(c *C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 	defer snap.MockMaxGoneTime(time.Millisecond)()
+	defer snap.MockPollTime(time.Millisecond)()
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +80,7 @@ func (s *SnapSuite) TestWatchLast(c *C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 	defer snap.MockMaxGoneTime(time.Millisecond)()
+	defer snap.MockPollTime(time.Millisecond)()
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {

@@ -20,10 +20,13 @@
 package release
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -42,12 +45,14 @@ const (
 )
 
 var (
-	appArmorLevel   AppArmorLevelType
-	appArmorSummary string
+	appArmorLevel          AppArmorLevelType
+	appArmorSummary        string
+	appArmorParserFeatures []string
 )
 
 func init() {
 	appArmorLevel, appArmorSummary = probeAppArmor()
+	appArmorParserFeatures = probeAppArmorParser()
 }
 
 // AppArmorLevel quantifies how well apparmor is supported on the
@@ -60,6 +65,11 @@ func AppArmorLevel() AppArmorLevelType {
 // current kernel.
 func AppArmorSummary() string {
 	return appArmorSummary
+}
+
+// AppArmorParserFeatures returns a list of apparmor parser features
+func AppArmorParserFeatures() []string {
+	return appArmorParserFeatures
 }
 
 // MockAppArmorSupportLevel makes the system believe it has certain
@@ -132,4 +142,38 @@ func AppArmorFeatures() []string {
 		}
 	}
 	return appArmorFeatures
+}
+
+// parser probe related code
+type apparmorParserFeature struct {
+	feature string
+	rule    string
+}
+
+var requestedParserFeatures = []apparmorParserFeature{
+	{"unsafe", "change_profile unsafe /**,"},
+}
+
+// tryParser will run the parser on the rule to determine if the feature is
+// supported.
+func tryParser(rule string) bool {
+	cmd := exec.Command("apparmor_parser", "--preprocess")
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
+}
+
+// probeAppArmorParser returns a sorted list of apparmor features like
+// []string{"unsafe", ...}.
+func probeAppArmorParser() []string {
+	parserFeatures := make([]string, 0, len(requestedParserFeatures))
+	for _, f := range requestedParserFeatures {
+		if tryParser(f.rule) {
+			parserFeatures = append(parserFeatures, f.feature)
+		}
+	}
+	sort.Strings(parserFeatures)
+	return parserFeatures
 }

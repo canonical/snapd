@@ -110,11 +110,15 @@ func (cmd cmdHelp) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	if cmd.Manpage {
-
+		// you shouldn't try to to combine --man with --all nor a
+		// subcommand, but --man is hidden so no real need to check.
 		cmd.parser.WriteManPage(&manfixer{})
 		return nil
 	}
 	if cmd.All {
+		if cmd.Positional.Sub != "" {
+			return fmt.Errorf(i18n.G("help accepts a command, or '--all', but not both."))
+		}
 		printLongHelp(cmd.parser)
 		return nil
 	}
