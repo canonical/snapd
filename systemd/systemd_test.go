@@ -192,31 +192,47 @@ Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+
+Id=some.timer
+ActiveState=active
+UnitFileState=enabled
+
+Id=other.socket
+ActiveState=active
+UnitFileState=disabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service")
+	out, err := New("", s.rep).Status("foo.service", "bar.service", "baz.service", "some.timer", "other.socket")
 	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, []*ServiceStatus{
+	c.Check(out, DeepEquals, []*UnitStatus{
 		{
-			Daemon:          "simple",
-			ServiceFileName: "foo.service",
-			Active:          true,
-			Enabled:         true,
+			Daemon:   "simple",
+			UnitName: "foo.service",
+			Active:   true,
+			Enabled:  true,
 		}, {
-			Daemon:          "simple",
-			ServiceFileName: "bar.service",
-			Active:          true,
-			Enabled:         true,
+			Daemon:   "simple",
+			UnitName: "bar.service",
+			Active:   true,
+			Enabled:  true,
 		}, {
-			Daemon:          "potato",
-			ServiceFileName: "baz.service",
-			Active:          false,
-			Enabled:         false,
+			Daemon:   "potato",
+			UnitName: "baz.service",
+			Active:   false,
+			Enabled:  false,
+		}, {
+			UnitName: "some.timer",
+			Active:   true,
+			Enabled:  true,
+		}, {
+			UnitName: "other.socket",
+			Active:   true,
+			Enabled:  false,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
-	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState", "foo.service", "bar.service", "baz.service"}})
+	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "some.timer", "other.socket"}})
 }
 
 func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
@@ -235,7 +251,7 @@ UnitFileState=enabled
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo.service")
-	c.Check(err, ErrorMatches, "cannot get service status: expected 1 results, got 2")
+	c.Check(err, ErrorMatches, "cannot get unit status: expected 1 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }
@@ -287,16 +303,28 @@ Potatoes=false
 	c.Check(out, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStatusMissingField(c *C) {
+func (s *SystemdTestSuite) TestStatusMissingRequiredFieldService(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
-Type=simple
 Id=foo.service
 ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo.service")
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingRequiredFieldTimer(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Id=foo.timer
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo.timer")
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
 	c.Check(out, IsNil)
 }

@@ -5942,6 +5942,11 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
+	store.MockConnCheckStrategy(&s.BaseTest, retry.LimitCount(3, retry.Exponential{
+		Initial: time.Millisecond,
+		Factor:  1.3,
+	}))
+
 	seenPaths := make(map[string]int, 2)
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

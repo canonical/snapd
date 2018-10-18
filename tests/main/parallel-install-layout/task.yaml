@@ -7,7 +7,6 @@ details: |
 
 prepare: |
     echo "Ensure feature flags are enabled"
-    snap set system experimental.layouts=true
     snap set system experimental.parallel-instances=true
 
 execute: |

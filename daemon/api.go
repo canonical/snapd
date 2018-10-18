@@ -2313,9 +2313,10 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
 	opts := &osutil.AddUserOptions{
-		SSHKeys:  su.SSHKeys(),
-		Gecos:    gecos,
-		Password: su.Password(),
+		SSHKeys:             su.SSHKeys(),
+		Gecos:               gecos,
+		Password:            su.Password(),
+		ForcePasswordChange: su.ForcePasswordChange(),
 	}
 	return su.Username(), opts, nil
 }
