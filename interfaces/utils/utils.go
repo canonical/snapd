@@ -47,12 +47,11 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 		return vc
 	case json.Number:
 		jsonval := value.(json.Number)
-		asInt, err := jsonval.Int64()
-		if err != nil {
-			asFloat, _ := jsonval.Float64()
-			return asFloat
+		if asInt, err := jsonval.Int64(); err == nil {
+			return asInt
 		}
-		return asInt
+		asFloat, _ := jsonval.Float64()
+		return asFloat
 	}
 	return value
 }
