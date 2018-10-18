@@ -148,6 +148,7 @@ var adbConnectedSlotAppArmor = `
 `
 
 var adbPermanentSlotSecComp = `
+# Allow adb (server) to use TCP/IP for localhost IPC.
 accept
 accept4
 bind
