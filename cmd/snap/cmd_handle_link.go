@@ -27,7 +27,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/userd/ui"
 )
@@ -41,17 +40,18 @@ type cmdHandleLink struct {
 }
 
 func init() {
-	addCommand("handle-link",
+	cmd := addCommand("handle-link",
 		i18n.G("Handle a snap:// URI"),
 		i18n.G("The handle-link command installs the snap-store snap and then invokes it."),
 		func() flags.Commander {
 			return &cmdHandleLink{}
 		}, nil, nil)
+	cmd.hidden = true
 }
 
-func (x *cmdHandleLink) ensureSnapStoreInstalled(cli *client.Client) error {
+func (x *cmdHandleLink) ensureSnapStoreInstalled() error {
 	// If the snap-store snap is installed, our work is done
-	if _, _, err := cli.Snap("snap-store"); err == nil {
+	if _, _, err := x.client.Snap("snap-store"); err == nil {
 		return nil
 	}
 
@@ -70,11 +70,11 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled(cli *client.Client) error {
 		return fmt.Errorf(i18n.G("Snap Store required"))
 	}
 
-	changeID, err := cli.Install("snap-store", nil)
+	changeID, err := x.client.Install("snap-store", nil)
 	if err != nil {
 		return err
 	}
-	_, err = x.wait(cli, changeID)
+	_, err = x.wait(changeID)
 	if err != nil && err != noWait {
 		return err
 	}
@@ -82,9 +82,7 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled(cli *client.Client) error {
 }
 
 func (x *cmdHandleLink) Execute([]string) error {
-	cli := Client()
-
-	if err := x.ensureSnapStoreInstalled(cli); err != nil {
+	if err := x.ensureSnapStoreInstalled(); err != nil {
 		return err
 	}
 

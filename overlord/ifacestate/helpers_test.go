@@ -45,7 +45,6 @@ func (s *helpersSuite) TestIdentityMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("example"), Equals, "example")
 	c.Assert(m.RemapSnapToState("example"), Equals, "example")
 	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
-	c.Assert(m.RemapSnapToResponse("example"), Equals, "example")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
@@ -58,13 +57,11 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	// The "core" snap is renamed to the "system" in API response
 	// and back in the API requests.
 	c.Assert(m.RemapSnapFromRequest("system"), Equals, "core")
-	c.Assert(m.RemapSnapToResponse("core"), Equals, "system")
 
 	// Other snap names are unchanged.
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
-	c.Assert(m.RemapSnapToResponse("potato"), Equals, "potato")
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -78,7 +75,6 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	// The "snapd" snap is renamed to the "system" in API response and back in
 	// the API requests.
 	c.Assert(m.RemapSnapFromRequest("system"), Equals, "snapd")
-	c.Assert(m.RemapSnapToResponse("snapd"), Equals, "system")
 
 	// The "core" snap is also renamed to "snapd" in API requests, for
 	// compatibility.
@@ -88,7 +84,6 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
-	c.Assert(m.RemapSnapToResponse("potato"), Equals, "potato")
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
@@ -106,10 +101,6 @@ func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
-func (m *caseMapper) RemapSnapToResponse(snapName string) string {
-	return strings.ToLower(snapName)
-}
-
 func (s *helpersSuite) TestMappingFunctions(c *C) {
 	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
@@ -117,7 +108,6 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
 	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
 	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
-	c.Assert(ifacestate.RemapSnapToResponse("EXAMPLE"), Equals, "example")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {
@@ -159,4 +149,63 @@ func (s *helpersSuite) TestSetConns(c *C) {
 			"auto":      true,
 			"interface": "network",
 		}})
+}
+
+func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("foo", "")
+	_, _, err := ifacestate.GetHotplugAttrs(t)
+	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key`)
+
+	t.Set("interface", "x")
+	_, _, err = ifacestate.GetHotplugAttrs(t)
+	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key`)
+
+	ifacestate.SetHotplugAttrs(t, "iface", "key")
+
+	var key, iface string
+	c.Assert(t.Get("hotplug-key", &key), IsNil)
+	c.Assert(key, Equals, "key")
+
+	c.Assert(t.Get("interface", &iface), IsNil)
+	c.Assert(iface, Equals, "iface")
+
+	iface, key, err = ifacestate.GetHotplugAttrs(t)
+	c.Assert(err, IsNil)
+	c.Assert(key, Equals, "key")
+	c.Assert(iface, Equals, "iface")
+}
+
+func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	slots, err := ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(slots, HasLen, 0)
+
+	defs := map[string]*ifacestate.HotplugSlotInfo{}
+	defs["foo"] = &ifacestate.HotplugSlotInfo{
+		Name:        "foo",
+		Interface:   "iface",
+		StaticAttrs: map[string]interface{}{"attr": "value"},
+		HotplugKey:  "key",
+	}
+	ifacestate.SetHotplugSlots(s.st, defs)
+
+	var data map[string]interface{}
+	c.Assert(s.st.Get("hotplug-slots", &data), IsNil)
+	c.Assert(data, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"name":         "foo",
+			"interface":    "iface",
+			"static-attrs": map[string]interface{}{"attr": "value"},
+			"hotplug-key":  "key",
+		}})
+
+	slots, err = ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(slots, DeepEquals, defs)
 }

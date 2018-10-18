@@ -4,12 +4,12 @@
 . "$TESTSLIB"/systemd.sh
 
 wait_for_ssh(){
-    retry=300
+    retry=150
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
-            exit 1
+            return 1
         fi
         sleep 1
     done
@@ -46,16 +46,29 @@ create_nested_core_vm(){
     esac
 
     # create ubuntu-core image
+    EXTRA_SNAPS=""
+    if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
+        EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
+    fi
+    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img "$EXTRA_SNAPS"
     mkdir -p /tmp/work-dir
-    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img
     mv ubuntu-core.img /tmp/work-dir
 
     create_assertions_disk
+    start_nested_vm
+    if wait_for_ssh; then
+        prepare_ssh
+    else
+        echo "ssh not stablished, exiting..."
+        exit 1
+    fi
+}
 
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
-
-    wait_for_ssh
-    prepare_ssh
+start_nested_vm(){
+    systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none,format=raw -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw"
+    if ! wait_for_ssh; then
+        systemctl restart nested-vm
+    fi
 }
 
 destroy_nested_core_vm(){
@@ -64,5 +77,5 @@ destroy_nested_core_vm(){
 }
 
 execute_remote(){
-    sshpass -p ubuntu ssh -p 8022 -q -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
-}
+    sshpass -p ubuntu ssh -p 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
+}   

@@ -7,6 +7,7 @@ details: |
     the user.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     if [ -d /var/lib/snapd/hostfs ]; then

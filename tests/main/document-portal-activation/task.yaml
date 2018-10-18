@@ -1,0 +1,99 @@
+summary: Check that the document portal is activated when needed
+description: |
+    In order for xdg-document-portal to securely share files with a
+    confined applications, it must be started prior to setting up the
+    user mount namespace.  This is due to the daemon providing a FUSE
+    file system that needs to be bind mounted in the sandbox.
+
+    With that in mind, we don't want every snap invocation to try and
+    start the document portal.  Only in the following cases:
+
+        - a session bus is running
+        - the snap plugs the "desktop" interface
+
+    Furthermore, we don't want to print an error on systems where
+    xdg-document-portal is not available.
+
+# Disabled on Ubuntu Core because it doesn't provide the "desktop"
+# slot, and Amazon Linux because it doesn't have the required Python 3
+# packages to run the test.
+systems: [ "-ubuntu-core-*", "-amazon-linux-2-*" ]
+
+environment:
+    XDG_RUNTIME_DIR: /run/user/$(id -u)
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    distro_install_package python3-dbus python3-gi
+    install_local test-snapd-desktop
+    install_local test-snapd-tools
+    rm -f /usr/share/dbus-1/services/fake-document-portal.service
+    mkdir -p "$XDG_RUNTIME_DIR"
+    rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    [ -f dbus-launch.pid ] && kill "$(cat dbus-launch.pid)"
+    rm -f dbus-launch.pid
+    rm -f stderr.log doc-portal.log report-error.txt
+    rm -f /usr/share/dbus-1/services/fake-document-portal.service
+    distro_purge_package python3-dbus python3-gi
+    distro_auto_remove_packages
+    rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
+
+execute: |
+    echo "No output on stderr when running without a session bus"
+    user_data="$HOME/snap/test-snapd-desktop/current"
+    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    [ "$(wc -c < stderr.log)" -eq 0 ]
+
+    echo "Starting session bus"
+    eval "$(dbus-launch --sh-syntax)"
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+
+    echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
+    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    [ "$(wc -c < stderr.log)" -eq 0 ]
+
+    echo "The absence of the document portal service was recorded"
+    [ -f "$XDG_RUNTIME_DIR/.portals-unavailable" ]
+
+    echo "Make the fake document portal activatable"
+    cat << EOF > /usr/share/dbus-1/services/fake-document-portal.service
+    [D-BUS Service]
+    Name=org.freedesktop.portal.Documents
+    Exec=$(pwd)/fake-document-portal.py $(pwd)/doc-portal.log $(pwd)/report-error.txt
+    EOF
+    : > doc-portal.log
+    : > report-error.txt
+
+    echo "No attempt is made to activate the document portal due to the previous failure"
+    test-snapd-desktop.check-dirs "$user_data"
+    ! MATCH "GetMountPoint called" < doc-portal.log
+
+    echo "Remove the .portals-unavailable file to force a recheck"
+    rm "$XDG_RUNTIME_DIR/.portals-unavailable"
+
+    echo "No output on stderr when running with a session bus and xdg-document-portal is present".
+    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    MATCH "GetMountPoint called" < doc-portal.log
+    [ "$(wc -c < stderr.log)" -eq 0 ]
+
+    echo "Putting fake document portal into failure mode"
+    echo "error" > report-error.txt
+    : > doc-portal.log
+
+    echo "Failures from a running xdg-document-portal are reported"
+    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    MATCH "GetMountPoint called" < doc-portal.log
+    MATCH "WARNING: cannot start document portal: failure" < stderr.log
+
+    echo "Snaps not using the desktop interface will not try to contact the document portal"
+    : > doc-portal.log
+    test-snapd-tools.success 2>stderr.log
+    [ "$(wc -c < stderr.log)" -eq 0 ]
+    [ "$(wc -c < doc-portal.log)" -eq 0 ]

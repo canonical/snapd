@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -334,7 +335,12 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
-func makeTestSnap(c *C, yaml string) string {
+func makeTestSnap(c *C, snapYaml string) string {
+	var m struct {
+		Type string `yaml:"type"`
+	}
+	yaml.Unmarshal([]byte(snapYaml), &m) // yes, ignore the error
+
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
@@ -342,12 +348,12 @@ func makeTestSnap(c *C, yaml string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
+	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource)
+	err = snap.Build(snapSource, m.Type)
 	c.Assert(err, IsNil)
 
 	return dest
@@ -455,7 +461,7 @@ type: app`
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, ErrorMatches, "invalid snap name.*")
+	c.Assert(err, ErrorMatches, `invalid snap name.*`)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {
@@ -1174,6 +1180,17 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
+
+	info.InstanceKey = "instance"
+	// Despite setting the instance key the variables expand to the same
+	// value as before. This is because they are used from inside the mount
+	// namespace of the instantiated snap where the mount backend will
+	// ensure that the regular (non-instance) paths contain
+	// instance-specific code and data.
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
@@ -1353,4 +1370,35 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 
 	c.Check(byType(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
 	c.Check(byType(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
+}
+
+func (s *infoSuite) TestMedia(c *C) {
+	c.Check(snap.MediaInfos{}.Screenshots(), HasLen, 0)
+	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type:   "screenshot",
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	}
+
+	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
+	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
+		{
+			URL: "https://example.com/shot1.svg",
+		}, {
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	})
 }

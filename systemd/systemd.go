@@ -69,6 +69,19 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	}
 }
 
+// MockStopDelays is used from tests so that Stop can be less
+// forgiving there.
+func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
+	oldCheckDelay := stopCheckDelay
+	oldNotifyDelay := stopNotifyDelay
+	stopCheckDelay = checkDelay
+	stopNotifyDelay = notifyDelay
+	return func() {
+		stopCheckDelay = oldCheckDelay
+		stopNotifyDelay = oldNotifyDelay
+	}
+}
+
 func Available() error {
 	_, err := systemctlCmd("--version")
 	return err
@@ -116,7 +129,8 @@ type Systemd interface {
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
-	Status(services ...string) ([]*ServiceStatus, error)
+	Status(units ...string) ([]*UnitStatus, error)
+	IsEnabled(service string) (bool, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
@@ -131,7 +145,7 @@ const (
 	ServicesTarget = "multi-user.target"
 
 	// the target prerequisite for systemd units we generate
-	PrerequisiteTarget = "network-online.target"
+	PrerequisiteTarget = "network.target"
 
 	// the default target for systemd socket units that we generate
 	SocketsTarget = "sockets.target"
@@ -203,31 +217,48 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
-type ServiceStatus struct {
-	Daemon          string
-	ServiceFileName string
-	Enabled         bool
-	Active          bool
+type UnitStatus struct {
+	Daemon   string
+	UnitName string
+	Enabled  bool
+	Active   bool
 }
 
-func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
-	expected := []string{"Id", "Type", "ActiveState", "UnitFileState"}
-	cmd := make([]string, len(serviceNames)+2)
+var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
+var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type"}
+var unitProperties = map[string][]string{
+	".timer":  baseProperties,
+	".socket": baseProperties,
+	// in service units, Type is the daemon type
+	".service": extendedProperties,
+	// in mount units, Type is the fs type
+	".mount": extendedProperties,
+}
+
+func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"
-	cmd[1] = "--property=" + strings.Join(expected, ",")
-	copy(cmd[2:], serviceNames)
+	// ask for all properties, regardless of unit type
+	cmd[1] = "--property=" + strings.Join(extendedProperties, ",")
+	copy(cmd[2:], unitNames)
 	bs, err := systemctlCmd(cmd...)
 	if err != nil {
 		return nil, err
 	}
 
-	sts := make([]*ServiceStatus, 0, len(serviceNames))
-	cur := &ServiceStatus{}
+	sts := make([]*UnitStatus, 0, len(unitNames))
+	cur := &UnitStatus{}
 	seen := map[string]bool{}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) == 0 {
 			// systemctl separates data pertaining to particular services by an empty line
+			unitType := filepath.Ext(cur.UnitName)
+			expected := unitProperties[unitType]
+			if expected == nil {
+				expected = baseProperties
+			}
+
 			missing := make([]string, 0, len(expected))
 			for _, k := range expected {
 				if !seen[k] {
@@ -235,34 +266,33 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 				}
 			}
 			if len(missing) > 0 {
-				return nil, fmt.Errorf("cannot get service status: missing %s in ‘systemctl show’ output", strings.Join(missing, ", "))
-
+				return nil, fmt.Errorf("cannot get unit %q status: missing %s in ‘systemctl show’ output", cur.UnitName, strings.Join(missing, ", "))
 			}
 			sts = append(sts, cur)
-			if len(sts) > len(serviceNames) {
+			if len(sts) > len(unitNames) {
 				break // wut
 			}
-			if cur.ServiceFileName != serviceNames[len(sts)-1] {
-				return nil, fmt.Errorf("cannot get service status: queried status of %q but got status of %q", serviceNames[len(sts)-1], cur.ServiceFileName)
+			if cur.UnitName != unitNames[len(sts)-1] {
+				return nil, fmt.Errorf("cannot get unit status: queried status of %q but got status of %q", unitNames[len(sts)-1], cur.UnitName)
 			}
 
-			cur = &ServiceStatus{}
+			cur = &UnitStatus{}
 			seen = map[string]bool{}
 			continue
 		}
 		if len(bs[3]) > 0 {
-			return nil, fmt.Errorf("cannot get service status: bad line %q in ‘systemctl show’ output", bs[3])
+			return nil, fmt.Errorf("cannot get unit status: bad line %q in ‘systemctl show’ output", bs[3])
 		}
 		k := string(bs[1])
 		v := string(bs[2])
 
 		if v == "" {
-			return nil, fmt.Errorf("cannot get service status: empty field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
 		}
 
 		switch k {
 		case "Id":
-			cur.ServiceFileName = v
+			cur.UnitName = v
 		case "Type":
 			cur.Daemon = v
 		case "ActiveState":
@@ -272,20 +302,35 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
 		default:
-			return nil, fmt.Errorf("cannot get service status: unexpected field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
 
 		if seen[k] {
-			return nil, fmt.Errorf("cannot get service status: duplicate field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get unit status: duplicate field %q in ‘systemctl show’ output", k)
 		}
 		seen[k] = true
 	}
 
-	if len(sts) != len(serviceNames) {
-		return nil, fmt.Errorf("cannot get service status: expected %d results, got %d", len(serviceNames), len(sts))
+	if len(sts) != len(unitNames) {
+		return nil, fmt.Errorf("cannot get unit status: expected %d results, got %d", len(unitNames), len(sts))
 	}
 
 	return sts, nil
+}
+
+// IsEnabled checkes whether the given service is enabled
+func (s *systemd) IsEnabled(serviceName string) (bool, error) {
+	_, err := systemctlCmd("--root", s.rootDir, "is-enabled", serviceName)
+	if err == nil {
+		return true, nil
+	}
+	// "systemctl is-enabled <name>" prints `disabled\n` to stderr and returns exit code 1
+	// for disabled services
+	sysdErr, ok := err.(*Error)
+	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+		return false, nil
+	}
+	return false, err
 }
 
 // Stop the given service, and wait until it has stopped.

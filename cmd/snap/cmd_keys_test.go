@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -60,6 +61,9 @@ done
 `)
 
 func (s *SnapKeysSuite) SetUpTest(c *C) {
+	if testing.Short() && s.GnupgCmd == "/usr/bin/gpg2" {
+		c.Skip("gpg2 does not do short tests")
+	}
 	s.BaseSnapSuite.SetUpTest(c)
 
 	s.tempdir = c.MkDir()
@@ -87,7 +91,7 @@ func (s *SnapKeysSuite) TearDownTest(c *C) {
 }
 
 func (s *SnapKeysSuite) TestKeys(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"keys"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, `Name +SHA3-384
@@ -102,7 +106,7 @@ func (s *SnapKeysSuite) TestKeysEmptyNoHeader(c *C) {
 	err := os.RemoveAll(s.tempdir)
 	c.Assert(err, IsNil)
 
-	rest, err := snap.Parser().ParseArgs([]string{"keys"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "No keys registered, see `snapcraft create-key`")
@@ -110,7 +114,7 @@ func (s *SnapKeysSuite) TestKeysEmptyNoHeader(c *C) {
 }
 
 func (s *SnapKeysSuite) TestKeysJSON(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"keys", "--json"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedResponse := []snap.Key{
@@ -132,7 +136,7 @@ func (s *SnapKeysSuite) TestKeysJSON(c *C) {
 func (s *SnapKeysSuite) TestKeysJSONEmpty(c *C) {
 	err := os.RemoveAll(os.Getenv("SNAP_GNUPG_HOME"))
 	c.Assert(err, IsNil)
-	rest, err := snap.Parser().ParseArgs([]string{"keys", "--json"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "[]\n")

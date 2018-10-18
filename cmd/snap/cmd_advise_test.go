@@ -72,7 +72,7 @@ func (s *SnapSuite) TestAdviseCommandHappyText(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"advise-snap", "--command", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `
@@ -91,7 +91,7 @@ func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"advise-snap", "--command", "--format=json", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "--format=json", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
