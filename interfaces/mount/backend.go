@@ -61,6 +61,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
+	spec.(*Specification).AddOvername(snapInfo)
 	spec.(*Specification).AddLayout(snapInfo)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
@@ -126,7 +127,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 func (b *Backend) SandboxFeatures() []string {
 	return []string{
 		"freezer-cgroup-v1",       /* Snapd creates a freezer cgroup (v1) for each snap */
-		"layouts-beta",            /* Mount profiles take layout data into account (experimental) */
+		"layouts",                 /* Mount profiles take layout data into account */
 		"mount-namespace",         /* Snapd creates a mount namespace for each snap */
 		"per-snap-persistency",    /* Per-snap profiles are persisted across invocations */
 		"per-snap-profiles",       /* Per-snap profiles allow changing mount namespace of a given snap */

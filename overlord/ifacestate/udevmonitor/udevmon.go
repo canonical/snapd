@@ -24,10 +24,9 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/osutil/udev/netlink"
-
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
 type Interface interface {
@@ -50,6 +49,15 @@ type Monitor struct {
 	monitorStop   chan struct{}
 	netlinkErrors chan error
 	netlinkEvents chan netlink.UEvent
+
+	// seen keeps track of all observed devices to know when to
+	// ignore a spurious event (in case it happens, e.g. when
+	// device gets reported by both the enumeration and monitor on
+	// startup).  the keys are based on device paths which are
+	// guaranteed to be unique and stable till device gets
+	// removed.  the lookup is not persisted and gets populated
+	// and updated in response to enumeration and hotplug events.
+	seen map[string]bool
 }
 
 func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
@@ -57,6 +65,7 @@ func New(added DeviceAddedFunc, removed DeviceRemovedFunc) Interface {
 		deviceAdded:   added,
 		deviceRemoved: removed,
 		netlinkConn:   &netlink.UEventConn{},
+		seen:          make(map[string]bool),
 	}
 
 	m.netlinkEvents = make(chan netlink.UEvent)
@@ -76,7 +85,7 @@ func (m *Monitor) Connect() error {
 	}
 
 	if err := m.netlinkConn.Connect(netlink.UdevEvent); err != nil {
-		return fmt.Errorf("failed to start uevent monitor: %s", err)
+		return fmt.Errorf("cannot start udev monitor: %s", err)
 	}
 
 	// TODO: consider passing a device filter to reduce noise from irrelevant devices.
@@ -97,11 +106,31 @@ func (m *Monitor) Disconnect() error {
 // handles hotplug events (devices added or removed). It returns immediately.
 // The goroutine must be stopped by calling Stop() method.
 func (m *Monitor) Run() error {
+	// Gather devices from udevadm info output (enumeration on startup).
+	devices, parseErrors, err := hotplug.EnumerateExistingDevices()
+	if err != nil {
+		return fmt.Errorf("cannot enumerate existing devices: %s", err)
+	}
 	m.tomb.Go(func() error {
+		for _, perr := range parseErrors {
+			logger.Noticef("udev enumeration error: %s", perr)
+		}
+		for _, dev := range devices {
+			devPath := dev.DevicePath()
+			if m.seen[devPath] {
+				continue
+			}
+			m.seen[devPath] = true
+			if m.deviceAdded != nil {
+				m.deviceAdded(dev)
+			}
+		}
+
+		// Process hotplug events reported by udev monitor.
 		for {
 			select {
 			case err := <-m.netlinkErrors:
-				logger.Noticef("netlink error: %q\n", err)
+				logger.Noticef("udev event error: %s", err)
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tomb.Dying():
@@ -131,21 +160,32 @@ func (m *Monitor) udevEvent(ev *netlink.UEvent) {
 }
 
 func (m *Monitor) addDevice(kobj string, env map[string]string) {
-	di, err := hotplug.NewHotplugDeviceInfo(env)
+	dev, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
+	devPath := dev.DevicePath()
+	if m.seen[devPath] {
+		return
+	}
+	m.seen[devPath] = true
 	if m.deviceAdded != nil {
-		m.deviceAdded(di)
+		m.deviceAdded(dev)
 	}
 }
 
 func (m *Monitor) removeDevice(kobj string, env map[string]string) {
-	di, err := hotplug.NewHotplugDeviceInfo(env)
+	dev, err := hotplug.NewHotplugDeviceInfo(env)
 	if err != nil {
 		return
 	}
+	devPath := dev.DevicePath()
+	if !m.seen[devPath] {
+		logger.Noticef("udev monitor observed remove event for unknown device %q", dev.DevicePath())
+		return
+	}
+	delete(m.seen, devPath)
 	if m.deviceRemoved != nil {
-		m.deviceRemoved(di)
+		m.deviceRemoved(dev)
 	}
 }

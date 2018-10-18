@@ -83,10 +83,11 @@ func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
 }
 
 type snapshotSetup struct {
-	SetID    uint64   `json:"set-id"`
-	Snap     string   `json:"snap"`
-	Users    []string `json:"users,omitempty"`
-	Filename string   `json:"filename,omitempty"`
+	SetID    uint64        `json:"set-id"`
+	Snap     string        `json:"snap"`
+	Users    []string      `json:"users,omitempty"`
+	Filename string        `json:"filename,omitempty"`
+	Current  snap.Revision `json:"current"`
 }
 
 func filename(setID uint64, si *snap.Info) string {
@@ -178,7 +179,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 	defer reader.Close()
 
-	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Users, task.Logf)
+	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, task.Logf)
 	if err != nil {
 		return err
 	}

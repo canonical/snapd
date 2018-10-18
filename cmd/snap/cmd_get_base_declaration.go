@@ -25,7 +25,9 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdGetBaseDeclaration struct{}
+type cmdGetBaseDeclaration struct {
+	clientMixin
+}
 
 func init() {
 	cmd := addDebugCommand("get-base-declaration",
@@ -44,7 +46,7 @@ func (x *cmdGetBaseDeclaration) Execute(args []string) error {
 	var resp struct {
 		BaseDeclaration string `json:"base-declaration"`
 	}
-	if err := Client().Debug("get-base-declaration", nil, &resp); err != nil {
+	if err := x.client.Debug("get-base-declaration", nil, &resp); err != nil {
 		return err
 	}
 	fmt.Fprintf(Stdout, "%s\n", resp.BaseDeclaration)

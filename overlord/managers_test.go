@@ -169,6 +169,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 	// registered
+	err = assertstate.Add(st, sysdb.GenericClassicModel())
+	c.Assert(err, IsNil)
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
@@ -258,6 +260,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	st.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -1024,7 +1028,7 @@ version: @VERSION@
 	snapPath, _ = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0, nil)
 	c.Check(updated, IsNil)
 	c.Check(tss, IsNil)
 	// no validation we, get an error
@@ -1044,7 +1048,7 @@ version: @VERSION@
 	c.Assert(err, IsNil)
 
 	// ... and try again
-	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0)
+	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
@@ -1591,7 +1595,7 @@ apps:
 	ms.serveSnap(fooPath, "15")
 
 	// refresh all
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
@@ -1837,7 +1841,7 @@ apps:
 	err = assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
@@ -2213,7 +2217,7 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	tasks := chg.Tasks()
-	connectTask := tasks[len(tasks)-3]
+	connectTask := tasks[len(tasks)-1]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 
 	// verify connect task data
@@ -2363,7 +2367,7 @@ version: @VERSION@`
 	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 3)
 	c.Assert(tts, HasLen, 3)
@@ -2580,7 +2584,7 @@ apps:
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
 	c.Assert(err, IsNil)
@@ -2668,7 +2672,7 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
 	c.Assert(err, IsNil)

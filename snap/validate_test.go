@@ -289,7 +289,7 @@ func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].SocketMode = 1234
 	err := ValidateApp(app)
-	c.Assert(err, ErrorMatches, `cannot use socket mode: 2322`)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": cannot use mode: 2322`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
@@ -305,14 +305,14 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].ListenStream = ""
 	err := ValidateApp(app)
-	c.Assert(err, ErrorMatches, `socket "sock" must define "listen-stream"`)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": "listen-stream" is not defined`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].Name = "invalid name"
 	err := ValidateApp(app)
-	c.Assert(err, ErrorMatches, `invalid socket name: "invalid name"`)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "invalid name": invalid socket name: "invalid name"`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
@@ -351,7 +351,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream": only.*are allowed`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": must have a prefix of .*`)
 	}
 }
 
@@ -361,7 +361,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDot
 	err := ValidateApp(app)
 	c.Assert(
 		err, ErrorMatches,
-		`socket "sock" has invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
+		`invalid definition of socket "sock": invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C) {
@@ -376,7 +376,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`socket "sock" has invalid "listen-stream": only \$SNAP_DATA and \$SNAP_COMMON prefixes are allowed`)
+			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA or \$SNAP_COMMON`)
 	}
 }
 
@@ -393,7 +393,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" path for "listen-stream" must be prefixed with.*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
 	}
 }
 
@@ -409,7 +409,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" address.*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" address ".*", must be one of: 127\.0\.0\.1, \[::1\], \[::\]`)
 	}
 }
 
@@ -429,7 +429,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	for _, invalidPort := range invalidPorts {
 		socket.ListenStream = invalidPort
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" port number.*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number.*`)
 	}
 }
 
@@ -693,6 +693,58 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 		err := ValidateAlias(alias)
 		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
 	}
+}
+
+func (s *ValidateSuite) TestValidatePlugSlotName(c *C) {
+	const yaml1 = `
+name: invalid-plugs
+version: 1
+plugs:
+  p--lug: null
+`
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid plug name: "p--lug"`)
+
+	const yaml2 = `
+name: invalid-slots
+version: 1
+slots:
+  s--lot: null
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Slots, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid slot name: "s--lot"`)
+
+	const yaml3 = `
+name: invalid-plugs-iface
+version: 1
+plugs:
+  plug:
+    interface: i--face
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for plug "plug"`)
+
+	const yaml4 = `
+name: invalid-slots-iface
+version: 1
+slots:
+  slot:
+    interface: i--face
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Slots, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for slot "slot"`)
 }
 
 type testConstraint string
@@ -1154,19 +1206,19 @@ apps:
 	}{{
 		name: "foo after baz",
 		desc: fooAfterBaz,
-		err:  `application "foo" refers to missing application "baz" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a missing application "baz"`,
 	}, {
 		name: "foo before baz",
 		desc: fooBeforeBaz,
-		err:  `application "foo" refers to missing application "baz" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a missing application "baz"`,
 	}, {
 		name: "foo not a daemon",
 		desc: fooNotADaemon,
-		err:  `cannot define before/after in application "foo" as it's not a service`,
+		err:  `invalid definition of application "foo": must be a service to define before/after ordering`,
 	}, {
 		name: "foo wants bar, bar not a daemon",
 		desc: fooBarNotADaemon,
-		err:  `application "foo" refers to non-service application "bar" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a non-service application "bar"`,
 	}, {
 		name: "bad order 1",
 		desc: badOrder1,
@@ -1238,11 +1290,11 @@ apps:
 	}, {
 		name: "foo not a service",
 		desc: fooNotADaemon,
-		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
+		err:  `watchdog-timeout is only applicable to services`,
 	}, {
 		name: "negative timeout",
 		desc: fooNegative,
-		err:  `cannot use a negative watchdog-timeout in application "foo"`,
+		err:  `watchdog-timeout cannot be negative`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
@@ -1252,7 +1304,7 @@ apps:
 
 		err = Validate(info)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
 			c.Assert(err, IsNil)
 		}
@@ -1292,11 +1344,11 @@ apps:
 	}, {
 		name: "not a service",
 		desc: notAService,
-		err:  `cannot use timer with application "foo" as it's not a service`,
+		err:  `timer is only applicable to services`,
 	}, {
 		name: "invalid timer",
 		desc: badTimer,
-		err:  `application "foo" timer has invalid format: cannot parse "mon2-wed3": invalid schedule fragment`,
+		err:  `timer has invalid format: cannot parse "mon2-wed3": invalid schedule fragment`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
@@ -1305,7 +1357,7 @@ apps:
 
 		err = Validate(info)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
 			c.Assert(err, IsNil)
 		}
@@ -1431,6 +1483,87 @@ version: 1.0
 	for _, s := range []string{"toolonginstance", "ABCD", "_", "inst@nce", "012345678901"} {
 		info.InstanceKey = s
 		err = Validate(info)
-		c.Check(err, ErrorMatches, fmt.Sprintf("invalid instance key: %q", s))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid instance key: %q`, s))
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppRestart(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-condition: on-abort
+    restart-delay: 12s
+`)
+	fooAllGoodDefault := []byte(`
+apps:
+  foo:
+    daemon: simple
+`)
+	fooAllGoodJustDelay := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-delay: 12s
+`)
+	fooConditionNotADaemon := []byte(`
+apps:
+  foo:
+    restart-condition: on-abort
+`)
+	fooDelayNotADaemon := []byte(`
+apps:
+  foo:
+    restart-delay: 12s
+`)
+	fooNegativeDelay := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-delay: -12s
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo all good with default values",
+		desc: fooAllGoodDefault,
+	}, {
+		name: "foo all good with restart-delay only",
+		desc: fooAllGoodJustDelay,
+	}, {
+		name: "foo restart-delay but not a service",
+		desc: fooDelayNotADaemon,
+		err:  `restart-delay is only applicable to services`,
+	}, {
+		name: "foo restart-delay but not a service",
+		desc: fooConditionNotADaemon,
+		err:  `restart-condition is only applicable to services`,
+	}, {
+		name: "negative restart-delay",
+		desc: fooNegativeDelay,
+		err:  `restart-delay cannot be negative`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
 	}
 }
