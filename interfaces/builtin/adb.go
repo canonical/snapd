@@ -198,7 +198,7 @@ func (iface *adbInterface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 	return nil
 }
 
-func (iface *adbInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *adbInterface) UDevConnectedSlot(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, vendorID := range iface.vendorIDs() {
 		spec.TagDevice(fmt.Sprintf("SUBSYSTEM==\"usb\", ATTR{idVendor}==\"%04x\"", vendorID))
 	}

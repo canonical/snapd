@@ -120,12 +120,16 @@ func (s *adbSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="usb", ATTR{idVendor}=="0502", MODE="0666"`)
 
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 81)
 	c.Assert(spec.Snippets(), testutil.Contains, `# adb
-SUBSYSTEM=="usb", ATTR{idVendor}=="0502", TAG+="snap_consumer_app"`)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0502", TAG+="snap_provider_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# adb
-SUBSYSTEM=="usb", ATTR{idVendor}=="19d2", TAG+="snap_consumer_app"`)
+SUBSYSTEM=="usb", ATTR{idVendor}=="19d2", TAG+="snap_provider_app"`)
+
+	spec = &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *adbSuite) TestStaticInfo(c *C) {
