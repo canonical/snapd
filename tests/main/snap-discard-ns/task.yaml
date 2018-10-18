@@ -30,7 +30,11 @@ execute: |
     test-snapd-tools.success
     # NOTE: the per-user profile is faked but we test that it is removed correctly.
     touch /run/snapd/ns/test-snapd-tools.1000.mnt
-    mount --bind /run/snapd/ns/test-snapd-tools.mnt /run/snapd/ns/test-snapd-tools.1000.mnt
+    # NOTE: use a low-level mount operation to avoid interacting with the
+    # /etc/mtab file.  On pre-systemd systems mtab was a regular file and
+    # libmount can be confused into misbehaving because none of the snapd
+    # low-level mount tooling uses it.
+    ./mount.py --bind /run/snapd/ns/test-snapd-tools.mnt /run/snapd/ns/test-snapd-tools.1000.mnt
     # The last hex is the same as nsfs but older stat on ubuntu 14.04 doesn't know
     # proc is there because on older kernels /proc/*/ns/mnt is not on nsfs but still on procfs.
     stat -f -c %T /run/snapd/ns/test-snapd-tools.mnt | MATCH 'proc|nsfs|0x6e736673'
