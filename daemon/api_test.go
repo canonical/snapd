@@ -572,6 +572,10 @@ apps:
     sockets:
        sock:
          listen-stream: $SNAP_COMMON/run.sock
+  svc7:
+    command: some7
+    daemon: simple
+    sockets:
        other-sock:
          listen-stream: $SNAP_COMMON/other-run.sock
 `)
@@ -614,8 +618,13 @@ UnitFileState=static
 Id=snap.foo.svc6.sock.socket
 ActiveState=active
 UnitFileState=enabled
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc7.service
+ActiveState=inactive
+UnitFileState=static
 
-Id=snap.foo.svc6.other-sock.socket
+Id=snap.foo.svc7.other-sock.socket
 ActiveState=inactive
 UnitFileState=enabled
 `),
@@ -730,6 +739,13 @@ UnitFileState=enabled
 					Active:  false,
 					Activators: []client.AppActivator{
 						{Name: "sock", Type: "socket", Active: true, Enabled: true},
+					},
+				}, {
+					Snap: "foo", Name: "svc7",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
 						{Name: "other-sock", Type: "socket", Active: false, Enabled: true},
 					},
 				},
