@@ -162,6 +162,7 @@ network inet stream,
 `
 
 var adbConnectedPlugSecComp = `
+# Allow adb (client) to use TCP/IP for localhost IPC.
 socket AF_INET SOCK_STREAM -
 connect
 `
