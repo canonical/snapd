@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -547,6 +548,10 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		}
 		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
+		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]interface{})
+		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]interface{})
+		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]interface{})
+		cstate.DynamicPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicPlugAttrs).(map[string]interface{})
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil

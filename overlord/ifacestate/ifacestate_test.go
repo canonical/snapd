@@ -4726,7 +4726,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	c.Assert(udevMonitorCreated, Equals, true)
 }
 
-func (s *interfaceManagerSuite) TestAttributesSerialization(c *C) {
+func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	slotSnap := s.mockSnap(c, producer2Yaml)
 	plugSnap := s.mockSnap(c, consumerYaml)
 
@@ -4741,26 +4741,30 @@ func (s *interfaceManagerSuite) TestAttributesSerialization(c *C) {
 
 	conns, err := ifacestate.GetConns(st)
 	c.Assert(err, IsNil)
+
+	// create connection in conns state
+	dynamicAttrs := map[string]interface{}{"dynamic-number": 7}
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(plug, nil, nil),
-		Slot: interfaces.NewConnectedSlot(slot, nil, nil),
+		Slot: interfaces.NewConnectedSlot(slot, nil, dynamicAttrs),
 	}
 
-	var number int64
-	c.Assert(conn.Slot.Attr("number", &number), IsNil)
-	c.Assert(number, Equals, int64(1))
+	var number, dynnumber int64
+	c.Check(conn.Slot.Attr("number", &number), IsNil)
+	c.Check(number, Equals, int64(1))
 
 	ifacestate.UpdateConnectionInConnState(conns, conn, false, false)
 	ifacestate.SetConns(st, conns)
 
+	// restore connection from conns state
 	newConns, err := ifacestate.GetConns(st)
 	c.Assert(err, IsNil)
 
-	var newNumber int64
-	_, _, slotStaticAttrs, _, ok := ifacestate.GetConnStateAttrs(newConns, "consumer:plug producer2:slot")
+	_, _, slotStaticAttrs, slotDynamicAttrs, ok := ifacestate.GetConnStateAttrs(newConns, "consumer:plug producer2:slot")
 	c.Assert(ok, Equals, true)
 
-	restoredSlot := interfaces.NewConnectedSlot(slot, slotStaticAttrs, nil)
-	c.Assert(restoredSlot.Attr("number", &newNumber), IsNil)
-	c.Assert(newNumber, Equals, int64(1))
+	restoredSlot := interfaces.NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
+	c.Check(restoredSlot.Attr("number", &number), IsNil)
+	c.Check(number, Equals, int64(1))
+	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
 }

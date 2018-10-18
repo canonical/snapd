@@ -132,7 +132,7 @@ func (s *helpersSuite) TestGetConns(c *C) {
 		c.Assert(id, Equals, "APP:network CORE:network")
 		c.Assert(connState.Auto, Equals, true)
 		c.Assert(connState.Interface, Equals, "network")
-		c.Assert(connState.StaticSlotAttrs["number"], Equals, int(78))
+		c.Assert(connState.StaticSlotAttrs["number"], Equals, int64(78))
 	}
 }
 
