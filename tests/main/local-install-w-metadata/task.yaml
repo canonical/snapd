@@ -1,8 +1,11 @@
 summary: Checks for local install with metadata from assertions
+
 # XXX we would need to bother with curl there atm
 systems: [-ubuntu-core-*]
+
 restore: |
     rm -f test-snapd-tools_*.{snap,assert}
+
 execute: |
     echo "Get the snap"
     snap download test-snapd-tools

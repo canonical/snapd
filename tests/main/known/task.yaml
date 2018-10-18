@@ -1,4 +1,5 @@
 summary: Check snap known
+
 execute: |
     echo "Listing all account assertions"
     snap known account|MATCH "^type: account$"

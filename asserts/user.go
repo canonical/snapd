@@ -39,6 +39,8 @@ type SystemUser struct {
 	sshKeys []string
 	since   time.Time
 	until   time.Time
+
+	forcePasswordChange bool
 }
 
 // BrandID returns the brand identifier that signed this assertion.
@@ -75,6 +77,12 @@ func (su *SystemUser) Username() string {
 // Note that only ID: $6$ or stronger is supported (sha512crypt).
 func (su *SystemUser) Password() string {
 	return su.HeaderString("password")
+}
+
+// ForcePasswordChange returns true if the user needs to change the password
+// after the first login.
+func (su *SystemUser) ForcePasswordChange() bool {
+	return su.forcePasswordChange
 }
 
 // SSHKeys returns the ssh keys for the user.
@@ -227,8 +235,16 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if _, err := checkStringMatches(assert.headers, "username", validSystemUserUsernames); err != nil {
 		return nil, err
 	}
-	if _, err := checkHashedPassword(assert.headers, "password"); err != nil {
+	password, err := checkHashedPassword(assert.headers, "password")
+	if err != nil {
 		return nil, err
+	}
+	forcePasswordChange, err := checkOptionalBool(assert.headers, "force-password-change")
+	if err != nil {
+		return nil, err
+	}
+	if forcePasswordChange && password == "" {
+		return nil, fmt.Errorf(`cannot use "force-password-change" with an empty "password"`)
 	}
 
 	sshKeys, err := checkStringList(assert.headers, "ssh-keys")
@@ -253,11 +269,12 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	}
 
 	return &SystemUser{
-		assertionBase: assert,
-		series:        series,
-		models:        models,
-		sshKeys:       sshKeys,
-		since:         since,
-		until:         until,
+		assertionBase:       assert,
+		series:              series,
+		models:              models,
+		sshKeys:             sshKeys,
+		since:               since,
+		until:               until,
+		forcePasswordChange: forcePasswordChange,
 	}, nil
 }

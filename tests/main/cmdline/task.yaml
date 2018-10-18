@@ -1,4 +1,5 @@
 summary: Check that cmdline for channel shortcuts work
+
 execute: |
     echo Conflicting channel commandline errors correctly
     if snap install --beta --edge test-snapd-tools 2>err.msg; then
@@ -6,5 +7,6 @@ execute: |
         exit 1
     fi
     MATCH "Please specify a single channel" < err.msg
+
 restore: |
     rm -f err.msg

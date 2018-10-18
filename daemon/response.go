@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
@@ -72,14 +73,31 @@ func (r *resp) transmitMaintenance(kind errorKind, message string) {
 	}
 }
 
+func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
+	if r.Meta != nil && r.Meta.WarningCount != 0 {
+		return
+	}
+	if count == 0 {
+		return
+	}
+	if r.Meta == nil {
+		r.Meta = &Meta{}
+	}
+	r.Meta.WarningCount = count
+	r.Meta.WarningTimestamp = &stamp
+}
+
 // TODO This is being done in a rush to get the proper external
 //      JSON representation in the API in time for the release.
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
+// Increment the counter if you read this: 42
 type Meta struct {
-	Sources           []string `json:"sources,omitempty"`
-	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
-	Change            string   `json:"change,omitempty"`
+	Sources           []string   `json:"sources,omitempty"`
+	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
+	Change            string     `json:"change,omitempty"`
+	WarningTimestamp  *time.Time `json:"warning-timestamp,omitempty"`
+	WarningCount      int        `json:"warning-count,omitempty"`
 }
 
 type respJSON struct {
@@ -209,8 +227,11 @@ func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
 	return func(format string, v ...interface{}) Response {
-		res := &errorResult{
-			Message: fmt.Sprintf(format, v...),
+		res := &errorResult{}
+		if len(v) == 0 {
+			res.Message = format
+		} else {
+			res.Message = fmt.Sprintf(format, v...)
 		}
 		if status == 401 {
 			res.Kind = errorKindLoginRequired

@@ -39,9 +39,8 @@ var syscallExec = syscall.Exec
 
 // commandline args
 var opts struct {
-	Command          string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
-	SkipCommandChain bool   `long:"skip-command-chain" description:"do not run command chain"`
-	Hook             string `long:"hook" description:"hook to run" hidden:"yes"`
+	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+	Hook    string `long:"hook" description:"hook to run" hidden:"yes"`
 }
 
 func init() {
@@ -93,7 +92,7 @@ func run() error {
 		return execHook(snapApp, revision, opts.Hook)
 	}
 
-	return execApp(snapApp, revision, opts.Command, extraArgs, opts.SkipCommandChain)
+	return execApp(snapApp, revision, opts.Command, extraArgs)
 }
 
 const defaultShell = "/bin/bash"
@@ -125,11 +124,11 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func commandChain(app *snap.AppInfo) []string {
-	chain := make([]string, 0, len(app.CommandChain))
-	snapMountDir := app.Snap.MountDir()
+func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
+	chain := make([]string, 0, len(commandChain))
+	snapMountDir := snapInfo.MountDir()
 
-	for _, element := range app.CommandChain {
+	for _, element := range commandChain {
 		chain = append(chain, filepath.Join(snapMountDir, element))
 	}
 
@@ -151,7 +150,7 @@ func expandEnvCmdArgs(args []string, env map[string]string) []string {
 	return cmdArgs
 }
 
-func execApp(snapApp, revision, command string, args []string, skipCommandChain bool) error {
+func execApp(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
@@ -213,9 +212,7 @@ func execApp(snapApp, revision, command string, args []string, skipCommandChain 
 	fullCmd = append(fullCmd, cmdArgs...)
 	fullCmd = append(fullCmd, args...)
 
-	if !skipCommandChain {
-		fullCmd = append(commandChain(app), fullCmd...)
-	}
+	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
 	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
@@ -246,6 +243,6 @@ func execHook(snapName, revision, hookName string) error {
 	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
 
 	// run the hook
-	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)
-	return syscallExec(hookPath, []string{hookPath}, env)
+	cmd := append(absoluteCommandChain(hook.Snap, hook.CommandChain), filepath.Join(hook.Snap.HooksDir(), hook.Name))
+	return syscallExec(cmd[0], cmd, env)
 }

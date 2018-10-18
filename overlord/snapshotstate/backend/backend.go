@@ -162,8 +162,10 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	snapshot := &client.Snapshot{
 		SetID:    id,
 		Snap:     si.InstanceName(),
+		SnapID:   si.SnapID,
 		Revision: si.Revision,
 		Version:  si.Version,
+		Epoch:    si.Epoch,
 		Time:     time.Now(),
 		SHA3_384: make(map[string]string),
 		Size:     0,
@@ -242,8 +244,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	var sz sizer
 
-	cmd := maybeRunuserCommand(username,
-		"tar",
+	cmd := tarAsUser(username,
 		"--create",
 		"--sparse", "--gzip",
 		"--directory", parent, dir, "common")

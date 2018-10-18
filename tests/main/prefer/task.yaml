@@ -1,4 +1,5 @@
 summary: Simple snap prefer test
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh

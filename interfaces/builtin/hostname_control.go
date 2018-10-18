@@ -34,6 +34,9 @@ const hostnameControlConnectedPlugAppArmor = `
 # /{,usr/}bin/hostname ixr, # already allowed by default
 /etc/hostname w,            # read allowed by default
 
+# on core /etc/hostname is a link to /etc/writable/hostname
+/etc/writable/hostname w,
+
 #include <abstractions/dbus-strict>
 /{,usr/}{,s}bin/hostnamectl           ixr,
 

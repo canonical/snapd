@@ -18,6 +18,11 @@ prepare: |
         ln -sf $SNAP_MOUNT_DIR /snap
     fi
 
+restore: |
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
+        rm -f /snap
+    fi
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -36,9 +41,3 @@ execute: |
     snap install --classic --jailmode test-snapd-hello-classic
 
     $SNAP_MOUNT_DIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
-
-restore: |
-    snap remove test-snapd-hello-classic
-    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
-        rm -f /snap
-    fi

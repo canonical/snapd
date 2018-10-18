@@ -95,6 +95,46 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 	return nil
 }
 
+func checkDeviceScope(c *asserts.DeviceScopeConstraint, model *asserts.Model, store *asserts.Store) error {
+	if c == nil {
+		return nil
+	}
+	if model == nil {
+		return fmt.Errorf("cannot match on-store/on-brand/on-model without model")
+	}
+	if store != nil && store.Store() != model.Store() {
+		return fmt.Errorf("store assertion and model store must match")
+	}
+	if len(c.Store) != 0 {
+		if !strutil.ListContains(c.Store, model.Store()) {
+			mismatch := true
+			if store != nil {
+				for _, sto := range c.Store {
+					if strutil.ListContains(store.FriendlyStores(), sto) {
+						mismatch = false
+						break
+					}
+				}
+			}
+			if mismatch {
+				return fmt.Errorf("on-store mismatch")
+			}
+		}
+	}
+	if len(c.Brand) != 0 {
+		if !strutil.ListContains(c.Brand, model.BrandID()) {
+			return fmt.Errorf("on-brand mismatch")
+		}
+	}
+	if len(c.Model) != 0 {
+		brandModel := fmt.Sprintf("%s/%s", model.BrandID(), model.Model())
+		if !strutil.ListContains(c.Model, brandModel) {
+			return fmt.Errorf("on-model mismatch")
+		}
+	}
+	return nil
+}
+
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
 	if err := cstrs.PlugAttributes.Check(connc.Plug, connc); err != nil {
 		return err
@@ -115,6 +155,9 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Plu
 		return err
 	}
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
+		return err
+	}
+	if err := checkDeviceScope(cstrs.DeviceScope, connc.Model, connc.Store); err != nil {
 		return err
 	}
 	return nil
@@ -157,6 +200,9 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Slo
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
+	if err := checkDeviceScope(cstrs.DeviceScope, connc.Model, connc.Store); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -175,7 +221,7 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 	return firstErr
 }
 
-func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
 	// TODO: allow evaluated attr constraints here too?
 	if err := cstrs.SlotAttributes.Check(slot, nil); err != nil {
 		return err
@@ -186,14 +232,17 @@ func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotI
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
+	if err := checkDeviceScope(cstrs.DeviceScope, ic.Model, ic.Store); err != nil {
+		return err
+	}
 	return nil
 }
 
-func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs []*asserts.SlotInstallationConstraints) error {
+func checkSlotInstallationConstraints(ic *InstallCandidate, slot *snap.SlotInfo, cstrs []*asserts.SlotInstallationConstraints) error {
 	var firstErr error
 	// OR of constraints
 	for _, cstrs1 := range cstrs {
-		err := checkSlotInstallationConstraints1(slot, cstrs1)
+		err := checkSlotInstallationConstraints1(ic, slot, cstrs1)
 		if err == nil {
 			return nil
 		}
@@ -204,7 +253,7 @@ func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs []*asserts.Slot
 	return firstErr
 }
 
-func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
+func checkPlugInstallationConstraints1(ic *InstallCandidate, plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
 	// TODO: allow evaluated attr constraints here too?
 	if err := cstrs.PlugAttributes.Check(plug, nil); err != nil {
 		return err
@@ -215,14 +264,17 @@ func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugI
 	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
+	if err := checkDeviceScope(cstrs.DeviceScope, ic.Model, ic.Store); err != nil {
+		return err
+	}
 	return nil
 }
 
-func checkPlugInstallationConstraints(plug *snap.PlugInfo, cstrs []*asserts.PlugInstallationConstraints) error {
+func checkPlugInstallationConstraints(ic *InstallCandidate, plug *snap.PlugInfo, cstrs []*asserts.PlugInstallationConstraints) error {
 	var firstErr error
 	// OR of constraints
 	for _, cstrs1 := range cstrs {
-		err := checkPlugInstallationConstraints1(plug, cstrs1)
+		err := checkPlugInstallationConstraints1(ic, plug, cstrs1)
 		if err == nil {
 			return nil
 		}
