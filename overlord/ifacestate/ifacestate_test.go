@@ -1713,6 +1713,7 @@ slots:
  slot:
   interface: test
   attr2: value2
+  number: 1
 `
 
 var producerYaml3 = `
@@ -4723,4 +4724,43 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	// and udev monitor is now created
 	c.Assert(mgr.Ensure(), IsNil)
 	c.Assert(udevMonitorCreated, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestAttributesSerialization(c *C) {
+	slotSnap := s.mockSnap(c, producer2Yaml)
+	plugSnap := s.mockSnap(c, consumerYaml)
+
+	slot := slotSnap.Slots["slot"]
+	c.Assert(slot, NotNil)
+	plug := plugSnap.Plugs["plug"]
+	c.Assert(plug, NotNil)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	conns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(plug, nil, nil),
+		Slot: interfaces.NewConnectedSlot(slot, nil, nil),
+	}
+
+	var number int64
+	c.Assert(conn.Slot.Attr("number", &number), IsNil)
+	c.Assert(number, Equals, int64(1))
+
+	ifacestate.UpdateConnectionInConnState(conns, conn, false, false)
+	ifacestate.SetConns(st, conns)
+
+	newConns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	var newNumber int64
+	_, _, slotStaticAttrs, _, ok := ifacestate.GetConnStateAttrs(newConns, "consumer:plug producer2:slot")
+	c.Assert(ok, Equals, true)
+
+	restoredSlot := interfaces.NewConnectedSlot(slot, slotStaticAttrs, nil)
+	c.Assert(restoredSlot.Attr("number", &newNumber), IsNil)
+	c.Assert(newNumber, Equals, int64(1))
 }
