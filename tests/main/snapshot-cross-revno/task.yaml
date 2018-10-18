@@ -4,7 +4,7 @@ prepare: |
     # clean up just in case
     for d in {/root,/home/test}/snap/test-snapd-tools/; do
         if [ -d "$d" ]; then
-            find "$d" -name canary.txt -delete -printf "%p deleted\n"
+            find "$d" -name canary.txt -delete -printf '%p deleted\n'
         fi
     done
     snap install --edge test-snapd-tools
@@ -28,7 +28,7 @@ execute: |
     set_id=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
     
     # remove the canary
-    find {/root,/home/test}/snap/test-snapd-tools/ -name canary.txt -delete -printf "%p deleted\n"
+    find {/root,/home/test}/snap/test-snapd-tools/ -name canary.txt -delete -printf '%p deleted\n'
 
     # change revision
     snap refresh --stable test-snapd-tools
@@ -47,7 +47,7 @@ execute: |
     done
 
     # restore
-    snap restore $set_id
+    snap restore "$set_id"
     # revno is still new
     test "$new_revno" = "$( readlink ~/snap/test-snapd-tools/current )"
 
