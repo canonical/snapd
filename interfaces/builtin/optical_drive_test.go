@@ -78,11 +78,11 @@ func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, opticalDriveConsumerYaml, nil)
 
 	s.testPlugDefaultInfo = consumingSnapInfo.Plugs["optical-drive"]
-	s.testPlugDefault = interfaces.NewConnectedPlug(s.testPlugDefaultInfo, nil)
+	s.testPlugDefault = interfaces.NewConnectedPlug(s.testPlugDefaultInfo, nil, nil)
 	s.testPlugReadonlyInfo = consumingSnapInfo.Plugs["plug-for-readonly"]
-	s.testPlugReadonly = interfaces.NewConnectedPlug(s.testPlugReadonlyInfo, nil)
+	s.testPlugReadonly = interfaces.NewConnectedPlug(s.testPlugReadonlyInfo, nil, nil)
 	s.testPlugWritableInfo = consumingSnapInfo.Plugs["plug-for-writable"]
-	s.testPlugWritable = interfaces.NewConnectedPlug(s.testPlugWritableInfo, nil)
+	s.testPlugWritable = interfaces.NewConnectedPlug(s.testPlugWritableInfo, nil, nil)
 
 	s.slot, s.slotInfo = MockConnectedSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }

@@ -24,6 +24,7 @@ debug: |
     #shellcheck source=tests/lib/changes.sh
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
+
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
@@ -45,6 +46,9 @@ execute: |
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
     distro_install_build_snapd
+
+    # need to be seeded to allow snap install
+    snap wait system seed.loaded
 
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is

@@ -1,5 +1,9 @@
 summary: Verify that 'system' can be used as an alias for 'core'
 
+debug: |
+    snap get core -d || true
+    snap get system -d || true
+
 execute: |
     echo "When a configuration is set for the core snap"
     snap set core proxy.ftp=http://needle
@@ -14,6 +18,3 @@ execute: |
 
     echo "It is also visible through the core snap"
     snap get core proxy.ftp | MATCH "http://needle2"
-debug: |
-    snap get core -d || true
-    snap get system -d || true

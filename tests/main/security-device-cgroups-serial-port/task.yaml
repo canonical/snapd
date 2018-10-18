@@ -40,8 +40,6 @@ execute: |
         MATCH -v "c 4:68 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
     fi
 
-    echo "================================================="
-
     echo "When a udev rule assigning the device to the snap is added"
     content="SUBSYSTEM==\"tty\", KERNEL==\"ttyS4\", TAG+=\"snap_test-snapd-tools_env\""
     echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-tools.rules
@@ -52,8 +50,6 @@ execute: |
 
     echo "Then the device is shown as assigned to the snap"
     udevadm info /dev/ttyS4 | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
-
-    echo "================================================="
 
     echo "When a snap command is called"
     test-snapd-tools.env

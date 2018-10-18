@@ -37,29 +37,31 @@ type MatchCounter struct {
 
 	count   int
 	matches []string
-	partial []byte
+	partial bytes.Buffer
 }
 
 func (w *MatchCounter) Write(p []byte) (int, error) {
 	n := len(p)
-	if len(w.partial) > 0 {
+	if w.partial.Len() > 0 {
 		idx := bytes.IndexByte(p, '\n')
 		if idx < 0 {
-			w.partial = append(w.partial, p...)
+			// no newline yet, carry on accumulating
+			w.partial.Write(p)
 			return n, nil
 		}
 		idx++
-		w.check(append(w.partial, p[:idx]...))
+		w.partial.Write(p[:idx])
+		w.check(w.partial.Bytes())
 		p = p[idx:]
-		w.partial = nil
 	}
+	w.partial.Reset()
 	idx := bytes.LastIndexByte(p, '\n')
 	if idx < 0 {
-		w.partial = p
+		w.partial.Write(p)
 		return n, nil
 	}
 	idx++
-	w.partial = p[idx:]
+	w.partial.Write(p[idx:])
 	w.check(p[:idx])
 	return n, nil
 }

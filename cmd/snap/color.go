@@ -99,12 +99,15 @@ func colorTable(mode string) escapes {
 }
 
 var colorDescs = mixinDescs{
-	"color":   i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"color": i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"unicode": i18n.G("Use a little bit of Unicode to improve legibility."),
 }
 
 type escapes struct {
 	green string
+	bold  string
 	end   string
 
 	tick, dash, uparrow string
@@ -112,11 +115,13 @@ type escapes struct {
 
 var (
 	color = escapes{
+		bold:  "\033[1m",
 		green: "\033[32m",
 		end:   "\033[0m",
 	}
 
 	mono = escapes{
+		bold:  "\033[1m",
 		green: "\033[1m",
 		end:   "\033[0m",
 	}
