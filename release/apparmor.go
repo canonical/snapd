@@ -20,8 +20,8 @@
 package release
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -157,27 +157,9 @@ var requestedParserFeatures = []apparmorParserFeature{
 // tryParser will run the parser on the rule to determine if the feature is
 // supported.
 func tryParser(rule string) bool {
-	parser := "apparmor_parser"
-
-	_, err := exec.LookPath(parser)
-	if err != nil {
-		return false
-	}
-
-	cmd := exec.Command(parser, "--preprocess")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return false
-	}
-
-	go func() {
-		defer stdin.Close()
-		r := fmt.Sprintf("profile snap-test {\n %s\n}", rule)
-		io.WriteString(stdin, r)
-	}()
-
-	_, err = cmd.CombinedOutput()
-	if err != nil {
+	cmd := exec.Command("apparmor_parser", "--preprocess")
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	if err := cmd.Run(); err != nil {
 		return false
 	}
 	return true
