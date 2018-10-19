@@ -174,20 +174,12 @@ var kubernetesSupportConnectedPlugKmodKubeProxy = []string{
 	`stp`,
 }
 
-type kubernetesSupportInterface struct{}
-
-func (iface *kubernetesSupportInterface) Name() string {
-	return "kubernetes-support"
+type kubernetesSupportInterface struct {
+	commonInterface
 }
 
-func (iface *kubernetesSupportInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              kubernetesSupportSummary,
-		BaseDeclarationPlugs: kubernetesSupportBaseDeclarationPlugs,
-		BaseDeclarationSlots: kubernetesSupportBaseDeclarationSlots,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-	}
+func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func k8sFlavor(plug *interfaces.ConnectedPlug) string {
@@ -250,10 +242,6 @@ func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specificat
 	return nil
 }
 
-func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
 func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if flavor isn't specified, but if it is, it needs to be
 	// either "kubelet" or "kubeproxy"
@@ -264,11 +252,13 @@ func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) 
 	return nil
 }
 
-func (iface *kubernetesSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	// allow what declarations allowed
-	return true
-}
-
 func init() {
-	registerIface(&kubernetesSupportInterface{})
+	registerIface(&kubernetesSupportInterface{commonInterface{
+		name:                 "kubernetes-support",
+		summary:              kubernetesSupportSummary,
+		implicitOnClassic:    true,
+		implicitOnCore:       true,
+		baseDeclarationPlugs: kubernetesSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: kubernetesSupportBaseDeclarationSlots,
+	}})
 }
