@@ -90,7 +90,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 }
 
-func (s *apparmorSuite) TestProbeAppArmorParser(c *C) {
+func (s *apparmorSuite) TestAppArmorParserFeatures(c *C) {
 	tmpdir := c.MkDir()
 
 	var testcases = []struct {
@@ -104,8 +104,10 @@ func (s *apparmorSuite) TestProbeAppArmorParser(c *C) {
 	for _, t := range testcases {
 		mockApparmorParser := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf("cat > %s/stdin; %s", tmpdir, t.exit))
 		defer mockApparmorParser.Restore()
+		restore := release.MockAppArmorParserSearchPath(os.Getenv("PATH"))
+		defer restore()
 
-		features := release.ProbeAppArmorParser()
+		features := release.AppArmorParserFeatures()
 		c.Check(features, DeepEquals, t.features)
 		c.Check(mockApparmorParser.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
 		inp, err := ioutil.ReadFile(filepath.Join(tmpdir, "stdin"))
