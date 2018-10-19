@@ -140,12 +140,13 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":       true,
-		"core-support":  true,
-		"home":          true,
-		"lxd-support":   true,
-		"snapd-control": true,
-		"dummy":         true,
+		"content":           true,
+		"core-support":      true,
+		"home":              true,
+		"lxd-support":       true,
+		"multipass-support": true,
+		"snapd-control":     true,
+		"dummy":             true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -471,6 +472,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionMultipassSupportOverride(c *C) {
+	cand := s.connectCand(c, "multipass-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"multipass-support\"")
+
+	plugsSlots := `
+plugs:
+  multipass-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "multipass-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -572,6 +591,7 @@ var (
 		"classic-support": nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"multipass":       nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -634,6 +654,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+
+	// test multipass specially
+	ic = s.installSlotCand(c, "multipass", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"multipass\" slot rule of interface \"multipass\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -646,6 +672,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"multipass-support":     true,
 		"snapd-control":         true,
 		"unity8":                true,
 	}
@@ -694,6 +721,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":                       true,
 		"maliit":                    true,
 		"mir":                       true,
+		"multipass":                 true,
 		"network-status":            true,
 		"online-accounts-service":   true,
 		"storage-framework-service": true,
@@ -771,6 +799,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"multipass-support":     true,
 		"snapd-control":         true,
 		"udisks2":               true,
 		"unity8":                true,
