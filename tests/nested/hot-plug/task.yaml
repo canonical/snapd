@@ -11,7 +11,7 @@ prepare: |
     . "$TESTSLIB/nested.sh"
     create_nested_classic_vm
     copy_remote "${GOHOME}"/snapd_*.deb
-    execute_remote "sudo dpkg -i snapd_*.deb"
+    execute_remote "sudo apt install -y ./snapd_*.deb"
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
