@@ -133,22 +133,24 @@ func ValidateHook(name string) error {
 	return nil
 }
 
-var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
+// ValidAlias is a regular expression describing a valid alias
+var ValidAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
 // ValidateAlias checks if a string can be used as an alias name.
 func ValidateAlias(alias string) error {
-	valid := validAlias.MatchString(alias)
+	valid := ValidAlias.MatchString(alias)
 	if !valid {
 		return fmt.Errorf("invalid alias name: %q", alias)
 	}
 	return nil
 }
 
+// ValidAppName is a regular expression describing a valid application name
+var ValidAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
 // ValidateApp tells whether a string is a valid application name.
 func ValidateApp(n string) error {
-	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
-
-	if !validAppName.MatchString(n) {
+	if !ValidAppName.MatchString(n) {
 		return fmt.Errorf("invalid app name: %q", n)
 	}
 	return nil
