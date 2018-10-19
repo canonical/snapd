@@ -6,6 +6,7 @@ details: |
     channel pointed by the NEW_CORE_CHANNEL env var.
 
 prepare: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     create_nested_core_vm
     
@@ -14,6 +15,7 @@ restore: |
     rm -f core_*.{assert,snap} 
 
 execute: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
     if [ "$NEW_CORE_CHANNEL" = "" ]; then
@@ -21,8 +23,8 @@ execute: |
         exit 1
     fi
 
-    INITIAL_REV="$(get_nested_core_revision ${CORE_CHANNEL})"
-    NEW_REV="$(get_nested_core_revision ${NEW_CORE_CHANNEL})"
+    INITIAL_REV="$(get_nested_core_revision "${CORE_CHANNEL}")"
+    NEW_REV="$(get_nested_core_revision "${NEW_CORE_CHANNEL}")"
 
     # Install test snap
     execute_remote "snap install test-snapd-tools"
