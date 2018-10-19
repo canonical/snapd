@@ -750,6 +750,7 @@ type ScreenshotInfo struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width,omitempty"`
 	Height int64  `json:"height,omitempty"`
+	Note   string `json:"note,omitempty"`
 }
 
 type MediaInfo struct {
@@ -761,6 +762,8 @@ type MediaInfo struct {
 
 type MediaInfos []MediaInfo
 
+const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
+
 func (mis MediaInfos) Screenshots() []ScreenshotInfo {
 	shots := make([]ScreenshotInfo, 0, len(mis))
 	for _, mi := range mis {
@@ -771,6 +774,7 @@ func (mis MediaInfos) Screenshots() []ScreenshotInfo {
 			URL:    mi.URL,
 			Width:  mi.Width,
 			Height: mi.Height,
+			Note:   ScreenshotsDeprecationNotice,
 		})
 	}
 	return shots
