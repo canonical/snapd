@@ -228,16 +228,6 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 		}
 	}
 
-	modelSnaps := modela.RequiredSnaps()
-	modelSnaps = append(modelSnaps, modela.Kernel(), modela.Gadget())
-	if modela.Base() != "" {
-		// base is optional
-		modelSnaps = append(modelSnaps, modela.Base())
-	}
-	if err := validateSnapNames(modelSnaps); err != nil {
-		return nil, err
-	}
-
 	return modela, nil
 }
 
