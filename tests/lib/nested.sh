@@ -37,10 +37,10 @@ create_assertions_disk(){
 get_qemu_for_nested_vm(){
     case "$NESTED_ARCH" in
     amd64)
-        echo "$(command -v qemu-system-x86_64)"
+        command -v qemu-system-x86_64
         ;;
     i386)
-        echo "$(command -v qemu-system-i386)"
+        command -v qemu-system-i386
         ;;
     *)
         echo "unsupported architecture"
