@@ -244,8 +244,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	var sz sizer
 
-	cmd := maybeRunuserCommand(username,
-		"tar",
+	cmd := tarAsUser(username,
 		"--create",
 		"--sparse", "--gzip",
 		"--directory", parent, dir, "common")
