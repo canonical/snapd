@@ -107,6 +107,8 @@ deny ptrace (trace) peer=unconfined,
 @{PROC}/[0-9]*/map_files/ r,
 @{PROC}/[0-9]*/ns/ r,
 
+# kubernetes will verify and set panic and panic_on_oops to values it considers
+# sane
 @{PROC}/sys/kernel/panic w,
 @{PROC}/sys/kernel/panic_on_oops w,
 @{PROC}/sys/kernel/keys/root_maxbytes r,
