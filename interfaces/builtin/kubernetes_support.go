@@ -131,7 +131,7 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
   /bin/mount ixr,
-  mount -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  mount tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
 `
 
