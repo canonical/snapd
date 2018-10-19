@@ -200,7 +200,7 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 	systemd_run_extra := ""
 
-	switch flavor := k8sFlavor(plug); flavor {
+	switch k8sFlavor(plug) {
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
