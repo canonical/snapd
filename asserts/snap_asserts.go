@@ -23,13 +23,13 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
-	"regexp"
 	"time"
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	snapname "github.com/snapcore/snapd/snap/name"
 )
 
 // SnapDeclaration holds a snap-declaration assertion, declaring a
@@ -195,11 +195,6 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	return formatnum, nil
 }
 
-var (
-	validAlias   = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
-	validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
-)
-
 func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 	value, ok := headers["aliases"]
 	if !ok {
@@ -221,13 +216,13 @@ func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 		}
 
 		what := fmt.Sprintf(`in "aliases" item %d`, i+1)
-		name, err := checkStringMatchesWhat(aliasItem, "name", what, validAlias)
+		name, err := checkStringMatchesWhat(aliasItem, "name", what, snapname.ValidAlias)
 		if err != nil {
 			return nil, err
 		}
 
 		what = fmt.Sprintf(`for alias %q`, name)
-		target, err := checkStringMatchesWhat(aliasItem, "target", what, validAppName)
+		target, err := checkStringMatchesWhat(aliasItem, "target", what, snapname.ValidAppName)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +291,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	}
 
 	// XXX: depracated, will go away later
-	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", validAlias)
+	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", snapname.ValidAlias)
 	if err != nil {
 		return nil, err
 	}
