@@ -8,4 +8,5 @@ prepare: |
     GOPATH=/tmp/darwin-build /snap/bin/go get golang.org/x/sys/unix
 
 execute: |
+    cd /tmp/darwin-build/src/github.com/snapcore/cmd/snap
     su -l -c "GOOS=darwin PATH=$PATH GOPATH=/tmp/darwin-build /snap/bin/go build -o /dev/null github.com/snapcore/snapd/cmd/snap" test
