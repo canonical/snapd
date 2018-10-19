@@ -46,7 +46,7 @@ func snapIcon(info *snap.Info) string {
 	// XXX: copy of snap.Snap.Icon which will go away
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return info.IconURL
+		return info.Media.IconURL()
 	}
 
 	return found[0]
@@ -130,7 +130,15 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			for _, seq := range snapst.Sequence {
 				info, err = snap.ReadInfo(name, seq)
 				if err != nil {
-					break
+					// single revision may be broken
+					_, instanceKey := snap.SplitInstanceName(name)
+					info = &snap.Info{
+						SideInfo:    *seq,
+						InstanceKey: instanceKey,
+						Broken:      err.Error(),
+					}
+					// clear the error
+					err = nil
 				}
 				publisher, err = publisherAccount(st, info)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
@@ -377,15 +385,6 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		confinement = snap.StrictConfinement
 	}
 
-	screenshots := make([]client.Screenshot, len(remoteSnap.Screenshots))
-	for i, screenshot := range remoteSnap.Screenshots {
-		screenshots[i] = client.Screenshot{
-			URL:    screenshot.URL,
-			Width:  screenshot.Width,
-			Height: screenshot.Height,
-		}
-	}
-
 	publisher := remoteSnap.Publisher
 	result := &client.Snap{
 		Description:  remoteSnap.Description(),
@@ -407,7 +406,8 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Contact:      remoteSnap.Contact,
 		Title:        remoteSnap.Title(),
 		License:      remoteSnap.License,
-		Screenshots:  screenshots,
+		Screenshots:  remoteSnap.Media.Screenshots(),
+		Media:        remoteSnap.Media,
 		Prices:       remoteSnap.Prices,
 		Channels:     remoteSnap.Channels,
 		Tracks:       remoteSnap.Tracks,

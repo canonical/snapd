@@ -33,6 +33,7 @@ type timeMixin struct {
 }
 
 var timeDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"abs-time": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 60 days, then YYYY-MM-DD."),
 }
 

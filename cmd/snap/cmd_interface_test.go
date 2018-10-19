@@ -41,15 +41,13 @@ If no interface name is provided, a list of interface names with at least
 one connection is shown, or a list of all interfaces if --all is provided.
 
 [interface command options]
-          --attrs        Show interface attributes
-          --all          Include unused interfaces
+      --attrs          Show interface attributes
+      --all            Include unused interfaces
 
 [interface command arguments]
-  <interface>:           Show details of a specific interface
+  <interface>:         Show details of a specific interface
 `
-	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "interface", msg)
 }
 
 func (s *SnapSuite) TestInterfaceListEmpty(c *C) {

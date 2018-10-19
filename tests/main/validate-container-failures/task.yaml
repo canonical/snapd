@@ -19,9 +19,9 @@ execute: |
     . "$TESTSLIB/journalctl.sh"
 
     echo "Snap refuses to install"
-    snap try $TESTSLIB/snaps/$SNAP 2>error.log && exit 1 || true
+    ! snap try "$TESTSLIB/snaps/$SNAP" 2>error.log
     echo "The error tells you to ask the dev"
-    tr -s "\n " " " < error.log | MATCH 'contact developer'
+    tr -s '\n ' ' ' < error.log | MATCH 'contact developer'
 
     echo "And the journal counts the ways"
     check_journalctl_log '"comp.sh" should be world-readable' -u snapd

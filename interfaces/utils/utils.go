@@ -30,13 +30,17 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 	case float32:
 		return float64(v)
 	case []interface{}:
+		vc := make([]interface{}, len(v))
 		for i, el := range v {
-			v[i] = NormalizeInterfaceAttributes(el)
+			vc[i] = NormalizeInterfaceAttributes(el)
 		}
+		return vc
 	case map[string]interface{}:
+		vc := make(map[string]interface{}, len(v))
 		for key, item := range v {
-			v[key] = NormalizeInterfaceAttributes(item)
+			vc[key] = NormalizeInterfaceAttributes(item)
 		}
+		return vc
 	}
 	return value
 }

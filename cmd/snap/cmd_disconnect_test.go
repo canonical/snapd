@@ -47,12 +47,10 @@ Disconnects everything from the provided plug or slot.
 The snap name may be omitted for the core snap.
 
 [disconnect command options]
-          --no-wait        Do not wait for the operation to finish but just
-                           print the change id.
+      --no-wait          Do not wait for the operation to finish but just print
+                         the change id.
 `
-	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "disconnect", msg)
 }
 
 func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {

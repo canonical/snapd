@@ -795,8 +795,8 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
-	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -903,6 +903,20 @@ func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"revert"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
+}
+
+func (s *SnapSuite) TestRefreshListLessOptions(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("expected to get 0 requests")
+	})
+
+	for _, flag := range []string{"--beta", "--channel=potato", "--classic"} {
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag})
+		c.Assert(err, check.ErrorMatches, "--list does not accept additional arguments")
+
+		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag, "some-snap"})
+		c.Assert(err, check.ErrorMatches, "--list does not accept additional arguments")
+	}
 }
 
 func (s *SnapSuite) TestRefreshList(c *check.C) {
@@ -1018,12 +1032,6 @@ func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time"})
 	c.Assert(err, check.ErrorMatches, `internal error: both refresh.timer and refresh.schedule are empty`)
-}
-
-func (s *SnapSuite) TestRefreshListErr(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", "--beta"})
-	c.Check(err, check.ErrorMatches, "--list does not take .* flags")
 }
 
 func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
@@ -1359,6 +1367,26 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
+	s.srv.total = 3
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":   "remove",
+			"revision": "17",
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(revision 17\) removed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)

@@ -1,3 +1,31 @@
+snapd (2.35.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1786438
+    - interfaces/home: don't allow snaps to write to $HOME/bin
+    - osutil: workaround overlayfs on ubuntu 18.10
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 15 Oct 2018 22:23:02 +0200
+
+snapd (2.35.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1786438
+    - wrappers: do not depend on network.taget in socket units, tweak
+      generated units
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 05 Oct 2018 14:41:33 +0200
+
+snapd (2.35.3~14.04) trusty; urgency=medium
+
+    - overlord: don't make become-operational interfere with user
+      requests
+    - docker_support.go: add rules to read apparmor macros
+    - interfaces/apparmor: handle overlayfs snippet for snap-update-
+      nsFixes:
+    - snapcraft.yaml: add workaround to fix snapcraft build
+    - interfaces/opengl: misc accesses for VA-API
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 05 Oct 2018 09:32:00 +0200
+
 snapd (2.35.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1786438

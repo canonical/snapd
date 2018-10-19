@@ -220,6 +220,7 @@
     # pivot_root preparation and execution
     mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
     mount options=(rw private) -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+    # pivot_root mediation in AppArmor is not complete. See LP: #1791711
     pivot_root,
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
