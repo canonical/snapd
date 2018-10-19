@@ -42,7 +42,10 @@ assertions.
 `),
 		func() flags.Commander {
 			return &cmdKeys{}
-		}, map[string]string{"json": i18n.G("Output results in JSON format")}, nil)
+		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"json": i18n.G("Output results in JSON format"),
+		}, nil)
 	cmd.hidden = true
 }
 

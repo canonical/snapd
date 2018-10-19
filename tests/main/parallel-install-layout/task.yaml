@@ -7,7 +7,6 @@ details: |
 
 prepare: |
     echo "Ensure feature flags are enabled"
-    snap set system experimental.layouts=true
     snap set system experimental.parallel-instances=true
 
 execute: |
@@ -17,15 +16,8 @@ execute: |
     echo "Install the regular snap"
     install_local test-snapd-layout
 
-    devmode=
-    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-        # TODO parallel-install: disable devmode once AppArmor profile updates
-        # are in
-        devmode=--devmode
-    fi
-
     echo "Sideload the parallel installed snap"
-    install_local_as test-snapd-layout test-snapd-layout_foo $devmode
+    install_local_as test-snapd-layout test-snapd-layout_foo
 
     for name in test-snapd-layout test-snapd-layout_foo; do
         # workaround trespassing bug
@@ -45,7 +37,7 @@ execute: |
         $name.sh -c "test -d /var/lib/demo"
         $name.sh -c "test -d /var/cache/demo"
         $name.sh -c "test -d /opt/demo"
-        $name.sh -c "test -d /bin/very-weird-place"
+        $name.sh -c "test -d /bin/very/weird/place"
         # Ideally we'd perform this test but the rsyslog directory has mode 700 and user mode 108:4
         # test-snapd-layout.sh -c "test -d /var/spool/rsyslog/demo"
 
@@ -80,8 +72,8 @@ execute: |
 
         echo "layout locations in dynamically created $name \$SNAP directories are writable"
         # shellcheck disable=SC2016
-        $name.sh -c 'test -w $SNAP/bin-very-weird-place'
-        $name.sh -c 'test -w /bin/very-weird-place'
+        $name.sh -c 'test -w $SNAP/bin/very/weird/place'
+        $name.sh -c 'test -w /bin/very/weird/place'
     done
 
     echo "verify snap data is correct on the outside of snap mount namespace"
@@ -92,8 +84,3 @@ execute: |
         MATCH "$name foo-4" < "/var/snap/$name/x1/var/lib/demo/writable"
         MATCH "$name foo-5" < "/var/snap/$name/x1/var/cache/demo/writable"
     done
-
-restore:
-    # cleanup after the trespassing bug, see: https://github.com/snapcore/snapd/pull/4889
-    # TODO: remove this once the problem is addressed
-    rm -rf /etc/demo /etc/demo.conf /etc/demo.cfg

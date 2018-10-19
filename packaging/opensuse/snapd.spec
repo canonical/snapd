@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.35.2
+Version:        2.35.5
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -114,6 +114,13 @@ Requires:       apparmor-profiles
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
+
+# Old versions of xdg-document-portal can expose data belonging to
+# other confied apps.  Older OpenSUSE releases are unlikely to change,
+# so for now limit this to Tumbleweed.
+%if 0%{?suse_version} >= 1550
+Conflicts:      xdg-desktop-portal < 0.11
+%endif
 
 %{?systemd_requires}
 
@@ -220,6 +227,9 @@ mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
 mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}%{_bindir}/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}%{_bindir}/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
+# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
+mv %{buildroot}%{_bindir}/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
 
 # Install all systemd and dbus units, and env files
 %make_install -C data BINDIR=%{_bindir} LIBEXECDIR=%{_libexecdir} \
@@ -227,8 +237,8 @@ mv %{buildroot}%{_bindir}/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-sec
                       SNAP_MOUNT_DIR=%{snap_mount_dir}
 
 # Generate and install man page for snap command
-install -m 755 -d %{buildroot}%{_mandir}/man1
-%{buildroot}%{_bindir}/snap help --man >  %{buildroot}%{_mandir}/man1/snap.1
+install -m 755 -d %{buildroot}%{_mandir}/man8
+%{buildroot}%{_bindir}/snap help --man >  %{buildroot}%{_mandir}/man8/snap.8
 
 # TODO: enable gosrc
 # TODO: enable gofilelist
@@ -353,9 +363,9 @@ fi
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
-%{_mandir}/man1/snap-confine.1.*
-%{_mandir}/man5/snap-discard-ns.5.*
-%{_mandir}/man7/snapd-env-generator.7*
+%{_mandir}/man8/snap-confine.8*
+%{_mandir}/man8/snap-discard-ns.8*
+%{_mandir}/man8/snapd-env-generator.8*
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
@@ -376,6 +386,7 @@ fi
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snapctl
 %if %{with apparmor}
 %{_libexecdir}/snapd/snapd-apparmor
 %endif
@@ -386,7 +397,7 @@ fi
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_prefix}/lib/systemd/system-generators/snapd-generator
-%{_mandir}/man1/snap.1.*
+%{_mandir}/man8/snap.8*
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy

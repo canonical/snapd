@@ -108,7 +108,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -783,4 +783,30 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
+}
+
+func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Millisecond)
+	defer restoreIntv()
+	o := overlord.Mock()
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 3,
+		ensureCalled:   make(chan struct{}),
+	}
+	o.AddManager(witness)
+
+	// can only standby after loop ran once
+	c.Assert(o.CanStandby(), Equals, false)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+
+	c.Assert(o.CanStandby(), Equals, true)
 }

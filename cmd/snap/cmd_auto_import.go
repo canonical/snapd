@@ -242,7 +242,9 @@ func init() {
 		func() flags.Commander {
 			return &cmdAutoImport{}
 		}, map[string]string{
-			"mount":         i18n.G("Temporarily mount device before inspecting"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"mount": i18n.G("Temporarily mount device before inspecting"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"force-classic": i18n.G("Force import on classic systems"),
 		}, nil)
 	cmd.hidden = true

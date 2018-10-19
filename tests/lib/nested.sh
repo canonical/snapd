@@ -59,7 +59,7 @@ create_nested_core_vm(){
 
     # create ubuntu-core image
     EXTRA_SNAPS=""
-    if [ -d "${PWD}/extra-snaps" ] && [ "$(ls -l ${PWD}/extra-snaps/*.snap | wc -l)" -gt 0 ]; then
+    if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
         EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
     fi
     /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" --channel "$CORE_CHANNEL" --output ubuntu-core.img "$EXTRA_SNAPS"

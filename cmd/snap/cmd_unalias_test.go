@@ -37,12 +37,10 @@ alias, or disables all aliases of a snap, including manual ones, if the
 argument is a snap name.
 
 [unalias command options]
-          --no-wait          Do not wait for the operation to finish but just
-                             print the change id.
+      --no-wait            Do not wait for the operation to finish but just
+                           print the change id.
 `
-	rest, err := Parser(Client()).ParseArgs([]string{"unalias", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "unalias", msg)
 }
 
 func (s *SnapSuite) TestUnalias(c *C) {

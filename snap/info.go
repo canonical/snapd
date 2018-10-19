@@ -237,13 +237,12 @@ type Info struct {
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
-	IconURL string
 	Prices  map[string]float64
 	MustBuy bool
 
 	Publisher StoreAccount
 
-	Screenshots []ScreenshotInfo
+	Media MediaInfos
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -445,7 +444,6 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			// TODO parallel-install: use of proper instance/store name
 			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
@@ -654,6 +652,11 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// HotplugKey is a unique key built by the slot's interface using properties of a
+	// hotplugged so that the same slot may be made available if the device is reinserted.
+	// It's empty for regular slots.
+	HotplugKey string
 }
 
 // SocketInfo provides information on application sockets.
@@ -716,6 +719,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     RestartCondition
+	RestartDelay    timeout.Timeout
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
@@ -743,9 +747,42 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string
-	Width  int64
-	Height int64
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+}
+
+type MediaInfo struct {
+	Type   string `json:"type"`
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+}
+
+type MediaInfos []MediaInfo
+
+func (mis MediaInfos) Screenshots() []ScreenshotInfo {
+	shots := make([]ScreenshotInfo, 0, len(mis))
+	for _, mi := range mis {
+		if mi.Type != "screenshot" {
+			continue
+		}
+		shots = append(shots, ScreenshotInfo{
+			URL:    mi.URL,
+			Width:  mi.Width,
+			Height: mi.Height,
+		})
+	}
+	return shots
+}
+
+func (mis MediaInfos) IconURL() string {
+	for _, mi := range mis {
+		if mi.Type == "icon" {
+			return mi.URL
+		}
+	}
+	return ""
 }
 
 // HookInfo provides information about a hook.
