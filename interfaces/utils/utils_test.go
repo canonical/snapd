@@ -17,12 +17,14 @@
  *
  */
 
-package utils
+package utils_test
 
 import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/interfaces/utils"
 )
 
 func Test(t *testing.T) {
@@ -32,3 +34,46 @@ func Test(t *testing.T) {
 type utilsSuite struct{}
 
 var _ = Suite(&utilsSuite{})
+
+func (s *utilsSuite) TestNormalizeInterfaceAttributes(c *C) {
+	normalize := utils.NormalizeInterfaceAttributes
+	c.Assert(normalize(false), Equals, false)
+	c.Assert(normalize(nil), Equals, nil)
+	c.Assert(normalize(42), Equals, int64(42))
+	c.Assert(normalize(3.14), Equals, float64(3.14))
+	// Funny that, I noticed it only because of missing test coverage.
+	c.Assert(normalize(float32(3.14)), Equals, float64(3.140000104904175))
+	c.Assert(normalize("banana"), Equals, "banana")
+	c.Assert(normalize([]interface{}{42, 3.14, "banana"}), DeepEquals,
+		[]interface{}{int64(42), float64(3.14), "banana"})
+	c.Assert(normalize(map[string]interface{}{"i": 42, "f": 3.14, "s": "banana"}),
+		DeepEquals, map[string]interface{}{"i": int64(42), "f": float64(3.14), "s": "banana"})
+
+	// Normalize doesn't mutate slices it is given
+	sliceIn := []interface{}{42}
+	sliceOut := normalize(sliceIn)
+	c.Assert(sliceIn, DeepEquals, []interface{}{42})
+	c.Assert(sliceOut, DeepEquals, []interface{}{int64(42)})
+
+	// Normalize doesn't mutate maps it is given
+	mapIn := map[string]interface{}{"i": 42}
+	mapOut := normalize(mapIn)
+	c.Assert(mapIn, DeepEquals, map[string]interface{}{"i": 42})
+	c.Assert(mapOut, DeepEquals, map[string]interface{}{"i": int64(42)})
+}
+
+func (s *utilsSuite) TestCopyAttributes(c *C) {
+	cpattr := utils.CopyAttributes
+
+	attrsIn := map[string]interface{}{"i": 42}
+	attrsOut := cpattr(attrsIn)
+	attrsIn["i"] = "changed"
+	c.Assert(attrsIn, DeepEquals, map[string]interface{}{"i": "changed"})
+	c.Assert(attrsOut, DeepEquals, map[string]interface{}{"i": 42})
+
+	attrsIn = map[string]interface{}{"ao": []interface{}{1, 2, 3}}
+	attrsOut = cpattr(attrsIn)
+	attrsIn["ao"].([]interface{})[1] = "changed"
+	c.Assert(attrsIn, DeepEquals, map[string]interface{}{"ao": []interface{}{1, "changed", 3}})
+	c.Assert(attrsOut, DeepEquals, map[string]interface{}{"ao": []interface{}{1, 2, 3}})
+}

@@ -303,8 +303,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		// resist the temptation of using archive/tar unless it's proven
 		// that calling out to tar has issues -- there are a lot of
 		// special cases we'd need to consider otherwise
-		cmd := maybeRunuserCommand(username,
-			"tar",
+		cmd := tarAsUser(username,
 			"--extract",
 			"--preserve-permissions", "--preserve-order", "--gunzip",
 			"--directory", tempdir)
