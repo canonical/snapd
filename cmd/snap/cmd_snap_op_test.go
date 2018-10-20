@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
 	"github.com/snapcore/snapd/testutil"
+	"os"
 )
 
 type snapOpTestServer struct {
@@ -1280,9 +1281,50 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 
 	cmd := []string{"try", "/"}
 	_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
-	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
+	c.Assert(err, check.ErrorMatches, rewrappingMatcher(`
+"/" does not contain an unpacked snap.
 
-Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`))
+}
+
+func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
+	oldArgs := os.Args
+	defer func() {
+		os.Args = oldArgs
+	}()
+	os.Args = []string{"snap", "try", "./"}
+	var kind string
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST", check.Commentf("%q", kind))
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `
+{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "value": "some-snap",
+    "kind": %q
+  },
+  "status-code": 400
+}`, kind)
+	})
+
+	type table struct {
+		kind, expected string
+	}
+
+	tests := []table{
+		{"snap-needs-classic", "published using classic confinement"},
+		{"snap-needs-devmode", "only meant for development"},
+	}
+
+	for _, test := range tests {
+		kind = test.kind
+		rx := rewrappingMatcher(test.expected)
+		err := snap.RunMain()
+		c.Check(err, check.ErrorMatches, rx, check.Commentf("%q", kind))
+	}
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
