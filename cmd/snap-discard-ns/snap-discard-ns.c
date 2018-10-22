@@ -95,6 +95,9 @@ int main(int argc, char **argv)
 			 "%s\\.*\\.mnt", snap_instance_name);
 
 	DIR *ns_dir = fdopendir(ns_dir_fd);
+	if (ns_dir == NULL) {
+		die("cannot fdopendir");
+	}
 	/* ns_dir_fd is now owned by ns_dir and will not be closed. */
 
 	while (true) {
