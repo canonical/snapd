@@ -82,6 +82,9 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	apparmorFeaturesStr, err := json.Marshal(release.AppArmorFeatures())
 	c.Assert(err, IsNil)
 
+	apparmorParserMtime, err := json.Marshal(release.AppArmorParserMtime())
+	c.Assert(err, IsNil)
+
 	apparmorParserFeaturesStr, err := json.Marshal(release.AppArmorParserFeatures())
 	c.Assert(err, IsNil)
 
@@ -96,7 +99,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
@@ -123,7 +126,39 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor_features": ["caps", "dbus", "more", "and", "more"]
+"apparmor-features": ["caps", "dbus", "more", "and", "more"]
+}
+`))
+	mismatch, err = interfaces.SystemKeyMismatch()
+	c.Assert(err, IsNil)
+	c.Check(mismatch, Equals, true)
+}
+
+func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-parser-mtime": 1234
+}
+`))
+
+	// no system-key yet -> Error
+	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	_, err := interfaces.SystemKeyMismatch()
+	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
+
+	// create a system-key -> no mismatch anymore
+	err = interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+	mismatch, err := interfaces.SystemKeyMismatch()
+	c.Assert(err, IsNil)
+	c.Check(mismatch, Equals, false)
+
+	// change our system-key to have a different parser mtime
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-parser-mtime": 5678
 }
 `))
 	mismatch, err = interfaces.SystemKeyMismatch()

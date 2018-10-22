@@ -48,6 +48,7 @@ import (
 type snapshotSuite struct {
 	root    string
 	restore []func()
+	tarPath string
 }
 
 var _ = check.Suite(&snapshotSuite{})
@@ -107,6 +108,9 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		rv.HomeDir = filepath.Join(dirs.GlobalRootDir, "home/snapuser")
 		return &rv, nil
 	}))
+
+	s.tarPath, err = exec.LookPath("tar")
+	c.Assert(err, check.IsNil)
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -620,12 +624,12 @@ func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
 		Args: []string{"/sbin/runuser", "-u", "test", "--", "tar", "--bar"},
 	})
 	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	uid = 42
 	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	c.Check(logbuf.String(), check.Equals, "")
@@ -644,12 +648,12 @@ func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
 		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "tar", "--bar"},
 	})
 	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	uid = 42
 	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	c.Check(logbuf.String(), check.Equals, "")
@@ -663,16 +667,16 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	defer restore()
 
 	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	uid = 42
 	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: "/bin/tar",
+		Path: s.tarPath,
 		Args: []string{"tar", "--bar"},
 	})
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
