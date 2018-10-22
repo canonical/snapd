@@ -534,7 +534,7 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 	if raw != nil {
 		err = jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns)
 		if err != nil {
-			return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+			return nil, fmt.Errorf("cannot decode data about existing connections: %s", err)
 		}
 	}
 	if conns == nil {
