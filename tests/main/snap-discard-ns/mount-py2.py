@@ -58,3 +58,4 @@ if __name__ == "__main__":
         main()
     except Exception as err:
         print(err, file=stderr)
+        raise SystemExit(1)
