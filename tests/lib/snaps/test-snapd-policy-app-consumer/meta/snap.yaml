@@ -8,9 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
-  adb:
+  adb-support:
     command: bin/run
-    plugs: [ adb ]
+    plugs: [ adb-support ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
