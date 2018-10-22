@@ -25,27 +25,24 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
 )
 
-const adbSummary = `allows operating as Android Debug Bridge service`
+const adbSupportSummary = `allows operating as Android Debug Bridge service`
 
-const adbBaseDeclarationSlots = `
-  adb:
+const adbSupportBaseDeclarationSlots = `
+  adb-support:
     allow-installation:
       slot-snap-type:
-        - app
+        - core
     deny-auto-connection: true
 `
 
-// adbVendors contains the map of USB vendor IDs to vendor name.
+// adbSupportVendors contains the map of USB vendor IDs to vendor name.
 //
 // The map contains the list of vendors that make or made devices that ADB may
 // want to talk to. It was derived from https://forum.snapcraft.io/t//5443/3
-var adbVendors = map[int]string{
+var adbSupportVendors = map[int]string{
 	0x03f0: "HP",
 	0x03fc: "ECS",
 	0x0408: "QUANTA",
@@ -128,13 +125,7 @@ var adbVendors = map[int]string{
 	0xE040: "VIZIO",
 }
 
-var adbPermanentSlotAppArmor = `
-# Allow adb (server) to use TCP/IP for localhost IPC.
-# TODO: once fine-grained network mediation is possible, constrain this to localhost.
-network inet stream,
-`
-
-var adbConnectedSlotAppArmor = `
+var adbSupportConnectedPlugAppArmor = `
 # Allow adb (server) to access all usb devices and rely on the device cgroup for mediation.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
@@ -147,52 +138,23 @@ var adbConnectedSlotAppArmor = `
 /sys/devices/**/usb*/*/serial r,
 `
 
-var adbPermanentSlotSecComp = `
-# Allow adb (server) to use TCP/IP for localhost IPC.
-accept
-accept4
-bind
-listen
-socket AF_INET SOCK_STREAM -
-`
-
-var adbConnectedPlugAppArmor = `
-# Allow adb (client) to use TCP/IP for localhost IPC.
-# TODO: once fine-grained network mediation is possible, constrain this to localhost.
-network inet stream,
-`
-
-var adbConnectedPlugSecComp = `
-# Allow adb (client) to use TCP/IP for localhost IPC.
-socket AF_INET SOCK_STREAM -
-connect
-`
-
-type adbInterface struct {
+type adbSupportInterface struct {
 	commonInterface
 	sortedVendorIDs []int
 }
 
-func (iface *adbInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(adbPermanentSlotAppArmor)
-	return nil
-}
-
-func (iface *adbInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(adbConnectedSlotAppArmor)
-	return nil
-}
-
-func (iface *adbInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(adbPermanentSlotSecComp)
-	return nil
-}
-
-func (iface *adbInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "# Concatenation of all adb udev rules.\n")
+func (iface *adbSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, vendorID := range iface.vendorIDs() {
-		fmt.Fprintf(&buf, "# %s\n", adbVendors[vendorID])
+		spec.TagDevice(fmt.Sprintf("SUBSYSTEM==\"usb\", ATTR{idVendor}==\"%04x\"", vendorID))
+	}
+	return nil
+}
+
+func (iface *adbSupportInterface) UDevConnectedSlot(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "# Concatenation of all adb-support udev rules.\n")
+	for _, vendorID := range iface.vendorIDs() {
+		fmt.Fprintf(&buf, "# %s\n", adbSupportVendors[vendorID])
 		// TODO: consider changing to 0660 once we have support for system groups.
 		fmt.Fprintf(&buf, "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"%04x\", MODE=\"0666\"\n", vendorID)
 	}
@@ -200,18 +162,11 @@ func (iface *adbInterface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 	return nil
 }
 
-func (iface *adbInterface) UDevConnectedSlot(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for _, vendorID := range iface.vendorIDs() {
-		spec.TagDevice(fmt.Sprintf("SUBSYSTEM==\"usb\", ATTR{idVendor}==\"%04x\"", vendorID))
-	}
-	return nil
-}
-
 // vendorIDs returns a sorted list of vendor IDs supported by adb interface.
-func (iface *adbInterface) vendorIDs() []int {
+func (iface *adbSupportInterface) vendorIDs() []int {
 	if iface.sortedVendorIDs == nil {
-		vendorIDs := make([]int, 0, len(adbVendors))
-		for vendorID := range adbVendors {
+		vendorIDs := make([]int, 0, len(adbSupportVendors))
+		for vendorID := range adbSupportVendors {
 			vendorIDs = append(vendorIDs, vendorID)
 		}
 		sort.Ints(vendorIDs)
@@ -221,11 +176,12 @@ func (iface *adbInterface) vendorIDs() []int {
 }
 
 func init() {
-	registerIface(&adbInterface{commonInterface: commonInterface{
-		name:                  "adb",
-		summary:               adbSummary,
-		baseDeclarationSlots:  adbBaseDeclarationSlots,
-		connectedPlugAppArmor: adbConnectedPlugAppArmor,
-		connectedPlugSecComp:  adbConnectedPlugSecComp,
+	registerIface(&adbSupportInterface{commonInterface: commonInterface{
+		name:                  "adb-support",
+		summary:               adbSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  adbSupportBaseDeclarationSlots,
+		connectedPlugAppArmor: adbSupportConnectedPlugAppArmor,
 	}})
 }
