@@ -152,10 +152,10 @@ copy_remote(){
     sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$*" user1@localhost:~
 }
 
-add_chardev(){
+add_file_chardev(){
     CHARDEV_ID=$1
-    CHARDEV_PORT=$2
-    echo "chardev-add socket,id=$CHARDEV_ID,port=$CHARDEV_PORT,server,host=localhost,nowait" | nc -q 0 127.0.0.1 "$MON_PORT"
+    CHARDEV_PATH=$2
+    echo "chardev-add file,id=$CHARDEV_ID,path=$CHARDEV_PATH" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "chardev added"
 }
 
