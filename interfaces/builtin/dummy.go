@@ -72,6 +72,10 @@ func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) e
 }
 
 func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
+	var num int64
+	if err := slot.Attr("producer-num-1", &num); err != nil {
+		return err
+	}
 	var value string
 	if err := slot.Attr("before-connect", &value); err != nil {
 		return err

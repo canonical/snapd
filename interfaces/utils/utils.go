@@ -19,6 +19,10 @@
 
 package utils
 
+import (
+	"encoding/json"
+)
+
 // NormalizeInterfaceAttributes normalises types of an attribute values.
 // The following transformations are applied: int -> int64, float32 -> float64.
 // The normalisation proceeds recursively through maps and slices.
@@ -41,6 +45,13 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 			vc[key] = NormalizeInterfaceAttributes(item)
 		}
 		return vc
+	case json.Number:
+		jsonval := value.(json.Number)
+		if asInt, err := jsonval.Int64(); err == nil {
+			return asInt
+		}
+		asFloat, _ := jsonval.Float64()
+		return asFloat
 	}
 	return value
 }
