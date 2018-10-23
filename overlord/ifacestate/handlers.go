@@ -651,10 +651,10 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 				return err
 			}
 			if plugRef.Snap == plugSnap {
-				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s, task %q", plugSnap, k)}
+				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting plug snap %s, task %q", plugSnap, k)}
 			}
 			if slotRef.Snap == slotSnap {
-				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s, task %q", slotSnap, k)}
+				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting slot snap %s, task %q", slotSnap, k)}
 			}
 			continue
 		}
