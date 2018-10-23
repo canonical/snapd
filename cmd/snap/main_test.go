@@ -28,6 +28,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -294,4 +296,46 @@ func (s *SnapSuite) TestResolveApp(c *C) {
 
 	_, err = snap.ResolveApp("baz")
 	c.Check(err, NotNil)
+}
+
+func (s *SnapSuite) TestFirstNonOptionIsRun(c *C) {
+	osArgs := os.Args
+	defer func() {
+		os.Args = osArgs
+	}()
+	for _, negative := range []string{
+		"",
+		"snap",
+		"snap verb",
+		"snap verb --flag arg",
+		"snap verb arg --flag",
+		"snap --global verb --flag arg",
+	} {
+		os.Args = strings.Fields(negative)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, false)
+	}
+
+	for _, positive := range []string{
+		"snap run",
+		"snap run --flag",
+		"snap run --flag arg",
+		"snap run arg --flag",
+		"snap --global run",
+		"snap --global run --flag",
+		"snap --global run --flag arg",
+		"snap --global run arg --flag",
+	} {
+		os.Args = strings.Fields(positive)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, true)
+	}
+}
+
+// rewrappingMatcher takes a string that's expected to be in the output of
+// a command, and turns it into a regexp that survives rewraps
+func rewrappingMatcher(expected string) string {
+	fields := strings.Fields(expected)
+	for i, field := range fields {
+		fields[i] = regexp.QuoteMeta(field)
+	}
+	return "(?s).*" + strings.Join(fields, `\s+`) + ".*"
 }

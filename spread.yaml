@@ -60,7 +60,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 6
-
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -387,12 +389,24 @@ prepare: |
         # increase the number of download attempts libzypp will try to
         # workaround that.
         cat <<-EOF >> /etc/zypp/zypp.conf
-
     # added by spread tests
     download.max_silent_tries = 20
     EOF
-
     fi
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Possible that AppArmor was not started and is not enabled in the
+        # image, do both now
+        if systemctl show -p LoadState apparmor.service | MATCH 'LoadState=loaded' ; then
+            if ! systemctl is-enabled apparmor.service; then
+                systemctl enable apparmor.service
+            fi
+            systemctl start apparmor.service
+        else
+            exit 1
+        fi
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then

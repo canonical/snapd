@@ -444,7 +444,6 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			// TODO parallel-install: use of proper instance/store name
 			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
@@ -653,6 +652,11 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// HotplugKey is a unique key built by the slot's interface using properties of a
+	// hotplugged so that the same slot may be made available if the device is reinserted.
+	// It's empty for regular slots.
+	HotplugKey string
 }
 
 // SocketInfo provides information on application sockets.
@@ -715,6 +719,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     RestartCondition
+	RestartDelay    timeout.Timeout
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
@@ -745,6 +750,7 @@ type ScreenshotInfo struct {
 	URL    string `json:"url"`
 	Width  int64  `json:"width,omitempty"`
 	Height int64  `json:"height,omitempty"`
+	Note   string `json:"note,omitempty"`
 }
 
 type MediaInfo struct {
@@ -756,6 +762,8 @@ type MediaInfo struct {
 
 type MediaInfos []MediaInfo
 
+const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
+
 func (mis MediaInfos) Screenshots() []ScreenshotInfo {
 	shots := make([]ScreenshotInfo, 0, len(mis))
 	for _, mi := range mis {
@@ -766,6 +774,7 @@ func (mis MediaInfos) Screenshots() []ScreenshotInfo {
 			URL:    mi.URL,
 			Width:  mi.Width,
 			Height: mi.Height,
+			Note:   ScreenshotsDeprecationNotice,
 		})
 	}
 	return shots

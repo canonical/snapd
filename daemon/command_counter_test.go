@@ -26,9 +26,21 @@ import (
 	"go/token"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 )
+
+func countCommandDecls(c *check.C, comment check.CommentInterface) int {
+	n := 0
+	fns, _ := filepath.Glob("*.go")
+	for _, fn := range fns {
+		if !strings.HasSuffix(fn, "_test.go") {
+			n += countCommandDeclsIn(c, fn, comment)
+		}
+	}
+	return n
+}
 
 func countCommandDeclsIn(c *check.C, filename string, comment check.CommentInterface) int {
 	// NOTE: there's probably a

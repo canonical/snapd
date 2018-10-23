@@ -22,10 +22,14 @@ package backend
 import (
 	"os"
 	"os/user"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var (
-	AddDirToZip = addDirToZip
+	AddDirToZip     = addDirToZip
+	TarAsUser       = tarAsUser
+	PickUserWrapper = pickUserWrapper
 )
 
 func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
@@ -57,5 +61,29 @@ func MockOpen(newOpen func(string) (*Reader, error)) func() {
 	backendOpen = newOpen
 	return func() {
 		backendOpen = oldOpen
+	}
+}
+
+func MockSysGeteuid(newGeteuid func() sys.UserID) (restore func()) {
+	oldGeteuid := sysGeteuid
+	sysGeteuid = newGeteuid
+	return func() {
+		sysGeteuid = oldGeteuid
+	}
+}
+
+func MockExecLookPath(newLookPath func(string) (string, error)) (restore func()) {
+	oldLookPath := execLookPath
+	execLookPath = newLookPath
+	return func() {
+		execLookPath = oldLookPath
+	}
+}
+
+func SetUserWrapper(newUserWrapper string) (restore func()) {
+	oldUserWrapper := userWrapper
+	userWrapper = newUserWrapper
+	return func() {
+		userWrapper = oldUserWrapper
 	}
 }

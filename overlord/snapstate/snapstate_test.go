@@ -2259,9 +2259,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(snapstate.Installing(s.state), Equals, false)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
-		// TODO parallel-install: fix once store changes are in place
-		name:   "some-snap",
-		target: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 	}})
 	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
@@ -5054,13 +5053,13 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	}
 
 	for _, scenario := range orthogonalAutoAliasesScenarios {
-		for _, snapName := range []string{"some-snap", "other-snap"} {
+		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(s.state, snapName, &snapst)
+			err := snapstate.Get(s.state, instanceName, &snapst)
 			c.Assert(err, IsNil)
 			snapst.Aliases = nil
 			snapst.AutoAliasesDisabled = false
-			if autoAliases := scenario.aliasesBefore[snapName]; autoAliases != nil {
+			if autoAliases := scenario.aliasesBefore[instanceName]; autoAliases != nil {
 				targets := make(map[string]*snapstate.AliasTarget)
 				for _, alias := range autoAliases {
 					targets[alias] = &snapstate.AliasTarget{Auto: "cmd" + alias[len(alias)-1:]}
@@ -5068,7 +5067,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 
 				snapst.Aliases = targets
 			}
-			snapstate.Set(s.state, snapName, &snapst)
+			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
 		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID, nil)
@@ -5095,9 +5094,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
-			for _, snapName := range scenario.prune {
-				expectedPruned[snapName] = expectedSet(dropped[snapName])
-				if snapName == "other-snap" && !scenario.new && !scenario.update {
+			for _, instanceName := range scenario.prune {
+				expectedPruned[instanceName] = expectedSet(dropped[instanceName])
+				if instanceName == "other-snap" && !scenario.new && !scenario.update {
 					expectedUpdatesSet["other-snap"] = true
 				}
 			}
@@ -5201,13 +5200,13 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 			continue
 		}
 
-		for _, snapName := range []string{"some-snap", "other-snap"} {
+		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(s.state, snapName, &snapst)
+			err := snapstate.Get(s.state, instanceName, &snapst)
 			c.Assert(err, IsNil)
 			snapst.Aliases = nil
 			snapst.AutoAliasesDisabled = false
-			if autoAliases := scenario.aliasesBefore[snapName]; autoAliases != nil {
+			if autoAliases := scenario.aliasesBefore[instanceName]; autoAliases != nil {
 				targets := make(map[string]*snapstate.AliasTarget)
 				for _, alias := range autoAliases {
 					targets[alias] = &snapstate.AliasTarget{Auto: "cmd" + alias[len(alias)-1:]}
@@ -5215,7 +5214,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 				snapst.Aliases = targets
 			}
-			snapstate.Set(s.state, snapName, &snapst)
+			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
 		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -5242,8 +5241,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
-			for _, snapName := range scenario.prune {
-				expectedPruned[snapName] = expectedSet(dropped[snapName])
+			for _, instanceName := range scenario.prune {
+				expectedPruned[instanceName] = expectedSet(dropped[instanceName])
 			}
 			c.Check(taskAliases, DeepEquals, expectedPruned)
 		}
@@ -8081,6 +8080,40 @@ run-hook: Hold`)
 		"Revision": "11",
 	})
 
+}
+
+func (s *snapmgrTestSuite) TestAbortCausesNoErrReport(c *C) {
+	errReported := 0
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
+		errReported++
+		return "oops-id", nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	s.fakeBackend.linkSnapWaitCh = make(chan int)
+	s.fakeBackend.linkSnapWaitTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
+	go func() {
+		<-s.fakeBackend.linkSnapWaitCh
+		chg.Abort()
+		s.fakeBackend.linkSnapWaitCh <- 1
+	}()
+
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.UndoneStatus)
+	c.Assert(errReported, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
@@ -10981,16 +11014,16 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, snapName := range []string{"a-snap", "b-snap"} {
-		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	for _, instanceName := range []string{"a-snap", "b-snap"} {
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Sequence: []*snap.SideInfo{
-				{RealName: snapName, Revision: snap.R(11)},
+				{RealName: instanceName, Revision: snap.R(11)},
 			},
 			Current: snap.R(11),
 			Active:  false,
 		})
 
-		ts, err := snapstate.Enable(s.state, snapName)
+		ts, err := snapstate.Enable(s.state, instanceName)
 		c.Assert(err, IsNil)
 		// need a change to make the tasks visible
 		s.state.NewChange("enable", "...").AddAll(ts)
@@ -11917,6 +11950,11 @@ func (s *snapmgrTestSuite) TestInstallPathWithLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// When layouts are disabled we cannot install a local snap depending on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
+
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
 layout:
@@ -11926,8 +11964,8 @@ layout:
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can install a local snap depending on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -11999,40 +12037,48 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// Layouts are now enabled by default.
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, IsNil)
 
-	// check various forms of disabling
+	// Layouts can be explicitly disabled.
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", false)
 	tr.Commit()
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
+	// Layouts can be explicitly enabled.
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// The default empty value now means "enabled".
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", "")
 	tr.Commit()
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, IsNil)
 
+	// Layouts are enabled when the controlling flag is reset to nil.
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", nil)
 	tr.Commit()
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
-
-	// enable layouts
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", true)
-	tr.Commit()
-
-	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
+
 }
 
 func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// When layouts are disabled we cannot refresh to a snap depending on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -12046,8 +12092,8 @@ func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can refresh to a snap depending on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -12058,6 +12104,11 @@ func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// When layouts are disabled we cannot refresh multiple snaps if one of them depends on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:  true,
@@ -12072,8 +12123,8 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can refresh multiple snaps if one of them depends on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
@@ -12084,6 +12135,11 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// When layouts are disabled we cannot refresh multiple snaps if one of them depends on the feature.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", false)
+	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:  true,
@@ -12099,8 +12155,8 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, HasLen, 0)
 
-	// enable layouts
-	tr := config.NewTransaction(s.state)
+	// When layouts are enabled we can refresh multiple snaps if one of them depends on the feature.
+	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 

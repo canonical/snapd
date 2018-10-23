@@ -210,7 +210,7 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"freezer-cgroup-v1",
-		"layouts-beta",
+		"layouts",
 		"mount-namespace",
 		"per-snap-persistency",
 		"per-snap-profiles",
