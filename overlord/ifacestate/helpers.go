@@ -20,6 +20,8 @@
 package ifacestate
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -28,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -57,7 +61,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
-	m.addSnaps(snaps)
+	if err := m.addSnaps(snaps); err != nil {
+		return err
+	}
 	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
@@ -118,13 +124,16 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps(snaps []*snap.Info) {
+func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		if err := addImplicitSlots(m.state, snapInfo); err != nil {
+			return err
+		}
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
 		}
 	}
+	return nil
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
@@ -146,9 +155,12 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	if err != nil {
 		return err
 	}
+
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
+		if err := addImplicitSlots(m.state, snapInfo); err != nil {
+			return err
+		}
 	}
 
 	// For each snap:
@@ -299,28 +311,28 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
-	snapName := snapInfo.InstanceName()
+	instanceName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()
 		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
+			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string) error {
+func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {
 	st := task.State()
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Remove(snapName)
+		err := backend.Remove(instanceName)
 		st.Lock()
 		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
+			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
 			return err
 		}
 	}
@@ -338,6 +350,13 @@ type connState struct {
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
 	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
+	// Hotplug-related attributes: HotplugGone indicates a connection that
+	// disappeared because the device was removed, but may potentially be
+	// restored in the future if we see the device again. HotplugKey is the
+	// key of the associated device; it's empty for connections of regular
+	// slots.
+	HotplugGone bool   `json:"hotplug-gone,omitempty"`
+	HotplugKey  string `json:"hotplug-key,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -507,9 +526,16 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]connState, err error) {
-	err = st.Get("conns", &conns)
+	var raw *json.RawMessage
+	err = st.Get("conns", &raw)
 	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
+	}
+	if raw != nil {
+		err = jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns)
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode data about existing connections: %s", err)
+		}
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
@@ -522,6 +548,10 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		}
 		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
+		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]interface{})
+		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]interface{})
+		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]interface{})
+		cstate.DynamicPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicPlugAttrs).(map[string]interface{})
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -565,8 +595,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		snapName := snapsup.InstanceName()
-		if seen[snapName] {
+		instanceName := snapsup.InstanceName()
+		if seen[instanceName] {
 			continue
 		}
 
@@ -577,7 +607,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				if err != nil {
 					return nil, err
 				}
-				if snapsup1.InstanceName() == snapName {
+				if snapsup1.InstanceName() == instanceName {
 					doneProfiles = true
 					break
 				}
@@ -587,10 +617,10 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 			continue
 		}
 
-		seen[snapName] = true
-		snapInfo, err := snap.ReadInfo(snapName, snapsup.SideInfo)
+		seen[instanceName] = true
+		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
 		infos = append(infos, snapInfo)
@@ -751,4 +781,42 @@ func ensureSystemSnapIsPresent(st *state.State) error {
 	defer st.Unlock()
 	_, err := snapstate.CoreInfo(st)
 	return err
+}
+
+func setHotplugAttrs(task *state.Task, ifaceName, hotplugKey string) {
+	task.Set("interface", ifaceName)
+	task.Set("hotplug-key", hotplugKey)
+}
+
+func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error) {
+	if err = task.Get("interface", &ifaceName); err != nil {
+		return "", "", fmt.Errorf("internal error: cannot get interface name from hotplug task: %s", err)
+	}
+	if err = task.Get("hotplug-key", &hotplugKey); err != nil {
+		return "", "", fmt.Errorf("internal error: cannot get hotplug key from hotplug task: %s", err)
+	}
+	return ifaceName, hotplugKey, err
+}
+
+type HotplugSlotInfo struct {
+	Name        string                 `json:"name"`
+	Interface   string                 `json:"interface"`
+	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
+	HotplugKey  string                 `json:"hotplug-key"`
+}
+
+func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
+	var slots map[string]*HotplugSlotInfo
+	err := st.Get("hotplug-slots", &slots)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		slots = make(map[string]*HotplugSlotInfo)
+	}
+	return slots, nil
+}
+
+func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
+	st.Set("hotplug-slots", slots)
 }

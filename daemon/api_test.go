@@ -766,7 +766,7 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
-	found := countCommandDeclsIn(c, "api.go", check.Commentf("TestListIncludesAll"))
+	found := countCommandDecls(c, check.Commentf("TestListIncludesAll"))
 
 	c.Check(found, check.Equals, len(api),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
@@ -1964,9 +1964,23 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 			"url":    "http://example.com/screenshot.png",
 			"width":  float64(800),
 			"height": float64(1280),
+			"note":   snap.ScreenshotsDeprecationNotice,
 		},
 		map[string]interface{}{
-			"url": "http://example.com/screenshot2.png",
+			"url":  "http://example.com/screenshot2.png",
+			"note": snap.ScreenshotsDeprecationNotice,
+		},
+	})
+	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"type":   "screenshot",
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"type": "screenshot",
+			"url":  "http://example.com/screenshot2.png",
 		},
 	})
 }
@@ -3527,7 +3541,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		res, err := snapUpdateMany(inst, st)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
-		c.Check(res.summary, check.Equals, tst.msg)
+		c.Check(res.Summary, check.Equals, tst.msg)
 		c.Check(refreshSnapDecls, check.Equals, true)
 	}
 }
@@ -3551,7 +3565,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh all snaps: no updates`)
+	c.Check(res.Summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3575,8 +3589,8 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3600,8 +3614,8 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snap "foo"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snap "foo"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3619,8 +3633,8 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	res, err := snapInstallMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Install snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
@@ -3651,8 +3665,8 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	res, err := snapRemoveMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Remove snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
@@ -5733,6 +5747,53 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		c.Check(opts.ForcePasswordChange, check.Equals, false)
+		return nil
+	}
+
+	defer func() {
+		osutilAddUser = osutil.AddUser
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &userResponseData{
+		Username: "guy",
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionWithForcePasswordChnage(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	lusers := []map[string]interface{}{goodUser}
+	lusers[0]["force-password-change"] = "true"
+	s.makeSystemUsers(c, lusers)
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		c.Check(opts.ForcePasswordChange, check.Equals, true)
 		return nil
 	}
 
@@ -7478,7 +7539,7 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	})
 }
 
-func (s *appSuite) TestErrToResponse(c *check.C) {
+func (s *apiSuite) TestErrToResponse(c *check.C) {
 	aie := &snap.AlreadyInstalledError{Snap: "foo"}
 	nie := &snap.NotInstalledError{Snap: "foo"}
 	cce := &snapstate.ChangeConflictError{Snap: "foo"}

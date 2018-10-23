@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.35.4
+Version:        2.35.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -695,6 +695,7 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
+%{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
@@ -807,6 +808,11 @@ fi
 %endif
 
 %changelog
+* Mon Oct 15 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.35.5
+ - interfaces/home: don't allow snaps to write to $HOME/bin
+ - osutil: workaround overlayfs on ubuntu 18.10
+
 * Fri Oct 05 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.35.4
   - wrappers: do not depend on network.taget in socket units, tweak
