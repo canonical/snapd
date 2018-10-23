@@ -60,12 +60,15 @@ func validatePaths(attrName string, paths []interface{}) error {
 		if !strings.HasPrefix(np, "/") && !strings.HasPrefix(np, "$HOME/") {
 			return fmt.Errorf(`%q must start with "/" or "$HOME"`, np)
 		}
+		if !strings.HasPrefix(np, "$HOME/") && strings.Contains(np, "$HOME") {
+			return fmt.Errorf(`$HOME must only be used at the start of the path of %q`, np)
+		}
+		if strings.Contains(np, "@{") {
+			return fmt.Errorf(`%q should not use "@{"`, np)
+		}
 		p := filepath.Clean(np)
 		if p != np {
 			return fmt.Errorf("%q must be clean", np)
-		}
-		if strings.Contains(p, "..") {
-			return fmt.Errorf(`%q contains invalid ".."`, p)
 		}
 		if strings.Contains(p, "~") {
 			return fmt.Errorf(`%q contains invalid "~"`, p)
@@ -114,9 +117,9 @@ func formatPath(ip interface{}) (string, error) {
 	return fmt.Sprintf("%s%q", prefix, filepath.Clean(p)), nil
 }
 
-func addSnippet(spec *apparmor.Specification, perm string, paths []interface{}) error {
-	for _, rp := range paths {
-		p, err := formatPath(rp)
+func allowPathAccess(spec *apparmor.Specification, perm string, paths []interface{}) error {
+	for _, rawPath := range paths {
+		p, err := formatPath(rawPath)
 		if err != nil {
 			return err
 		}
@@ -132,11 +135,11 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
-	if err := addSnippet(spec, "rk,", reads); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+	if err := allowPathAccess(spec, "rk,", reads); err != nil {
+		return fmt.Errorf("%s%v", errPrefix, err)
 	}
-	if err := addSnippet(spec, "rwkl,", writes); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+	if err := allowPathAccess(spec, "rwkl,", writes); err != nil {
+		return fmt.Errorf("%s%v", errPrefix, err)
 	}
 	return nil
 }
