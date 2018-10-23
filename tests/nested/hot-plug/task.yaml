@@ -25,7 +25,20 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    add_chardev my-chardev 9022
+    if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+        echo "Usb serial already registered, exiting..."
+        exit 1
+    fi
+
+    add_file_chardev my-chardev my-test-file
     add_usb_serial_device my-usb-serial my-chardev
+
+    execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"
+
     del_device my-usb-serial
     remove_chardev my-chardev
+
+    if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+        echo "Usb serial should not be registered anymore, exiting..."
+        exit 1
+    fi
