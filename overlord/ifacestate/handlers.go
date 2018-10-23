@@ -685,14 +685,9 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 
 		// other snap that affects us because of plug or slot
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" || k == "discard-snap" {
-			autoconnectsup, err := snapstate.TaskSnapSetup(autoconnectTask)
-			if err != nil {
-				return err
-			}
-
 			// discard-snap is scheduled as part of garbage collection during refresh, if multiple revsions are already installed.
 			// this revision check avoids conflict with own discard tasks created as part of install/refresh.
-			if k == "discard-snap" && autoconnectsup.Revision().N != snapsup.Revision().N {
+			if k == "discard-snap" && autoconnectTask.Change() != nil && autoconnectTask.Change().ID() == task.Change().ID() {
 				continue
 			}
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
