@@ -20,8 +20,7 @@
 package release
 
 var (
-	ReadOSRelease       = readOSRelease
-	ProbeAppArmorParser = probeAppArmorParser
+	ReadOSRelease = readOSRelease
 )
 
 func MockOSReleasePath(filename string) (restore func()) {
@@ -40,6 +39,14 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 	appArmorFeaturesSysPath = path
 	return func() {
 		appArmorFeaturesSysPath = old
+	}
+}
+
+func MockAppArmorParserSearchPath(new string) (restore func()) {
+	oldParserSearchPath := parserSearchPath
+	parserSearchPath = new
+	return func() {
+		parserSearchPath = oldParserSearchPath
 	}
 }
 

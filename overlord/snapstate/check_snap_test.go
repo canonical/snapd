@@ -142,6 +142,8 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.1]",
 	version: "2.15.0",
 	error:   `.* unsupported features: snapd2\.15\.1 .*`,
+}, {
+	assumes: "[command-chain]",
 }}
 
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
