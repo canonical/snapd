@@ -257,6 +257,21 @@ setpriority
 # https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
 mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
+`
+
+const browserSupportConnectedPlugSecCompWithSandbox = `
+# Policy needed only when using the chrome/chromium setuid sandbox
+chroot
+sched_setscheduler
+
+# TODO: fine-tune when seccomp arg filtering available in stable distro
+# releases
+setuid
+setgid
+
+# Policy needed for Mozilla userns sandbox
+unshare
+quotactl
 
 # The Breakpad crash reporter uses ptrace to read register/memory state
 # from the crashed process, but it doesn't need to modify any state; see
@@ -273,21 +288,7 @@ ptrace PTRACE_GETFPXREGS
 ptrace PTRACE_GETREGSET
 ptrace PTRACE_PEEKDATA
 ptrace PTRACE_PEEKUSER
-`
-
-const browserSupportConnectedPlugSecCompWithSandbox = `
-# Policy needed only when using the chrome/chromium setuid sandbox
-chroot
-sched_setscheduler
-
-# TODO: fine-tune when seccomp arg filtering available in stable distro
-# releases
-setuid
-setgid
-
-# Policy needed for Mozilla userns sandbox
-unshare
-quotactl
+ptrace PTRACE_CONT
 `
 
 type browserSupportInterface struct{}
