@@ -197,7 +197,7 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.Stderr(), check.Equals, "No snaps providing services are installed.\n")
+	c.Check(s.Stderr(), check.Equals, "There are no snaps installed that provide a service.\n")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
 }
