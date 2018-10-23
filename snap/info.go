@@ -1143,3 +1143,70 @@ func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
 	return r[i].Type.SortsBefore(r[j].Type)
 }
+
+func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
+	nameToApp := make(map[string]*AppInfo, len(apps))
+	for _, app := range apps {
+		nameToApp[app.Name] = app
+	}
+
+	// list of successors of given app
+	successors := make(map[string][]*AppInfo, len(apps))
+	// count of predecessors (i.e. incoming edges) of given app
+	predecessors := make(map[string]int, len(apps))
+
+	for _, app := range apps {
+		for _, other := range app.After {
+			predecessors[app.Name]++
+			successors[other] = append(successors[other], app)
+		}
+		for _, other := range app.Before {
+			predecessors[other]++
+			successors[app.Name] = append(successors[app.Name], nameToApp[other])
+		}
+	}
+
+	// list of apps without predecessors (no incoming edges)
+	queue := make([]*AppInfo, 0, len(apps))
+	for _, app := range apps {
+		if predecessors[app.Name] == 0 {
+			queue = append(queue, app)
+		}
+	}
+
+	// Kahn:
+	// see https://dl.acm.org/citation.cfm?doid=368996.369025
+	//     https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+	//
+	// Apps without predecessors are 'top' nodes. On each iteration, take
+	// the next 'top' node, and decrease the predecessor count of each
+	// successor app. Once that successor app has no more predecessors, take
+	// it out of the predecessors set and add it to the queue of 'top'
+	// nodes.
+	for len(queue) > 0 {
+		app := queue[0]
+		queue = queue[1:]
+		for _, successor := range successors[app.Name] {
+			predecessors[successor.Name]--
+			if predecessors[successor.Name] == 0 {
+				delete(predecessors, successor.Name)
+				queue = append(queue, successor)
+			}
+		}
+		sorted = append(sorted, app)
+	}
+
+	if len(predecessors) != 0 {
+		// apps with predecessors unaccounted for are a part of
+		// dependency cycle
+		unsatisifed := bytes.Buffer{}
+		for name := range predecessors {
+			if unsatisifed.Len() > 0 {
+				unsatisifed.WriteString(", ")
+			}
+			unsatisifed.WriteString(name)
+		}
+		return nil, fmt.Errorf("applications are part of a before/after cycle: %s", unsatisifed.String())
+	}
+	return sorted, nil
+}
