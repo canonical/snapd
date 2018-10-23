@@ -11,10 +11,9 @@ prepare: |
     . "$TESTSLIB/nested.sh"
     create_nested_classic_vm
     copy_remote "${GOHOME}"/snapd_*.deb
+    execute_remote 'sudo apt update'
     execute_remote 'sudo apt install -y ./snapd_*.deb'
     execute_remote 'sudo apt install -y linux-image-extra-$(uname -r)'
-    execute_remote 'sudo reboot' || true
-    wait_for_ssh
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
