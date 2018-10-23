@@ -138,6 +138,11 @@ plugs:
 		{`write: ""`, `"write" must be a list of strings`},
 		{`write: bar`, `"write" must be a list of strings`},
 		{`read: [ "~/foo" ]`, `"~/foo" must start with "/" or "\$HOME"`},
+		{`read: [ "/foo/~/foo" ]`, `"/foo/~/foo" contains invalid "~"`},
+		{`read: [ "/foo/../foo" ]`, `"/foo/../foo" must be clean`},
+		{`read: [ "/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "/home/\$HOME/foo"`},
+		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" should not use "@{"`},
+		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" should not use "@{"`},
 	}
 
 	for _, t := range testCases {
