@@ -195,7 +195,7 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
-		snapFilePath, err = pack.Snap(snapSource, "")
+		snapFilePath, err = pack.Snap(snapSource, "", "")
 		return err
 	})
 	if err != nil {
