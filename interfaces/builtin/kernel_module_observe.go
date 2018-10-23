@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,31 +19,20 @@
 
 package builtin
 
-const kernelModuleControlSummary = `allows insertion, removal and querying of kernel modules`
+const kernelModuleObserveSummary = `allows querying of kernel modules`
 
-const kernelModuleControlBaseDeclarationPlugs = `
-  kernel-module-control:
-    allow-installation: false
-    deny-auto-connection: true
-`
-
-const kernelModuleControlBaseDeclarationSlots = `
-  kernel-module-control:
+const kernelModuleObserveBaseDeclarationSlots = `
+  kernel-module-observe:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const kernelModuleControlConnectedPlugAppArmor = `
-# Description: Allow insertion, removal and querying of modules.
-
-capability sys_module,
+const kernelModuleObserveConnectedPlugAppArmor = `
+# Description: Allow querying of kernel modules.
+/{,usr/}bin/kmod ixr, # seccomp and no SYS_MODULE prevents loading/removing
 @{PROC}/modules r,
-/{,usr/}bin/kmod ixr,
-
-# FIXME: moved to physical-memory-observe (remove this in series 18)
-/dev/mem r,
 
 # Required to use SYSLOG_ACTION_READ_ALL and SYSLOG_ACTION_SIZE_BUFFER when
 # /proc/sys/kernel/dmesg_restrict is '1' (syslog(2)). These operations are
@@ -56,27 +45,14 @@ capability syslog,
 /lib/modprobe.d/{,**} r,
 `
 
-const kernelModuleControlConnectedPlugSecComp = `
-# Description: Allow insertion, removal and querying of modules.
-
-init_module
-finit_module
-delete_module
-`
-
-var kernelModuleControlConnectedPlugUDev = []string{`KERNEL=="mem"`}
-
 func init() {
 	registerIface(&commonInterface{
-		name:                  "kernel-module-control",
-		summary:               kernelModuleControlSummary,
+		name:                  "kernel-module-observe",
+		summary:               kernelModuleObserveSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationPlugs:  kernelModuleControlBaseDeclarationPlugs,
-		baseDeclarationSlots:  kernelModuleControlBaseDeclarationSlots,
-		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
-		connectedPlugUDev:     kernelModuleControlConnectedPlugUDev,
+		baseDeclarationSlots:  kernelModuleObserveBaseDeclarationSlots,
+		connectedPlugAppArmor: kernelModuleObserveConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }

@@ -29,7 +29,6 @@ const systemObserveBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
@@ -49,6 +48,9 @@ ptrace (read),
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
 @{PROC}/partitions r,
+@{PROC}/sys/kernel/panic r,
+@{PROC}/sys/kernel/panic_on_oops r,
+@{PROC}/sys/vm/panic_on_oom r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
