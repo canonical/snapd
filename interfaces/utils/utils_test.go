@@ -20,6 +20,7 @@
 package utils_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -44,10 +45,12 @@ func (s *utilsSuite) TestNormalizeInterfaceAttributes(c *C) {
 	// Funny that, I noticed it only because of missing test coverage.
 	c.Assert(normalize(float32(3.14)), Equals, float64(3.140000104904175))
 	c.Assert(normalize("banana"), Equals, "banana")
-	c.Assert(normalize([]interface{}{42, 3.14, "banana"}), DeepEquals,
-		[]interface{}{int64(42), float64(3.14), "banana"})
+	c.Assert(normalize([]interface{}{42, 3.14, "banana", json.Number("21"), json.Number("0.5")}), DeepEquals,
+		[]interface{}{int64(42), float64(3.14), "banana", int64(21), float64(0.5)})
 	c.Assert(normalize(map[string]interface{}{"i": 42, "f": 3.14, "s": "banana"}),
 		DeepEquals, map[string]interface{}{"i": int64(42), "f": float64(3.14), "s": "banana"})
+	c.Assert(normalize(json.Number("1")), Equals, int64(1))
+	c.Assert(normalize(json.Number("2.5")), Equals, float64(2.5))
 
 	// Normalize doesn't mutate slices it is given
 	sliceIn := []interface{}{42}

@@ -20,6 +20,8 @@
 package ifacestate
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -28,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -522,9 +526,16 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]connState, err error) {
-	err = st.Get("conns", &conns)
+	var raw *json.RawMessage
+	err = st.Get("conns", &raw)
 	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
+	}
+	if raw != nil {
+		err = jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns)
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode data about existing connections: %s", err)
+		}
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
@@ -537,6 +548,10 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		}
 		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
+		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]interface{})
+		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]interface{})
+		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]interface{})
+		cstate.DynamicPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicPlugAttrs).(map[string]interface{})
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
