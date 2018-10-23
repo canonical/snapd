@@ -1647,12 +1647,12 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	for snapName, snapst := range newSnapStates {
-		if conflicting[snapName] {
+	for instanceName, snapst := range newSnapStates {
+		if conflicting[instanceName] {
 			// keep as it was
 			continue
 		}
-		Set(st, snapName, snapst)
+		Set(st, instanceName, snapst)
 	}
 	return nil
 }
@@ -1864,7 +1864,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	snapName := snapsup.InstanceName()
+	instanceName := snapsup.InstanceName()
 
 	if !snapst.AutoAliasesDisabled {
 		// already enabled, nothing to do
@@ -1872,7 +1872,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	curAliases := snapst.Aliases
-	aliasConflicts, err := checkAliasesConflicts(st, snapName, autoEn, curAliases, nil)
+	aliasConflicts, err := checkAliasesConflicts(st, instanceName, autoEn, curAliases, nil)
 	conflErr, isConflErr := err.(*AliasConflictError)
 	if err != nil && !isConflErr {
 		return err
@@ -1882,7 +1882,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 		return conflErr
 	}
 	// proceed to disable conflicting aliases as needed
-	// before re-enabling snapName aliases
+	// before re-enabling instanceName aliases
 
 	otherSnapStates := make(map[string]*SnapState, len(aliasConflicts))
 	otherSnapDisabled := make(map[string]*otherDisabledAliases, len(aliasConflicts))
@@ -1916,7 +1916,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 		otherSnapStates[otherSnap] = &otherSnapState
 	}
 
-	added, removed, err := applyAliasesChange(snapName, autoDis, curAliases, autoEn, curAliases, m.backend, snapst.AliasesPending)
+	added, removed, err := applyAliasesChange(instanceName, autoDis, curAliases, autoEn, curAliases, m.backend, snapst.AliasesPending)
 	if err != nil {
 		return err
 	}
@@ -1933,7 +1933,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-auto-aliases-disabled", true)
 	t.Set("old-aliases-v2", curAliases)
 	snapst.AutoAliasesDisabled = false
-	Set(st, snapName, snapst)
+	Set(st, instanceName, snapst)
 	return nil
 }
 
