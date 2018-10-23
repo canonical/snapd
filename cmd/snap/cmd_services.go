@@ -124,6 +124,11 @@ func (s *svcStatus) Execute(args []string) error {
 		return err
 	}
 
+	if len(services) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("No snaps providing services are installed."))
+		return nil
+	}
+
 	w := tabWriter()
 	defer w.Flush()
 
