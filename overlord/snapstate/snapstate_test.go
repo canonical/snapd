@@ -5053,13 +5053,13 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	}
 
 	for _, scenario := range orthogonalAutoAliasesScenarios {
-		for _, snapName := range []string{"some-snap", "other-snap"} {
+		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(s.state, snapName, &snapst)
+			err := snapstate.Get(s.state, instanceName, &snapst)
 			c.Assert(err, IsNil)
 			snapst.Aliases = nil
 			snapst.AutoAliasesDisabled = false
-			if autoAliases := scenario.aliasesBefore[snapName]; autoAliases != nil {
+			if autoAliases := scenario.aliasesBefore[instanceName]; autoAliases != nil {
 				targets := make(map[string]*snapstate.AliasTarget)
 				for _, alias := range autoAliases {
 					targets[alias] = &snapstate.AliasTarget{Auto: "cmd" + alias[len(alias)-1:]}
@@ -5067,7 +5067,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 
 				snapst.Aliases = targets
 			}
-			snapstate.Set(s.state, snapName, &snapst)
+			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
 		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID, nil)
@@ -5094,9 +5094,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
-			for _, snapName := range scenario.prune {
-				expectedPruned[snapName] = expectedSet(dropped[snapName])
-				if snapName == "other-snap" && !scenario.new && !scenario.update {
+			for _, instanceName := range scenario.prune {
+				expectedPruned[instanceName] = expectedSet(dropped[instanceName])
+				if instanceName == "other-snap" && !scenario.new && !scenario.update {
 					expectedUpdatesSet["other-snap"] = true
 				}
 			}
@@ -5200,13 +5200,13 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 			continue
 		}
 
-		for _, snapName := range []string{"some-snap", "other-snap"} {
+		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(s.state, snapName, &snapst)
+			err := snapstate.Get(s.state, instanceName, &snapst)
 			c.Assert(err, IsNil)
 			snapst.Aliases = nil
 			snapst.AutoAliasesDisabled = false
-			if autoAliases := scenario.aliasesBefore[snapName]; autoAliases != nil {
+			if autoAliases := scenario.aliasesBefore[instanceName]; autoAliases != nil {
 				targets := make(map[string]*snapstate.AliasTarget)
 				for _, alias := range autoAliases {
 					targets[alias] = &snapstate.AliasTarget{Auto: "cmd" + alias[len(alias)-1:]}
@@ -5214,7 +5214,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 				snapst.Aliases = targets
 			}
-			snapstate.Set(s.state, snapName, &snapst)
+			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
 		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -5241,8 +5241,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
-			for _, snapName := range scenario.prune {
-				expectedPruned[snapName] = expectedSet(dropped[snapName])
+			for _, instanceName := range scenario.prune {
+				expectedPruned[instanceName] = expectedSet(dropped[instanceName])
 			}
 			c.Check(taskAliases, DeepEquals, expectedPruned)
 		}
@@ -11014,16 +11014,16 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, snapName := range []string{"a-snap", "b-snap"} {
-		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	for _, instanceName := range []string{"a-snap", "b-snap"} {
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Sequence: []*snap.SideInfo{
-				{RealName: snapName, Revision: snap.R(11)},
+				{RealName: instanceName, Revision: snap.R(11)},
 			},
 			Current: snap.R(11),
 			Active:  false,
 		})
 
-		ts, err := snapstate.Enable(s.state, snapName)
+		ts, err := snapstate.Enable(s.state, instanceName)
 		c.Assert(err, IsNil)
 		// need a change to make the tasks visible
 		s.state.NewChange("enable", "...").AddAll(ts)
