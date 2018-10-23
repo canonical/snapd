@@ -11,7 +11,10 @@ prepare: |
     . "$TESTSLIB/nested.sh"
     create_nested_classic_vm
     copy_remote "${GOHOME}"/snapd_*.deb
-    execute_remote "sudo apt install -y ./snapd_*.deb"
+    execute_remote 'sudo apt install -y ./snapd_*.deb'
+    execute_remote 'sudo apt install -y linux-image-extra-$(uname -r)'
+    execute_remote 'sudo reboot' || true
+    wait_for_ssh
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
@@ -19,7 +22,11 @@ restore: |
     destroy_nested_vm
 
     "$TESTSLIB"/prepare-restore.sh --restore-suite-each
-    "$TESTSLIB"/prepare-restore.sh --restore-suite    
+    "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_package snapd
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -30,10 +37,11 @@ execute: |
         exit 1
     fi
 
-    add_file_chardev my-chardev my-test-file
+    add_tty_chardev my-chardev /dev/tty5
     add_usb_serial_device my-usb-serial my-chardev
 
     execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"
+    execute_remote 'ls /dev/tty*' | MATCH "ttyUSB0"
 
     del_device my-usb-serial
     remove_chardev my-chardev
