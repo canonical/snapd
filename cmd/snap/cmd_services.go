@@ -125,7 +125,7 @@ func (s *svcStatus) Execute(args []string) error {
 	}
 
 	if len(services) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("There are no snaps installed that provide a service."))
+		fmt.Fprintln(Stderr, i18n.G("There are no services provided by installed snaps."))
 		return nil
 	}
 
