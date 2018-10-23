@@ -20,7 +20,6 @@
 package snap
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -363,7 +362,7 @@ func Validate(info *Info) error {
 	}
 
 	// validate apps ordering according to after/before
-	if err := validateAppOrderCycles(info.Apps); err != nil {
+	if err := validateAppOrderCycles(info.Services()); err != nil {
 		return err
 	}
 
@@ -501,61 +500,9 @@ func validateAppSocket(socket *SocketInfo) error {
 }
 
 // validateAppOrderCycles checks for cycles in app ordering dependencies
-func validateAppOrderCycles(apps map[string]*AppInfo) error {
-	// list of successors of given app
-	successors := make(map[string][]string, len(apps))
-	// count of predecessors (i.e. incoming edges) of given app
-	predecessors := make(map[string]int, len(apps))
-
-	for _, app := range apps {
-		for _, other := range app.After {
-			predecessors[app.Name]++
-			successors[other] = append(successors[other], app.Name)
-		}
-		for _, other := range app.Before {
-			predecessors[other]++
-			successors[app.Name] = append(successors[app.Name], other)
-		}
-	}
-
-	// list of apps without predecessors (no incoming edges)
-	queue := make([]string, 0, len(apps))
-	for _, app := range apps {
-		if predecessors[app.Name] == 0 {
-			queue = append(queue, app.Name)
-		}
-	}
-
-	// Kahn:
-	//
-	// Apps without predecessors are 'top' nodes. On each iteration, take
-	// the next 'top' node, and decrease the predecessor count of each
-	// successor app. Once that successor app has no more predecessors, take
-	// it out of the predecessors set and add it to the queue of 'top'
-	// nodes.
-	for len(queue) > 0 {
-		app := queue[0]
-		queue = queue[1:]
-		for _, successor := range successors[app] {
-			predecessors[successor]--
-			if predecessors[successor] == 0 {
-				delete(predecessors, successor)
-				queue = append(queue, successor)
-			}
-		}
-	}
-
-	if len(predecessors) != 0 {
-		// apps with predecessors unaccounted for are a part of
-		// dependency cycle
-		unsatisifed := bytes.Buffer{}
-		for name := range predecessors {
-			if unsatisifed.Len() > 0 {
-				unsatisifed.WriteString(", ")
-			}
-			unsatisifed.WriteString(name)
-		}
-		return fmt.Errorf("applications are part of a before/after cycle: %s", unsatisifed.String())
+func validateAppOrderCycles(apps []*AppInfo) error {
+	if _, err := SortServices(apps); err != nil {
+		return err
 	}
 	return nil
 }
