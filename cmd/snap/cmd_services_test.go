@@ -253,3 +253,47 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
 }
+
+func (s *appOpSuite) TestAppStatusNotes(c *check.C) {
+	ai := client.AppInfo{}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "-")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "-")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "timer"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "timer-activated")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "socket"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "socket-activated")
+
+	// check that the output is stable regardless of the order of activators
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "timer"},
+			{Type: "socket"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "timer-activated,socket-activated")
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "socket"},
+			{Type: "timer"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "timer-activated,socket-activated")
+}
