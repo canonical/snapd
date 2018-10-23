@@ -156,6 +156,10 @@ func checkSnapWithTrackHeader(header string, headers map[string]interface{}) err
 		return fmt.Errorf(`%q header must be a string`, header)
 	}
 	l := strings.SplitN(value, "=", 2)
+
+	if err := validateSnapName(l[0], header); err != nil {
+		return err
+	}
 	if len(l) == 1 {
 		return nil
 	}
@@ -218,6 +222,29 @@ var (
 	classicModelOptional = []string{"architecture", "gadget"}
 )
 
+var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
+
+// validateSnapName checks whether the name can be used as a snap name
+//
+// This function should be synchronized with the reference implementation
+// snap.ValidateName() in snap/validate.go
+func validateSnapName(name string, headerName string) error {
+	isValidName := func() bool {
+		if !almostValidName.MatchString(name) {
+			return false
+		}
+		if name[0] == '-' || name[len(name)-1] == '-' || strings.Contains(name, "--") {
+			return false
+		}
+		return true
+	}
+
+	if len(name) > 40 || !isValidName() {
+		return fmt.Errorf("invalid snap name in %q header: %s", headerName, name)
+	}
+	return nil
+}
+
 func assembleModel(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
@@ -256,12 +283,23 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	// kernel/gadget can have (optional) tracks - validate those
+	// kernel/gadget must be valid snap names and can have (optional) tracks
+	// - validate those
 	if err := checkSnapWithTrackHeader("kernel", assert.headers); err != nil {
 		return nil, err
 	}
 	if err := checkSnapWithTrackHeader("gadget", assert.headers); err != nil {
 		return nil, err
+	}
+	// base, if provided, must be a valid snap name too
+	base, err := checkOptionalString(assert.headers, "base")
+	if err != nil {
+		return nil, err
+	}
+	if base != "" {
+		if err := validateSnapName(base, "base"); err != nil {
+			return nil, err
+		}
 	}
 
 	// store is optional but must be a string, defaults to the ubuntu store
@@ -276,10 +314,15 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// TODO parallel-install: verify if snap names are valid store names
+	// required snap must be valid snap names
 	reqSnaps, err := checkStringList(assert.headers, "required-snaps")
 	if err != nil {
 		return nil, err
+	}
+	for _, name := range reqSnaps {
+		if err := validateSnapName(name, "required-snaps"); err != nil {
+			return nil, err
+		}
 	}
 
 	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, assert.HeaderString("brand-id"))

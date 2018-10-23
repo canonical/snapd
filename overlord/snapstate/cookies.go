@@ -47,8 +47,8 @@ func cookies(st *state.State) (map[string]string, error) {
 // from snap-confine).
 // It is the caller's responsibility to lock state before calling this function.
 func (m *SnapManager) SyncCookies(st *state.State) error {
-	var snapNames map[string]*json.RawMessage
-	if err := st.Get("snaps", &snapNames); err != nil && err != state.ErrNoState {
+	var instanceNames map[string]*json.RawMessage
+	if err := st.Get("snaps", &instanceNames); err != nil && err != state.ErrNoState {
 		return err
 	}
 
@@ -60,7 +60,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 	snapsWithCookies := make(map[string]bool)
 	for _, snap := range snapCookies {
 		// check if we have a cookie for non-installed snap or if we have a duplicated cookie
-		if _, ok := snapNames[snap]; !ok || snapsWithCookies[snap] {
+		if _, ok := instanceNames[snap]; !ok || snapsWithCookies[snap] {
 			// there is no point in checking all cookies if we found a bad one - recreate them all
 			snapCookies = make(map[string]string)
 			snapsWithCookies = make(map[string]bool)
@@ -72,7 +72,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 	var changed bool
 
 	// make sure every snap has a cookie, generate one if necessary
-	for snap := range snapNames {
+	for snap := range instanceNames {
 		if _, ok := snapsWithCookies[snap]; !ok {
 			cookie := makeCookie()
 			snapCookies[cookie] = snap
@@ -97,7 +97,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 	return nil
 }
 
-func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
+func (m *SnapManager) createSnapCookie(st *state.State, instanceName string) error {
 	snapCookies, err := cookies(st)
 	if err != nil {
 		return err
@@ -105,23 +105,23 @@ func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
 
 	// make sure we don't create cookie if it already exists
 	for _, snap := range snapCookies {
-		if snapName == snap {
+		if instanceName == snap {
 			return nil
 		}
 	}
 
-	cookieID, err := createCookieFile(snapName)
+	cookieID, err := createCookieFile(instanceName)
 	if err != nil {
 		return err
 	}
 
-	snapCookies[cookieID] = snapName
+	snapCookies[cookieID] = instanceName
 	st.Set("snap-cookies", &snapCookies)
 	return nil
 }
 
-func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
-	if err := removeCookieFile(snapName); err != nil {
+func (m *SnapManager) removeSnapCookie(st *state.State, instanceName string) error {
+	if err := removeCookieFile(instanceName); err != nil {
 		return err
 	}
 
@@ -136,7 +136,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 	}
 
 	for cookieID, snap := range snapCookies {
-		if snapName == snap {
+		if instanceName == snap {
 			delete(snapCookies, cookieID)
 			st.Set("snap-cookies", snapCookies)
 			return nil
@@ -149,9 +149,9 @@ func makeCookie() string {
 	return strutil.MakeRandomString(44)
 }
 
-func createCookieFile(snapName string) (cookieID string, err error) {
+func createCookieFile(instanceName string) (cookieID string, err error) {
 	cookieID = makeCookie()
-	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
+	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", instanceName))
 	err = osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create cookie file %q: %s", path, err)
@@ -159,8 +159,8 @@ func createCookieFile(snapName string) (cookieID string, err error) {
 	return cookieID, nil
 }
 
-func removeCookieFile(snapName string) error {
-	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
+func removeCookieFile(instanceName string) error {
+	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", instanceName))
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("Failed to remove cookie file %q: %s", path, err)
 	}

@@ -73,6 +73,9 @@ def main():
         if email.endswith("@canonical.com"):
             print("{}✓{} {:<{}} @canonical.com account".format(green, reset, email, width))
             continue
+        if email.endswith("@mozilla.com"):
+            print("{}✓{} {:<{}} @mozilla.com account (mozilla corp has signed the corp CLA)".format(green, reset, email, width))
+            continue
         if email.endswith("@users.noreply.github.com"):
             print("{}‽{} {:<{}} privacy-enabled github web edit email address".format(yellow, reset, email, width))
             continue
