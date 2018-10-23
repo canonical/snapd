@@ -152,10 +152,10 @@ copy_remote(){
     sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$*" user1@localhost:~
 }
 
-add_file_chardev(){
+add_tty_chardev(){
     CHARDEV_ID=$1
     CHARDEV_PATH=$2
-    echo "chardev-add file,id=$CHARDEV_ID,path=$CHARDEV_PATH" | nc -q 0 127.0.0.1 "$MON_PORT"
+    echo "chardev-add tty,path=$CHARDEV_PATH,id=$CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "chardev added"
 }
 
