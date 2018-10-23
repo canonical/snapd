@@ -2706,6 +2706,33 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	})
 	c.Assert(snapst.Required, Equals, false)
 }
+func (s *snapmgrTestSuite) TestInstallStartOrder(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "services-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(snapstate.Installing(s.state), Equals, false)
+	op := s.fakeBackend.ops.First("start-snap-services")
+	c.Assert(op, NotNil)
+	c.Assert(op, DeepEquals, &fakeOp{
+		op:   "start-snap-services",
+		path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+		// ordered to preserve after/before relation
+		services: []string{"svc1", "svc3", "svc2"},
+	})
+}
 
 func (s *snapmgrTestSuite) TestInstalling(c *C) {
 	s.state.Lock()
@@ -2854,8 +2881,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+			op:       "start-snap-services",
+			path:     filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
 			op:    "cleanup-trash",
@@ -3070,8 +3098,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+			op:       "start-snap-services",
+			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
 			op:    "cleanup-trash",
