@@ -121,25 +121,20 @@ func notesForSvc(app *client.AppInfo) string {
 	}
 
 	var notes []string
-	var allActivatorsRunning = true
 	var seenTimer, seenSocket bool
 	for _, act := range app.Activators {
 		switch act.Type {
 		case "timer":
-			if !seenTimer {
-				notes = append(notes, "timer-activated")
-				seenTimer = true
-			}
+			seenTimer = true
 		case "socket":
-			if !seenSocket {
-				notes = append(notes, "socket-activated")
-				seenSocket = true
-			}
+			seenSocket = true
 		}
-		if allActivatorsRunning {
-			allActivatorsRunning = act.Active
-		}
-
+	}
+	if seenTimer {
+		notes = append(notes, "timer-activated")
+	}
+	if seenSocket {
+		notes = append(notes, "socket-activated")
 	}
 	if len(notes) == 0 {
 		return "-"
