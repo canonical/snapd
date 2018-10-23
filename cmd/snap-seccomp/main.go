@@ -389,7 +389,7 @@ var seccompResolver = map[string]uint64{
 	"NETLINK_CRYPTO":         C.NETLINK_CRYPTO,
 	"NETLINK_INET_DIAG":      C.NETLINK_INET_DIAG, // synonymous with NETLINK_SOCK_DIAG
 
-	// man 2 ptrace
+	// man 2 ptrace (subset)
 	"PTRACE_ATTACH":     syscall.PTRACE_ATTACH,
 	"PTRACE_DETACH":     syscall.PTRACE_DETACH,
 	"PTRACE_GETREGS":    syscall.PTRACE_GETREGS,
@@ -397,6 +397,7 @@ var seccompResolver = map[string]uint64{
 	"PTRACE_GETFPXREGS": syscall.PTRACE_GETFPXREGS,
 	"PTRACE_GETREGSET":  syscall.PTRACE_GETREGSET,
 	"PTRACE_PEEKDATA":   syscall.PTRACE_PEEKDATA,
+	"PTRACE_CONT":       syscall.PTRACE_CONT,
 	// <linux/ptrace.h> and <sys/ptrace.h> have different spellings for PEEKUS{,E}R
 	"PTRACE_PEEKUSR":  syscall.PTRACE_PEEKUSR,
 	"PTRACE_PEEKUSER": syscall.PTRACE_PEEKUSR,
