@@ -1,0 +1,8 @@
+#!/bin/sh
+DEVPATH=/dev/ttyUSB0
+if test -w "$DEVPATH" ; then
+    echo "Access to $DEVPATH ok"
+else
+    echo "Access test for $DEVPATH failed"
+    exit 1
+fi

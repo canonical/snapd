@@ -51,6 +51,7 @@ backends:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         halt-timeout: 2h
+        plan: n1-standard-2
         systems:
             - ubuntu-14.04-64:
                 workers: 6
