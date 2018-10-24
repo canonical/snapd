@@ -305,14 +305,17 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 
 		sockSvcFileToName := make(map[string]string, len(app.Sockets))
 		for _, sock := range app.Sockets {
-			sockSvc := filepath.Base(sock.File())
-			sockSvcFileToName[sockSvc] = sock.Name
-			serviceNames = append(serviceNames, sockSvc)
+			sockUnit := filepath.Base(sock.File())
+			sockSvcFileToName[sockUnit] = sock.Name
+			serviceNames = append(serviceNames, sockUnit)
 		}
 		if app.Timer != nil {
-			serviceNames = append(serviceNames, filepath.Base(app.Timer.File()))
+			timerUnit := filepath.Base(app.Timer.File())
+			serviceNames = append(serviceNames, timerUnit)
 		}
 
+		// sysd.Status() makes sure that we get only the units we asked
+		// for and raises an error otherwise
 		sts, err := sysd.Status(serviceNames...)
 		if err != nil {
 			logger.Noticef("cannot get status of services of app %q: %v", app.Name, err)
@@ -322,28 +325,27 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 			logger.Noticef("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
 			continue
 		}
-		appInfo.Enabled = sts[0].Enabled
-		appInfo.Active = sts[0].Active
-
-		for _, st := range sts[1 : 1+len(app.Sockets)] {
-			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-				Name:    sockSvcFileToName[st.UnitName],
-				Enabled: st.Enabled,
-				Active:  st.Active,
-				Type:    "socket",
-			})
+		for _, st := range sts {
+			switch filepath.Ext(st.UnitName) {
+			case ".service":
+				appInfo.Enabled = st.Enabled
+				appInfo.Active = st.Active
+			case ".timer":
+				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+					Name:    app.Name,
+					Enabled: st.Enabled,
+					Active:  st.Active,
+					Type:    "timer",
+				})
+			case ".socket":
+				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+					Name:    sockSvcFileToName[st.UnitName],
+					Enabled: st.Enabled,
+					Active:  st.Active,
+					Type:    "socket",
+				})
+			}
 		}
-
-		if app.Timer != nil {
-			st := sts[len(sts)-1]
-			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-				Name:    app.Name,
-				Enabled: st.Enabled,
-				Active:  st.Active,
-				Type:    "timer",
-			})
-		}
-
 		out = append(out, appInfo)
 	}
 
