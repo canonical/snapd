@@ -120,7 +120,7 @@ func notesForSvc(app *client.AppInfo) string {
 		return "-"
 	}
 
-	var notes []string
+	var notes = make([]string, 0, 2)
 	var seenTimer, seenSocket bool
 	for _, act := range app.Activators {
 		switch act.Type {
