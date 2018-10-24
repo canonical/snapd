@@ -71,7 +71,7 @@ backends:
                 workers: 6
 
             - debian-9-64:
-                workers: 6
+                workers: 30
             - debian-sid-64:
                 workers: 6
                 manual: true
