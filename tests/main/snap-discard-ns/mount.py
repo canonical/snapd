@@ -1,27 +1,39 @@
-#!/usr/bin/env python3
 """
 Pure-python limited-use wrapper around the mount library function.
 """
+from __future__ import print_function, absolute_import, unicode_literals
+
 from argparse import ArgumentParser
 from ctypes import CDLL, c_char_p, c_long, get_errno
 from ctypes.util import find_library
-from enum import IntEnum
 from os import strerror
-from sys import stderr
+from sys import stderr, version_info
+
+try:
+    from typing import Text
+except ImportError:
+    pass
 
 __all__ = ('mount', )
 
 
-class MountOpts(IntEnum):
+PY2 = version_info[0] == 2
+
+
+class MountOpts(object):
     """MountOpts contain various flags for the mount system call."""
 
     Bind = 4096
 
 
-def mount(source: str, target: str, fstype: str, flags: int = 0,
-          data: str = "") -> None:
+def mount(source, target, fstype, flags=0, data=""):
+    # type: (Text, Text, Text, int, Text) -> None
     """mount is a thin wrapper around the mount library function."""
-    libc_name = find_library("c")
+    if PY2:
+        c = b"c"
+    else:
+        c = "c"
+    libc_name = find_library(c)
     if libc_name is None:
         raise Exception("cannot find the C library")
     libc = CDLL(libc_name, use_errno=True)
@@ -36,7 +48,8 @@ def mount(source: str, target: str, fstype: str, flags: int = 0,
         raise OSError(errno, strerror(errno))
 
 
-def main() -> None:
+def main():
+    # type: () -> None
     parser = ArgumentParser()
     parser.add_argument("source", help="path of the device or bind source")
     parser.add_argument("target", help="path of the new mount point")
