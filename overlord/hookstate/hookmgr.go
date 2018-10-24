@@ -153,15 +153,15 @@ func (m *HookManager) StopHooks() {
 	m.runner.StopKinds("run-hook")
 }
 
-func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {
-	return m.hijackMap[hijackKey{hookName, snapName}]
+func (m *HookManager) hijacked(hookName, instanceName string) hijackFunc {
+	return m.hijackMap[hijackKey{hookName, instanceName}]
 }
 
-func (m *HookManager) RegisterHijack(hookName, snapName string, f hijackFunc) {
-	if _, ok := m.hijackMap[hijackKey{hookName, snapName}]; ok {
-		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, snapName))
+func (m *HookManager) RegisterHijack(hookName, instanceName string, f hijackFunc) {
+	if _, ok := m.hijackMap[hijackKey{hookName, instanceName}]; ok {
+		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, instanceName))
 	}
-	m.hijackMap[hijackKey{hookName, snapName}] = f
+	m.hijackMap[hijackKey{hookName, instanceName}] = f
 }
 
 func (m *HookManager) hookAffectedSnaps(t *state.Task) ([]string, error) {
@@ -188,9 +188,9 @@ func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err e
 	if err != nil {
 		return nil, fmt.Errorf("cannot get snap cookies: %v", err)
 	}
-	if snapName, ok := contexts[cookieID]; ok {
+	if instanceName, ok := contexts[cookieID]; ok {
 		// create new ephemeral cookie
-		context, err = NewContext(nil, m.state, &HookSetup{Snap: snapName}, nil, cookieID)
+		context, err = NewContext(nil, m.state, &HookSetup{Snap: instanceName}, nil, cookieID)
 		return context, err
 	}
 	return nil, fmt.Errorf("invalid snap cookie requested")
@@ -392,7 +392,7 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
-	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
+	return runHookAndWait(c.InstanceName(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
 }
 
 var runHook = runHookImpl
@@ -453,8 +453,8 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 var errtrackerReport = errtracker.Report
 
 func trackHookError(context *Context, output []byte, err error) {
-	errmsg := fmt.Sprintf("hook %s in snap %q failed: %v", context.HookName(), context.SnapName(), osutil.OutputErr(output, err))
-	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%s", context.SnapName(), context.HookName(), err, output)
+	errmsg := fmt.Sprintf("hook %s in snap %q failed: %v", context.HookName(), context.InstanceName(), osutil.OutputErr(output, err))
+	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%s", context.InstanceName(), context.HookName(), err, output)
 	extra := map[string]string{
 		"HookName": context.HookName(),
 	}
@@ -466,9 +466,9 @@ func trackHookError(context *Context, output []byte, err error) {
 	problemReportsDisabled := settings.ProblemReportsDisabled(context.state)
 	context.state.Unlock()
 	if !problemReportsDisabled {
-		oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
+		oopsid, err := errtrackerReport(context.InstanceName(), errmsg, dupSig, extra)
 		if err == nil {
-			logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.SnapName(), oopsid)
+			logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.InstanceName(), oopsid)
 		} else {
 			logger.Debugf("Cannot report hook failure: %s", err)
 		}

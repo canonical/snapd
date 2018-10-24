@@ -81,6 +81,10 @@ unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
 /sys/fs/cgroup/*/docker/   rw,
 /sys/fs/cgroup/*/docker/** rw,
 
+# Also allow cgroup writes to kubernetes pods
+/sys/fs/cgroup/*/kubepods/ rw,
+/sys/fs/cgroup/*/kubepods/** rw,
+
 # Allow tracing ourself (especially the "runc" process we create)
 ptrace (trace) peer=@{profile_name},
 
@@ -111,7 +115,7 @@ pivot_root,
 /sbin/apparmor_parser ixr,
 /etc/apparmor.d/cache/ r,
 /etc/apparmor.d/cache/.features r,
-/etc/apparmor.d/cache/docker* rw,
+/etc/apparmor.d/{,cache/}docker* rw,
 /etc/apparmor.d/tunables/{,**} r,
 /etc/apparmor.d/abstractions/{,**} r,
 /etc/apparmor/parser.conf r,
@@ -532,6 +536,10 @@ ptrace (read, trace) peer=unconfined,
 # This grants raw access to device files and thus device ownership
 /dev/** mrwkl,
 @{PROC}/** mrwkl,
+
+# When kubernetes drives docker, it creates files in the container at arbitrary
+# locations.
+/** wl,
 `
 
 const dockerSupportPrivilegedSecComp = `
@@ -567,6 +575,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
 	}
+	spec.UsesPtraceTrace()
 	return nil
 }
 
