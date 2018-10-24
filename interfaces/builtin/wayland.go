@@ -53,7 +53,7 @@ capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
 # Create the Wayland socket and lock file
-owner /run/user/[0-9]*/wayland-[0-9]* rw,
+owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # Allow access to common client Wayland sockets from non-snap clients
 /run/user/[0-9]*/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,
 
