@@ -91,6 +91,10 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 	if !ok {
 		return "", e
 	}
+	// retryable errors are just passed through
+	if client.IsRetryable(err) {
+		return "", err
+	}
 
 	// ensure the "real" error is available if we ask for it
 	logger.Debugf("error: %s", err)

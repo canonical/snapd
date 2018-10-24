@@ -722,7 +722,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer"), IsNil)
+	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, t, "consumer", "producer"), IsNil)
 
 	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithAutoSet())
 	c.Assert(err, IsNil)
@@ -761,7 +761,7 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer")
+	return ifacestate.CheckAutoconnectConflicts(s.state, t2, "consumer", "producer")
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
@@ -4413,7 +4413,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	c.Assert(tasks, HasLen, 1)
 
 	c.Check(t.Status(), Equals, state.DoingStatus)
-	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried because of "consumer" - "producer" conflict`)
+	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried: conflicting snap producer with task "link-snap"`)
 }
 
 func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
