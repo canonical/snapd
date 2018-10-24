@@ -80,6 +80,14 @@ func (s *DeviceButtonsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *DeviceButtonsInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/input/event[0-9]* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/**/input[0-9]*/capabilities/* r,`)
+}
+
 func (s *DeviceButtonsInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
