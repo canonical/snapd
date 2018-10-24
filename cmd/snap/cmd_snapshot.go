@@ -65,6 +65,7 @@ func (x *savedCmd) Execute([]string) error {
 		// TRANSLATORS: 'Set' as in group or bag of things
 		i18n.G("Set"),
 		"Snap",
+		// TRANSLATORS: 'Age' as in how old something is
 		i18n.G("Age"),
 		i18n.G("Version"),
 		// TRANSLATORS: 'Rev' is an abbreviation of 'Revision'
@@ -133,7 +134,15 @@ type forgetCmd struct {
 
 var shortForgetHelp = i18n.G("Delete a snapshot")
 var longForgetHelp = i18n.G(`
-The forget command deletes a snapshot.
+The forget command deletes a snapshot. This operation can not be
+undone.
+
+A snapshot consists of a series of archives that hold a snap's data
+belonging to a number of users, as well as system and configuration
+data for the snap.
+
+You can choose to forget all the data in a snapshot, which is the
+default operation, or you can specify which snaps' data to forget.
 `)
 
 func (x *forgetCmd) Execute([]string) error {
@@ -170,7 +179,16 @@ type checkSnapshotCmd struct {
 
 var shortCheckHelp = i18n.G("Check a snapshot")
 var longCheckHelp = i18n.G(`
-The check-snapshot command checks a snapshot against its hashsums.
+The check-snapshot command verifies the contents of a snapshot.
+
+A snapshot consists of a series of archives that hold a snap's data
+belonging to a number of users, as well as system and configuration
+data for the snap. The check operation takes the archives and
+runs the data integrity verification that is done on restore.
+
+You can choose to check all the data in a snapshot, which is the
+default operation, or you can specify which snaps' data to check, or
+for which users, or a combination of these.
 `)
 
 func (x *checkSnapshotCmd) Execute([]string) error {
@@ -194,10 +212,10 @@ func (x *checkSnapshotCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually checked
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s check passed.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s verified successfully.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d check passed.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d verified successfully.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -213,7 +231,18 @@ type restoreCmd struct {
 
 var shortRestoreHelp = i18n.G("Restore a snapshot")
 var longRestoreHelp = i18n.G(`
-The restore command restores a snapshot.
+The restore command restores the data contained in a snapshot.
+
+A snapshot consists of a series of archives that hold a snap's data
+belonging to a number of users, as well as system and configuration
+data for the snap.
+
+You can choose to restore all the data in a snapshot, which is the
+default operation, or you can specify which snaps' data to restore, or
+for which users, or a combination of these.
+
+It is not currently possible to choose not to restore the system and
+configuration data. This restriction may be lifted in the future.
 `)
 
 func (x *restoreCmd) Execute([]string) error {
@@ -234,13 +263,13 @@ func (x *restoreCmd) Execute([]string) error {
 		return err
 	}
 
-	// TODO: also mention the home archives that were actually restoreed
+	// TODO: also mention the home archives that were actually restored
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of %s restored.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%d of snaps %s.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d restored.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%d.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -254,7 +283,7 @@ func init() {
 		},
 		durationDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"id": i18n.G("Only list this snapshot."),
+			"id": i18n.G("Show only a specific snapshot."),
 		}),
 		nil)
 
@@ -265,7 +294,7 @@ func init() {
 			return &saveCmd{}
 		}, durationDescs.also(waitDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"users": i18n.G("Only snapshot these users' files (a comma-separated list)."),
+			"users": i18n.G("Snapshot data of only specific users (comma-separated) (default: all users)"),
 		}), nil)
 
 	addCommand("restore",
@@ -275,7 +304,7 @@ func init() {
 			return &restoreCmd{}
 		}, waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"users": i18n.G("Only restore these users' files (a comma-separated list)."),
+			"users": i18n.G("Restore data of only specific users (comma-separated) (default: all users)"),
 		}), nil)
 
 	addCommand("forget",
@@ -292,6 +321,6 @@ func init() {
 			return &checkSnapshotCmd{}
 		}, waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"users": i18n.G("Only check these users' files (a comma-separated list)."),
+			"users": i18n.G("Check data of only specific users (comma-separated) (default: all users)"),
 		}), nil)
 }
