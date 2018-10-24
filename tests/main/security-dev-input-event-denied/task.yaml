@@ -6,11 +6,14 @@ details: |
     The joystick interface disallows access to /dev/input/event* for
     non-joysticks.
 
+    The device-buttons interface disallows access to /dev/input/event* for
+    non-device-keys.
+
     The test checks the snap is not able to access /dev/input/event* with or
-    without the joystick interface connected. We do this since the
-    /dev/input/event* devices are sensitive and because the joystick interface
-    adds a /dev/input/event* AppArmor glob rule that relies entirely on the
-    device cgroup for enforcement.
+    without the joystick or device-buttons interface(s) connected. We do this
+    since the /dev/input/event* devices are sensitive and because these
+    interfaces add a /dev/input/event* AppArmor glob rule that relies entirely
+    on the device cgroup for enforcement.
 
 prepare: |
     echo "Given the test-snapd-event snap is installed"
