@@ -67,6 +67,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as err:
+    except OSError as err:
         print(err, file=stderr)
         raise SystemExit(1)
