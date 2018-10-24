@@ -954,6 +954,21 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) DeleteExtraInfo(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "delete-extra-info",
+		name: snapName,
+	})
+	return nil
+}
+func (f *fakeSnappyBackend) SaveExtraInfo(snapName string, extra *backend.ExtraInfo) error {
+	f.appendOp(&fakeOp{
+		op:   "save-extra-info",
+		name: snapName,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

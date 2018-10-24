@@ -1185,6 +1185,23 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doSaveExtraInfo(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	extra := backend.ExtraInfo{
+		Media: snapsup.Media,
+	}
+
+	return m.backend.SaveExtraInfo(snapsup.InstanceName(), &extra)
+}
+
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1388,6 +1405,23 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)
+	return nil
+}
+
+func (m *SnapManager) doDeleteExtraInfo(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	err = m.backend.DeleteExtraInfo(snapsup.InstanceName())
+	if err != nil && err != backend.ErrNoExtraInfo {
+		return err
+	}
 	return nil
 }
 

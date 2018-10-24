@@ -80,6 +80,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+	Media        snap.MediaInfos    `json:"media,omitempty"`
 
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
@@ -231,6 +232,7 @@ var ErrNoCurrent = errors.New("snap has no current revision")
 
 const (
 	errorOnBroken = 1 << iota
+	loadExtra
 )
 
 var snapReadInfo = snap.ReadInfo
@@ -245,7 +247,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
 		_, instanceKey := snap.SplitInstanceName(name)
-		info := &snap.Info{
+		info = &snap.Info{
 			SuggestedName: name,
 			Broken:        bse.Broken(),
 			InstanceKey:   instanceKey,
@@ -254,7 +256,13 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		if si != nil {
 			info.SideInfo = *si
 		}
-		return info, nil
+		err = nil
+	}
+	if err == nil && flags&loadExtra != 0 {
+		e := backend.LoadExtraInfo(info)
+		if e != nil && e != backend.ErrNoExtraInfo {
+			logger.Debugf("cannot read extra snap info for %q: %v", name, e)
+		}
 	}
 	return info, err
 }
@@ -278,7 +286,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	}
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
-	return readInfo(name, cur, 0)
+	return readInfo(name, cur, loadExtra)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -354,6 +362,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
+	runner.AddHandler("save-extra-info", m.doSaveExtraInfo, m.doDeleteExtraInfo)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -364,6 +373,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
+	runner.AddHandler("delete-extra-info", m.doDeleteExtraInfo, nil) // once it's gone, it's gone
 
 	// alias related
 	// FIXME: drop the task entirely after a while

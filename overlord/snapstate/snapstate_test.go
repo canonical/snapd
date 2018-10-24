@@ -309,6 +309,7 @@ const (
 	cleanupAfter
 	maybeCore
 	runCoreConfigure
+	hadSnapID
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -366,6 +367,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	expected = append(expected,
+		"save-extra-info",
 		"run-hook[configure]",
 	)
 
@@ -406,9 +408,11 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[post-refresh]",
-		"start-snap-services")
+		"start-snap-services",
+		"save-extra-info",
+	)
 
-	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run post-refresh hook of .*`)
+	c.Assert(ts.Tasks()[len(expected)-3].Summary(), Matches, `Run post-refresh hook of .*`)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -427,8 +431,8 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	c.Assert(kinds, DeepEquals, expected)
 }
 
-func verifyRemoveTasks(c *C, ts *state.TaskSet) {
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+func verifyRemoveTasks(c *C, opts int, ts *state.TaskSet) {
+	expected := []string{
 		"stop-snap-services",
 		"auto-disconnect",
 		"run-hook[remove]",
@@ -437,7 +441,12 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
-	})
+	}
+	if opts&hadSnapID != 0 {
+		expected = append(expected, "delete-extra-info")
+	}
+
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, expected)
 	verifyStopReason(c, ts, "remove")
 }
 
@@ -2030,7 +2039,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyRemoveTasks(c, ts)
+	verifyRemoveTasks(c, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
@@ -2173,6 +2182,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "save-extra-info",
+			name: "some-snap",
+		},
+		{
 			op:    "cleanup-trash",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -2191,9 +2204,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2339,6 +2352,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "save-extra-info",
+			name: "some-snap_instance",
+		},
+		{
 			op:    "cleanup-trash",
 			name:  "some-snap_instance",
 			revno: snap.R(11),
@@ -2357,9 +2374,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2509,6 +2526,14 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "save-extra-info",
+			name: "some-snap",
+		},
+		{
+			op:   "delete-extra-info",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
 		},
@@ -2645,6 +2670,10 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "save-extra-info",
+			name: "some-snap",
+		},
+		{
 			op:    "cleanup-trash",
 			name:  "some-snap",
 			revno: snap.R(42),
@@ -2663,9 +2692,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
 
 	// verify snap-setup in the task state
@@ -2885,6 +2914,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
+			op:   "save-extra-info",
+			name: "services-snap",
+		},
+		{
 			op:    "cleanup-trash",
 			name:  "services-snap",
 			revno: snap.R(11),
@@ -3100,6 +3133,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			op:       "start-snap-services",
 			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
 			services: []string{"svc1", "svc3", "svc2"},
+		},
+		{
+			op:   "save-extra-info",
+			name: "services-snap_instance",
 		},
 		{
 			op:    "cleanup-trash",
@@ -4019,7 +4056,15 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
+		{
+			op:   "save-extra-info",
+			name: "some-snap",
+		},
 		// undoing everything from here down...
+		{
+			op:   "delete-extra-info",
+			name: "some-snap",
+		},
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
@@ -5277,7 +5322,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 18
+			j += 19
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -6157,16 +6202,19 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 
 func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	si3 := snap.SideInfo{
+		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 		Revision: snap.R(3),
 	}
 
 	si5 := snap.SideInfo{
+		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 		Revision: snap.R(5),
 	}
 
 	si7 := snap.SideInfo{
+		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 		Revision: snap.R(7),
 	}
@@ -6255,6 +6303,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
+		{
+			op:   "delete-extra-info",
+			name: "some-snap",
+		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -6276,6 +6328,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		case "discard-conns":
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
+					SnapID:   "some-snap-id",
 					RealName: "some-snap",
 				},
 			}
@@ -6289,6 +6342,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		default:
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
+					SnapID:   "some-snap-id",
 					RealName: "some-snap",
 					Revision: snap.R(7),
 				},
@@ -6412,7 +6466,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 7)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -6448,6 +6501,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 	}
 	// start with an easier-to-read error if this fails:
+	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -6829,6 +6883,10 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "save-extra-info",
+			name: "some-snap",
 		},
 		{
 			op:   "remove-snap-data",
@@ -8073,6 +8131,7 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
+save-extra-info: Hold
 cleanup: Hold
 run-hook: Hold`)
 	c.Check(errSig, Matches, `(?sm)snap-install:
@@ -8089,6 +8148,7 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
+save-extra-info: Hold
 cleanup: Hold
 run-hook: Hold`)
 
@@ -10039,7 +10099,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -10050,6 +10110,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
+			"delete-extra-info",
 		})
 		verifyStopReason(c, ts, "remove")
 		// check that tasksets are in separate lanes
@@ -10389,7 +10450,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
-	verifyRemoveTasks(c, tsl[2])
+	verifyRemoveTasks(c, hadSnapID, tsl[2])
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
@@ -10416,7 +10477,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 	// 1. transition connections
 	verifyTransitionConnectionsTasks(c, tsl[0])
 	// 2. remove ubuntu-core
-	verifyRemoveTasks(c, tsl[1])
+	verifyRemoveTasks(c, hadSnapID, tsl[1])
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
@@ -10530,6 +10591,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "save-extra-info",
+			name: "core",
+		},
+		{
 			op:   "transition-ubuntu-core:Doing",
 			name: "ubuntu-core",
 		},
@@ -10577,6 +10642,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
+		},
+		{
+			op:   "delete-extra-info",
+			name: "ubuntu-core",
 		},
 		{
 			op:    "cleanup-trash",
@@ -10673,6 +10742,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
+		},
+		{
+			op:   "delete-extra-info",
+			name: "ubuntu-core",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -11203,6 +11276,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op: "update-aliases",
 		},
+		{
+			op:   "save-extra-info",
+			name: "core",
+		},
 		// after core is in place continue with the snap
 		{
 			op:   "storesvc-download",
@@ -11261,6 +11338,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "save-extra-info",
+			name: "some-snap",
 		},
 		// cleanups order is random
 		{
@@ -11334,12 +11415,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 26)
-		c.Assert(chg2.Tasks(), HasLen, 13)
-	} else {
-		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 26)
+		chg1, chg2 = chg2, chg1
 	}
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 14)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 28)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -11792,6 +11871,12 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	}, {
 		op: "update-aliases",
 	}, {
+		op:   "save-extra-info",
+		name: "snap-content-plug",
+	}, {
+		op:   "save-extra-info",
+		name: "snap-content-slot",
+	}, {
 		op:    "cleanup-trash",
 		name:  "snap-content-plug",
 		revno: snap.R(42),
@@ -11806,6 +11891,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
 	for _, op := range expected {
 		c.Assert(s.fakeBackend.ops, testutil.DeepContains, op)
+	}
+	for _, op := range s.fakeBackend.ops {
+		c.Assert(expected, testutil.DeepContains, op)
 	}
 }
 

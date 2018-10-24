@@ -244,6 +244,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(startSnapServices)
 	prev = startSnapServices
 
+	if fromStore {
+		updateExtraInfo := st.NewTask("save-extra-info", fmt.Sprintf(i18n.G("Update cache of store-side info for %q"), snapsup.InstanceName()))
+		addTask(updateExtraInfo)
+		prev = updateExtraInfo
+	}
+
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		var retain int
@@ -654,6 +660,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
+		Media:        info.Media,
 		Type:         info.Type,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
@@ -826,6 +833,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
+			Media:        update.Media,
 			Type:         update.Type,
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
@@ -1527,6 +1535,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	// main/current SnapSetup
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
+			SnapID:   info.SnapID,
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
@@ -1584,7 +1593,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
-		removeAliases.WaitFor(prev)
+		removeAliases.WaitFor(prev) // prev is not needed beyond here
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
@@ -1607,6 +1616,14 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			si := seq[i]
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
+
+		if info.SnapID != "" {
+			// remove extra info
+			deleteExtraInfo := st.NewTask("delete-extra-info", fmt.Sprintf(i18n.G("Remove cache of store-side info about %q"), snapsup.InstanceName()))
+			deleteExtraInfo.Set("snap-setup", snapsup)
+			addNext(state.NewTaskSet(deleteExtraInfo))
+		}
+
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}

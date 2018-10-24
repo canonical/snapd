@@ -361,6 +361,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		License:          localSnap.License,
 		CommonIDs:        localSnap.CommonIDs,
 		MountedFrom:      localSnap.MountFile(),
+		Media:            localSnap.Media,
 	}
 
 	if result.TryMode {
