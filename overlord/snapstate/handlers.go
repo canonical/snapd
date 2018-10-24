@@ -1204,9 +1204,14 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
+	startupOrdered, err := snap.SortServices(svcs)
+	if err != nil {
+		return err
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StartServices(svcs, pb)
+	err = m.backend.StartServices(startupOrdered, pb)
 	st.Lock()
 	return err
 }
