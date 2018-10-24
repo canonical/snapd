@@ -61,18 +61,10 @@ void sc_initialize_mount_ns(void);
  */
 struct sc_mount_ns;
 
-enum {
-	SC_NS_FAIL_GRACEFULLY = 1
-};
-
 /**
  * Open a namespace group.
  *
  * This will open and keep file descriptors for /run/snapd/ns/.
- *
- * If the flags argument is SC_NS_FAIL_GRACEFULLY then the function returns
- * NULL if the /run/snapd/ns directory doesn't exist. In all other cases it
- * calls die() and exits the process.
  *
  * The following methods should be called only while holding a lock protecting
  * that specific snap namespace:
@@ -81,8 +73,7 @@ enum {
  * - sc_preserve_populated_mount_ns()
  * - sc_discard_preserved_mount_ns()
  */
-struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
-				     const unsigned flags);
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name);
 
 /**
  * Close namespace group.
