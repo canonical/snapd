@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -334,7 +335,12 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
-func makeTestSnap(c *C, yaml string) string {
+func makeTestSnap(c *C, snapYaml string) string {
+	var m struct {
+		Type string `yaml:"type"`
+	}
+	yaml.Unmarshal([]byte(snapYaml), &m) // yes, ignore the error
+
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
@@ -342,12 +348,12 @@ func makeTestSnap(c *C, yaml string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
+	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource)
+	err = snap.Build(snapSource, m.Type)
 	c.Assert(err, IsNil)
 
 	return dest
@@ -455,7 +461,7 @@ type: app`
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, ErrorMatches, "invalid snap name.*")
+	c.Assert(err, ErrorMatches, `invalid snap name.*`)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {

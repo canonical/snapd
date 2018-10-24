@@ -20,12 +20,15 @@
 package release_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type apparmorSuite struct{}
@@ -85,4 +88,30 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 
 	features := release.AppArmorFeatures()
 	c.Check(features, DeepEquals, []string{"network", "policy"})
+}
+
+func (s *apparmorSuite) TestAppArmorParserFeatures(c *C) {
+	tmpdir := c.MkDir()
+
+	var testcases = []struct {
+		exit     string
+		features []string
+	}{
+		{"exit 1", []string{}},
+		{"exit 0", []string{"unsafe"}},
+	}
+
+	for _, t := range testcases {
+		mockApparmorParser := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf("cat > %s/stdin; %s", tmpdir, t.exit))
+		defer mockApparmorParser.Restore()
+		restore := release.MockAppArmorParserSearchPath(os.Getenv("PATH"))
+		defer restore()
+
+		features := release.AppArmorParserFeatures()
+		c.Check(features, DeepEquals, t.features)
+		c.Check(mockApparmorParser.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
+		inp, err := ioutil.ReadFile(filepath.Join(tmpdir, "stdin"))
+		c.Assert(err, IsNil)
+		c.Check(string(inp), Equals, "profile snap-test {\n change_profile unsafe /**,\n}")
+	}
 }

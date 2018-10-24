@@ -27,15 +27,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"testing"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/pack"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -140,40 +140,15 @@ apps:
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
-func (s *packSuite) TestCopyCopies(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
-	// actually this'll be on /tmp so it'll be a link
-	target := c.MkDir()
-	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
-	c.Check(err, IsNil)
-	c.Check(out, DeepEquals, []byte{})
-}
-
-func (s *packSuite) TestCopyActuallyCopies(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
-
-	// hoping to get the non-linking behaviour via /dev/shm
-	target, err := ioutil.TempDir("/dev/shm", "copy")
-	// sbuild environments won't allow writing to /dev/shm, so its
-	// ok to skip there
-	if os.IsPermission(err) {
-		c.Skip("/dev/shm is not writable for us")
-	}
-	c.Assert(err, IsNil)
-
-	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
-	c.Check(err, IsNil)
-	c.Check(out, DeepEquals, []byte{})
-}
-
-func (s *packSuite) TestCopyExcludesBackups(c *C) {
+func (s *packSuite) TestPackExcludesBackups(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
+	snapfile, err := pack.Snap(sourceDir, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
+
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
@@ -181,14 +156,16 @@ func (s *packSuite) TestCopyExcludesBackups(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
 
-func (s *packSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
+func (s *packSuite) TestPackExcludesTopLevelDEBIAN(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
+	snapfile, err := pack.Snap(sourceDir, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
@@ -198,59 +175,28 @@ func (s *packSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	c.Check(strings.Count(string(out), "Only in"), Equals, 1)
 }
 
-func (s *packSuite) TestCopyExcludesWholeDirs(c *C) {
+func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
+	snapfile, err := pack.Snap(sourceDir, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
 	c.Check(string(out), Not(Equals), "")
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
-	out, err := cmd.Output()
+	out, err = cmd.Output()
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
-}
-
-func (s *packSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
-	basedir := c.MkDir()
-	c.Check(pack.ShouldExcludeDynamic(basedir, "foo"), Equals, false)
-}
-
-func (s *packSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
-	basedir := c.MkDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("foo\nb.r\n"), 0644), IsNil)
-	c.Check(pack.ShouldExcludeDynamic(basedir, "foo"), Equals, true)
-	c.Check(pack.ShouldExcludeDynamic(basedir, "bar"), Equals, true)
-	c.Check(pack.ShouldExcludeDynamic(basedir, "bzr"), Equals, true)
-	c.Check(pack.ShouldExcludeDynamic(basedir, "baz"), Equals, false)
-}
-
-func (s *packSuite) TestExcludeDynamicWeirdRegexps(c *C) {
-	basedir := c.MkDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
-	// note "*hello" is not a valid regexp, so will be taken literally (not globbed!)
-	c.Check(pack.ShouldExcludeDynamic(basedir, "ahello"), Equals, false)
-	c.Check(pack.ShouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
 func (s *packSuite) TestDebArchitecture(c *C) {
 	c.Check(pack.DebArchitecture(&snap.Info{Architectures: []string{"foo"}}), Equals, "foo")
 	c.Check(pack.DebArchitecture(&snap.Info{Architectures: []string{"foo", "bar"}}), Equals, "multi")
 	c.Check(pack.DebArchitecture(&snap.Info{Architectures: nil}), Equals, "all")
-}
-
-func (s *packSuite) TestPackFailsForUnknownType(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-`)
-	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = pack.Snap(sourceDir, "")
-	c.Assert(err, ErrorMatches, "cannot handle type of file .*")
 }
 
 func (s *packSuite) TestPackSimple(c *C) {

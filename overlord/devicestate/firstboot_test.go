@@ -914,7 +914,7 @@ snaps:
 		// we have a gadget at this point(s)
 		_, err := snapstate.GadgetInfo(st)
 		c.Check(err, IsNil)
-		configured = append(configured, ctx.SnapName())
+		configured = append(configured, ctx.InstanceName())
 		return nil, nil
 	}
 
