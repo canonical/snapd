@@ -13,6 +13,7 @@ prepare: |
     copy_remote "${GOHOME}"/snapd_*.deb
     execute_remote 'sudo apt update'
     execute_remote 'sudo apt install -y ./snapd_*.deb'
+    #shellcheck disable=SC2016
     execute_remote 'sudo apt install -y linux-image-extra-$(uname -r) || sudo apt install -y linux-modules-extra-$(uname -r)'
 
 restore: |
