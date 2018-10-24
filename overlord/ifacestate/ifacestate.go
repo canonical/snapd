@@ -338,6 +338,7 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 			t.WaitFor(prev)
 		}
 		ts.AddTask(t)
+		prev = t
 	}
 
 	initialContext := make(map[string]interface{})
@@ -371,7 +372,6 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 			disconnectSlot := hookstate.HookTaskWithUndo(st, summary, disconnectSlotHookSetup, undoDisconnectSlotHookSetup, initialContext)
 
 			addTask(disconnectSlot)
-			prev = disconnectSlot
 		}
 	}
 
@@ -394,7 +394,6 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 			disconnectPlug := hookstate.HookTaskWithUndo(st, summary, disconnectPlugHookSetup, undoDisconnectPlugHookSetup, initialContext)
 
 			addTask(disconnectPlug)
-			prev = disconnectPlug
 		}
 	}
 
