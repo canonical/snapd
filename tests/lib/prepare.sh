@@ -83,7 +83,7 @@ EOF
     # We change the service configuration so reload and restart
     # the snapd socket unit to get them applied
     systemctl daemon-reload
-    systemctl restart snapd.socket
+    systemctl restart snapd.{socket,service}
 }
 
 update_core_snap_for_classic_reexec() {
