@@ -5,3 +5,4 @@ slots:
         interface: dummy
         producer-attr-1: producer-value-1
         producer-attr-2: producer-value-2
+        producer-num-1: 1

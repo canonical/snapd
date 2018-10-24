@@ -61,6 +61,7 @@ slots:
     slot:
         interface: interface
         attr: value
+        number: 100
         complex:
             a: b
 `, nil)
@@ -88,6 +89,7 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	attrs := slot.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr":    "value",
+		"number":  int64(100),
 		"complex": map[string]interface{}{"a": "b"},
 	})
 	slot.StaticAttr("attr", &val)
