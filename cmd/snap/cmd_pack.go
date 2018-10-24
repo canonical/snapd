@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
@@ -67,7 +68,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"check-skeleton": i18n.G("Validate snap-dir metadata only"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"filename": i18n.G("Use this filename"),
+			"filename": i18n.G("Output to this filename"),
 		}, nil)
 	cmd.extra = func(cmd *flags.Command) {
 		// TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
@@ -76,6 +77,10 @@ func init() {
 }
 
 func (x *packCmd) Execute([]string) error {
+	if x.Positional.TargetDir != "" && x.Filename != "" && filepath.IsAbs(x.Filename) {
+		return fmt.Errorf(i18n.G("you can't specify an absolute filename while also specifying target dir."))
+	}
+
 	if x.Positional.SnapDir == "" {
 		x.Positional.SnapDir = "."
 	}
@@ -93,9 +98,12 @@ func (x *packCmd) Execute([]string) error {
 
 	snapPath, err := pack.Snap(x.Positional.SnapDir, x.Positional.TargetDir, x.Filename)
 	if err != nil {
-		return fmt.Errorf("cannot pack %q: %v", x.Positional.SnapDir, err)
+		// TRANSLATORS: the %q is the snap-dir (the first positional
+		// argument to the command); the %v is an error
+		return fmt.Errorf(i18n.G("cannot pack %q: %v"), x.Positional.SnapDir, err)
 
 	}
-	fmt.Fprintf(Stdout, "built: %s\n", snapPath)
+	// TRANSLATORS: %s is the path to the built snap file
+	fmt.Fprintf(Stdout, i18n.G("built: %s\n"), snapPath)
 	return nil
 }
