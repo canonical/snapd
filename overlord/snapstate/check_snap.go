@@ -129,6 +129,10 @@ func (e *SnapNeedsClassicSystemError) Error() string {
 // determine whether the flags (and system overrides thereof) are
 // compatible with the given *snap.Info
 func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
+	if flags.Classic && !info.NeedsClassic() {
+		return fmt.Errorf("classic confinment requested for a non classic confined snap")
+	}
+
 	switch c := info.Confinement; c {
 	case snap.StrictConfinement, "":
 		// strict is always fine
