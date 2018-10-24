@@ -2031,9 +2031,23 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 			"url":    "http://example.com/screenshot.png",
 			"width":  float64(800),
 			"height": float64(1280),
+			"note":   snap.ScreenshotsDeprecationNotice,
 		},
 		map[string]interface{}{
-			"url": "http://example.com/screenshot2.png",
+			"url":  "http://example.com/screenshot2.png",
+			"note": snap.ScreenshotsDeprecationNotice,
+		},
+	})
+	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"type":   "screenshot",
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"type": "screenshot",
+			"url":  "http://example.com/screenshot2.png",
 		},
 	})
 }

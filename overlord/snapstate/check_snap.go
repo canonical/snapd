@@ -41,6 +41,8 @@ var featureSet = map[string]bool{
 	"common-data-dir": true,
 	// Support for the "Environment:" feature in snap.yaml
 	"snap-env": true,
+	// Support for the "command-chain" feature for apps and hooks in snap.yaml
+	"command-chain": true,
 }
 
 func checkAssumes(si *snap.Info) error {
