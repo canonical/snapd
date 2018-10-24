@@ -242,14 +242,13 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
-
 		n++
 	})
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
-	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "Service  Startup  Current  Notes\n")
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "There are no services provided by installed snaps.\n")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
 }
