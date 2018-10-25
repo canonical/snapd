@@ -336,6 +336,7 @@
 
     # Allow snap-confine to unmount stale mount namespaces.
     umount /run/snapd/ns/*.mnt,
+    /run/snapd/ns/snap.*.fstab w,
     # Required to correctly unmount bound mount namespace.
     # See LP: #1735459 for details.
     umount /,
