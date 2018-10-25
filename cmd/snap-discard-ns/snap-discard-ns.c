@@ -135,17 +135,18 @@ int main(int argc, char **argv)
 			struct variant *v = &variants[i];
 			debug("checking if %s matches %s", dname, v->p);
 			int match_result = fnmatch(v->p, dname, 0);
-			if (match_result < 0) {
-				die("cannot execute match against pattern %s",
-				    v->p);
-			}
-			if (match_result == 0) {
+			if (match_result == FNM_NOMATCH) {
+				continue;
+			} else if (match_result == 0) {
 				should_unmount |= v->unmount;
 				should_unlink = true;
 				debug("file %s matches pattern %s", dname,
 				      v->p);
 				/* One match is enough. */
 				break;
+			} else if (match_result < 0) {
+				die("cannot execute match against pattern %s",
+				    v->p);
 			}
 		}
 
