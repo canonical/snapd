@@ -117,6 +117,9 @@ func (s *helpersSuite) TestGetConns(c *C) {
 		"app:network core:network": map[string]interface{}{
 			"auto":      true,
 			"interface": "network",
+			"slot-static": map[string]interface{}{
+				"number": int(78),
+			},
 		},
 	})
 
@@ -129,6 +132,7 @@ func (s *helpersSuite) TestGetConns(c *C) {
 		c.Assert(id, Equals, "APP:network CORE:network")
 		c.Assert(connState.Auto, Equals, true)
 		c.Assert(connState.Interface, Equals, "network")
+		c.Assert(connState.StaticSlotAttrs["number"], Equals, int64(78))
 	}
 }
 

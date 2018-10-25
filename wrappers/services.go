@@ -97,7 +97,9 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
-// StartServices starts service units for the applications from the snap which are services.
+// StartServices starts service units for the applications from the snap which
+// are services. Service units will be started in the order provided by the
+// caller.
 func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
@@ -130,7 +132,18 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		}(app)
 
 		if len(app.Sockets) == 0 && app.Timer == nil {
-			services = append(services, app.ServiceName())
+			// check if the service is disabled, if so don't start it up
+			// this could happen for example if the service was disabled in
+			// the install hook by snapctl or if the service was disabled in
+			// the previous installation
+			isEnabled, err := sysd.IsEnabled(app.ServiceName())
+			if err != nil {
+				return err
+			}
+
+			if isEnabled {
+				services = append(services, app.ServiceName())
+			}
 		}
 
 		for _, socket := range app.Sockets {
@@ -156,11 +169,16 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 				return err
 			}
 		}
-
 	}
 
-	if len(services) > 0 {
-		if err := sysd.Start(services...); err != nil {
+	for _, srv := range services {
+		// starting all services at once does not create a single
+		// transaction, but instead spawns multiple jobs, make sure the
+		// services started in the original order by bring them up one
+		// by one, see:
+		// https://github.com/systemd/systemd/issues/8102
+		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
+		if err := sysd.Start(srv); err != nil {
 			// cleanup was set up by iterating over apps
 			return err
 		}

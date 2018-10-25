@@ -1,6 +1,25 @@
-snapd (2.36~pre2) xenial; urgency=medium
+snapd (2.36) xenial; urgency=medium
 
   * New upstream release, LP: #1795590
+    - overlord/snapstate, snap, wrappers: start services in the right
+      order during install
+    - tests: the store has caught up, drop gccgo test, update cosmic
+      image
+    - cmd/snap: try not to panic on error from "snap try"`--devmode`
+    - overlord/ifacestate: don't conflict on own discard-snap tasks when
+      refreshing & doing garbage collection
+    - snapstate: add command-chain to supported featureset
+    - daemon, snap: mark screenshots as deprecated
+    - interfaces: fix decoding of json numbers for static/dynamic
+      attributes
+    - data/systemd, wrappers: tweak system-shutdown helper for core18
+    - interfaces/system-key: add parser mtime and only discover features
+      on write
+    - interfaces: fix NormalizeInterfaceAttributes, add tests
+    - systemd,wrappers: don't start disabled services
+    - ifacestate/hooks: only create interface hook tasks if hooks exist
+    - tests: do not run degraded test in autopkgtest env
+    - osutil: workaround overlayfs on ubuntu 18.10
     - interfaces: include invalid type in Attr error
     - many: enable layouts by default
     - interfaces/default: don't scrub with change_profile with classic
@@ -343,7 +362,15 @@ snapd (2.36~pre2) xenial; urgency=medium
     - cmd,dirs: fix various issues discovered by a Fedora base snap
     - tests/lib/prepare: fix extra snaps test
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 Oct 2018 14:44:23 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 24 Oct 2018 11:30:45 -0600
+
+snapd (2.35.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1786438
+    - interfaces/home: don't allow snaps to write to $HOME/bin
+    - osutil: workaround overlayfs on ubuntu 18.10
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 15 Oct 2018 22:23:02 +0200
 
 snapd (2.35.4) xenial; urgency=medium
 
