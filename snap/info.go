@@ -986,8 +986,10 @@ var SanitizePlugsSlots = func(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
 
-// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
-func ReadInfo(name string, si *SideInfo) (*Info, error) {
+// ReadInfoExceptSize reads the snap information for the installed snap with the given name and given side-info.
+//
+// The Size field of snap.Info is not set.
+func ReadInfoExceptSize(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
@@ -1000,6 +1002,24 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+	}
+
+	err = addImplicitHooks(info)
+	if err != nil {
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+	}
+
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
+	return info, nil
+}
+
+// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
+func ReadInfo(name string, si *SideInfo) (*Info, error) {
+	info, err := ReadInfoExceptSize(name, si)
+	if err != nil {
+		return nil, err
 	}
 
 	mountFile := MountFile(name, si.Revision)
@@ -1015,14 +1035,6 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 	info.Size = st.Size()
-
-	err = addImplicitHooks(info)
-	if err != nil {
-		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
-	}
-
-	_, instanceKey := SplitInstanceName(name)
-	info.InstanceKey = instanceKey
 
 	return info, nil
 }
