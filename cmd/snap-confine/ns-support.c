@@ -454,6 +454,12 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
 		die("cannot discard stale mount namespace %s", mnt_fname);
 	}
+	char fstab_fname[PATH_MAX] = { 0 };
+	sc_must_snprintf(fstab_fname, sizeof fstab_fname,
+			 "%s/snap.%s.fstab", sc_ns_dir, snap_name);
+	if (unlink(fstab_fname) < 0) {
+		die("cannot remove stale mount profile %s", fstab_fname);
+	}
 	debug("stale mount namespace discarded");
 	return EAGAIN;
 }
