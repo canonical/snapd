@@ -49,7 +49,7 @@ execute: |
 
     echo "Then the snap is able to read the supported event reports for the input device"
     capabilities="$(find /sys/devices/ -type d -name capabilities | grep -E "/sys/devices/.*/input[0-9].*/capabilities" | head -n1)"
-    if [ ! -z "$capabilities" ]; then
+    if [ -n "$capabilities" ]; then
         test-snapd-sh.with-joystick-plug -c "ls $capabilities"
     fi
 

@@ -1281,10 +1281,10 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 
 	cmd := []string{"try", "/"}
 	_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
-	c.Assert(err, check.ErrorMatches, rewrappingMatcher(`
+	c.Assert(err, testutil.EqualsWrapped, `
 "/" does not contain an unpacked snap.
 
-Try 'snapcraft prime' in your project directory, then 'snap try' again.`))
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 }
 
 func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
@@ -1321,9 +1321,7 @@ func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
 
 	for _, test := range tests {
 		kind = test.kind
-		rx := rewrappingMatcher(test.expected)
-		err := snap.RunMain()
-		c.Check(err, check.ErrorMatches, rx, check.Commentf("%q", kind))
+		c.Check(snap.RunMain(), testutil.ContainsWrapped, test.expected, check.Commentf("%q", kind))
 	}
 }
 
