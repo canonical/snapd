@@ -54,8 +54,12 @@ check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
+new_format = snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
-fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
+fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
+	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
+
+fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
