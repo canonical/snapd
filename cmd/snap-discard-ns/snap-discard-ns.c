@@ -122,31 +122,31 @@ int main(int argc, char **argv)
 		bool should_unmount = false;
 		bool should_unlink = false;
 		struct variant {
-			const char *p;
+			const char *pattern;
 			bool unmount;
 		};
 		struct variant variants[4] = {
-			{.p = sys_mnt_pattern,.unmount = true},
-			{.p = usr_mnt_pattern,.unmount = true},
-			{.p = sys_fstab_pattern},
-			{.p = usr_fstab_pattern},
+			{.pattern = sys_mnt_pattern,.unmount = true},
+			{.pattern = usr_mnt_pattern,.unmount = true},
+			{.pattern = sys_fstab_pattern},
+			{.pattern = usr_fstab_pattern},
 		};
 		for (size_t i = 0; i < sizeof variants / sizeof *variants; ++i) {
 			struct variant *v = &variants[i];
-			debug("checking if %s matches %s", dname, v->p);
-			int match_result = fnmatch(v->p, dname, 0);
+			debug("checking if %s matches %s", dname, v->pattern);
+			int match_result = fnmatch(v->pattern, dname, 0);
 			if (match_result == FNM_NOMATCH) {
 				continue;
 			} else if (match_result == 0) {
 				should_unmount |= v->unmount;
 				should_unlink = true;
 				debug("file %s matches pattern %s", dname,
-				      v->p);
+				      v->pattern);
 				/* One match is enough. */
 				break;
 			} else if (match_result < 0) {
 				die("cannot execute match against pattern %s",
-				    v->p);
+				    v->pattern);
 			}
 		}
 
