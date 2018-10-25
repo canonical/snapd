@@ -30,7 +30,9 @@
 #include <sys/vfs.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/error.h"
 #include "../libsnap-confine-private/locking.h"
+#include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
@@ -46,6 +48,9 @@ int main(int argc, char **argv)
 	}
 
 	const char *snap_instance_name = argv[1];
+	struct sc_error *err = NULL;
+	sc_instance_name_validate(snap_instance_name, &err);
+	sc_die_on_error(err);
 
 	/* Grab the lock holding the snap instance. This prevents races from
 	 * concurrently executing snap-confine. The lock is explicitly released
