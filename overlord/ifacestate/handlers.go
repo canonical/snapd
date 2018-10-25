@@ -1225,7 +1225,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			return err
 		}
 
-		if err := checkAutoconnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkAutoconnectConflicts(st, task, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("hotplug connect will be retried because of %q - %q conflict", connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				return err // will retry
@@ -1290,7 +1290,7 @@ func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hot
 			continue
 		}
 
-		if err := checkAutoconnectConflicts(st, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", instanceName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
 				task.Logf("Waiting for conflicting change in progress...")
