@@ -78,7 +78,8 @@ func New(st *state.State) *StandbyOpinions {
 }
 
 func (m *StandbyOpinions) Start() {
-	m.stopCh = make(chan interface{})
+	stopCh := make(chan interface{})
+	m.stopCh = stopCh
 	go func() {
 		for {
 			m.timerCh = time.NewTimer(m.sleep).C
@@ -90,7 +91,7 @@ func (m *StandbyOpinions) Start() {
 				if m.sleep < 5*time.Minute {
 					m.sleep *= 2
 				}
-			case <-m.stopCh:
+			case <-stopCh:
 				return
 			}
 		}
