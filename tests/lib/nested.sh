@@ -107,6 +107,7 @@ create_nested_classic_vm(){
     IMAGE_URL=$(get_image_url_for_nested_vm)
     wget -P "$WORK_DIR" "$IMAGE_URL"
     IMAGE=$(ls $WORK_DIR/*.img)
+    test "$(echo "$IMAGE" | wc -l)" = "1"
 
     # Prepare the cloud-init configuration
     cat <<EOF > "$WORK_DIR/seed"

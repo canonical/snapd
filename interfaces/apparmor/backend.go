@@ -419,12 +419,12 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -482,7 +482,7 @@ func downgradeConfinement() bool {
 	return true
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, spec *Specification) {
 	// Normally we use a specific apparmor template for all snap programs.
 	policy := defaultTemplate
 	ignoreSnippets := false
@@ -553,6 +553,17 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 					tagSnippets += snippet
 				}
 			}
+
+			if !ignoreSnippets {
+				// For policy with snippets that request
+				// suppression of 'ptrace (trace)' denials, add
+				// the suppression rule unless another
+				// interface said it uses them.
+				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
+					tagSnippets += ptraceTraceDenySnippet
+				}
+			}
+
 			return tagSnippets
 		}
 		return ""

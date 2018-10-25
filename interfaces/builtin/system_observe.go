@@ -29,7 +29,6 @@ const systemObserveBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
@@ -38,18 +37,9 @@ const systemObserveConnectedPlugAppArmor = `
 # Needed by 'ps'
 @{PROC}/tty/drivers r,
 
-# This ptrace is an information leak
+# This ptrace is an information leak. Intentionlly omit 'ptrace (trace)' here
+# since since ps doesn't actually need to trace other processes.
 ptrace (read),
-
-# ptrace can be used to break out of the seccomp sandbox, but ps requests
-# 'ptrace (trace)' even though it isn't tracing other processes. Unfortunately,
-# this is due to the kernel overloading trace such that the LSMs are unable to
-# distinguish between tracing other processes and other accesses. We deny the
-# trace here to silence the log.
-# Note: for now, explicitly deny to avoid confusion and accidentally giving
-# away this dangerous access frivolously. We may conditionally deny this in the
-# future.
-deny ptrace (trace),
 
 # Other miscellaneous accesses for observing the system
 @{PROC}/modules r,
@@ -58,6 +48,9 @@ deny ptrace (trace),
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
 @{PROC}/partitions r,
+@{PROC}/sys/kernel/panic r,
+@{PROC}/sys/kernel/panic_on_oops r,
+@{PROC}/sys/vm/panic_on_oom r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
@@ -130,5 +123,6 @@ func init() {
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
 		reservedForOS:         true,
+		suppressPtraceTrace:   true,
 	})
 }

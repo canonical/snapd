@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -168,4 +169,35 @@ func (s *appOpSuite) TestAppOps(c *check.C) {
 			}
 		}
 	}
+}
+
+func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/apps")
+			c.Check(r.URL.Query(), check.HasLen, 1)
+			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
+			c.Check(r.Method, check.Equals, "GET")
+			w.WriteHeader(200)
+			enc := json.NewEncoder(w)
+			enc.Encode(map[string]interface{}{
+				"type":        "sync",
+				"result":      []map[string]interface{}{},
+				"status":      "OK",
+				"status-code": 200,
+			})
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "There are no services provided by installed snaps.\n")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
 }

@@ -931,9 +931,9 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 
 	// dropped alias -> snapName
 	droppedAliases := make(map[string][]string, len(dropped))
-	for snapName, aliases := range dropped {
+	for instanceName, aliases := range dropped {
 		for _, alias := range aliases {
-			droppedAliases[alias] = append(droppedAliases[alias], snapName)
+			droppedAliases[alias] = append(droppedAliases[alias], instanceName)
 		}
 	}
 
@@ -952,10 +952,10 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	// mark snaps that are sources or target of transfers
 	transferSources := make(map[string]bool, len(dropped))
 	transferTargets = make(map[string]bool, len(changed))
-	for snapName, aliases := range changed {
+	for instanceName, aliases := range changed {
 		for _, alias := range aliases {
 			if sources := droppedAliases[alias]; len(sources) != 0 {
-				transferTargets[snapName] = true
+				transferTargets[instanceName] = true
 				for _, source := range sources {
 					transferSources[source] = true
 				}
@@ -970,22 +970,22 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
-	for snapName := range changed {
-		if updating[snapName] {
-			delete(changed, snapName)
+	for instanceName := range changed {
+		if updating[instanceName] {
+			delete(changed, instanceName)
 		}
 	}
 
 	// prune explicitly auto-aliases only for snaps that are mentioned
 	// and not updated OR the source of transfers
 	mustPrune = make(map[string][]string, len(dropped))
-	for snapName := range transferSources {
-		mustPrune[snapName] = dropped[snapName]
+	for instanceName := range transferSources {
+		mustPrune[instanceName] = dropped[instanceName]
 	}
 	if refreshAll {
-		for snapName, aliases := range dropped {
-			if !updating[snapName] {
-				mustPrune[snapName] = aliases
+		for instanceName, aliases := range dropped {
+			if !updating[instanceName] {
+				mustPrune[instanceName] = aliases
 			}
 		}
 	} else {
@@ -1881,8 +1881,8 @@ func All(st *state.State) (map[string]*SnapState, error) {
 		return nil, err
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
-	for snapName, snapst := range stateMap {
-		curStates[snapName] = snapst
+	for instanceName, snapst := range stateMap {
+		curStates[instanceName] = snapst
 	}
 	return curStates, nil
 }
@@ -1926,13 +1926,13 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	for snapName, snapst := range stateMap {
+	for instanceName, snapst := range stateMap {
 		if !snapst.Active {
 			continue
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
 		infos = append(infos, snapInfo)
