@@ -90,6 +90,7 @@ type cmdInfo struct {
 	optDescs                  map[string]string
 	argDescs                  []argDesc
 	alias                     string
+	extra                     func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -261,6 +262,9 @@ func Parser(cli *client.Client) *flags.Parser {
 			lintArg(c.name, name, desc, arg.Description)
 			arg.Name = name
 			arg.Description = desc
+		}
+		if c.extra != nil {
+			c.extra(cmd)
 		}
 	}
 	// Add the debug command
