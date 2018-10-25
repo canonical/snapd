@@ -1,0 +1,56 @@
+summary: Build Go commands across multiple arches
+
+environment:
+  xDEBARCH/armhf: armhf
+  xGOARCH/armhf: arm
+  xGCC/armhf: gcc-arm-linux-gnueabihf
+  xCC/armhf: arm-linux-gnueabihf-gcc
+  
+  xDEBARCH/arm64: arm64
+  xGOARCH/arm64: arm64
+  xGCC/arm64: gcc-aarch64-linux-gnu
+  xCC/arm64: aarch64-linux-gnu-gcc
+  
+  xDEBARCH/s390x: s390x
+  xGOARCH/s390x: s390x
+  xGCC/s390x: gcc-s390x-linux-gnu
+  xCC/s390x: s390x-linux-gnu-gcc
+
+  xDEBARCH/ppc64el: ppc64el
+  xGOARCH/ppc64el: ppc64le
+  xGCC/ppc64el: gcc-powerpc64le-linux-gnu
+  xCC/ppc64el: powerpc64le-linux-gnu-gcc
+
+restore: |
+  rm -rf /tmp/cross-build
+  dpkg -l | awk "/^ii.*$xDEBARCH/{print \$2}" | xargs apt --yes --quiet -o Dpkg::Progress-Fancy=false autoremove --purge
+  dpkg --remove-architecture "$xDEBARCH"
+  mv /etc/apt/sources.list.orig /etc/apt/sources.list
+  apt --quiet -o Dpkg::Progress-Fancy=false update
+
+prepare: |
+  mkdir -p /tmp/cross-build/src/github.com/snapcore
+  cp -ar "$PROJECT_PATH" /tmp/cross-build/src/github.com/snapcore
+  chown -R test:12345 /tmp/cross-build
+
+  mv /etc/apt/sources.list /etc/apt/sources.list.orig
+  cat > /etc/apt/sources.list <<-EOF
+  	deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu/  xenial           main universe
+  	deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu/  xenial-updates   main universe
+  	deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu/  xenial-backports main universe
+  	deb [arch=amd64,i386] http://security.ubuntu.com/ubuntu/ xenial-security  main universe
+
+  	deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ xenial           main universe
+  	deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ xenial-updates   main universe
+  	deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ xenial-backports main universe
+  	deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ xenial-security  main universe
+  EOF
+  dpkg --add-architecture "$xDEBARCH"
+  apt --quiet -o Dpkg::Progress-Fancy=false update
+  apt --yes --quiet -o Dpkg::Progress-Fancy=false install "$xGCC" libseccomp-dev:"$xDEBARCH"
+
+execute: |
+  cd /tmp/cross-build/src/github.com/snapcore/snapd
+  for cmd in $( find ./cmd -mindepth 2 -maxdepth 2 -name \*.go -printf "%h\n" | sort -u ); do
+    su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$xGOARCH CC=$xCC go build -v -o /dev/null $cmd" test
+  done
