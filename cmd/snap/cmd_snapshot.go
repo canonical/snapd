@@ -43,10 +43,67 @@ type savedCmd struct {
 	} `positional-args:"yes"`
 }
 
-var shortSavedHelp = i18n.G("List currently stored snapshots")
+var (
+	shortSavedHelp   = i18n.G("List currently stored snapshots")
+	shortSaveHelp    = i18n.G("Save a snapshot of the current data")
+	shortForgetHelp  = i18n.G("Delete a snapshot")
+	shortCheckHelp   = i18n.G("Check a snapshot")
+	shortRestoreHelp = i18n.G("Restore a snapshot")
+)
+
 var longSavedHelp = i18n.G(`
-The saved command lists the snapshots that have been created previously with
-the 'save' command.
+The saved command lists the snapshots that have been created
+previously with the 'save' command.
+`)
+var longSaveHelp = i18n.G(`
+The save command creates a snapshot of the current user, system and
+configuration data for the given snaps.
+
+You can choose to save the data of all snaps for all users, which is
+the default, or you can specify the data of which snaps to save, or
+for which users, or a combination of these.
+
+If a snap is included in a save operation, excluding its system and
+configuration data from the snapshot is not currently possible. This
+restriction may be lifted in the future.
+`)
+var longForgetHelp = i18n.G(`
+The forget command deletes a snapshot. This operation can not be
+undone.
+
+A snapshot contains archives for the user, system and configuration
+data of each snap it included.
+
+You can choose to forget all the data in a snapshot, which is the
+default, or you can specify the data of which snaps to forget.
+`)
+var longCheckHelp = i18n.G(`
+The check-snapshot command verifies the user, system and configuration
+data of the snaps included in the specified snapshot.
+
+The check operation runs the same data integrity verification that is
+performed when a snapshot is restored.
+
+You can choose to check all the data in a snapshot, which is the
+default, or you can specify the data of which snaps to check, or for
+which users, or a combination of these.
+
+If a snap is included in a check-snapshot operation, excluding its
+system and configuration data from the check is not currently
+possible. This restriction may be lifted in the future.
+`)
+var longRestoreHelp = i18n.G(`
+The restore command replaces the current user, system and
+configuration data of included snaps, with that contained in the
+specified snapshot.
+
+You can choose to restore all the data in a snapshot, which is the
+default operation, or you can specify the data of which snaps to
+restore, or for which users, or a combination of these.
+
+If a snap is included in a restore operation, excluding its system and
+configuration data from the restore is not currently possible. This
+restriction may be lifted in the future.
 `)
 
 func (x *savedCmd) Execute([]string) error {
@@ -95,11 +152,6 @@ type saveCmd struct {
 	} `positional-args:"yes"`
 }
 
-var shortSaveHelp = i18n.G("Save a snapshot of the current data")
-var longSaveHelp = i18n.G(`
-The save command creates a snapshot of the current data for the given snaps.
-`)
-
 func (x *saveCmd) Execute([]string) error {
 	var users []string
 	if len(x.Users) > 0 {
@@ -132,19 +184,6 @@ type forgetCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortForgetHelp = i18n.G("Delete a snapshot")
-var longForgetHelp = i18n.G(`
-The forget command deletes a snapshot. This operation can not be
-undone.
-
-A snapshot consists of a series of archives that hold a snap's data
-belonging to a number of users, as well as system and configuration
-data for the snap.
-
-You can choose to forget all the data in a snapshot, which is the
-default operation, or you can specify which snaps' data to forget.
-`)
-
 func (x *forgetCmd) Execute([]string) error {
 	snaps := installedSnapNames(x.Positional.Snaps)
 	changeID, err := x.client.ForgetSnapshots(uint64(x.Positional.ID), snaps)
@@ -176,20 +215,6 @@ type checkSnapshotCmd struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
-
-var shortCheckHelp = i18n.G("Check a snapshot")
-var longCheckHelp = i18n.G(`
-The check-snapshot command verifies the contents of a snapshot.
-
-A snapshot consists of a series of archives that hold a snap's data
-belonging to a number of users, as well as system and configuration
-data for the snap. The check operation takes the archives and
-runs the data integrity verification that is done on restore.
-
-You can choose to check all the data in a snapshot, which is the
-default operation, or you can specify which snaps' data to check, or
-for which users, or a combination of these.
-`)
 
 func (x *checkSnapshotCmd) Execute([]string) error {
 	snaps := installedSnapNames(x.Positional.Snaps)
@@ -228,22 +253,6 @@ type restoreCmd struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
-
-var shortRestoreHelp = i18n.G("Restore a snapshot")
-var longRestoreHelp = i18n.G(`
-The restore command restores the data contained in a snapshot.
-
-A snapshot consists of a series of archives that hold a snap's data
-belonging to a number of users, as well as system and configuration
-data for the snap.
-
-You can choose to restore all the data in a snapshot, which is the
-default operation, or you can specify which snaps' data to restore, or
-for which users, or a combination of these.
-
-It is not currently possible to choose not to restore the system and
-configuration data. This restriction may be lifted in the future.
-`)
 
 func (x *restoreCmd) Execute([]string) error {
 	snaps := installedSnapNames(x.Positional.Snaps)
