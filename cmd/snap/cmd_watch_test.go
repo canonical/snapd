@@ -44,6 +44,7 @@ func (s *SnapSuite) TestCmdWatch(c *C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 	defer snap.MockMaxGoneTime(time.Millisecond)()
+	defer snap.MockPollTime(time.Millisecond)()
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +67,7 @@ func (s *SnapSuite) TestCmdWatch(c *C) {
 		}
 	})
 
-	rest, err := snap.Parser().ParseArgs([]string{"watch", "two"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "two"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 3)
@@ -79,6 +80,7 @@ func (s *SnapSuite) TestWatchLast(c *C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 	defer snap.MockMaxGoneTime(time.Millisecond)()
+	defer snap.MockPollTime(time.Millisecond)()
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +106,7 @@ func (s *SnapSuite) TestWatchLast(c *C) {
 			c.Errorf("expected 4 queries, currently on %d", n)
 		}
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"watch", "--last=install"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=install"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 4)
@@ -134,13 +136,13 @@ func (s *SnapSuite) TestWatchLastQuestionmark(c *C) {
 		}
 	})
 	for i := 0; i < 2; i++ {
-		rest, err := snap.Parser().ParseArgs([]string{"watch", "--last=foobar?"})
+		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=foobar?"})
 		c.Assert(err, IsNil)
 		c.Assert(rest, DeepEquals, []string{})
 		c.Check(s.Stdout(), Matches, "")
 		c.Check(s.Stderr(), Equals, "")
 
-		_, err = snap.Parser().ParseArgs([]string{"watch", "--last=foobar"})
+		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=foobar"})
 		if i == 0 {
 			c.Assert(err, ErrorMatches, `no changes found`)
 		} else {

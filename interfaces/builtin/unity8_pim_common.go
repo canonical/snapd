@@ -52,7 +52,7 @@ dbus (send)
 
 # Allow services to communicate with each other
 dbus (receive, send)
-	peer=(label="snap.@{SNAP_NAME}.*"),
+	peer=(label="snap.@{SNAP_INSTANCE_NAME}.*"),
 
 # Allow binding the service to the requested connection name
 dbus (bind)

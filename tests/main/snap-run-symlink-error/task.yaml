@@ -1,18 +1,20 @@
 summary: Check error handling in symlinks to /usr/bin/snap
 
 restore: |
-    . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     rm -f $SNAP_MOUNT_DIR/bin/xxx
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     echo Setting up incorrect symlink for snap run
     mkdir -p $SNAP_MOUNT_DIR/bin
     ln -s /usr/bin/snap $SNAP_MOUNT_DIR/bin/xxx
     echo Running unknown command
     expected="internal error, please report: running \"xxx\" failed: cannot find current revision for snap xxx: readlink $SNAP_MOUNT_DIR/xxx/current: no such file or directory"
     output="$($SNAP_MOUNT_DIR/bin/xxx 2>&1 )" && exit 1
-    echo $output
+    echo "$output"
     err=$?
     echo Verifying error message
     if [ $err -ne 46 ]; then

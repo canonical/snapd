@@ -33,6 +33,7 @@ import (
 )
 
 type cmdWait struct {
+	clientMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
 		Key  string
@@ -48,12 +49,12 @@ func init() {
 		}, nil, []argDesc{
 			{
 				name: "<snap>",
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The snap for which configuration will be checked"),
 			}, {
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<key>"),
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Key of interest within the configuration"),
 			},
 		})
@@ -135,9 +136,8 @@ The same is true of the laugh.`)
 		return fmt.Errorf("the required argument `<key>` was not provided")
 	}
 
-	cli := Client()
 	for {
-		conf, err := cli.Conf(snapName, []string{confKey})
+		conf, err := x.client.Conf(snapName, []string{confKey})
 		if err != nil && !isNoOption(err) {
 			return err
 		}

@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -101,6 +102,11 @@ var (
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
 
+const (
+	aggressiveSettleTimeout = 50 * time.Millisecond
+	connectRetryTimeout     = 70 * time.Millisecond
+)
+
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
 	dirs.SetRootDir(ms.tempdir)
@@ -112,9 +118,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
+	restoreConnectRetryTimeout := ifacestate.MockConnectRetryTimeout(connectRetryTimeout)
+
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		restoreConnectRetryTimeout()
 	}
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -153,12 +162,15 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
 	ms.o = o
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
 	st.Set("seeded", true)
 	// registered
+	err = assertstate.Add(st, sysdb.GenericClassicModel())
+	c.Assert(err, IsNil)
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
@@ -248,6 +260,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	st.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -1014,7 +1028,7 @@ version: @VERSION@
 	snapPath, _ = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0, nil)
 	c.Check(updated, IsNil)
 	c.Check(tss, IsNil)
 	// no validation we, get an error
@@ -1034,7 +1048,7 @@ version: @VERSION@
 	c.Assert(err, IsNil)
 
 	// ... and try again
-	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0)
+	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
@@ -1581,7 +1595,7 @@ apps:
 	ms.serveSnap(fooPath, "15")
 
 	// refresh all
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
@@ -1827,7 +1841,7 @@ apps:
 	err = assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
@@ -2028,6 +2042,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 
 	st := o.State()
@@ -2202,7 +2217,7 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	tasks := chg.Tasks()
-	connectTask := tasks[len(tasks)-3]
+	connectTask := tasks[len(tasks)-1]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 
 	// verify connect task data
@@ -2352,7 +2367,7 @@ version: @VERSION@`
 	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 3)
 	c.Assert(tts, HasLen, 3)
@@ -2395,6 +2410,88 @@ version: @VERSION@`
 	connections, err := repo.Connections("some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(connections, HasLen, 3)
+}
+
+func (ms *mgrsSuite) TestUpdateWithAutoconnectAndInactiveRevisions(c *C) {
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   foo:
+        command: bin/bar
+        plugs: [network]
+`
+	const coreSnapYaml = `name: core
+type: os
+version: 1`
+
+	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
+	ms.serveSnap(snapPath, "40")
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si1)
+	c.Assert(snapInfo.Plugs, HasLen, 1)
+
+	csi := &snap.SideInfo{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)}
+	coreInfo := snaptest.MockSnap(c, coreSnapYaml, csi)
+
+	// add implicit slots
+	coreInfo.Slots["network"] = &snap.SlotInfo{
+		Name:      "network",
+		Snap:      coreInfo,
+		Interface: "network",
+	}
+
+	// some-snap has inactive revisions
+	si0 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(0)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si0, si1, si2},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(coreInfo), IsNil)
+
+	// refresh all
+	err := assertstate.RefreshSnapDeclarations(st, 0)
+	c.Assert(err, IsNil)
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 1)
+	c.Assert(tts, HasLen, 1)
+
+	// to make TaskSnapSetup work
+	chg := st.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true},
+	})
 }
 
 const someSnapYaml = `name: some-snap
@@ -2468,20 +2565,30 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	// force hold state on first removal task to hit Retry error
 	ts2.Tasks()[0].SetStatus(state.HoldStatus)
 
-	st.Unlock()
-	err = ms.o.Settle(3 * time.Second)
-	st.Lock()
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `Settle is not converging`)
-
+	// Settle is not converging here because of the task in Hold status, therefore
+	// it always hits given timeout before we carry on with the test. We're
+	// interested in hitting the retry condition on auto-connect task, so
+	// instead of passing a generous timeout to Settle(), repeat Settle() a number
+	// of times with an aggressive timeout and break as soon as we reach the desired
+	// state of auto-connect task.
 	var retryCheck bool
-	for _, t := range st.Tasks() {
-		if t.Kind() == "auto-connect" {
-			c.Assert(strings.Join(t.Log(), ""), Matches, `.*Waiting for conflicting change in progress...`)
-			retryCheck = true
+	var autoconnectLog string
+	for i := 0; i < 50 && !retryCheck; i++ {
+		st.Unlock()
+		ms.o.Settle(aggressiveSettleTimeout)
+		st.Lock()
+
+		for _, t := range st.Tasks() {
+			if t.Kind() == "auto-connect" && t.Status() == state.DoingStatus && strings.Contains(strings.Join(t.Log(), ""), "Waiting") {
+				autoconnectLog = strings.Join(t.Log(), "")
+				retryCheck = true
+				break
+			}
 		}
 	}
-	c.Assert(retryCheck, Equals, true)
+
+	c.Check(retryCheck, Equals, true)
+	c.Assert(autoconnectLog, Matches, `.*Waiting for conflicting change in progress: conflicting snap.*`)
 
 	// back to default state, that will unblock autoconnect
 	ts2.Tasks()[0].SetStatus(state.DefaultStatus)
@@ -2490,6 +2597,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Check(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check connections
@@ -2558,7 +2666,7 @@ apps:
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
 	c.Assert(err, IsNil)
@@ -2646,7 +2754,7 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
 	c.Assert(err, IsNil)

@@ -52,6 +52,7 @@ Nested values may be retrieved via a dotted path:
 `)
 
 type cmdGet struct {
+	clientMixin
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
 		Keys []string
@@ -65,19 +66,22 @@ type cmdGet struct {
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"d": i18n.G("Always return document, even with single key"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"l": i18n.G("Always return list, even with single key"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
 		}, []argDesc{
 			{
 				name: "<snap>",
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The snap whose conf is being requested"),
 			},
 			{
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<key>"),
-				// TRANSLATORS: This should probably not start with a lowercase letter.
+				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Key of interest within the configuration"),
 			},
 		})
@@ -239,8 +243,7 @@ func (x *cmdGet) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
-	cli := Client()
-	conf, err := cli.Conf(snapName, confKeys)
+	conf, err := x.client.Conf(snapName, confKeys)
 	if err != nil {
 		return err
 	}

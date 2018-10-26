@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -186,6 +187,9 @@ apps:
  sample:
    command: foobar
    command-chain: [chain]
+hooks:
+ configure:
+  command-chain: [hookchain]
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
@@ -202,6 +206,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -221,6 +226,7 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo2.Apps["sample"].CommandChain, DeepEquals, []string{"chain"})
+	c.Check(snapInfo2.Hooks["configure"].CommandChain, DeepEquals, []string{"hookchain"})
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
@@ -329,7 +335,12 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
-func makeTestSnap(c *C, yaml string) string {
+func makeTestSnap(c *C, snapYaml string) string {
+	var m struct {
+		Type string `yaml:"type"`
+	}
+	yaml.Unmarshal([]byte(snapYaml), &m) // yes, ignore the error
+
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
@@ -337,12 +348,12 @@ func makeTestSnap(c *C, yaml string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
+	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource)
+	err = snap.Build(snapSource, m.Type)
 	c.Assert(err, IsNil)
 
 	return dest
@@ -450,7 +461,7 @@ type: app`
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, ErrorMatches, "invalid snap name.*")
+	c.Assert(err, ErrorMatches, `invalid snap name.*`)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {
@@ -1169,6 +1180,17 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
+
+	info.InstanceKey = "instance"
+	// Despite setting the instance key the variables expand to the same
+	// value as before. This is because they are used from inside the mount
+	// namespace of the instantiated snap where the mount backend will
+	// ensure that the regular (non-instance) paths contain
+	// instance-specific code and data.
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
@@ -1306,9 +1328,7 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "kernel1", Type: "kernel"},
 		{SuggestedName: "app2", Type: "app"},
 		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
-			RealName: "snapd",
-		}},
+		{SuggestedName: "snapd", Type: "snapd"},
 		{SuggestedName: "base2", Type: "base"},
 		{SuggestedName: "gadget2", Type: "gadget"},
 		{SuggestedName: "kernel2", Type: "kernel"},
@@ -1316,9 +1336,7 @@ func (s *infoSuite) TestSortByType(c *C) {
 	sort.Stable(snap.ByType(infos))
 
 	c.Check(infos, DeepEquals, []*snap.Info{
-		{SuggestedName: "snapd", Type: "app", SideInfo: snap.SideInfo{
-			RealName: "snapd",
-		}},
+		{SuggestedName: "snapd", Type: "snapd"},
 		{SuggestedName: "os1", Type: "os"},
 		{SuggestedName: "os2", Type: "os"},
 		{SuggestedName: "kernel1", Type: "kernel"},
@@ -1330,4 +1348,126 @@ func (s *infoSuite) TestSortByType(c *C) {
 		{SuggestedName: "app1", Type: "app"},
 		{SuggestedName: "app2", Type: "app"},
 	})
+}
+
+func (s *infoSuite) TestSortByTypeAgain(c *C) {
+	core := &snap.Info{Type: snap.TypeOS}
+	base := &snap.Info{Type: snap.TypeBase}
+	app := &snap.Info{Type: snap.TypeApp}
+	snapd := &snap.Info{}
+	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
+
+	byType := func(snaps ...*snap.Info) []*snap.Info {
+		sort.Stable(snap.ByType(snaps))
+		return snaps
+	}
+
+	c.Check(byType(base, core), DeepEquals, []*snap.Info{core, base})
+	c.Check(byType(app, core), DeepEquals, []*snap.Info{core, app})
+	c.Check(byType(app, base), DeepEquals, []*snap.Info{base, app})
+	c.Check(byType(app, base, core), DeepEquals, []*snap.Info{core, base, app})
+	c.Check(byType(app, core, base), DeepEquals, []*snap.Info{core, base, app})
+
+	c.Check(byType(app, core, base, snapd), DeepEquals, []*snap.Info{snapd, core, base, app})
+	c.Check(byType(app, snapd, core, base), DeepEquals, []*snap.Info{snapd, core, base, app})
+}
+
+func (s *infoSuite) TestMedia(c *C) {
+	c.Check(snap.MediaInfos{}.Screenshots(), HasLen, 0)
+	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type:   "screenshot",
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+		},
+	}
+
+	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
+	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
+		{
+			URL:  "https://example.com/shot1.svg",
+			Note: snap.ScreenshotsDeprecationNotice,
+		}, {
+			URL:    "https://example.com/shot2.svg",
+			Width:  42,
+			Height: 17,
+			Note:   snap.ScreenshotsDeprecationNotice,
+		},
+	})
+}
+
+func (s *infoSuite) TestSortApps(c *C) {
+	tcs := []struct {
+		err    string
+		apps   []*snap.AppInfo
+		sorted []string
+	}{{
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "baz", After: []string{"bar", "foo"}},
+			{Name: "foo"},
+		},
+		sorted: []string{"bar", "foo", "baz"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", After: []string{"bar", "zed"}},
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "baz", After: []string{"foo"}},
+			{Name: "zed"},
+		},
+		sorted: []string{"bar", "zed", "foo", "baz"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", After: []string{"baz"}},
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "baz"},
+			{Name: "zed", After: []string{"foo", "bar", "baz"}},
+		},
+		sorted: []string{"bar", "baz", "foo", "zed"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", Before: []string{"bar"}, After: []string{"zed"}},
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "baz", Before: []string{"zed"}},
+			{Name: "zed"},
+		},
+		err: `applications are part of a before/after cycle: ((foo|bar|baz|zed)(, )?){4}`,
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", Before: []string{"bar"}},
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "baz", Before: []string{"foo"}, After: []string{"bar"}},
+		},
+		err: `applications are part of a before/after cycle: ((foo|bar|baz)(, )?){3}`,
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "baz", After: []string{"bar"}},
+			{Name: "foo"},
+			{Name: "bar", After: []string{"foo"}},
+		},
+		sorted: []string{"foo", "bar", "baz"},
+	}}
+	for _, tc := range tcs {
+		sorted, err := snap.SortServices(tc.apps)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(sorted, HasLen, len(tc.sorted))
+			sortedNames := make([]string, len(sorted))
+			for i, app := range sorted {
+				sortedNames[i] = app.Name
+			}
+			c.Assert(sortedNames, DeepEquals, tc.sorted)
+		}
+	}
 }

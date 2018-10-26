@@ -69,11 +69,6 @@ func (s *apiSuite) mockIface(c *C, iface interfaces.Interface) {
 	c.Assert(err, IsNil)
 }
 
-var simpleYaml = `
-name: simple
-version: 1
-`
-
 var consumerYaml = `
 name: consumer
 version: 1

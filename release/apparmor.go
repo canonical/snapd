@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,10 +20,13 @@
 package release
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -42,8 +45,9 @@ const (
 )
 
 var (
-	appArmorLevel   AppArmorLevelType
-	appArmorSummary string
+	appArmorLevel          AppArmorLevelType
+	appArmorSummary        string
+	appArmorParserFeatures []string
 )
 
 func init() {
@@ -132,4 +136,74 @@ func AppArmorFeatures() []string {
 		}
 	}
 	return appArmorFeatures
+}
+
+// parser probe related code
+type apparmorParserFeature struct {
+	feature string
+	rule    string
+}
+
+var (
+	requestedParserFeatures = []apparmorParserFeature{
+		{"unsafe", "change_profile unsafe /**,"},
+	}
+	// Since AppArmorParserMtime() will be called by generateKey() in
+	// system-key and that could be called by different users on the
+	// system, use a predictable search path for finding the parser.
+	parserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin"
+)
+
+// lookupParser will look for apparmor_parser in a predictable search path
+func lookupParser() (string, error) {
+	for _, dir := range filepath.SplitList(parserSearchPath) {
+		path := filepath.Join(dir, "apparmor_parser")
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("apparmor_parser not found in '%s'", parserSearchPath)
+}
+
+// tryParser will run the parser on the rule to determine if the feature is
+// supported.
+func tryParser(parser, rule string) bool {
+	cmd := exec.Command(parser, "--preprocess")
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
+}
+
+// AppArmorParserMtime returns the mtime of the parser, else 0
+func AppArmorParserMtime() int64 {
+	var mtime int64
+	mtime = 0
+
+	if path, err := lookupParser(); err == nil {
+		if s, err := os.Stat(path); err == nil {
+			mtime = s.ModTime().Unix()
+		}
+	}
+	return mtime
+}
+
+// AppArmorParserFeatures returns a sorted list of apparmor parser features
+// like []string{"unsafe", ...}.
+func AppArmorParserFeatures() []string {
+	parser, err := lookupParser()
+	if err != nil {
+		return nil
+	}
+
+	parserFeatures := make([]string, 0, len(requestedParserFeatures))
+	for _, f := range requestedParserFeatures {
+		if tryParser(parser, f.rule) {
+			parserFeatures = append(parserFeatures, f.feature)
+		}
+	}
+	sort.Strings(parserFeatures)
+	return parserFeatures
 }

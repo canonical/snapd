@@ -36,8 +36,6 @@ import (
 	"testing"
 
 	"gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/strutil"
 )
 
 func Test(t *testing.T) {
@@ -269,7 +267,7 @@ func (m myStringer) String() string { return m.str }
 
 func (s *CheckersS) TestFileEquals(c *check.C) {
 	d := c.MkDir()
-	content := strutil.MakeRandomString(10)
+	content := "not-so-random-string"
 	filename := filepath.Join(d, "canary")
 	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), check.IsNil)
 
@@ -279,18 +277,18 @@ func (s *CheckersS) TestFileEquals(c *check.C) {
 	testCheck(c, FileEquals, true, "", filename, myStringer{content})
 
 	twofer := content + content
-	testCheck(c, FileEquals, false, "", filename, twofer)
-	testCheck(c, FileEquals, false, "", filename, []byte(twofer))
-	testCheck(c, FileEquals, false, "", filename, myStringer{twofer})
+	testCheck(c, FileEquals, false, "Failed to match with file contents:\nnot-so-random-string", filename, twofer)
+	testCheck(c, FileEquals, false, "Failed to match with file contents:\n<binary data>", filename, []byte(twofer))
+	testCheck(c, FileEquals, false, "Failed to match with file contents:\nnot-so-random-string", filename, myStringer{twofer})
 
-	testCheck(c, FileEquals, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileEquals, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileEquals, false, "Filename must be a string", 42, "")
-	testCheck(c, FileEquals, false, "Can't compare file contents with something of type int", filename, 1)
+	testCheck(c, FileEquals, false, "Cannot compare file contents with something of type int", filename, 1)
 }
 
 func (s *CheckersS) TestFileContains(c *check.C) {
 	d := c.MkDir()
-	content := strutil.MakeRandomString(10)
+	content := "not-so-random-string"
 	filename := filepath.Join(d, "canary")
 	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), check.IsNil)
 
@@ -302,20 +300,20 @@ func (s *CheckersS) TestFileContains(c *check.C) {
 	testCheck(c, FileContains, true, "", filename, regexp.MustCompile(".*"))
 
 	twofer := content + content
-	testCheck(c, FileContains, false, "", filename, twofer)
-	testCheck(c, FileContains, false, "", filename, []byte(twofer))
-	testCheck(c, FileContains, false, "", filename, myStringer{twofer})
+	testCheck(c, FileContains, false, "Failed to match with file contents:\nnot-so-random-string", filename, twofer)
+	testCheck(c, FileContains, false, "Failed to match with file contents:\n<binary data>", filename, []byte(twofer))
+	testCheck(c, FileContains, false, "Failed to match with file contents:\nnot-so-random-string", filename, myStringer{twofer})
 	// undocumented
-	testCheck(c, FileContains, false, "", filename, regexp.MustCompile("^$"))
+	testCheck(c, FileContains, false, "Failed to match with file contents:\nnot-so-random-string", filename, regexp.MustCompile("^$"))
 
-	testCheck(c, FileContains, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileContains, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileContains, false, "Filename must be a string", 42, "")
-	testCheck(c, FileContains, false, "Can't compare file contents with something of type int", filename, 1)
+	testCheck(c, FileContains, false, "Cannot compare file contents with something of type int", filename, 1)
 }
 
 func (s *CheckersS) TestFileMatches(c *check.C) {
 	d := c.MkDir()
-	content := strutil.MakeRandomString(10)
+	content := "not-so-random-string"
 	filename := filepath.Join(d, "canary")
 	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), check.IsNil)
 
@@ -323,10 +321,10 @@ func (s *CheckersS) TestFileMatches(c *check.C) {
 	testCheck(c, FileMatches, true, "", filename, ".*")
 	testCheck(c, FileMatches, true, "", filename, "^"+regexp.QuoteMeta(content)+"$")
 
-	testCheck(c, FileMatches, false, "", filename, "^$")
-	testCheck(c, FileMatches, false, "", filename, "123"+regexp.QuoteMeta(content))
+	testCheck(c, FileMatches, false, "Failed to match with file contents:\nnot-so-random-string", filename, "^$")
+	testCheck(c, FileMatches, false, "Failed to match with file contents:\nnot-so-random-string", filename, "123"+regexp.QuoteMeta(content))
 
-	testCheck(c, FileMatches, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileMatches, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
 	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
 }
@@ -375,4 +373,75 @@ func (s *CheckersS) TestSystemCallSequenceEqual(c *check.C) {
 		[]CallResultError{{C: `foo`}}, []CallResultError{{C: `foo`}, {C: `bar`}})
 	testCheck(c, SyscallsEqual, false, "system call #0 `foo` unexpectedly absent, got only 0 system call(s) but expected 1",
 		[]CallResultError{}, []CallResultError{{C: `foo`}})
+}
+
+func (s *CheckersS) TestIntChecker(c *check.C) {
+	c.Assert(1, IntLessThan, 2)
+	c.Assert(1, IntLessEqual, 1)
+	c.Assert(1, IntEqual, 1)
+	c.Assert(2, IntNotEqual, 1)
+	c.Assert(2, IntGreaterThan, 1)
+	c.Assert(2, IntGreaterEqual, 2)
+
+	// Wrong argument types.
+	testCheck(c, IntLessThan, false, "left-hand-side argument must be an int", false, 1)
+	testCheck(c, IntLessThan, false, "right-hand-side argument must be an int", 1, false)
+
+	// Relationship error.
+	testCheck(c, IntLessThan, false, "relation 2 < 1 is not true", 2, 1)
+	testCheck(c, IntLessEqual, false, "relation 2 <= 1 is not true", 2, 1)
+	testCheck(c, IntEqual, false, "relation 2 == 1 is not true", 2, 1)
+	testCheck(c, IntNotEqual, false, "relation 2 != 2 is not true", 2, 2)
+	testCheck(c, IntGreaterThan, false, "relation 1 > 2 is not true", 1, 2)
+	testCheck(c, IntGreaterEqual, false, "relation 1 >= 2 is not true", 1, 2)
+
+	// Unexpected relation.
+	unexpected := &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: "==="}
+	testCheck(c, unexpected, false, `unexpected relation "==="`, 1, 2)
+
+}
+
+func (s *CheckersS) TestPaddedChecker(c *check.C) {
+	type row struct {
+		lhs     string
+		checker check.Checker
+		rhs     string
+	}
+
+	table := []row{
+		{" a  b\tc", EqualsPadded, "a b c"},
+		{" a  b\nc", check.Not(EqualsPadded), "a b c"},
+
+		{" a  b\tc", EqualsWrapped, "a b c"},
+		{" a  b\nc", EqualsWrapped, "a b c"},
+
+		{" a  b\tc    d\t\te", ContainsPadded, "b c d"},
+		{" a  b\nc    d\t\te", check.Not(ContainsPadded), "b c d"},
+
+		{" a  b\tc    d\t\te", ContainsWrapped, "b c d"},
+		{" a  b\nc    d\t\te", ContainsWrapped, "b c d"},
+
+		{"\tfoo baah ", MatchesPadded, `fo+ b\S+`},
+		{"\tfoo\nbaah ", check.Not(MatchesPadded), `fo+ b\S+`},
+
+		{"\tfoo baah ", MatchesWrapped, `fo+ b\S+`},
+		{"\tfoo\nbaah ", MatchesWrapped, `fo+ b\S+`},
+	}
+
+	for i, test := range table {
+		for _, lhs := range []interface{}{test.lhs, []byte(test.lhs), errors.New(test.lhs)} {
+			for _, rhs := range []interface{}{test.rhs, []byte(test.rhs)} {
+				comm := check.Commentf("%d:%s:%T/%T", i, test.checker.Info().Name, lhs, rhs)
+				c.Check(lhs, test.checker, rhs, comm)
+			}
+		}
+	}
+
+	for _, checker := range []check.Checker{EqualsPadded, EqualsWrapped, ContainsPadded, ContainsWrapped, MatchesPadded, MatchesWrapped} {
+		testCheck(c, checker, false, "right-hand value must be a string or []byte", "a b c", 42)
+		testCheck(c, checker, false, "left-hand value must be a string or []byte or error", 42, "a b c")
+	}
+	for _, checker := range []check.Checker{MatchesPadded, MatchesWrapped} {
+		testCheck(c, checker, false, "right-hand value must be a valid regexp: error parsing regexp: missing argument to repetition operator: `+`", "a b c", "+a b c")
+	}
 }
