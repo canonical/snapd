@@ -4,8 +4,7 @@ details: |
     The cifs-mount interface allows mounting and unmounting CIFS filesystems.
 
 prepare: |
-    # snap install test-snapd-cifs-mount
-    snap install "$TESTSLIB/snaps/test-snapd-cifs-mount/test-snapd-cifs-mount_1.0_amd64.snap" --dangerous
+    snap install test-snapd-cifs-mount
 
     # Create linux and samba users 
     useradd -s /bin/true test-cifs
