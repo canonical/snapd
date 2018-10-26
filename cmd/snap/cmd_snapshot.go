@@ -52,15 +52,15 @@ var (
 )
 
 var longSavedHelp = i18n.G(`
-The saved command lists the snapshots that have been created
+The saved command displays a list of snapshots that have been created
 previously with the 'save' command.
 `)
 var longSaveHelp = i18n.G(`
 The save command creates a snapshot of the current user, system and
 configuration data for the given snaps.
 
-You can choose to save the data of all snaps for all users, which is
-the default, or you can specify the data of which snaps to save, or
+By default, this command saves the data of all snaps for all users.
+Alternatively, you can specify the data of which snaps to save, or
 for which users, or a combination of these.
 
 If a snap is included in a save operation, excluding its system and
@@ -72,10 +72,10 @@ The forget command deletes a snapshot. This operation can not be
 undone.
 
 A snapshot contains archives for the user, system and configuration
-data of each snap it included.
+data of each snap included in the snapshot.
 
-You can choose to forget all the data in a snapshot, which is the
-default, or you can specify the data of which snaps to forget.
+By default, this command forgets all the data in a snapshot.
+Alternatively, you can specify the data of which snaps to forget.
 `)
 var longCheckHelp = i18n.G(`
 The check-snapshot command verifies the user, system and configuration
@@ -84,9 +84,9 @@ data of the snaps included in the specified snapshot.
 The check operation runs the same data integrity verification that is
 performed when a snapshot is restored.
 
-You can choose to check all the data in a snapshot, which is the
-default, or you can specify the data of which snaps to check, or for
-which users, or a combination of these.
+By default, this command checks all the data in a snapshot.
+Alternatively, you can specify the data of which snaps to check, or
+for which users, or a combination of these.
 
 If a snap is included in a check-snapshot operation, excluding its
 system and configuration data from the check is not currently
@@ -94,12 +94,12 @@ possible. This restriction may be lifted in the future.
 `)
 var longRestoreHelp = i18n.G(`
 The restore command replaces the current user, system and
-configuration data of included snaps, with that contained in the
-specified snapshot.
+configuration data of included snaps, with the corresponding data from
+the specified snapshot.
 
-You can choose to restore all the data in a snapshot, which is the
-default operation, or you can specify the data of which snaps to
-restore, or for which users, or a combination of these.
+By default, this command restores all the data in a snapshot.
+Alternatively, you can specify the data of which snaps to restore, or
+for which users, or a combination of these.
 
 If a snap is included in a restore operation, excluding its system and
 configuration data from the restore is not currently possible. This
