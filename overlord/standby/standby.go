@@ -25,6 +25,9 @@ import (
 )
 
 var standbyWait = 5 * time.Second
+var maxWait = 5 * time.Minute
+
+var stateRequestRestart = (*state.State).RequestRestart
 
 type Opinionator interface {
 	CanStandby() bool
@@ -36,9 +39,8 @@ type StandbyOpinions struct {
 	startTime time.Time
 	opinions  []Opinionator
 
-	sleep   time.Duration
-	timerCh <-chan time.Time
-	stopCh  chan interface{}
+	stoppingCh chan struct{}
+	stoppedCh  chan struct{}
 }
 
 // CanStandby returns true if the main ensure loop can go into
@@ -71,38 +73,46 @@ func (m *StandbyOpinions) CanStandby() bool {
 
 func New(st *state.State) *StandbyOpinions {
 	return &StandbyOpinions{
-		state:     st,
-		startTime: time.Now(),
-		sleep:     standbyWait,
+		state:      st,
+		startTime:  time.Now(),
+		stoppingCh: make(chan struct{}),
+		stoppedCh:  make(chan struct{}),
 	}
 }
 
 func (m *StandbyOpinions) Start() {
-	stopCh := make(chan interface{})
-	m.stopCh = stopCh
 	go func() {
+		wait := standbyWait
+		timer := time.NewTimer(wait)
 		for {
-			m.timerCh = time.NewTimer(m.sleep).C
 			if m.CanStandby() {
-				m.state.RequestRestart(state.RestartSocket)
+				stateRequestRestart(m.state, state.RestartSocket)
 			}
 			select {
-			case <-m.timerCh:
-				if m.sleep < 5*time.Minute {
-					m.sleep *= 2
+			case <-timer.C:
+				if wait < maxWait {
+					wait *= 2
 				}
-			case <-stopCh:
+			case <-m.stoppingCh:
+				close(m.stoppedCh)
 				return
 			}
+			timer.Reset(wait)
 		}
 	}()
 }
 
 func (m *StandbyOpinions) Stop() {
-	if m.stopCh != nil {
-		close(m.stopCh)
-		m.stopCh = nil
+	select {
+	case <-m.stoppedCh:
+		// nothing left to do
+		return
+	case <-m.stoppingCh:
+		// nearly nothing to do
+	default:
+		close(m.stoppingCh)
 	}
+	<-m.stoppedCh
 }
 
 func (m *StandbyOpinions) AddOpinion(opi Opinionator) {
