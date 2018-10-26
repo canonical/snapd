@@ -344,6 +344,7 @@ func (s *infoSuite) TestReadInfoExceptSizeUnfindable(c *C) {
 	c.Check(info.SnapName(), Equals, "test")
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.Summary(), Equals, "esummary")
+	c.Check(info.Size, Equals, int64(0))
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
