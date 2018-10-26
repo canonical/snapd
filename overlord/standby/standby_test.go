@@ -111,3 +111,71 @@ func (s *standbySuite) TestCanStandbyWithOpinion(c *C) {
 	s.canStandby = false
 	c.Check(m.CanStandby(), Equals, false)
 }
+
+type opine func() bool
+
+func (f opine) CanStandby() bool {
+	return f()
+}
+
+func (s *standbySuite) TestStartChecks(c *C) {
+	n := 0
+	ch1 := make(chan struct{})
+	ch2 := make(chan struct{})
+
+	defer standby.MockStandbyWait(time.Millisecond)()
+	defer standby.MockStateRequestRestart(func(_ *state.State, t state.RestartType) {
+		c.Check(t, Equals, state.RestartSocket)
+		n++
+		<-ch2
+	})()
+
+	opinion := false
+	m := standby.New(s.state)
+	m.AddOpinion(opine(func() bool {
+		<-ch1
+		return opinion
+	}))
+
+	m.Start()
+	ch1 <- struct{}{}
+	c.Check(n, Equals, 0)
+	ch1 <- struct{}{}
+	c.Check(n, Equals, 0)
+
+	opinion = true
+	ch1 <- struct{}{}
+	ch2 <- struct{}{}
+	c.Check(n, Equals, 1)
+
+	m.Stop()
+}
+
+func (s *standbySuite) TestStopWaits(c *C) {
+	defer standby.MockStandbyWait(time.Millisecond)()
+	defer standby.MockStateRequestRestart(func(*state.State, state.RestartType) {})()
+
+	ch := make(chan struct{})
+	m := standby.New(s.state)
+	m.AddOpinion(opine(func() bool {
+		time.Sleep(200 * time.Millisecond)
+		return false
+	}))
+
+	m.Start()
+
+	// wait enough so the actual Opinionator is called
+	time.Sleep(10 * time.Millisecond)
+
+	go func() {
+		m.Stop()
+		close(ch)
+	}()
+
+	select {
+	case <-time.After(100 * time.Millisecond):
+		// wheee
+	case <-ch:
+		c.Fatal("stop should have blocked and didn't")
+	}
+}
