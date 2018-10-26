@@ -325,7 +325,7 @@ int validate_instance_name(const char *instance_name)
 }
 
 // parse the -u argument, returns -1 on failure or 0 on success.
-static int parse_arg_u(int argc, char * const *argv, int *optind, int *uid_out)
+static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long *uid_out)
 {
 	if (*optind + 1 == argc || argv[*optind + 1] == NULL) {
 		bootstrap_msg = "-u requires an argument";
@@ -335,16 +335,22 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, int *uid_out)
 	const char *uid_text = argv[*optind + 1];
 	errno = 0;
 	char *uid_text_end = NULL;
-	int parsed_uid = (int)strtol(uid_text, &uid_text_end, 10);
-	if ((parsed_uid == 0 && errno != 0)
+	unsigned long parsed_uid = strtoul(uid_text, &uid_text_end, 10);
+	if (
+			/* Reject overflow in parsed representation */
+			(parsed_uid == ULONG_MAX && errno != 0)
+			/* Reject leading whitespace allowed by strtoul. */
+			|| (isspace(*uid_text))
+			/* Reject empty string. */
 			|| (*uid_text == '\0')
+			/* Reject partially parsed strings. */
 			|| (*uid_text != '\0' && uid_text_end != NULL
 				&& *uid_text_end != '\0')) {
 		bootstrap_msg = "cannot parse user id";
 		bootstrap_errno = errno;
 		return -1;
 	}
-	if (parsed_uid < 0) {
+	if ((long)parsed_uid < 0) {
 		bootstrap_msg = "user id cannot be negative";
 		bootstrap_errno = 0;
 		return -1;
@@ -359,7 +365,7 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, int *uid_out)
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char **snap_name_out,
-		       bool * should_setns_out, bool * process_user_fstab, int * uid_out)
+		       bool * should_setns_out, bool * process_user_fstab, unsigned long * uid_out)
 {
 	// Find the name of the called program. If it is ending with ".test" then do nothing.
 	// NOTE: This lets us use cgo/go to write tests without running the bulk
@@ -476,7 +482,7 @@ void bootstrap(int argc, char **argv, char **envp)
 	const char *snap_name = NULL;
 	bool should_setns = false;
 	bool process_user_fstab = false;
-	int uid = 0;
+	unsigned long uid = 0;
 	process_arguments(argc, argv, &snap_name, &should_setns,
 			  &process_user_fstab, &uid);
 	if (process_user_fstab) {
