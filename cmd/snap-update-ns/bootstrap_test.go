@@ -97,16 +97,33 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "--option"}, "", false, false, 0, "unsupported option"},
 		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, false, 0, "unsupported option"},
 		// The -u option can be used to specify the user id.
+		{[]string{"argv0", "snapname", "-u", "1234"}, "snapname", true, true, 1234, ""},
+		{[]string{"argv0", "-u", "1234", "snapname"}, "snapname", true, true, 1234, ""},
+		/* Empty user id is rejected. */
 		{[]string{"argv0", "-u", "", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		/* Partially parsed values are rejected. */
 		{[]string{"argv0", "-u", "1foo", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		/* Hexadecimal values are rejected. */
 		{[]string{"argv0", "-u", "0x16", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", " 0x16", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "0x16 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", " 0x16 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		/* Octal-looking values are parsed as decimal. */
+		{[]string{"argv0", "-u", "042", "snapname"}, "snapname", true, true, 42, ""},
+		/* Spaces around octal values is rejected. */
+		{[]string{"argv0", "-u", " 042", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "042 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", " 042 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		/* Space around the value is rejected. */
 		{[]string{"argv0", "-u", "42 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
 		{[]string{"argv0", "-u", " 42", "snapname"}, "", false, false, 0, "cannot parse user id"},
 		{[]string{"argv0", "-u", " 42 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "\n42 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "42\t", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		/* Negative values are rejected. */
 		{[]string{"argv0", "-u", "-1", "snapname"}, "", false, false, 0, "user id cannot be negative"},
+		/* The option -u requires an argument. */
 		{[]string{"argv0", "snapname", "-u"}, "", false, false, 0, "-u requires an argument"},
-		{[]string{"argv0", "snapname", "-u", "1234"}, "snapname", true, true, 1234, ""},
-		{[]string{"argv0", "-u", "1234", "snapname"}, "snapname", true, true, 1234, ""},
 	}
 	for _, tc := range cases {
 		update.ClearBootstrapError()
