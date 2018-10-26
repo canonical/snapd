@@ -18,6 +18,8 @@ prepare: |
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     copy_remote serial-port-hotplug_1.0_all.snap
+    # add test user to dialout group required for ttyUSB* devices
+    execute_remote "sudo usermod -a -G dialout user1"
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
@@ -32,14 +34,24 @@ restore: |
     distro_install_package snapd
 
 execute: |
-    hotplug_add() {
+    hotplug_add_dev1() {
         add_tty_chardev my-chardev /dev/tty5
         add_usb_serial_device my-usb-serial my-chardev
     }
 
-    hotplug_del() {
+    hotplug_del_dev1() {
         del_device my-usb-serial
         remove_chardev my-chardev
+    }
+
+    hotplug_add_dev2() {
+        add_tty_chardev my-chardev2 /dev/tty6
+        add_usb_serial_device my-usb-serial2 my-chardev2
+    }
+
+    hotplug_del_dev2() {
+        del_device my-usb-serial2
+        remove_chardev my-chardev2
     }
 
     check_slot_not_present() {
@@ -82,7 +94,8 @@ execute: |
     echo "Enabling hotplug"
     execute_remote "sudo snap set core experimental.hotplug=true"
 
-    hotplug_add
+    echo "Plugging the device"
+    hotplug_add_dev1
 
     execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"
     execute_remote 'ls /dev/tty*' | MATCH "ttyUSB0"
@@ -90,7 +103,8 @@ execute: |
     echo "Checking that qemuusbserial hotplug slot is present"
     check_slot_present
 
-    hotplug_del
+    echo "Unplugging the device"
+    hotplug_del_dev1
 
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "Usb serial should not be registered anymore, exiting..."
@@ -100,25 +114,47 @@ execute: |
     echo "Checking that qemuusbserial hotplug slot is no longer present"
     check_slot_not_present
 
-    hotplug_add
+    echo "Plugging the device back"
+    hotplug_add_dev1
 
-    echo "Checking that qemuusbserial hotplug slot is present"
+    echo "Checking that qemuusbserial hotplug slot is present again"
     check_slot_present
 
+    echo "Installing test snap with serial port plug"
     execute_remote "sudo snap install --dangerous serial-port-hotplug_1.0_all.snap"
 
     echo "Connecting serial-port interface"
     execute_remote "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected
 
+    execute_remote "/sbin/udevadm info -e > ~/adm1.txt"
+
     echo "Veryfing serial-port permissions"
     execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "/dev/ttyUSB0 rw,"
-    execute_remote "sudo serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB0 ok"
+    execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB0 ok"
 
-    hotplug_del
+    echo "Unplugging the device"
+    hotplug_del_dev1
 
     echo "Checking that qemuusbserial hotplug slot is no longer present"
     check_slot_not_present
 
+    echo "Plugging device back, checking that connection is restored"
+    hotplug_add_dev1
+    execute_remote "/sbin/udevadm info -e > ~/adm2.txt"
+    check_slot_connected
 
+    hotplug_del_dev1
 
+    echo "Checking that qemuusbserial hotplug slot is no longer present"
+    check_slot_not_present
+
+    echo "Plugging second device"
+    hotplug_add_dev2
+    execute_remote "/sbin/udevadm info -e > ~/adm3.txt"
+
+    execute_remote 'ls /dev/tty*' | MATCH "ttyUSB1"
+
+    echo "Veryfing serial-port permissions"
+    execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "/dev/ttyUSB0 rw,"
+    execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB0 ok"
