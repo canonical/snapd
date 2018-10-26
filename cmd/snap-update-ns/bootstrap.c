@@ -327,7 +327,7 @@ int validate_instance_name(const char *instance_name)
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char **snap_name_out,
-		       bool * should_setns_out, bool * process_user_fstab)
+		       bool * should_setns_out, bool * process_user_fstab, int * uid_out)
 {
 	// Find the name of the called program. If it is ending with ".test" then do nothing.
 	// NOTE: This lets us use cgo/go to write tests without running the bulk
@@ -368,6 +368,40 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// Processing the user-fstab file implies we're being
 				// called from snap-confine.
 				should_setns = false;
+			} else if (!strcmp(arg, "-u")) {
+				const char *uid_text = argv[i + 1];
+				if (i + 1 == argc || uid_text == NULL) {
+					bootstrap_msg = "-u requires an argument";
+					bootstrap_errno = 0;
+					return;
+				}
+				errno = 0;
+				char *uid_text_end = NULL;
+				int parsed_uid = (int)strtol(uid_text, &uid_text_end, 10);
+				if ((parsed_uid == 0 && errno != 0)
+						|| (*uid_text == '\0')
+						|| (*uid_text != '\0' && uid_text_end != NULL
+							&& *uid_text_end != '\0')) {
+					bootstrap_msg = "cannot parse user id";
+					bootstrap_errno = errno;
+					return;
+				}
+				if (parsed_uid < 0) {
+					bootstrap_msg = "user id cannot be negative";
+					bootstrap_errno = 0;
+					return;
+				}
+				if (uid_out != NULL) {
+					*uid_out = parsed_uid;
+				}
+				i += 1; // Account for the argument to -u.
+				// Providing an user identifier implies we are performing an
+				// update of a specific user mount namespace and that we are
+				// invoked from snapd and we should setns ourselves. When
+				// invoked from snap-confine we are only called with
+				// --from-snap-confine and with --user-mounts.
+				should_setns = true;
+				user_fstab = true;
 			} else {
 				bootstrap_errno = 0;
 				bootstrap_msg = "unsupported option";
@@ -433,8 +467,9 @@ void bootstrap(int argc, char **argv, char **envp)
 	const char *snap_name = NULL;
 	bool should_setns = false;
 	bool process_user_fstab = false;
+	int uid = 0;
 	process_arguments(argc, argv, &snap_name, &should_setns,
-			  &process_user_fstab);
+			  &process_user_fstab, &uid);
 	if (process_user_fstab) {
 		switch_to_privileged_user();
 		// switch_to_privileged_user sets bootstrap_{errno,msg}

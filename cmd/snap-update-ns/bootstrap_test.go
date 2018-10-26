@@ -65,40 +65,49 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		snapName    string
 		shouldSetNs bool
 		userFstab   bool
+		uid         int
 		errPattern  string
 	}{
 		// Corrupted buffer is dealt with.
-		{[]string{}, "", false, false, "argv0 is corrupted"},
+		{[]string{}, "", false, false, 0, "argv0 is corrupted"},
 		// When testing real bootstrap is identified and disabled.
-		{[]string{"argv0.test"}, "", false, false, "bootstrap is not enabled while testing"},
+		{[]string{"argv0.test"}, "", false, false, 0, "bootstrap is not enabled while testing"},
 		// Snap name is mandatory.
-		{[]string{"argv0"}, "", false, false, "snap name not provided"},
+		{[]string{"argv0"}, "", false, false, 0, "snap name not provided"},
 		// Snap name is parsed correctly.
-		{[]string{"argv0", "snapname"}, "snapname", true, false, ""},
-		{[]string{"argv0", "snapname_instance"}, "snapname_instance", true, false, ""},
+		{[]string{"argv0", "snapname"}, "snapname", true, false, 0, ""},
+		{[]string{"argv0", "snapname_instance"}, "snapname_instance", true, false, 0, ""},
 		// Onlye one snap name is allowed.
-		{[]string{"argv0", "snapone", "snaptwo"}, "", false, false, "too many positional arguments"},
+		{[]string{"argv0", "snapone", "snaptwo"}, "", false, false, 0, "too many positional arguments"},
 		// Snap name is validated correctly.
-		{[]string{"argv0", ""}, "", false, false, "snap name must contain at least one letter"},
-		{[]string{"argv0", "in--valid"}, "", false, false, "snap name cannot contain two consecutive dashes"},
-		{[]string{"argv0", "invalid-"}, "", false, false, "snap name cannot end with a dash"},
-		{[]string{"argv0", "@invalid"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
-		{[]string{"argv0", "INVALID"}, "", false, false, "snap name must use lower case letters, digits or dashes"},
-		{[]string{"argv0", "foo_01234567890"}, "", false, false, "instance key must be shorter than 10 characters"},
-		{[]string{"argv0", "foo_0123456_2"}, "", false, false, "snap instance name can contain only one underscore"},
+		{[]string{"argv0", ""}, "", false, false, 0, "snap name must contain at least one letter"},
+		{[]string{"argv0", "in--valid"}, "", false, false, 0, "snap name cannot contain two consecutive dashes"},
+		{[]string{"argv0", "invalid-"}, "", false, false, 0, "snap name cannot end with a dash"},
+		{[]string{"argv0", "@invalid"}, "", false, false, 0, "snap name must use lower case letters, digits or dashes"},
+		{[]string{"argv0", "INVALID"}, "", false, false, 0, "snap name must use lower case letters, digits or dashes"},
+		{[]string{"argv0", "foo_01234567890"}, "", false, false, 0, "instance key must be shorter than 10 characters"},
+		{[]string{"argv0", "foo_0123456_2"}, "", false, false, 0, "snap instance name can contain only one underscore"},
 		// The option --from-snap-confine disables setns.
-		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, ""},
-		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, ""},
+		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, 0, ""},
+		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, 0, ""},
 		// The option --user-mounts switches to the real uid
-		{[]string{"argv0", "--user-mounts", "snapname"}, "snapname", false, true, ""},
+		{[]string{"argv0", "--user-mounts", "snapname"}, "snapname", false, true, 0, ""},
 		// Unknown options are reported.
-		{[]string{"argv0", "-invalid"}, "", false, false, "unsupported option"},
-		{[]string{"argv0", "--option"}, "", false, false, "unsupported option"},
-		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, false, "unsupported option"},
+		{[]string{"argv0", "-invalid"}, "", false, false, 0, "unsupported option"},
+		{[]string{"argv0", "--option"}, "", false, false, 0, "unsupported option"},
+		{[]string{"argv0", "--from-snap-confine", "-invalid", "snapname"}, "", false, false, 0, "unsupported option"},
+		// The -u option can be used to specify the user id.
+		{[]string{"argv0", "-u", "", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "1foo", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "0x16", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "-1", "snapname"}, "", false, false, 0, "user id cannot be negative"},
+		{[]string{"argv0", "snapname", "-u"}, "", false, false, 0, "-u requires an argument"},
+		{[]string{"argv0", "snapname", "-u", "1234"}, "snapname", true, true, 1234, ""},
+		{[]string{"argv0", "-u", "1234", "snapname"}, "snapname", true, true, 1234, ""},
 	}
 	for _, tc := range cases {
 		update.ClearBootstrapError()
-		snapName, shouldSetNs, userFstab := update.ProcessArguments(tc.cmdline)
+		snapName, shouldSetNs, userFstab, uid := update.ProcessArguments(tc.cmdline)
 		err := update.BootstrapError()
 		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",
 			tc.cmdline, tc.errPattern, err)
@@ -110,5 +119,6 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		c.Check(snapName, Equals, tc.snapName, comment)
 		c.Check(shouldSetNs, Equals, tc.shouldSetNs, comment)
 		c.Check(userFstab, Equals, tc.userFstab, comment)
+		c.Check(uid, Equals, tc.uid, comment)
 	}
 }

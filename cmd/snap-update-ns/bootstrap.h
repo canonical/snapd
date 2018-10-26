@@ -28,7 +28,7 @@ extern const char *bootstrap_msg;
 
 void bootstrap(int argc, char **argv, char **envp);
 void process_arguments(int argc, char *const *argv, const char **snap_name_out,
-		       bool * should_setns_out, bool * process_user_fstab);
+		       bool * should_setns_out, bool * process_user_fstab, int * uid_out);
 int validate_instance_name(const char *instance_name);
 
 #endif
