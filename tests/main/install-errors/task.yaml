@@ -77,9 +77,16 @@ execute: |
     fi
     MATCH 'characters that look like dashes but are not' < stderr.out
 
-    echo "Installing a strict snap in classic mode does not work"
-    if snap install --classic test-snapd-tools 2>stderr.out; then
-        echo "snap install ––classic test-snapd-tools should have failed but did not"
-        exit 1
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    #shellcheck source=tests/lib/strings.sh
+    . "$TESTSLIB"/strings.sh
+
+    if is_classic_confinement_supported ; then
+        echo "Installing a strict snap in classic mode does not work"
+        if snap install --classic test-snapd-busybox-static 2>stderr.out; then
+            echo "snap install ––classic test-snapd-busybox-static should have failed but did not"
+            exit 1
+        fi
+        str_to_one_line "$(cat stderr.out)" | MATCH 'classic confinement requested for a non classic confined snap'
     fi
-    MATCH 'classic confinment requested for a non classic confined snap' < stderr.out
