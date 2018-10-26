@@ -10,7 +10,7 @@ prepare: |
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    destroy_nested_core_vm
+    destroy_nested_vm
 
 execute: |
     cd "$SPREAD_PATH"

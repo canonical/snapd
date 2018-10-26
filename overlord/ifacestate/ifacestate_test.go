@@ -722,7 +722,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer"), IsNil)
+	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, t, "consumer", "producer"), IsNil)
 
 	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithAutoSet())
 	c.Assert(err, IsNil)
@@ -761,7 +761,7 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer")
+	return ifacestate.CheckAutoconnectConflicts(s.state, t2, "consumer", "producer")
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
@@ -1713,6 +1713,7 @@ slots:
  slot:
   interface: test
   attr2: value2
+  number: 1
 `
 
 var producerYaml3 = `
@@ -4412,7 +4413,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	c.Assert(tasks, HasLen, 1)
 
 	c.Check(t.Status(), Equals, state.DoingStatus)
-	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried because of "consumer" - "producer" conflict`)
+	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried: conflicting snap producer with task "link-snap"`)
 }
 
 func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
@@ -4723,4 +4724,47 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	// and udev monitor is now created
 	c.Assert(mgr.Ensure(), IsNil)
 	c.Assert(udevMonitorCreated, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
+	slotSnap := s.mockSnap(c, producer2Yaml)
+	plugSnap := s.mockSnap(c, consumerYaml)
+
+	slot := slotSnap.Slots["slot"]
+	c.Assert(slot, NotNil)
+	plug := plugSnap.Plugs["plug"]
+	c.Assert(plug, NotNil)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	conns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	// create connection in conns state
+	dynamicAttrs := map[string]interface{}{"dynamic-number": 7}
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(plug, nil, nil),
+		Slot: interfaces.NewConnectedSlot(slot, nil, dynamicAttrs),
+	}
+
+	var number, dynnumber int64
+	c.Check(conn.Slot.Attr("number", &number), IsNil)
+	c.Check(number, Equals, int64(1))
+
+	ifacestate.UpdateConnectionInConnState(conns, conn, false, false)
+	ifacestate.SetConns(st, conns)
+
+	// restore connection from conns state
+	newConns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	_, _, slotStaticAttrs, slotDynamicAttrs, ok := ifacestate.GetConnStateAttrs(newConns, "consumer:plug producer2:slot")
+	c.Assert(ok, Equals, true)
+
+	restoredSlot := interfaces.NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
+	c.Check(restoredSlot.Attr("number", &number), IsNil)
+	c.Check(number, Equals, int64(1))
+	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
 }

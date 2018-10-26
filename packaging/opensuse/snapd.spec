@@ -61,7 +61,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.35.5
+Version:        2.36
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -398,6 +398,7 @@ fi
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_prefix}/lib/systemd/system-generators/snapd-generator
 %{_mandir}/man8/snap.8*
+%{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
