@@ -153,22 +153,44 @@ func (s *standbySuite) TestStartChecks(c *C) {
 
 func (s *standbySuite) TestStopWaits(c *C) {
 	defer standby.MockStandbyWait(time.Millisecond)()
-	defer standby.MockStateRequestRestart(func(*state.State, state.RestartType) {})()
+	defer standby.MockStateRequestRestart(func(*state.State, state.RestartType) {
+		c.Fatal("request restart should have not been called")
+	})()
 
 	ch := make(chan struct{})
+	opineReady := make(chan struct{})
+	opineGo := make(chan struct{})
 	m := standby.New(s.state)
+	synced := false
 	m.AddOpinion(opine(func() bool {
+		if !synced {
+			// synchronize with the main goroutine only at the
+			// beginning
+			opineReady <- struct{}{}
+			<-opineGo
+			synced = true
+		}
 		time.Sleep(200 * time.Millisecond)
 		return false
 	}))
 
 	m.Start()
 
-	// wait enough so the actual Opinionator is called
-	time.Sleep(10 * time.Millisecond)
+	<-opineReady
 
 	go func() {
-		m.Stop()
+		stopDone := make(chan struct{})
+
+		// let the opinionator start its delay
+		opineGo <- struct{}{}
+		go func() {
+			// this will block until standby stops
+			m.Stop()
+			close(stopDone)
+		}()
+
+		<-stopDone
+
 		close(ch)
 	}()
 
@@ -177,5 +199,13 @@ func (s *standbySuite) TestStopWaits(c *C) {
 		// wheee
 	case <-ch:
 		c.Fatal("stop should have blocked and didn't")
+	}
+
+	// wait for Stop to complete now
+	select {
+	case <-ch:
+		// nothing to do here
+	case <-time.After(10 * time.Second):
+		c.Fatal("stop did not complete")
 	}
 }
