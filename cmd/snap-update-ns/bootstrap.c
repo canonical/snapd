@@ -369,12 +369,12 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// called from snap-confine.
 				should_setns = false;
 			} else if (!strcmp(arg, "-u")) {
-				const char *uid_text = argv[i + 1];
-				if (i + 1 == argc || uid_text == NULL) {
+				if (i + 1 == argc || argv[i + 1] == NULL) {
 					bootstrap_msg = "-u requires an argument";
 					bootstrap_errno = 0;
 					return;
 				}
+				const char *uid_text = argv[i + 1];
 				errno = 0;
 				char *uid_text_end = NULL;
 				int parsed_uid = (int)strtol(uid_text, &uid_text_end, 10);
