@@ -64,6 +64,10 @@ type configTestSuite struct{}
 
 var _ = Suite(&configTestSuite{})
 
+// this is what snap.E("1*") looks like when decoded into an interface{}
+var iOneStar = map[string]interface{}{"read": []interface{}{0., 1.}, "write": []interface{}{1.}}
+var eOneStar = snap.E("1*")
+
 func (suite *configTestSuite) TestSetBaseURL(c *C) {
 	// Sanity check to prove at least one URI changes.
 	cfg := store.DefaultConfig()
@@ -4156,12 +4160,14 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4202,12 +4208,14 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			TrackingChannel: "beta",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -4246,6 +4254,7 @@ func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 0)
 		io.WriteString(w, `{
@@ -4270,6 +4279,7 @@ func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
 			TrackingChannel: "beta",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, nil, nil, nil)
 	c.Check(results, HasLen, 0)
@@ -4309,6 +4319,7 @@ func (s *storeTestSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 
 			"revision":         float64(1),
 			"tracking-channel": "beta",
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 0)
 		io.WriteString(w, `{
@@ -4332,6 +4343,7 @@ func (s *storeTestSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "beta",
 			Revision:        snap.R(1),
+			Epoch:           *eOneStar,
 		},
 	}, nil, nil, nil)
 	c.Check(results, HasLen, 0)
@@ -4361,6 +4373,7 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -4368,6 +4381,7 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4409,6 +4423,7 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 			Block:           []snap.Revision{snap.R(26)},
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -4416,6 +4431,7 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			Channel:      "stable",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
@@ -4449,6 +4465,7 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -4456,6 +4473,7 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4496,6 +4514,7 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -4503,6 +4522,7 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			Channel:      "stable",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
@@ -4610,6 +4630,7 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 			"tracking-channel":  "stable",
 			"refreshed-date":    helloRefreshedDateStr,
 			"ignore-validation": true,
+			"epoch":             iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -4618,6 +4639,7 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 			"snap-id":           helloWorldSnapID,
 			"channel":           "stable",
 			"ignore-validation": false,
+			"epoch":             iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4659,6 +4681,7 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 			Revision:         snap.R(1),
 			RefreshedDate:    helloRefreshedDate,
 			IgnoreValidation: true,
+			Epoch:            *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -4667,6 +4690,7 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 			Flags:        store.SnapActionEnforceValidation,
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -4698,12 +4722,14 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4743,12 +4769,14 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 			SnapID:        helloWorldSnapID,
 			RefreshedDate: helloRefreshedDate,
 			Revision:      snap.R(1),
+			Epoch:         *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -4791,12 +4819,14 @@ func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4839,12 +4869,14 @@ func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			TrackingChannel: "beta",
 			RefreshedDate:   helloRefreshedDate,
 			Revision:        snap.R(1),
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -4885,12 +4917,14 @@ func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -4931,12 +4965,14 @@ func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 			TrackingChannel: "beta",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -4970,6 +5006,7 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -4977,6 +5014,7 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -5017,6 +5055,7 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -5024,6 +5063,7 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			Channel:      "stable",
+			Epoch:        eOneStar,
 		},
 	}, nil, &store.RefreshOptions{RefreshManaged: true})
 	c.Assert(err, IsNil)
@@ -5040,6 +5080,9 @@ func (s *storeTestSuite) TestSnapActionDownload(c *C) {
 }
 func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 	// action here is one of install or download
+	if action != "install" && action != "download" {
+		c.Fatalf(`epxected one of "install" or "download", got %q`, action)
+	}
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -5075,6 +5118,7 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"channel":      "beta",
+			"epoch":        nil,
 		})
 
 		fmt.Fprintf(w, `{
@@ -5129,7 +5173,6 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 	c.Assert(results[0].Channel, Equals, "candidate")
 }
 func (s *storeTestSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
-	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -5168,6 +5211,9 @@ func (s *storeTestSuite) TestSnapActionDownloadWithRevision(c *C) {
 
 func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 	// action here is one of install or download
+	if action != "install" && action != "download" {
+		c.Fatalf(`epxected one of "install" or "download", got %q`, action)
+	}
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -5203,6 +5249,7 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"revision":     float64(28),
+			"epoch":        nil,
 		})
 
 		fmt.Fprintf(w, `{
@@ -5279,6 +5326,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          "snap2-id",
@@ -5286,30 +5334,35 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "edge",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 4)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": "snap2-id",
 			"snap-id":      "snap2-id",
 			"channel":      "candidate",
+			"epoch":        iOneStar,
 		})
 		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
+			"epoch":        nil,
 		})
 		c.Assert(req.Actions[3], DeepEquals, map[string]interface{}{
 			"action":       "download",
 			"instance-key": "download-1",
 			"name":         "bar",
 			"revision":     42.,
+			"epoch":        nil,
 		})
 
 		io.WriteString(w, `{
@@ -5374,6 +5427,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 		{
 			InstanceName:    "snap2",
@@ -5381,17 +5435,20 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			TrackingChannel: "edge",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			InstanceName: "hello-world",
 			SnapID:       helloWorldSnapID,
+			Epoch:        eOneStar,
 		}, {
 			Action:       "refresh",
 			InstanceName: "snap2",
 			SnapID:       "snap2-id",
 			Channel:      "candidate",
+			Epoch:        eOneStar,
 		}, {
 			Action:       "install",
 			InstanceName: "foo",
@@ -5456,6 +5513,7 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 3)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -5463,18 +5521,21 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
+			"epoch":        nil,
 		})
 		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
 			"action":       "download",
 			"instance-key": "download-1",
 			"name":         "bar",
 			"revision":     42.,
+			"epoch":        nil,
 		})
 
 		io.WriteString(w, `{
@@ -5523,6 +5584,7 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -5530,6 +5592,7 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 			Channel:      "stable",
+			Epoch:        eOneStar,
 		}, {
 			Action:       "install",
 			InstanceName: "foo",
@@ -5577,6 +5640,8 @@ func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 			"instance-key": "install-1",
 			"name":         "foo",
 			"channel":      "stable",
+			// null epoch in install action
+			"epoch": nil,
 		})
 
 		io.WriteString(w, `{
@@ -6001,6 +6066,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6008,6 +6074,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -6015,6 +6082,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			"instance-key": helloWorldFooInstanceKeyWithSalt,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -6055,12 +6123,14 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -6068,6 +6138,7 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			SnapID:       helloWorldSnapID,
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
+			Epoch:        eOneStar,
 		},
 	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
@@ -6102,6 +6173,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6109,6 +6181,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -6116,6 +6189,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"instance-key": helloWorldFooInstanceKeyWithSaltFoo,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -6157,12 +6231,14 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}
 	action := []*store.SnapAction{
@@ -6171,6 +6247,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			SnapID:       helloWorldSnapID,
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
+			Epoch:        eOneStar,
 		},
 	}
 	results, err := sto.SnapAction(context.TODO(), currentSnaps, action, nil, opts)
@@ -6209,6 +6286,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6216,23 +6294,27 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			"revision":         float64(2),
 			"tracking-channel": "edge",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 3)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"instance-key": helloWorldFooInstanceKeyWithSalt,
 			"snap-id":      helloWorldSnapID,
+			"epoch":        iOneStar,
 		})
 		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "other",
 			"channel":      "stable",
+			"epoch":        nil,
 		})
 
 		io.WriteString(w, `{
@@ -6285,6 +6367,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 		{
 			InstanceName:    "hello-world_foo",
@@ -6292,16 +6375,19 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 			TrackingChannel: "edge",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
 			Action:       "refresh",
 			InstanceName: "hello-world",
 			SnapID:       helloWorldSnapID,
+			Epoch:        eOneStar,
 		}, {
 			Action:       "refresh",
 			InstanceName: "hello-world_foo",
 			SnapID:       helloWorldSnapID,
+			Epoch:        eOneStar,
 		}, {
 			Action:       "install",
 			InstanceName: "other_foo",
@@ -6352,6 +6438,7 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -6359,6 +6446,8 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 			"instance-key": "install-1",
 			"name":         "hello-world",
 			"channel":      "stable",
+			// null epoch in install action
+			"epoch": nil,
 		})
 
 		io.WriteString(w, `{
@@ -6399,6 +6488,7 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -6464,6 +6554,7 @@ func (s *storeTestSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -6471,6 +6562,8 @@ func (s *storeTestSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 			"instance-key": "install-1",
 			"name":         "hello-world",
 			"channel":      "stable",
+			// null epoch in install action
+			"epoch": nil,
 		})
 
 		io.WriteString(w, `{
@@ -6511,6 +6604,7 @@ func (s *storeTestSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -6546,6 +6640,7 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -6553,6 +6648,7 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
 			"channel":      "stable",
+			"epoch":        iOneStar,
 		})
 
 		io.WriteString(w, `{
@@ -6593,6 +6689,7 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{
@@ -6600,6 +6697,7 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			SnapID:       helloWorldSnapID,
 			Channel:      "stable",
 			InstanceName: "hello-world",
+			Epoch:        eOneStar,
 		},
 	}, nil, nil)
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
@@ -6629,6 +6727,7 @@ func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6636,12 +6735,14 @@ func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			"revision":         float64(2),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iOneStar,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":       "install",
 			"instance-key": "install-1",
 			"name":         "foo-2",
+			"epoch":        nil,
 		})
 
 		io.WriteString(w, `{
@@ -6692,12 +6793,14 @@ func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(2),
 			RefreshedDate:   helloRefreshedDate,
+			Epoch:           *eOneStar,
 		},
 	}, []*store.SnapAction{
 		{

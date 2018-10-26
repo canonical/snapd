@@ -1324,7 +1324,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Epoch.String(), Equals, "0")
+	c.Assert(info.Epoch, DeepEquals, *snap.E("0"))
 }
 
 func (s *YamlSuite) TestSnapYamlConfinementDefault(c *C) {

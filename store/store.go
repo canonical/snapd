@@ -1976,7 +1976,13 @@ type CurrentSnap struct {
 	TrackingChannel  string
 	RefreshedDate    time.Time
 	IgnoreValidation bool
+	Epoch            snap.Epoch
 	Block            []snap.Revision
+}
+
+type epochJSON struct {
+	Read  []uint32 `json:"read"`
+	Write []uint32 `json:"write"`
 }
 
 type currentSnapV2JSON struct {
@@ -1984,6 +1990,7 @@ type currentSnapV2JSON struct {
 	InstanceKey      string     `json:"instance-key"`
 	Revision         int        `json:"revision"`
 	TrackingChannel  string     `json:"tracking-channel"`
+	Epoch            epochJSON  `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 }
@@ -2015,14 +2022,14 @@ func isValidAction(action string) bool {
 }
 
 type snapActionJSON struct {
-	Action           string      `json:"action"`
-	InstanceKey      string      `json:"instance-key"`
-	Name             string      `json:"name,omitempty"`
-	SnapID           string      `json:"snap-id,omitempty"`
-	Channel          string      `json:"channel,omitempty"`
-	Revision         int         `json:"revision,omitempty"`
-	Epoch            *snap.Epoch `json:"epoch,omitempty"`
-	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
+	Action           string     `json:"action"`
+	InstanceKey      string     `json:"instance-key"`
+	Epoch            *epochJSON `json:"epoch"` // always send epoch, even if null
+	Name             string     `json:"name,omitempty"`
+	SnapID           string     `json:"snap-id,omitempty"`
+	Channel          string     `json:"channel,omitempty"`
+	Revision         int        `json:"revision,omitempty"`
+	IgnoreValidation *bool      `json:"ignore-validation,omitempty"`
 }
 
 type snapRelease struct {
@@ -2171,6 +2178,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			TrackingChannel:  channel,
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
+			Epoch: epochJSON{
+				Read:  curSnap.Epoch.Read,
+				Write: curSnap.Epoch.Write,
+			},
 		}
 	}
 
@@ -2202,9 +2213,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
-			Epoch:            a.Epoch,
 			IgnoreValidation: ignoreValidation,
 		}
+		if a.Epoch != nil {
+			aJSON.Epoch = &epochJSON{
+				Read:  a.Epoch.Read,
+				Write: a.Epoch.Write,
+			}
+		}
+
 		if !a.Revision.Unset() {
 			a.Channel = ""
 		}

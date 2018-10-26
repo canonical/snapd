@@ -160,6 +160,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		Action:       "refresh",
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
+		Epoch:        &curInfo.Epoch,
 		// the desired channel
 		Channel: opts.channel,
 		Flags:   flags,
@@ -258,6 +259,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		Action:       "refresh",
 		SnapID:       curInfo.SnapID,
 		InstanceName: curInfo.InstanceName(),
+		Epoch:        &curInfo.Epoch,
 		// the desired revision
 		Revision: revision,
 	}
@@ -313,6 +315,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			// the desired channel (not snapInfo.Channel!)
 			TrackingChannel:  snapst.Channel,
 			Revision:         snapInfo.Revision,
+			Epoch:            snapInfo.Epoch,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
 		}
@@ -389,6 +392,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			Action:       "refresh",
 			SnapID:       installed.SnapID,
 			InstanceName: installed.InstanceName,
+			Epoch:        &installed.Epoch,
 		})
 		if snapst.IgnoreValidation {
 			ignoreValidationByInstanceName[installed.InstanceName] = true

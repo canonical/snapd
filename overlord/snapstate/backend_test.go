@@ -658,6 +658,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		Type:          snap.TypeApp,
+		Epoch:         *snap.E("0"),
 	}
 	if strings.Contains(snapName, "alias-snap") {
 		// only for the switch below
