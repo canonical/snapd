@@ -206,17 +206,12 @@ static struct sc_mount_ns *sc_alloc_mount_ns(void)
 	return group;
 }
 
-struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
-				     const unsigned flags)
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name)
 {
 	struct sc_mount_ns *group = sc_alloc_mount_ns();
 	group->dir_fd = open(sc_ns_dir,
 			     O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (group->dir_fd < 0) {
-		if (flags & SC_NS_FAIL_GRACEFULLY && errno == ENOENT) {
-			free(group);
-			return NULL;
-		}
 		die("cannot open directory %s", sc_ns_dir);
 	}
 	group->name = strdup(group_name);
@@ -453,6 +448,12 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Use MNT_DETACH as otherwise we get EBUSY.
 	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
 		die("cannot discard stale mount namespace %s", mnt_fname);
+	}
+	char fstab_fname[PATH_MAX] = { 0 };
+	sc_must_snprintf(fstab_fname, sizeof fstab_fname,
+			 "%s/snap.%s.fstab", sc_ns_dir, snap_name);
+	if (unlink(fstab_fname) < 0) {
+		die("cannot remove stale mount profile %s", fstab_fname);
 	}
 	debug("stale mount namespace discarded");
 	return EAGAIN;

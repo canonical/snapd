@@ -60,7 +60,7 @@ execute: |
         subsystem_device="$(find /sys/devices/pci0000:00/ -name subsystem_device | head -n1)"
 
         for file in "$config" "$vendor" "$device" "$subsystem_vendor" "$subsystem_device"; do
-            if ! [ -z "$file" ]; then
+            if [ -n "$file" ]; then
                 test-snapd-sh.with-broadcom-asic-control-plug -c "cat $file"
             fi
         done
