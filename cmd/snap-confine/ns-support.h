@@ -69,7 +69,6 @@ struct sc_mount_ns;
  * The following methods should be called only while holding a lock protecting
  * that specific snap namespace:
  * - sc_create_or_join_mount_ns()
- * - sc_should_populate_mount_ns()
  * - sc_preserve_populated_mount_ns()
  * - sc_discard_preserved_mount_ns()
  */
@@ -86,9 +85,7 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  * Join a preserved mount namespace if one exists.
  *
  * Technically the function opens /run/snapd/ns/${group_name}.mnt and tries to
- * use setns() with the obtained file descriptor. If the call succeeds then the
- * function returns and subsequent call to sc_should_populate_mount_ns() will
- * return false.
+ * use setns() with the obtained file descriptor.
  *
  * If the preserved mount namespace does not exist or exists but is stale and
  * was discarded and returns ESRCH. If the mount namespace was joined the
@@ -97,15 +94,6 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
 			 const char *snap_name);
-
-/**
- * Check if the namespace needs to be populated.
- *
- * If the return value is true then at this stage the namespace is already
- * unshared. The caller should perform any mount operations that are desired
- * and then proceed to call sc_preserve_populated_mount_ns().
- **/
-bool sc_should_populate_mount_ns(struct sc_mount_ns *group);
 
 /**
  * Fork off a helper process for mount namespace capture.
