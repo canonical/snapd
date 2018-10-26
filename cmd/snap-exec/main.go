@@ -157,7 +157,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 	}
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+	info, err := snap.ReadInfoExceptSize(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
 	if err != nil {
@@ -227,7 +227,7 @@ func execHook(snapName, revision, hookName string) error {
 		return err
 	}
 
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+	info, err := snap.ReadInfoExceptSize(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
 	if err != nil {
