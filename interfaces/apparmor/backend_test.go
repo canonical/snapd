@@ -1696,9 +1696,6 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
 
-		err := s.Backend.Setup(snapInfo, tc.opts, s.Repo)
-		c.Assert(err, IsNil)
-
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := ioutil.ReadFile(profile)
 		c.Assert(err, IsNil)
