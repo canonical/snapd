@@ -166,7 +166,7 @@ func (s *standbySuite) TestStopWaits(c *C) {
 		if !synced {
 			// synchronize with the main goroutine only at the
 			// beginning
-			opineReady <- struct{}{}
+			close(opineReady)
 			synced = true
 		}
 		select {
