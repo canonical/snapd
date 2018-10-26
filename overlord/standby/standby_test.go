@@ -159,7 +159,7 @@ func (s *standbySuite) TestStopWaits(c *C) {
 
 	ch := make(chan struct{})
 	opineReady := make(chan struct{})
-	opineGo := make(chan struct{})
+	done := make(chan struct{})
 	m := standby.New(s.state)
 	synced := false
 	m.AddOpinion(opine(func() bool {
@@ -167,30 +167,22 @@ func (s *standbySuite) TestStopWaits(c *C) {
 			// synchronize with the main goroutine only at the
 			// beginning
 			opineReady <- struct{}{}
-			<-opineGo
 			synced = true
 		}
-		time.Sleep(200 * time.Millisecond)
+		select {
+		case <-time.After(200 * time.Millisecond):
+		case <-done:
+		}
 		return false
 	}))
 
 	m.Start()
 
+	// let the opinionator start its delay
 	<-opineReady
-
 	go func() {
-		stopDone := make(chan struct{})
-
-		// let the opinionator start its delay
-		opineGo <- struct{}{}
-		go func() {
-			// this will block until standby stops
-			m.Stop()
-			close(stopDone)
-		}()
-
-		<-stopDone
-
+		// this will block until standby stops
+		m.Stop()
 		close(ch)
 	}()
 
@@ -200,6 +192,8 @@ func (s *standbySuite) TestStopWaits(c *C) {
 	case <-ch:
 		c.Fatal("stop should have blocked and didn't")
 	}
+
+	close(done)
 
 	// wait for Stop to complete now
 	select {
