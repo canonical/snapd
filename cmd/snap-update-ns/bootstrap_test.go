@@ -65,7 +65,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		snapName    string
 		shouldSetNs bool
 		userFstab   bool
-		uid         int
+		uid         uint
 		errPattern  string
 	}{
 		// Corrupted buffer is dealt with.
@@ -100,6 +100,9 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "-u", "", "snapname"}, "", false, false, 0, "cannot parse user id"},
 		{[]string{"argv0", "-u", "1foo", "snapname"}, "", false, false, 0, "cannot parse user id"},
 		{[]string{"argv0", "-u", "0x16", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", "42 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", " 42", "snapname"}, "", false, false, 0, "cannot parse user id"},
+		{[]string{"argv0", "-u", " 42 ", "snapname"}, "", false, false, 0, "cannot parse user id"},
 		{[]string{"argv0", "-u", "-1", "snapname"}, "", false, false, 0, "user id cannot be negative"},
 		{[]string{"argv0", "snapname", "-u"}, "", false, false, 0, "-u requires an argument"},
 		{[]string{"argv0", "snapname", "-u", "1234"}, "snapname", true, true, 1234, ""},
