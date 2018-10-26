@@ -324,6 +324,38 @@ int validate_instance_name(const char *instance_name)
 	return 0;
 }
 
+// parse the -u argument, returns -1 on failure or 0 on success.
+static int parse_arg_u(int argc, char * const *argv, int *optind, int *uid_out)
+{
+	if (*optind + 1 == argc || argv[*optind + 1] == NULL) {
+		bootstrap_msg = "-u requires an argument";
+		bootstrap_errno = 0;
+		return -1;
+	}
+	const char *uid_text = argv[*optind + 1];
+	errno = 0;
+	char *uid_text_end = NULL;
+	int parsed_uid = (int)strtol(uid_text, &uid_text_end, 10);
+	if ((parsed_uid == 0 && errno != 0)
+			|| (*uid_text == '\0')
+			|| (*uid_text != '\0' && uid_text_end != NULL
+				&& *uid_text_end != '\0')) {
+		bootstrap_msg = "cannot parse user id";
+		bootstrap_errno = errno;
+		return -1;
+	}
+	if (parsed_uid < 0) {
+		bootstrap_msg = "user id cannot be negative";
+		bootstrap_errno = 0;
+		return -1;
+	}
+	if (uid_out != NULL) {
+		*uid_out = parsed_uid;
+	}
+	*optind += 1; // Account for the argument to -u.
+	return 0;
+}
+
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char **snap_name_out,
@@ -369,32 +401,9 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// called from snap-confine.
 				should_setns = false;
 			} else if (!strcmp(arg, "-u")) {
-				if (i + 1 == argc || argv[i + 1] == NULL) {
-					bootstrap_msg = "-u requires an argument";
-					bootstrap_errno = 0;
+				if (parse_arg_u(argc, argv, &i, uid_out)) {
 					return;
 				}
-				const char *uid_text = argv[i + 1];
-				errno = 0;
-				char *uid_text_end = NULL;
-				int parsed_uid = (int)strtol(uid_text, &uid_text_end, 10);
-				if ((parsed_uid == 0 && errno != 0)
-						|| (*uid_text == '\0')
-						|| (*uid_text != '\0' && uid_text_end != NULL
-							&& *uid_text_end != '\0')) {
-					bootstrap_msg = "cannot parse user id";
-					bootstrap_errno = errno;
-					return;
-				}
-				if (parsed_uid < 0) {
-					bootstrap_msg = "user id cannot be negative";
-					bootstrap_errno = 0;
-					return;
-				}
-				if (uid_out != NULL) {
-					*uid_out = parsed_uid;
-				}
-				i += 1; // Account for the argument to -u.
 				// Providing an user identifier implies we are performing an
 				// update of a specific user mount namespace and that we are
 				// invoked from snapd and we should setns ourselves. When
