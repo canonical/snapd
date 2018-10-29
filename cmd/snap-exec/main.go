@@ -157,6 +157,8 @@ func execApp(snapApp, revision, command string, args []string) error {
 	}
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
+	// Use ReadInfoExceptSize because snap maybe in try mode with a
+	// dangling symlink, c.f. https://github.com/snapcore/snapd/pull/6048
 	info, err := snap.ReadInfoExceptSize(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
@@ -227,6 +229,8 @@ func execHook(snapName, revision, hookName string) error {
 		return err
 	}
 
+	// Use ReadInfoExceptSize because snap maybe in try mode with a
+	// dangling symlink, c.f. https://github.com/snapcore/snapd/pull/6048
 	info, err := snap.ReadInfoExceptSize(snapName, &snap.SideInfo{
 		Revision: rev,
 	})
