@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build 386 amd64
+
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -16,22 +18,17 @@
  *
  */
 
-package standby
+package main
 
-import (
-	"time"
+import "syscall"
 
-	"github.com/snapcore/snapd/overlord/state"
-)
-
-func (m *StandbyOpinions) SetStartTime(t time.Time) {
-	m.startTime = t
-}
-
-func MockStateRequestRestart(newStateRequestRestart func(*state.State, state.RestartType)) (restore func()) {
-	oldStateRequestRestart := stateRequestRestart
-	stateRequestRestart = newStateRequestRestart
-	return func() {
-		stateRequestRestart = oldStateRequestRestart
+func fpSeccompResolver(token string) (uint64, bool) {
+	switch token {
+	case "PTRACE_GETFPREGS":
+		return syscall.PTRACE_GETFPREGS, true
+	case "PTRACE_GETFPXREGS":
+		return syscall.PTRACE_GETFPXREGS, true
+	default:
+		return 0, false
 	}
 }

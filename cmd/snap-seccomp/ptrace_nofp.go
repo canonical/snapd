@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build arm64 s390x
+
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -16,22 +18,8 @@
  *
  */
 
-package standby
+package main
 
-import (
-	"time"
-
-	"github.com/snapcore/snapd/overlord/state"
-)
-
-func (m *StandbyOpinions) SetStartTime(t time.Time) {
-	m.startTime = t
-}
-
-func MockStateRequestRestart(newStateRequestRestart func(*state.State, state.RestartType)) (restore func()) {
-	oldStateRequestRestart := stateRequestRestart
-	stateRequestRestart = newStateRequestRestart
-	return func() {
-		stateRequestRestart = oldStateRequestRestart
-	}
+func fpSeccompResolver(token string) (uint64, bool) {
+	return 0, false
 }
