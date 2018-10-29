@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -32,15 +31,6 @@ import (
 
 func fmtSize(size int64) string {
 	return quantity.FormatAmount(uint64(size), -1)
-}
-
-type savedCmd struct {
-	clientMixin
-	durationMixin
-	ID         snapshotID `long:"id"`
-	Positional struct {
-		Snaps []installedSnapName `positional-arg-name:"<snap>"`
-	} `positional-args:"yes"`
 }
 
 var (
@@ -106,8 +96,19 @@ configuration data from the restore is not currently possible. This
 restriction may be lifted in the future.
 `)
 
+type savedCmd struct {
+	clientMixin
+	durationMixin
+	ID         snapshotID `long:"id"`
+	Positional struct {
+		Snaps []installedSnapName `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
+
 func (x *savedCmd) Execute([]string) error {
-	list, err := x.client.SnapshotSets(uint64(x.ID), installedSnapNames(x.Positional.Snaps))
+	setID := uint64(x.ID)
+	snaps := installedSnapNames(x.Positional.Snaps)
+	list, err := x.client.SnapshotSets(setID, snaps)
 	if err != nil {
 		return err
 	}
@@ -153,11 +154,9 @@ type saveCmd struct {
 }
 
 func (x *saveCmd) Execute([]string) error {
-	var users []string
-	if len(x.Users) > 0 {
-		users = strings.Split(x.Users, ",")
-	}
-	setID, changeID, err := x.client.SnapshotMany(installedSnapNames(x.Positional.Snaps), users)
+	snaps := installedSnapNames(x.Positional.Snaps)
+	users := strutil.CommaSeparatedList(x.Users)
+	setID, changeID, err := x.client.SnapshotMany(snaps, users)
 	if err != nil {
 		return err
 	}
@@ -185,8 +184,9 @@ type forgetCmd struct {
 }
 
 func (x *forgetCmd) Execute([]string) error {
+	setID := uint64(x.Positional.ID)
 	snaps := installedSnapNames(x.Positional.Snaps)
-	changeID, err := x.client.ForgetSnapshots(uint64(x.Positional.ID), snaps)
+	changeID, err := x.client.ForgetSnapshots(setID, snaps)
 	if err != nil {
 		return err
 	}
@@ -217,12 +217,10 @@ type checkSnapshotCmd struct {
 }
 
 func (x *checkSnapshotCmd) Execute([]string) error {
+	setID := uint64(x.Positional.ID)
 	snaps := installedSnapNames(x.Positional.Snaps)
-	var users []string
-	if len(x.Users) > 0 {
-		users = strings.Split(x.Users, ",")
-	}
-	changeID, err := x.client.CheckSnapshots(uint64(x.Positional.ID), snaps, users)
+	users := strutil.CommaSeparatedList(x.Users)
+	changeID, err := x.client.CheckSnapshots(setID, snaps, users)
 	if err != nil {
 		return err
 	}
@@ -255,12 +253,10 @@ type restoreCmd struct {
 }
 
 func (x *restoreCmd) Execute([]string) error {
+	setID := uint64(x.Positional.ID)
 	snaps := installedSnapNames(x.Positional.Snaps)
-	var users []string
-	if len(x.Users) > 0 {
-		users = strings.Split(x.Users, ",")
-	}
-	changeID, err := x.client.RestoreSnapshots(uint64(x.Positional.ID), snaps, users)
+	users := strutil.CommaSeparatedList(x.Users)
+	changeID, err := x.client.RestoreSnapshots(setID, snaps, users)
 	if err != nil {
 		return err
 	}
