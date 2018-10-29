@@ -1024,7 +1024,9 @@ func (s *storeTestSuite) TestApplyDelta(c *C) {
 				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
 			})
 			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
-			c.Assert(osutil.FileExists(targetSnapPath), Equals, true)
+			st, err := os.Stat(targetSnapPath)
+			c.Assert(err, IsNil)
+			c.Check(st.Mode(), Equals, os.FileMode(0600))
 			c.Assert(os.Remove(targetSnapPath), IsNil)
 		} else {
 			c.Assert(err, NotNil)
