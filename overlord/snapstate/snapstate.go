@@ -1203,7 +1203,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 			return nil, err
 		}
 		if !info.NeedsClassic() && flags.Classic {
-			// thw new revision is no longer classic, but the one
+			// The new revision is no longer classic, but the one
 			// installed is, allow such transition so do not fail
 			// validation
 			flags.Classic = false
