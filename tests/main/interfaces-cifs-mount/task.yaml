@@ -4,7 +4,9 @@ details: |
     The cifs-mount interface allows mounting and unmounting CIFS filesystems.
 
 prepare: |
-    snap install test-snapd-cifs-mount
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-cifs-mount
 
     # Create linux and samba users 
     useradd -s /bin/true test-cifs
@@ -47,7 +49,7 @@ execute: |
     snap connect test-snapd-cifs-mount:network-control
 
     echo "Then the snap is able to mount and umount a cifs fs"
-    test-snapd-cifs-mount.sh -c "mount.cifs //127.0.0.1/data1 \$SNAP_DATA/local_mount -o user=test-cifs,passowrd=test"
+    test-snapd-cifs-mount.sh -c "mount -t cifs //127.0.0.1/data1 \$SNAP_DATA/local_mount -o user=test-cifs,passowrd=test"
     test-snapd-cifs-mount.sh -c "test -f \$SNAP_DATA/local_mount/test"
     
     test-snapd-cifs-mount.sh -c "umount \$SNAP_DATA/local_mount"
@@ -61,7 +63,7 @@ execute: |
     snap disconnect test-snapd-cifs-mount:cifs-mount
 
     echo "Then the snap is not able to mount a cifs filesystem"
-    if test-snapd-cifs-mount.sh -c "mount.cifs //127.0.0.1/data2 \$SNAP_DATA/local_mount -o user=test-cifs,passowrd=test" 2>call.error; then
+    if test-snapd-cifs-mount.sh -c "mount -t cifs //127.0.0.1/data2 \$SNAP_DATA/local_mount -o user=test-cifs,passowrd=test" 2>call.error; then
         echo "Expected permission error mounting cifs"
         exit 1
     fi

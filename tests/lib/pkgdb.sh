@@ -511,6 +511,7 @@ pkg_dependencies_ubuntu_generic(){
         pkg-config
         python3-docutils
         samba
+        samba-common-bin
         smbclient
         udev
         udisks2
