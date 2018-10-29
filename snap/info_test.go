@@ -333,6 +333,20 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Check(info, IsNil)
 }
 
+func (s *infoSuite) TestReadInfoExceptSizeUnfindable(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
+	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(p, []byte(`name: test`), 0644), IsNil)
+
+	info, err := snap.ReadInfoExceptSize("sample", si)
+	c.Check(err, IsNil)
+	c.Check(info.SnapName(), Equals, "test")
+	c.Check(info.Revision, Equals, snap.R(42))
+	c.Check(info.Summary(), Equals, "esummary")
+	c.Check(info.Size, Equals, int64(0))
+}
+
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
 func makeTestSnap(c *C, yaml string) string {
 	tmp := c.MkDir()
