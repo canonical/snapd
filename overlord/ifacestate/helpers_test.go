@@ -220,6 +220,8 @@ func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// Set conns in the state and get them via GetConns to avoid having to
+	// know the internals of connState struct.
 	st.Set("conns", map[string]interface{}{
 		"snap1:plug1 core:slot1": map[string]interface{}{
 			"interface":   "iface1",
