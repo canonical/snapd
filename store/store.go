@@ -428,8 +428,8 @@ func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
-func LoginUser(httpClient *http.Client, username, password, otp string) (string, string, error) {
-	macaroon, err := requestStoreMacaroon(httpClient)
+func (s *Store) LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon(s.client)
 	if err != nil {
 		return "", "", err
 	}
@@ -444,7 +444,7 @@ func LoginUser(httpClient *http.Client, username, password, otp string) (string,
 		return "", "", err
 	}
 
-	discharge, err := dischargeAuthCaveat(httpClient, loginCaveat, username, password, otp)
+	discharge, err := dischargeAuthCaveat(s.client, loginCaveat, username, password, otp)
 	if err != nil {
 		return "", "", err
 	}
