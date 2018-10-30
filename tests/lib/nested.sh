@@ -96,7 +96,8 @@ start_nested_core_vm(){
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
         -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
     if ! wait_for_ssh; then
         systemctl restart nested-vm
     fi
@@ -138,14 +139,8 @@ start_nested_classic_vm(){
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
-    wait_for_ssh
-}
-
-ensure_nested_vm_active(){
-    if ! systemctl is-active nested-vm; then
-        systemctl start nested-vm
-    fi
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
     wait_for_ssh
 }
 

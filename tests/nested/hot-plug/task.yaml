@@ -8,22 +8,23 @@ prepare: |
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    ensure_nested_vm_active
+    create_nested_classic_vm
     copy_remote "${GOHOME}"/snapd_*.deb
     execute_remote "sudo apt update"
     execute_remote "sudo apt install -y ./snapd_*.deb"
+    execute_remote 'sudo apt install -y linux-image-extra-$(uname -r) || sudo apt install -y linux-modules-extra-$(uname -r)'
 
 restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+
     "$TESTSLIB"/prepare-restore.sh --restore-suite-each
     "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_install_package snapd
-
-    . "$TESTSLIB/nested.sh"
-    execute_remote "rm -f ${GOHOME}/snapd_*.deb"
-    execute_remote "sudo apt remove -y snapd"
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
