@@ -6680,14 +6680,6 @@ func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
-func (s *apiSuite) TestSplitQS(c *check.C) {
-	c.Check(splitQS("foo,bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo , bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS(""), check.HasLen, 0)
-	c.Check(splitQS(","), check.HasLen, 0)
-}
-
 func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)

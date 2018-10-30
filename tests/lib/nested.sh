@@ -68,6 +68,7 @@ get_image_url_for_nested_vm(){
 create_nested_core_vm(){
     # determine arch related vars
     QEMU=$(get_qemu_for_nested_vm)
+    UBUNTU_IMAGE=$(command -v ubuntu-image)
 
     # create ubuntu-core image
     EXTRA_SNAPS=""
@@ -75,7 +76,8 @@ create_nested_core_vm(){
         EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
     fi
     mkdir -p "$WORK_DIR"
-    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
+
+    "$UBUNTU_IMAGE" --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
         --channel "$CORE_CHANNEL" \
         --output "$WORK_DIR/ubuntu-core.img" "$EXTRA_SNAPS"
 
@@ -94,7 +96,8 @@ start_nested_core_vm(){
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
         -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
     if ! wait_for_ssh; then
         systemctl restart nested-vm
     fi
@@ -136,7 +139,8 @@ start_nested_classic_vm(){
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
     wait_for_ssh
 }
 
