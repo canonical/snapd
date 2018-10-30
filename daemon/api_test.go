@@ -5567,7 +5567,7 @@ func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
 			Username:         "karl",
@@ -5592,7 +5592,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	expectedEmail := "popper@lse.ac.uk"
 	expectedUsername := "karl"
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
 			Username:         expectedUsername,

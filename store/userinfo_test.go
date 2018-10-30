@@ -97,7 +97,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 		n++
 	})
 
-	info, err := store.UserInfo("popper@lse.ac.uk")
+	info, err := store.UserInfo(&http.Client{}, "popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 3) // number of requests after retries
 	c.Check(info.Username, check.Equals, "mvo")
@@ -113,7 +113,7 @@ func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 		n++
 	})
 
-	_, err := store.UserInfo("popper@lse.ac.uk")
+	_, err := store.UserInfo(&http.Client{}, "popper@lse.ac.uk")
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
 	c.Assert(n, check.Equals, 6)

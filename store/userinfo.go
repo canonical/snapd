@@ -24,16 +24,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/snapcore/snapd/httputil"
-)
-
-var (
-	httpClient = httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
-		MayLogBody: true,
-	})
 )
 
 type keysReply struct {
@@ -48,7 +40,7 @@ type User struct {
 	OpenIDIdentifier string
 }
 
-func UserInfo(email string) (userinfo *User, err error) {
+func UserInfo(httpClient *http.Client, email string) (userinfo *User, err error) {
 	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 
