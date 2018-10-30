@@ -627,13 +627,11 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -amazon-*, -arch-*]
+        backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
-        halt-timeout: 2h
-        kill-timeout: 2h
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
