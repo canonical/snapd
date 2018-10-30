@@ -169,7 +169,8 @@ remove_chardev(){
 add_usb_serial_device(){
     DEVICE_ID=$1
     CHARDEV_ID=$2
-    echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
+    SERIAL_NUM=$3
+    echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID,serial=$SERIAL_NUM" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "device added"
 }
 

@@ -1,8 +1,12 @@
 #!/bin/sh
-DEVPATH=/dev/ttyUSB0
-if test -w "$DEVPATH" ; then
-    echo "Access to $DEVPATH ok"
-else
-    echo "Access test for $DEVPATH failed"
-    exit 1
-fi
+check_access() {
+    DEVPATH=$1
+    if test -w "$DEVPATH" ; then
+        echo "Access to $DEVPATH ok"
+    else
+        echo "Access to $DEVPATH failed"
+    fi
+}
+
+check_access /dev/ttyUSB0
+check_access /dev/ttyUSB1
