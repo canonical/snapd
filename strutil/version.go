@@ -21,7 +21,6 @@ package strutil
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -31,16 +30,6 @@ func max(a, b int) int {
 		return b
 	}
 	return a
-}
-
-// version number compare, inspired by the libapt/python-debian code
-func cmpInt(intA, intB int) int {
-	if intA < intB {
-		return -1
-	} else if intA > intB {
-		return 1
-	}
-	return 0
 }
 
 //go:generate go run github.com/snapcore/snapd/strutil/chrorder -package=strutil -output=chrorder.go
@@ -65,15 +54,34 @@ func cmpString(as, bs string) int {
 	return 0
 }
 
-func cmpFragment(a, b string) int {
-	intA, errA := strconv.Atoi(a)
-	intB, errB := strconv.Atoi(b)
-	if errA == nil && errB == nil {
-		return cmpInt(intA, intB)
+func trimLeadingZeroes(a string) string {
+	for i := 0; i < len(a); i++ {
+		if a[i] != '0' {
+			return a[i:]
+		}
 	}
-	res := cmpString(a, b)
-	//fmt.Println(a, b, res)
-	return res
+	return ""
+}
+
+func cmpNumeric(a, b string) int {
+	a = trimLeadingZeroes(a)
+	b = trimLeadingZeroes(b)
+
+	switch d := len(a) - len(b); {
+	case d > 0:
+		return 1
+	case d < 0:
+		return -1
+	}
+	for i := 0; i < len(a); i++ {
+		switch {
+		case a[i] > b[i]:
+			return 1
+		case a[i] < b[i]:
+			return -1
+		}
+	}
+	return 0
 }
 
 func matchEpoch(a string) bool {
@@ -89,51 +97,65 @@ func matchEpoch(a string) bool {
 	return i < len(a) && a[i] == ':'
 }
 
+func atMostOneDash(a string) bool {
+	seen := false
+	for i := 0; i < len(a); i++ {
+		if a[i] == '-' {
+			if seen {
+				return false
+			}
+			seen = true
+		}
+	}
+	return true
+}
+
 // VersionIsValid returns true if the given string is a valid
 // version number according to the debian policy
 func VersionIsValid(a string) bool {
 	if matchEpoch(a) {
 		return false
 	}
-	if strings.Count(a, "-") > 1 {
-		return false
-	}
-	return true
+	return atMostOneDash(a)
 }
 
-func nextFrag(s string) (frag, rest string) {
+func nextFrag(s string) (frag, rest string, numeric bool) {
 	if len(s) == 0 {
-		return "", ""
+		return "", "", false
 	}
 
 	var i int
-	if s[0] >= 48 && s[0] <= 57 {
+	if s[0] >= '0' && s[0] <= '9' {
 		// is digit
 		for i = 1; i < len(s) && s[i] >= '0' && s[i] <= '9'; i++ {
 		}
+		numeric = true
 	} else {
 		// not digit
+		numeric = false
 		for i = 1; i < len(s) && (s[i] < '0' || s[i] > '9'); i++ {
 		}
 	}
-	return s[:i], s[i:]
+	return s[:i], s[i:], numeric
 }
 
 func compareSubversion(va, vb string) int {
 	var a, b string
-	for {
-		a, va = nextFrag(va)
-		b, vb = nextFrag(vb)
+	var anum, bnum bool
+	var res int
+	for res == 0 {
+		a, va, anum = nextFrag(va)
+		b, vb, bnum = nextFrag(vb)
 		if a == "" && b == "" {
 			break
 		}
-		res := cmpFragment(a, b)
-		//fmt.Println(a, b, res)
-		if res != 0 {
-			return res
+		if anum && bnum {
+			res = cmpNumeric(a, b)
+		} else {
+			res = cmpString(a, b)
 		}
 	}
-	return 0
+	return res
 }
 
 // VersionCompare compare two version strings that follow the debian
@@ -151,27 +173,24 @@ func VersionCompare(va, vb string) (res int, err error) {
 		return 0, fmt.Errorf("invalid version %q", vb)
 	}
 
-	ia := strings.IndexByte(va, '-')
-	if ia < 0 {
-		ia = len(va)
-		va += "-0"
+	var sa, sb string
+	if ia := strings.IndexByte(va, '-'); ia < 0 {
+		sa = "0"
+	} else {
+		va, sa = va[:ia], va[ia+1:]
 	}
-	ib := strings.IndexByte(vb, '-')
-	if ib < 0 {
-		ib = len(vb)
-		vb += "-0"
+	if ib := strings.IndexByte(vb, '-'); ib < 0 {
+		sb = "0"
+	} else {
+		vb, sb = vb[:ib], vb[ib+1:]
 	}
 
 	// the main version number (before the "-")
-	mainA := va[:ia]
-	mainB := vb[:ib]
-	res = compareSubversion(mainA, mainB)
+	res = compareSubversion(va, vb)
 	if res != 0 {
 		return res, nil
 	}
 
 	// the subversion revision behind the "-"
-	revA := strings.Split(va, "-")[1]
-	revB := strings.Split(vb, "-")[1]
-	return compareSubversion(revA, revB), nil
+	return compareSubversion(sa, sb), nil
 }
