@@ -68,6 +68,7 @@ get_image_url_for_nested_vm(){
 create_nested_core_vm(){
     # determine arch related vars
     QEMU=$(get_qemu_for_nested_vm)
+    UBUNTU_IMAGE=$(command -v ubuntu-image)
 
     # create ubuntu-core image
     EXTRA_SNAPS=""
@@ -75,7 +76,8 @@ create_nested_core_vm(){
         EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
     fi
     mkdir -p "$WORK_DIR"
-    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
+
+    "$UBUNTU_IMAGE" --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
         --channel "$CORE_CHANNEL" \
         --output "$WORK_DIR/ubuntu-core.img" "$EXTRA_SNAPS"
 
@@ -137,6 +139,13 @@ start_nested_classic_vm(){
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    wait_for_ssh
+}
+
+ensure_nested_vm_active(){
+    if ! systemctl is-active nested-vm; then
+        systemctl start nested-vm
+    fi
     wait_for_ssh
 }
 
