@@ -332,18 +332,22 @@ func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {
 	c.Assert(tss, NotNil)
 	c.Assert(tss.Tasks(), HasLen, 2)
 
-	task := tss.Tasks()[0]
-	c.Assert(task.Kind(), Equals, "hotplug-disconnect")
+	task1 := tss.Tasks()[0]
+	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
 
-	iface, key, err := ifacestate.GetHotplugAttrs(task)
+	iface, key, err := ifacestate.GetHotplugAttrs(task1)
 	c.Assert(err, IsNil)
 	c.Assert(iface, Equals, "interface")
 	c.Assert(key, Equals, "key")
 
-	task = tss.Tasks()[1]
-	c.Assert(task.Kind(), Equals, "hotplug-remove-slot")
-	iface, key, err = ifacestate.GetHotplugAttrs(task)
+	task2 := tss.Tasks()[1]
+	c.Assert(task2.Kind(), Equals, "hotplug-remove-slot")
+	iface, key, err = ifacestate.GetHotplugAttrs(task2)
 	c.Assert(err, IsNil)
 	c.Assert(iface, Equals, "interface")
 	c.Assert(key, Equals, "key")
+
+	wt := task2.WaitTasks()
+	c.Assert(wt, HasLen, 1)
+	c.Assert(wt[0], DeepEquals, task1)
 }
