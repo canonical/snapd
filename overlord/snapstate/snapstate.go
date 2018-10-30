@@ -1202,15 +1202,6 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		if err != nil {
 			return nil, err
 		}
-		if !info.NeedsClassic() && flags.Classic {
-			// The new revision is no longer classic, but the one
-			// installed is, allow such transition so do not fail
-			// validation
-			flags.Classic = false
-		}
-		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
-			return nil, err
-		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, nil, userID)
 			if err != nil {
