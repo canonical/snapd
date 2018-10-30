@@ -43,66 +43,7 @@ func cmpInt(intA, intB int) int {
 	return 0
 }
 
-/*
-
-Generated with the old implementation:
-
-var (
-	matchDigit = regexp.MustCompile("[0-9]").Match
-	matchAlpha = regexp.MustCompile("[a-zA-Z]").Match
-)
-
-func chOrder(ch uint8) int {
-	// "~" is lower than everything else
-	if ch == '~' {
-		return -10
-	}
-	// empty is higher than "~" but lower than everything else
-	if ch == 0 {
-		return -5
-	}
-	if matchAlpha([]byte{ch}) {
-		return int(ch)
-	}
-
-	// can only happen if cmpString sets '0' because there is no fragment
-	if matchDigit([]byte{ch}) {
-		return 0
-	}
-
-	return int(ch) + 256
-}
-
-func main() {
-	fmt.Println("var chOrder = [...]int{")
-	for i := 0; i < 16; i++ {
-		for j := 0; j < 16; j++ {
-			fmt.Printf("%d, ", chOrder(uint8(i*16+j)))
-		}
-		fmt.Println()
-	}
-	fmt.Println("}")
-}
-
-*/
-var chOrder = [...]int{
-	-5, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271,
-	272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287,
-	288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 314, 315, 316, 317, 318, 319,
-	320, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 347, 348, 349, 350, 351,
-	352, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111,
-	112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 379, 380, 381, -10, 383,
-	384, 385, 386, 387, 388, 389, 390, 391, 392, 393, 394, 395, 396, 397, 398, 399,
-	400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415,
-	416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431,
-	432, 433, 434, 435, 436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447,
-	448, 449, 450, 451, 452, 453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 463,
-	464, 465, 466, 467, 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479,
-	480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 494, 495,
-	496, 497, 498, 499, 500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511,
-}
+//go:generate go run github.com/snapcore/snapd/strutil/chrorder -package=strutil -output=chrorder.go
 
 func cmpString(as, bs string) int {
 	for i := 0; i < max(len(as), len(bs)); i++ {
