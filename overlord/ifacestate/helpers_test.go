@@ -20,7 +20,6 @@
 package ifacestate_test
 
 import (
-	"sort"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -248,7 +247,6 @@ func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
 	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug1 core:slot1"})
 
 	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "iface2", "key2")
-	sort.Strings(hotplugConns)
 	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug3 core:slot3", "snap2:plug1 core:slot1"})
 
 	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "unknown", "key1")
