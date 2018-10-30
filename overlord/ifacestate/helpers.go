@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -829,5 +830,6 @@ func findConnsForHotplugKey(conns map[string]connState, ifaceName, hotplugKey st
 		}
 		connsForDevice = append(connsForDevice, id)
 	}
+	sort.Strings(connsForDevice)
 	return connsForDevice
 }
