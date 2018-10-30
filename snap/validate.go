@@ -591,12 +591,11 @@ func validateAppRestart(app *AppInfo) error {
 // command-chain, which also doesn't allow whitespace.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
+var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$").MatchString
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
-	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
-
-	return validAppName.MatchString(n)
+	return validAppName(n)
 }
 
 // ValidateApp verifies the content in the app info.
