@@ -562,6 +562,14 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	return showDone(x.client, []string{name}, "refresh", x.getEscapes())
 }
 
+func parseSysinfoTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 func (x *cmdRefresh) showRefreshTimes() error {
 	sysinfo, err := x.client.SysInfo()
 	if err != nil {
@@ -575,17 +583,27 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else {
 		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Last); err == nil {
-		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(t))
+	last := parseSysinfoTime(sysinfo.Refresh.Last)
+	hold := parseSysinfoTime(sysinfo.Refresh.Hold)
+	next := parseSysinfoTime(sysinfo.Refresh.Next)
+
+	if !last.IsZero() {
+		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(last))
 	} else {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
-
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Hold); err == nil {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(t))
+	if !hold.IsZero() {
+		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Next); err == nil {
-		fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(t))
+	// only show "next" if its after "hold" to not confuse users
+	if !next.IsZero() {
+		// Snapstate checks for holdTime.After(limitTime) so we need
+		// to check for before or equal here to be fully correct.
+		if next.Before(hold) || next.Equal(hold) {
+			fmt.Fprintf(Stdout, "next: %s (but held)\n", x.fmtTime(next))
+		} else {
+			fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(next))
+		}
 	} else {
 		fmt.Fprintf(Stdout, "next: n/a\n")
 	}
