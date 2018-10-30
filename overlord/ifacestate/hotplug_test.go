@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/state"
 
 	. "gopkg.in/check.v1"
 )
@@ -320,4 +321,29 @@ func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
 		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
 		c.Assert(slotName, Equals, data.outName)
 	}
+}
+
+func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tss := ifacestate.RemoveDevice(st, "interface", "key")
+	c.Assert(tss, NotNil)
+	c.Assert(tss.Tasks(), HasLen, 2)
+
+	task := tss.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "hotplug-disconnect")
+
+	iface, key, err := ifacestate.GetHotplugAttrs(task)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+
+	task = tss.Tasks()[1]
+	c.Assert(task.Kind(), Equals, "hotplug-remove-slot")
+	iface, key, err = ifacestate.GetHotplugAttrs(task)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
 }
