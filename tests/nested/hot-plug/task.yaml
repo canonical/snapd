@@ -3,30 +3,27 @@ summary: create ubuntu classic image, install snapd and test hot plug feature
 systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
 prepare: |
-
     "$TESTSLIB"/prepare-restore.sh --prepare-suite
     "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    create_nested_classic_vm
+    ensure_nested_vm_active
     copy_remote "${GOHOME}"/snapd_*.deb
-    execute_remote 'sudo apt update'
-    execute_remote 'sudo apt install -y ./snapd_*.deb'
-    #shellcheck disable=SC2016
-    execute_remote 'sudo apt install -y linux-image-extra-$(uname -r) || sudo apt install -y linux-modules-extra-$(uname -r)'
+    execute_remote "sudo apt update"
+    execute_remote "sudo apt install -y ./snapd_*.deb"
 
 restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-
     "$TESTSLIB"/prepare-restore.sh --restore-suite-each
     "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_install_package snapd
+
+    . "$TESTSLIB/nested.sh"
+    execute_remote "rm -f ${GOHOME}/snapd_*.deb"
+    execute_remote "sudo apt remove -y snapd"
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -40,11 +37,25 @@ execute: |
     add_tty_chardev my-chardev /dev/tty5
     add_usb_serial_device my-usb-serial my-chardev
 
+    for _ in $(seq 5); do
+        if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+            break
+        fi
+        sleep 1
+    done
     execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"
-    execute_remote 'ls /dev/tty*' | MATCH "ttyUSB0"
+    execute_remote "ls /dev/tty*" | MATCH "ttyUSB0"
 
     del_device my-usb-serial
     remove_chardev my-chardev
+
+    for _ in $(seq 5); do
+        if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+            sleep 1
+        else
+            break
+        fi
+    done
 
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "Usb serial should not be registered anymore, exiting..."
