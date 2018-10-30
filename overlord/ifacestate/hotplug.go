@@ -27,6 +27,7 @@ import (
 	"unicode"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // List of attributes that determine the computation of default device key.
@@ -172,4 +173,18 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 		return fallbackName
 	}
 	return shortestName
+}
+
+// create tasks to disconnect slots of given device and remove affected slots.
+func removeDevice(st *state.State, ifaceName, hotplugKey string) *state.TaskSet {
+	// hotplug-disconnect task will create hooks and disconnect the slot
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections for interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
+
+	// hotplug-remove-slot will remove this device's slot from the repository.
+	removeSlot := st.NewTask("hotplug-remove-slot", fmt.Sprintf("Remove slot for interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(removeSlot, ifaceName, hotplugKey)
+	removeSlot.WaitFor(hotplugDisconnect)
+
+	return state.NewTaskSet(hotplugDisconnect, removeSlot)
 }
