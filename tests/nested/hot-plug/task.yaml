@@ -1,7 +1,5 @@
 summary: create ubuntu classic image, install snapd and test hot plug feature
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
-
 prepare: |
     "$TESTSLIB"/prepare-restore.sh --prepare-suite
     "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
