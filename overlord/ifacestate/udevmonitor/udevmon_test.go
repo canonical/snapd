@@ -38,7 +38,7 @@ type udevMonitorSuite struct{}
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := udevmonitor.New(nil, nil)
+	mon := udevmonitor.New(nil, nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
@@ -81,7 +81,7 @@ E: DEVTYPE=bzz
 `)
 	defer cmd.Restore()
 
-	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
+	udevmon := udevmonitor.New(added, removed, nil).(*udevmonitor.Monitor)
 	events := udevmon.EventsChannel()
 
 	c.Assert(udevmon.Run(), IsNil)
