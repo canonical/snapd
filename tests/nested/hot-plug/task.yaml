@@ -84,6 +84,17 @@ execute: |
         execute_remote "snap interfaces" | MATCH ":qemuusbserial.*serial-port-hotplug"
     }
 
+    verify_apparmor_profile() {
+        DEVPATH=$1
+        for _ in $(seq 10); do
+            if execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rw,"; then
+                break
+            fi
+            sleep 1
+        done
+        execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rw,"
+    }
+
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
@@ -146,7 +157,7 @@ execute: |
     check_slot_connected
 
     echo "Veryfing serial-port permissions"
-    execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "/dev/ttyUSB0 rw,"
+    verify_apparmor_profile "/dev/ttyUSB0"
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB0 ok"
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB1 failed"
 
@@ -174,7 +185,7 @@ execute: |
     check_slot_connected
 
     echo "Veryfing serial-port permissions, the first device is now expected on ttyUSB1"
-    execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "/dev/ttyUSB1 rw,"
+    verify_apparmor_profile "/dev/ttyUSB1"
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB0 failed"
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB1 ok"
 
