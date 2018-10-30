@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/state"
 
 	. "gopkg.in/check.v1"
 )
@@ -320,4 +321,47 @@ func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
 		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
 		c.Assert(slotName, Equals, data.outName)
 	}
+}
+
+func (s *hotplugSuite) TestUpdateDeviceTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tss := ifacestate.UpdateDevice(st, "interface", "key", map[string]interface{}{"attr": "value"})
+	c.Assert(tss, NotNil)
+	c.Assert(tss.Tasks(), HasLen, 3)
+
+	task1 := tss.Tasks()[0]
+	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
+
+	iface, key, err := ifacestate.GetHotplugAttrs(task1)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+
+	task2 := tss.Tasks()[1]
+	c.Assert(task2.Kind(), Equals, "hotplug-update-slot")
+	iface, key, err = ifacestate.GetHotplugAttrs(task2)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+	var attrs map[string]interface{}
+	c.Assert(task2.Get("slot-attrs", &attrs), IsNil)
+	c.Assert(attrs, DeepEquals, map[string]interface{}{"attr": "value"})
+
+	task3 := tss.Tasks()[2]
+	c.Assert(task3.Kind(), Equals, "hotplug-connect")
+	iface, key, err = ifacestate.GetHotplugAttrs(task2)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+
+	wt := task2.WaitTasks()
+	c.Assert(wt, HasLen, 1)
+	c.Assert(wt[0], DeepEquals, task1)
+
+	wt = task3.WaitTasks()
+	c.Assert(wt, HasLen, 1)
+	c.Assert(wt[0], DeepEquals, task2)
 }
