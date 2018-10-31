@@ -31,7 +31,7 @@ import (
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
+func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -60,7 +60,7 @@ func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
+func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -91,7 +91,7 @@ func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
+func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -158,7 +158,7 @@ func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
+func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -199,7 +199,7 @@ func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
+func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -266,7 +266,7 @@ func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
+func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -333,7 +333,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
+func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -382,7 +382,7 @@ func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -426,7 +426,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
+func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -481,7 +481,7 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -524,7 +524,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
+func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -545,7 +545,7 @@ func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
@@ -590,7 +590,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsCompletion(c *C) {
+func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
@@ -628,19 +628,19 @@ func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsCoreNicknamedSystem(c *C) {
+func (s *SnapSuite) TestInterfacesCoreNicknamedSystem(c *C) {
 	s.checkConnectionsSystemCoreRemapping(c, "core", "system")
 }
 
-func (s *SnapSuite) TestConnectionsSnapdNicknamedSystem(c *C) {
+func (s *SnapSuite) TestInterfacesSnapdNicknamedSystem(c *C) {
 	s.checkConnectionsSystemCoreRemapping(c, "snapd", "system")
 }
 
-func (s *SnapSuite) TestConnectionsSnapdNicknamedCore(c *C) {
+func (s *SnapSuite) TestInterfacesSnapdNicknamedCore(c *C) {
 	s.checkConnectionsSystemCoreRemapping(c, "snapd", "core")
 }
 
-func (s *SnapSuite) TestConnectionsCoreSnap(c *C) {
+func (s *SnapSuite) TestInterfacesCoreSnap(c *C) {
 	s.checkConnectionsSystemCoreRemapping(c, "core", "core")
 }
 
