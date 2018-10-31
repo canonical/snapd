@@ -114,12 +114,6 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="renderD[0-9]*"`,
 }
 
-const openglConnectedPlugSecComp = `
-# Description: allow running operations on GPU devices
-# necessary as cuda tries to create /dev/nvidia-uvm-tools with mknod
-mknod - |S_IFCHR
-`
-
 func init() {
 	registerIface(&commonInterface{
 		name:                  "opengl",
@@ -128,7 +122,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  openglBaseDeclarationSlots,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
-		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		connectedPlugUDev:     openglConnectedPlugUDev,
 		reservedForOS:         true,
 	})
