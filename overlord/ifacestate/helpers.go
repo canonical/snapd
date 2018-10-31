@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -819,4 +820,16 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 
 func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
+}
+
+func findConnsForHotplugKey(conns map[string]connState, ifaceName, hotplugKey string) []string {
+	var connsForDevice []string
+	for id, connSt := range conns {
+		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {
+			continue
+		}
+		connsForDevice = append(connsForDevice, id)
+	}
+	sort.Strings(connsForDevice)
+	return connsForDevice
 }
