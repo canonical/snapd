@@ -175,7 +175,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
-		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
+		Commands:    []string{"connections", "interfaces", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
