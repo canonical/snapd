@@ -480,10 +480,24 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
+func maybeMockClassicSupport(c *C) (restore func()) {
+	if dirs.SupportsClassicConfinement() {
+		return func() {}
 	}
+
+	d := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap")
+	err := os.MkdirAll(d, 0755)
+	c.Assert(err, IsNil)
+	snapSymlink := filepath.Join(dirs.GlobalRootDir, "snap")
+	err = os.Symlink(d, snapSymlink)
+	c.Assert(err, IsNil)
+
+	return func() { os.Remove(snapSymlink) }
+}
+
+func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -642,9 +656,8 @@ func (s *snapmgrTestSuite) TestRevertTasksFromJailMode(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksFromClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	// the snap is installed in classic, but the request to revert does not specify classic
 	s.testRevertTasksFullFlags(fullFlags{
@@ -664,9 +677,9 @@ func (s *snapmgrTestSuite) TestRevertTasksJailMode(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
 	s.testRevertTasks(snapstate.Flags{Classic: true}, c)
 }
 
@@ -868,9 +881,8 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -890,9 +902,8 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1790,9 +1801,8 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1816,9 +1826,8 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1856,9 +1865,8 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1928,9 +1936,8 @@ func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -9117,9 +9124,9 @@ func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
 func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
 
@@ -9145,6 +9152,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 
 	// verify snap is in TryMode
 	var snapst snapstate.SnapState
@@ -9173,9 +9183,8 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 }
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 	s.testTrySetsTryMode(snapstate.Flags{}, c)
 }
 
@@ -9186,9 +9195,8 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
 

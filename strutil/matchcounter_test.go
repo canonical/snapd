@@ -79,6 +79,7 @@ Failed to write /tmp/1/snap/snapcraft.yaml, skipping
 `
 
 var thisRegexp = regexp.MustCompile("(?m).*[Ff]ailed.*")
+var nilRegexpEquiv = regexp.MustCompile("(?m).+")
 
 func (mcSuite) TestMatchCounterFull(c *check.C) {
 	// check a single write
@@ -162,4 +163,45 @@ func (mcSuite) TestMatchCounterNegative(c *check.C) {
 	c.Check(count, check.Equals, 19)
 	c.Check(count, check.Equals, len(matches))
 	c.Assert(matches, check.DeepEquals, expected)
+}
+
+func (mcSuite) TestMatchCounterNilRegexpFull(c *check.C) {
+	expected := nilRegexpEquiv.FindAllString(out, -1)
+	w := &strutil.MatchCounter{N: -1}
+	_, err := w.Write([]byte(out))
+	c.Assert(err, check.IsNil)
+	matches, count := w.Matches()
+	c.Check(count, check.Equals, len(matches))
+	c.Check(len(matches), check.Equals, len(expected))
+	c.Assert(matches, check.DeepEquals, expected)
+}
+
+func (mcSuite) TestMatchCounterNilRegexpLimited(c *check.C) {
+	expected := nilRegexpEquiv.FindAllString(out, 10)
+	w := &strutil.MatchCounter{N: 10}
+	_, err := w.Write([]byte(out))
+	c.Assert(err, check.IsNil)
+	matches, count := w.Matches()
+	c.Check(count, check.Equals, 22)
+	c.Check(len(matches), check.Equals, len(expected))
+	c.Assert(matches, check.DeepEquals, expected)
+}
+
+func (mcSuite) TestMatchCounterNilRegexpPartials(c *check.C) {
+	expected := nilRegexpEquiv.FindAllString(out, 3)
+
+	buf := []byte(out)
+	for step := 1; step < 100; step++ {
+		w := &strutil.MatchCounter{N: 3}
+		var i int
+		for i = 0; i+step < len(buf); i += step {
+			_, err := w.Write(buf[i : i+step])
+			c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
+		}
+		_, err := w.Write(buf[i:])
+		c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
+		matches, count := w.Matches()
+		c.Check(count, check.Equals, 22, check.Commentf("step:%d", step))
+		c.Check(matches, check.DeepEquals, expected, check.Commentf("step:%d", step))
+	}
 }

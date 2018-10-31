@@ -20,8 +20,18 @@ package standby
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func (m *StandbyOpinions) SetStartTime(t time.Time) {
 	m.startTime = t
+}
+
+func MockStateRequestRestart(newStateRequestRestart func(*state.State, state.RestartType)) (restore func()) {
+	oldStateRequestRestart := stateRequestRestart
+	stateRequestRestart = newStateRequestRestart
+	return func() {
+		stateRequestRestart = oldStateRequestRestart
+	}
 }
