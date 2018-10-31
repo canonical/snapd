@@ -985,10 +985,8 @@ var SanitizePlugsSlots = func(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
 
-// ReadInfoExceptSize reads the snap information for the installed snap with the given name and given side-info.
-//
-// The Size field of snap.Info is not set.
-func ReadInfoExceptSize(name string, si *SideInfo) (*Info, error) {
+// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
+func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
@@ -1011,18 +1009,8 @@ func ReadInfoExceptSize(name string, si *SideInfo) (*Info, error) {
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
-	return info, nil
-}
-
-// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
-func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	info, err := ReadInfoExceptSize(name, si)
-	if err != nil {
-		return nil, err
-	}
-
 	mountFile := MountFile(name, si.Revision)
-	st, err := os.Stat(mountFile)
+	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
 		// is still in place (it's a bind mount, it doesn't care about the
@@ -1033,7 +1021,12 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	info.Size = st.Size()
+	// If the file is a regular file than it must be a squashfs file that is
+	// used as the backing store for the snap. The size of that file is the
+	// size of the snap.
+	if st.Mode().IsRegular() {
+		info.Size = st.Size()
+	}
 
 	return info, nil
 }
