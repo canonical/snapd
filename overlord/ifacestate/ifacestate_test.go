@@ -3013,6 +3013,57 @@ func (s *interfaceManagerSuite) TestManagerDoesntReloadUndesiredAutoconnections(
 	c.Assert(mgr.Repository().Interfaces().Connections, HasLen, 0)
 }
 
+func (s *interfaceManagerSuite) setupHotplugSlot(c *C) {
+	s.mockIfaces(c, &ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "test"}})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"slot": map[string]interface{}{
+			"name":        "slot",
+			"interface":   "test",
+			"hotplug-key": "abcd",
+		}})
+}
+
+func (s *interfaceManagerSuite) TestManagerDoesntReloadHotlugGoneConnection(c *C) {
+	s.setupHotplugSlot(c)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": true,
+		}})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	c.Assert(mgr.Repository().Interfaces().Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestManagerReloadsHotlugConnection(c *C) {
+	s.setupHotplugSlot(c)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": false,
+		}})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	c.Assert(repo.Interfaces().Connections, HasLen, 1)
+	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}
+	conn, err := repo.Connection(cref)
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
+}
+
 func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	mgr := s.manager(c)
 	repo := mgr.Repository()
