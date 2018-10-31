@@ -1,5 +1,7 @@
 summary: Ensure that the apt output on ubuntu-core is correct
+
 systems: [ubuntu-core-16-*]
+
 execute: |
     expected="Ubuntu Core does not use apt-get, see 'snap --help'!"
     output=$(apt-get update)

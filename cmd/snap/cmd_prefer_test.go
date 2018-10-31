@@ -37,12 +37,10 @@ to conflicting aliases of other snaps whose aliases will be disabled
 (or removed, for manual ones).
 
 [prefer command options]
-          --no-wait  Do not wait for the operation to finish but just print the
-                     change id.
+      --no-wait    Do not wait for the operation to finish but just print the
+                   change id.
 `
-	rest, err := Parser().ParseArgs([]string{"prefer", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "prefer", msg)
 }
 
 func (s *SnapSuite) TestPrefer(c *C) {
@@ -62,7 +60,7 @@ func (s *SnapSuite) TestPrefer(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"prefer", "some-snap"})
+	rest, err := Parser(Client()).ParseArgs([]string{"prefer", "some-snap"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+

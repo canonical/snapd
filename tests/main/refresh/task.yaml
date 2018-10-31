@@ -1,4 +1,5 @@
 summary: Check that the refresh command works.
+
 details: |
     These tests exercise the refresh command using different store backends.
     The concrete store to be used is controlled with the STORE_TYPE variant,

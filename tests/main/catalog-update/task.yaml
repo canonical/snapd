@@ -17,6 +17,7 @@ execute: |
         fi
         sleep 1
     done
+
     echo "Ensure the current number of refreshes is greater than before restarting snapd"
     [ "$refreshes_after" -gt "$refreshes_before" ]
 

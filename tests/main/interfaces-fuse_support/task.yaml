@@ -1,10 +1,7 @@
 summary: Ensure that the fuse-support interface works.
 
 # no support for fuse on 14.04
-systems:
-    # no support for fuse on 14.04
-    - -ubuntu-14.04-64
-    - -ubuntu-14.04-32
+systems: [-ubuntu-14.04-*]
 
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.
@@ -18,31 +15,44 @@ details: |
     name and content in the mount point given to the command.
 
 environment:
-    MOUNT_POINT: /var/snap/test-snapd-fuse-consumer/current/mount_point
+    MOUNT_POINT/regular: /var/snap/test-snapd-fuse-consumer/current/mount_point
+    MOUNT_POINT_OUTSIDE/regular: /var/snap/test-snapd-fuse-consumer/current/mount_point
+    NAME/regular: test-snapd-fuse-consumer
+    # snap with instance key 'foo'
+    MOUNT_POINT/parallel: /var/snap/test-snapd-fuse-consumer/current/mount_point
+    MOUNT_POINT_OUTSIDE/parallel: /var/snap/test-snapd-fuse-consumer_foo/current/mount_point
+    NAME/parallel: test-snapd-fuse-consumer_foo
 
 prepare: |
+    if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
+        snap set system experimental.parallel-instances=true
+    fi
     echo "Given a snap declaring a fuse plug is installed"
-    snap install test-snapd-fuse-consumer
+    snap install "$NAME"
 
     echo "And a user writable mount point is created"
-    mkdir -p "$MOUNT_POINT"
+    mkdir -p "$MOUNT_POINT_OUTSIDE"
 
 restore: |
     # remove the mount point
-    mounts=$(nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt cat /proc/mounts | \
+    mounts=$(nsenter "--mount=/run/snapd/ns/$NAME.mnt" cat /proc/mounts | \
              grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
     for m in $mounts; do
-        nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt umount "$m"
+        nsenter "--mount=/run/snapd/ns/$NAME.mnt" umount "$m"
     done
-    rm -rf "$MOUNT_POINT" fuse.error
+    rm -rf "$MOUNT_POINT_OUTSIDE" fuse.error
+
+    if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
+        snap set system experimental.parallel-instances=null
+    fi
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces -i fuse-support | MATCH '^- +test-snapd-fuse-consumer:fuse-support'
+    snap interfaces -i fuse-support | MATCH "^- +$NAME:fuse-support"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
-        if test-snapd-fuse-consumer.create -f "$MOUNT_POINT" 2> fuse.error; then
+        if "$NAME.create" -f "$MOUNT_POINT" 2> fuse.error; then
             echo "Expected permission error creating fuse filesystem with disconnected plug"
             exit 1
         fi
@@ -50,11 +60,11 @@ execute: |
     fi
 
     echo "When the plug is connected"
-    snap connect test-snapd-fuse-consumer:fuse-support
+    snap connect "$NAME:fuse-support"
 
     echo "Then the snap is able to create a fuse filesystem"
     # start fuse consumer in foreground and make it a background job
-    test-snapd-fuse-consumer.create -f "$MOUNT_POINT" &
+    "$NAME.create" -f "$MOUNT_POINT" &
     createpid=$!
     # cleanup the background job on exit
     trap 'kill $createpid; wait $createpid' EXIT
@@ -82,7 +92,7 @@ execute: |
     wait $createpid || test "$?" = "159"
 
     # verify that the mount_point was not removed from mount namespace of the snap
-    mountpath=$(nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt cat /proc/mounts | \
+    mountpath=$(nsenter "--mount=/run/snapd/ns/$NAME.mnt" cat /proc/mounts | \
                 grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
     test -n "$mountpath"
 

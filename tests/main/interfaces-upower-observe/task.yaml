@@ -1,13 +1,5 @@
 summary: Ensure that the upower-observe interface works.
 
-systems:
-    # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-    - -ubuntu-*-ppc64el
-    - -fedora-*
-    - -opensuse-*
-    - -arch-*
-    - -amazon-*
-
 details: |
     The upower-observe interface allows a snap to query UPower for power devices, history
     and statistics.
@@ -17,6 +9,9 @@ details: |
 
     The test uses a snap wrapping the upower command line utility, and checks that it can query
     it without error while the plug is connected.
+
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
+systems: [-ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
 
 prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"

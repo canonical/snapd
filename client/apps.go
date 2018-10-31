@@ -31,15 +31,26 @@ import (
 	"time"
 )
 
+// AppActivator is a thing that activates the app that is a service in the
+// system.
+type AppActivator struct {
+	Name string
+	// Type describes the type of the unit, either timer or socket
+	Type    string
+	Active  bool
+	Enabled bool
+}
+
 // AppInfo describes a single snap application.
 type AppInfo struct {
-	Snap        string `json:"snap,omitempty"`
-	Name        string `json:"name"`
-	DesktopFile string `json:"desktop-file,omitempty"`
-	Daemon      string `json:"daemon,omitempty"`
-	Enabled     bool   `json:"enabled,omitempty"`
-	Active      bool   `json:"active,omitempty"`
-	CommonID    string `json:"common-id,omitempty"`
+	Snap        string         `json:"snap,omitempty"`
+	Name        string         `json:"name"`
+	DesktopFile string         `json:"desktop-file,omitempty"`
+	Daemon      string         `json:"daemon,omitempty"`
+	Enabled     bool           `json:"enabled,omitempty"`
+	Active      bool           `json:"active,omitempty"`
+	CommonID    string         `json:"common-id,omitempty"`
+	Activators  []AppActivator `json:"activators,omitempty"`
 }
 
 // IsService returns true if the application is a background daemon.
@@ -111,6 +122,15 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 	rsp, err := client.raw("GET", "/v2/logs", query, nil, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if rsp.StatusCode != 200 {
+		var r response
+		defer rsp.Body.Close()
+		if err := decodeInto(rsp.Body, &r); err != nil {
+			return nil, err
+		}
+		return nil, r.err(client)
 	}
 
 	ch := make(chan Log, 20)

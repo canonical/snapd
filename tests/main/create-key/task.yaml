@@ -1,4 +1,5 @@
 summary: Checks for snap create-key
+
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 # amazon: requires extra gpg-agent setup
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -amazon-*]

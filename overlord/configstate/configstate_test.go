@@ -124,7 +124,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 
 		context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
 		c.Check(err, IsNil)
-		c.Check(context.SnapName(), Equals, "test-snap")
+		c.Check(context.InstanceName(), Equals, "test-snap")
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})
 		c.Check(context.HookName(), Equals, "configure")
 

@@ -8,7 +8,7 @@ make_snap() {
     # assigned in a separate step to avoid hiding a failure
     SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
     fi
     # echo the snap name
     if [ -f "$SNAP_FILE" ]; then
@@ -24,6 +24,13 @@ install_local() {
     SNAP_FILE=$(make_snap "$SNAP_NAME")
 
     snap install --dangerous "$@" "$SNAP_FILE"
+}
+
+install_local_as() {
+    local snap="$1"
+    local name="$2"
+    shift 2
+    install_local "$snap" --name "$name" "$@"
 }
 
 install_local_devmode() {

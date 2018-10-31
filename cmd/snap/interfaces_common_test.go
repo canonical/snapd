@@ -63,18 +63,6 @@ func (s *AttributePairSuite) TestUnmarshalFlagAttributePair(c *C) {
 	c.Check(ap.Value, Equals, "")
 }
 
-func (s *AttributePairSuite) TestAttributePairSliceToMap(c *C) {
-	attrs := []AttributePair{
-		{Key: "key1", Value: "value1"},
-		{Key: "key2", Value: "value2"},
-	}
-	m := AttributePairSliceToMap(attrs)
-	c.Check(m, DeepEquals, map[string]string{
-		"key1": "value1",
-		"key2": "value2",
-	})
-}
-
 type SnapAndNameSuite struct{}
 
 var _ = Suite(&SnapAndNameSuite{})

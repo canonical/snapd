@@ -70,8 +70,8 @@ plugs:
 	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
 	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
 	return &policy.ConnectCandidate{
-		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil),
-		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil),
+		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil, nil),
+		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil, nil),
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -522,6 +522,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"adb-support":             {"core"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},

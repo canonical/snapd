@@ -66,7 +66,7 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 		}
 		rx, err := regexp.Compile(regexpr)
 		if err != nil {
-			return false, fmt.Sprintf("Can't compile regexp %q: %v", regexpr, err)
+			return false, fmt.Sprintf("Cannot compile regexp %q: %v", regexpr, err)
 		}
 		params[1] = rx
 	}
@@ -76,30 +76,43 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
 	buf, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
+		return false, fmt.Sprintf("Cannot read file %q: %v", filename, err)
 	}
+	presentableBuf := string(buf)
 	if exact {
 		switch content := content.(type) {
 		case string:
-			return string(buf) == content, ""
+			result = presentableBuf == content
 		case []byte:
-			return bytes.Equal(buf, content), ""
+			result = bytes.Equal(buf, content)
+			presentableBuf = "<binary data>"
 		case fmt.Stringer:
-			return string(buf) == content.String(), ""
+			result = presentableBuf == content.String()
+		default:
+			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
 	} else {
 		switch content := content.(type) {
 		case string:
-			return strings.Contains(string(buf), content), ""
+			result = strings.Contains(presentableBuf, content)
 		case []byte:
-			return bytes.Contains(buf, content), ""
+			result = bytes.Contains(buf, content)
+			presentableBuf = "<binary data>"
 		case *regexp.Regexp:
-			return content.Match(buf), ""
+			result = content.Match(buf)
 		case fmt.Stringer:
-			return strings.Contains(string(buf), content.String()), ""
+			result = strings.Contains(presentableBuf, content.String())
+		default:
+			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
 	}
-	return false, fmt.Sprintf("Can't compare file contents with something of type %T", content)
+	if !result {
+		if error == "" {
+			error = fmt.Sprintf("Failed to match with file contents:\n%v", presentableBuf)
+		}
+		return result, error
+	}
+	return result, ""
 }
 
 type containsChecker struct {
@@ -226,6 +239,125 @@ func (c *deepContainsChecker) Check(params []interface{}, names []string) (resul
 	}
 }
 
+type paddedChecker struct {
+	*check.CheckerInfo
+	isRegexp  bool
+	isPartial bool
+	isLine    bool
+}
+
+// EqualsPadded is a Checker that looks for an expected string to
+// be equal to another except that the other might have been padded
+// out to align with something else (so arbitrary amounts of
+// horizontal whitespace is ok at the ends, and between non-whitespace
+// bits).
+var EqualsPadded = &paddedChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "EqualsPadded", Params: []string{"padded", "expected"}},
+	isLine:      true,
+}
+
+// MatchesPadded is a Checker that looks for an expected regexp in
+// a string that might have been padded out to align with something
+// else (so whitespace in the regexp is changed to [ \t]+, and ^[ \t]*
+// is added to the beginning, and [ \t]*$ to the end of it).
+var MatchesPadded = &paddedChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "MatchesPadded", Params: []string{"padded", "expected"}},
+	isRegexp:    true,
+	isLine:      true,
+}
+
+// ContainsPadded is a Checker that looks for an expected string
+// in another that might have been padded out to align with something
+// else (so arbitrary amounts of horizontal whitespace is ok between
+// non-whitespace bits).
+var ContainsPadded = &paddedChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "ContainsPadded", Params: []string{"padded", "expected"}},
+	isPartial:   true,
+	isLine:      true,
+}
+
+// EqualsWrapped is a Checker that looks for an expected string to be
+// equal to another except that the other might have been padded out
+// and wrapped (so arbitrary amounts of whitespace is ok at the ends,
+// and between non-whitespace bits).
+var EqualsWrapped = &paddedChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "EqualsWrapped", Params: []string{"wrapped", "expected"}},
+}
+
+// MatchesWrapped is a Checker that looks for an expected regexp in a
+// string that might have been padded and wrapped (so whitespace in
+// the regexp is changed to \s+, and (?s)^\s* is added to the
+// beginning, and \s*$ to the end of it).
+var MatchesWrapped = &paddedChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "MatchesWrapped", Params: []string{"wrapped", "expected"}},
+	isRegexp:    true,
+}
+
+// ContainsWrapped is a Checker that looks for an expected string in
+// another that might have been padded out and wrapped (so arbitrary
+// amounts of whitespace is ok between non-whitespace bits).
+var ContainsWrapped = &paddedChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "EqualsWrapped", Params: []string{"wrapped", "expected"}},
+	isRegexp:    false,
+	isPartial:   true,
+}
+
+var spaceinator = regexp.MustCompile(`\s+`).ReplaceAllLiteralString
+
+func (c *paddedChecker) Check(params []interface{}, names []string) (result bool, errstr string) {
+	var other string
+	switch v := params[0].(type) {
+	case string:
+		other = v
+	case []byte:
+		other = string(v)
+	case error:
+		if v != nil {
+			other = v.Error()
+		}
+	default:
+		return false, "left-hand value must be a string or []byte or error"
+	}
+	expected, ok := params[1].(string)
+	if !ok {
+		ebuf, ok := params[1].([]byte)
+		if !ok {
+			return false, "right-hand value must be a string or []byte"
+		}
+		expected = string(ebuf)
+	}
+	ws := `\s`
+	if c.isLine {
+		ws = `[\t ]`
+	}
+	if c.isRegexp {
+		_, err := regexp.Compile(expected)
+		if err != nil {
+			return false, fmt.Sprintf("right-hand value must be a valid regexp: %v", err)
+		}
+		expected = spaceinator(expected, ws+"+")
+	} else {
+		fields := strings.Fields(expected)
+		for i := range fields {
+			fields[i] = regexp.QuoteMeta(fields[i])
+		}
+		expected = strings.Join(fields, ws+"+")
+	}
+	if !c.isPartial {
+		expected = "^" + ws + "*" + expected + ws + "*$"
+	}
+	if !c.isLine {
+		expected = "(?s)" + expected
+	}
+
+	matches, err := regexp.MatchString(expected, other)
+	if err != nil {
+		// can't happen (really)
+		panic(err)
+	}
+	return matches, ""
+}
+
 type syscallsEqualChecker struct {
 	*check.CheckerInfo
 }
@@ -287,3 +419,75 @@ func (c *syscallsEqualChecker) Check(params []interface{}, names []string) (resu
 	}
 	return true, ""
 }
+
+type intChecker struct {
+	*check.CheckerInfo
+	rel string
+}
+
+func (checker *intChecker) Check(params []interface{}, names []string) (result bool, error string) {
+	a, ok := params[0].(int)
+	if !ok {
+		return false, "left-hand-side argument must be an int"
+	}
+	b, ok := params[1].(int)
+	if !ok {
+		return false, "right-hand-side argument must be an int"
+	}
+	switch checker.rel {
+	case "<":
+		result = a < b
+	case "<=":
+		result = a <= b
+	case "==":
+		result = a == b
+	case "!=":
+		result = a != b
+	case ">":
+		result = a > b
+	case ">=":
+		result = a >= b
+	default:
+		return false, fmt.Sprintf("unexpected relation %q", checker.rel)
+	}
+	if !result {
+		error = fmt.Sprintf("relation %d %s %d is not true", a, checker.rel, b)
+	}
+	return result, error
+}
+
+// IntLessThan checker verifies that one integer is less than other integer.
+//
+// For example:
+//     c.Assert(1, IntLessThan, 2)
+var IntLessThan = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntLessThan", Params: []string{"a", "b"}}, rel: "<"}
+
+// IntLessEqual checker verifies that one integer is less than or equal to other integer.
+//
+// For example:
+//     c.Assert(1, IntLessEqual, 1)
+var IntLessEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntLessEqual", Params: []string{"a", "b"}}, rel: "<="}
+
+// IntEqual checker verifies that one integer is equal to other integer.
+//
+// For example:
+//     c.Assert(1, IntEqual, 1)
+var IntEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntEqual", Params: []string{"a", "b"}}, rel: "=="}
+
+// IntNotEqual checker verifies that one integer is not equal to other integer.
+//
+// For example:
+//     c.Assert(1, IntNotEqual, 2)
+var IntNotEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntNotEqual", Params: []string{"a", "b"}}, rel: "!="}
+
+// IntGreaterThan checker verifies that one integer is greater than other integer.
+//
+// For example:
+//     c.Assert(2, IntGreaterThan, 1)
+var IntGreaterThan = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntGreaterThan", Params: []string{"a", "b"}}, rel: ">"}
+
+// IntGreaterEqual checker verifies that one integer is greater than or equal to other integer.
+//
+// For example:
+//     c.Assert(1, IntGreaterEqual, 2)
+var IntGreaterEqual = &intChecker{CheckerInfo: &check.CheckerInfo{Name: "IntGreaterEqual", Params: []string{"a", "b"}}, rel: ">="}

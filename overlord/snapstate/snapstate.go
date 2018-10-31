@@ -30,6 +30,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -57,6 +58,16 @@ const (
 	UseConfigDefaults
 )
 
+func isParallelInstallable(snapsup *SnapSetup) error {
+	if snapsup.InstanceKey == "" {
+		return nil
+	}
+	if snapsup.Type == snap.TypeApp {
+		return nil
+	}
+	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
@@ -67,7 +78,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			tr := config.NewTransaction(st)
+			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, "experimental.snapd-snap")
+			if err != nil && !config.IsNoOption(err) {
+				return nil, err
+			}
+			if !experimentalAllowSnapd {
+				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			}
 		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {
@@ -88,8 +106,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 
-	// TODO parallel-install: block parallel installation of core, kernel,
-	// gadget and snapd snaps
+	if err := isParallelInstallable(snapsup); err != nil {
+		return nil, err
+	}
 
 	if err := CheckChangeConflict(st, snapsup.InstanceName(), snapst); err != nil {
 		return nil, err
@@ -452,20 +471,27 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func getFeatureFlagBool(tr *config.Transaction, flag string) (bool, error) {
-	var v interface{} = false
+func GetFeatureFlagBool(tr *config.Transaction, flag string, unset ...bool) (bool, error) {
+	if len(unset) == 0 {
+		unset = []bool{false}
+	}
+	if len(unset) > 1 {
+		return false, fmt.Errorf("please specify only a single unset value")
+	}
+
+	var v interface{} = unset[0]
 	if err := tr.GetMaybe("core", flag, &v); err != nil {
-		return false, err
+		return unset[0], err
 	}
 	switch value := v.(type) {
 	case string:
 		if value == "" {
-			return false, nil
+			return unset[0], nil
 		}
 	case bool:
 		return value, nil
 	}
-	return false, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
+	return unset[0], fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
 }
 
 // validateFeatureFlags validates the given snap only uses experimental
@@ -474,7 +500,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := getFeatureFlagBool(tr, "experimental.layouts")
+		flag, err := GetFeatureFlagBool(tr, "experimental.layouts", true)
 		if err != nil {
 			return err
 		}
@@ -484,7 +510,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := getFeatureFlagBool(tr, "experimental.parallel-instances")
+		flag, err := GetFeatureFlagBool(tr, "experimental.parallel-instances")
 		if err != nil {
 			return err
 		}
@@ -496,31 +522,36 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-// InstallPath returns a set of tasks for installing snap from a file path.
+// InstallPath returns a set of tasks for installing a snap from a file path
+// and the snap.Info for the given snap.
+//
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags Flags) (*state.TaskSet, error) {
-	name := si.RealName
-	if name == "" {
-		return nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags) (*state.TaskSet, *snap.Info, error) {
+	if si.RealName == "" {
+		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
+	}
+
+	if instanceName == "" {
+		instanceName = si.RealName
 	}
 
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err := Get(st, instanceName, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if si.SnapID != "" {
 		if si.Revision.Unset() {
-			return nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
+			return nil, nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
 		}
 	}
 
-	if err := canSwitchChannel(st, name, channel); err != nil {
-		return nil, err
+	if err := canSwitchChannel(st, instanceName, channel); err != nil {
+		return nil, nil, err
 	}
 
 	var instFlags int
@@ -534,28 +565,43 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	// have side info or the user passed --dangerous
 	info, container, err := backend.OpenSnapFile(path, si)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := validateContainer(container, info, logger.Noticef); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if err := snap.ValidateInstanceName(instanceName); err != nil {
+		return nil, nil, err
+	}
+
+	snapName, instanceKey := snap.SplitInstanceName(instanceName)
+	if info.SnapName() != snapName {
+		return nil, nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", instanceName, info.SnapName())
+	}
+	info.InstanceKey = instanceKey
+
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+		return nil, nil, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	snapsup := &SnapSetup{
-		Base:      info.Base,
-		Prereq:    defaultContentPlugProviders(st, info),
-		SideInfo:  si,
-		SnapPath:  path,
-		Channel:   channel,
-		Flags:     flags.ForSnapSetup(),
-		Type:      info.Type,
-		PlugsOnly: len(info.Slots) == 0,
+		Base:        info.Base,
+		Prereq:      defaultContentPlugProviders(st, info),
+		SideInfo:    si,
+		SnapPath:    path,
+		Channel:     channel,
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
 	}
 
-	return doInstall(st, &snapst, snapsup, instFlags)
+	ts, err := doInstall(st, &snapst, snapsup, instFlags)
+	return ts, info, err
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -563,7 +609,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	return InstallPath(st, &snap.SideInfo{RealName: name}, path, "", flags)
+	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags)
+	return ts, err
 }
 
 // Install returns a set of tasks for installing snap.
@@ -580,6 +627,11 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 	if snapst.IsInstalled() {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
+	}
+
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
 	}
 
 	info, err := installInfo(st, name, channel, revision, userID)
@@ -646,13 +698,21 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, nil, err
+	}
+
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -670,15 +730,19 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		snapst := stateByID[update.SnapID]
+		snapst := stateByInstanceName[update.InstanceName()]
 		return snapst.Channel, snapst.Flags, snapst
 
 	}
 
-	return doUpdate(st, names, updates, params, userID)
+	return doUpdate(ctx, st, names, updates, params, userID, flags)
 }
 
-func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags) ([]string, []*state.TaskSet, error) {
+	if globalFlags == nil {
+		globalFlags = &Flags{}
+	}
+
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 
 	refreshAll := len(names) == 0
@@ -720,7 +784,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	// first snapd, core, bases, then rest
-	sort.Sort(byKind(updates))
+	sort.Stable(snap.ByType(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
 		preTs := prereqs[prereqName]
@@ -733,7 +797,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	// and bases and then other snaps
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
-
+		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
@@ -817,32 +881,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	return updated, tasksets, nil
 }
 
-type byKind []*snap.Info
-
-func (bk byKind) Len() int      { return len(bk) }
-func (bk byKind) Swap(i, j int) { bk[i], bk[j] = bk[j], bk[i] }
-
-var kindRevOrder = map[snap.Type]int{
-	snap.TypeOS:   2,
-	snap.TypeBase: 1,
-}
-
-func (bk byKind) Less(i, j int) bool {
-	// snapd sorts first to ensure that on all refrehses it is the first
-	// snap package that gets refreshed.
-	if bk[i].SnapName() == "snapd" {
-		return true
-	}
-	if bk[j].SnapName() == "snapd" {
-		return false
-	}
-
-	iRevOrd := kindRevOrder[bk[i].Type]
-	jRevOrd := kindRevOrder[bk[j].Type]
-	return iRevOrd >= jRevOrd
-}
-
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Refresh aliases for snap %q")
@@ -850,20 +889,20 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		kind = "prune-auto-aliases"
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
-	for snapName, aliases := range delta {
-		if err := CheckChangeConflict(st, snapName, nil); err != nil {
+	for instanceName, aliases := range delta {
+		if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
-				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
 				continue
 			}
 			return nil, err
 		}
 
+		snapName, instanceKey := snap.SplitInstanceName(instanceName)
 		snapsup := &SnapSetup{
-			SideInfo: &snap.SideInfo{RealName: snapName},
-			// TODO parallel-install: review and update the aliases
-			// code in the context of parallel installs
+			SideInfo:    &snap.SideInfo{RealName: snapName},
+			InstanceKey: instanceKey,
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
@@ -871,7 +910,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 			alias.Set("aliases", aliases)
 		}
 		ts := state.NewTaskSet(alias)
-		linkTs(snapName, ts)
+		linkTs(instanceName, ts)
 		applyTs.AddAll(ts)
 	}
 	return applyTs, nil
@@ -892,9 +931,9 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 
 	// dropped alias -> snapName
 	droppedAliases := make(map[string][]string, len(dropped))
-	for snapName, aliases := range dropped {
+	for instanceName, aliases := range dropped {
 		for _, alias := range aliases {
-			droppedAliases[alias] = append(droppedAliases[alias], snapName)
+			droppedAliases[alias] = append(droppedAliases[alias], instanceName)
 		}
 	}
 
@@ -913,10 +952,10 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	// mark snaps that are sources or target of transfers
 	transferSources := make(map[string]bool, len(dropped))
 	transferTargets = make(map[string]bool, len(changed))
-	for snapName, aliases := range changed {
+	for instanceName, aliases := range changed {
 		for _, alias := range aliases {
 			if sources := droppedAliases[alias]; len(sources) != 0 {
-				transferTargets[snapName] = true
+				transferTargets[instanceName] = true
 				for _, source := range sources {
 					transferSources[source] = true
 				}
@@ -931,22 +970,22 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
-	for snapName := range changed {
-		if updating[snapName] {
-			delete(changed, snapName)
+	for instanceName := range changed {
+		if updating[instanceName] {
+			delete(changed, instanceName)
 		}
 	}
 
 	// prune explicitly auto-aliases only for snaps that are mentioned
 	// and not updated OR the source of transfers
 	mustPrune = make(map[string][]string, len(dropped))
-	for snapName := range transferSources {
-		mustPrune[snapName] = dropped[snapName]
+	for instanceName := range transferSources {
+		mustPrune[instanceName] = dropped[instanceName]
 	}
 	if refreshAll {
-		for snapName, aliases := range dropped {
-			if !updating[snapName] {
-				mustPrune[snapName] = aliases
+		for instanceName, aliases := range dropped {
+			if !updating[instanceName] {
+				mustPrune[instanceName] = aliases
 			}
 		}
 	} else {
@@ -1048,6 +1087,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
 	}
 
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
+	}
+
 	if err := canSwitchChannel(st, name, channel); err != nil {
 		return nil, err
 	}
@@ -1077,7 +1121,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
 	if err != nil {
 		return nil, err
 	}
@@ -1191,7 +1235,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 		}
 	}
 
-	return UpdateMany(ctx, st, nil, userID)
+	return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
 }
 
 // Enable sets a snap to the active state
@@ -1837,8 +1881,8 @@ func All(st *state.State) (map[string]*SnapState, error) {
 		return nil, err
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
-	for snapName, snapst := range stateMap {
-		curStates[snapName] = snapst
+	for instanceName, snapst := range stateMap {
+		curStates[instanceName] = snapst
 	}
 	return curStates, nil
 }
@@ -1882,13 +1926,13 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	for snapName, snapst := range stateMap {
+	for instanceName, snapst := range stateMap {
 		if !snapst.Active {
 			continue
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
 		infos = append(infos, snapInfo)
@@ -2046,4 +2090,37 @@ func GadgetConnections(st *state.State) ([]snap.GadgetConnection, error) {
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+// hook setup by devicestate
+var (
+	Model func(st *state.State) (*asserts.Model, error)
+)
+
+// ModelPastSeeding returns the device model assertion if available and
+// the device is seeded, at that point the device store is known
+// and seeding done. Otherwise it returns a ChangeConflictError
+// about being too early.
+func ModelPastSeeding(st *state.State) (*asserts.Model, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	modelAs, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	// when seeded modelAs should not be nil except in the rare
+	// case of upgrades from a snapd before the introduction of
+	// the fallback generic/generic-classic model
+	if !seeded || modelAs == nil {
+		return nil, &ChangeConflictError{
+			Message: "too early for operation, device not yet" +
+				" seeded or device model not acknowledged",
+			ChangeKind: "seed",
+		}
+	}
+
+	return modelAs, nil
 }
