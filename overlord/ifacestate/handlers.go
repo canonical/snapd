@@ -1201,7 +1201,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// find old connections for slots of this device - note we can't ask the repository since we need
 	// to recreate old connections that are only remembered in the state.
-	connsForDevice := findConnsForDeviceKey(&conns, ifaceName, hotplugKey)
+	connsForDevice := findConnsForHotplugKey(conns, ifaceName, hotplugKey)
 
 	// we see this device for the first time (or it didn't have any connected slot before)
 	if len(connsForDevice) == 0 {

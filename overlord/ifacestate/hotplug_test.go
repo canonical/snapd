@@ -377,6 +377,7 @@ plugs:
 hooks:
  prepare-plug-plug:
  connect-plug-plug:
+ disconnect-plug-plug:
 `
 
 func (s *hotplugSuite) TestHotplugRemove(c *C) {
@@ -479,13 +480,12 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	}
 
 	c.Assert(seenHooks, DeepEquals, map[string]string{
-		"disconnect-slot-hotplugslot": "core",
-		"disconnect-plug-plug":        "consumer",
+		"disconnect-plug-plug": "consumer",
 	})
 	c.Assert(seenKeys, DeepEquals, map[string]string{"key-1": "test-a"})
 	c.Assert(seenDisonnect, Equals, 1)
 	c.Assert(seenHotplugDisconnect, Equals, 1)
-	c.Assert(tasks, HasLen, 5)
+	c.Assert(tasks, HasLen, 4)
 
 	slot, _ = repo.SlotForHotplugKey("test-a", "key-1")
 	c.Assert(slot, IsNil)
@@ -727,17 +727,16 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 
 	}
 	c.Assert(seenHooks, DeepEquals, map[string]string{
-		"disconnect-plug-plug":          "consumer",
-		"disconnect-slot-hotplugslot-a": "core",
-		"prepare-plug-plug":             "consumer",
-		"connect-plug-plug":             "consumer"})
+		"disconnect-plug-plug": "consumer",
+		"prepare-plug-plug":    "consumer",
+		"connect-plug-plug":    "consumer"})
 	c.Assert(seenConnect, Equals, 1)
 	c.Assert(seenDisconnect, Equals, 1)
 	c.Assert(seenHotplugDisconnect, Equals, 1)
 	// we see 2 hotplug-connect tasks because of interface test-a and test-b (the latter does nothing as there is no change)
 	c.Assert(seenHotplugConnect, Equals, 2)
 	c.Assert(seenHotplugConnectKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Assert(tasks, HasLen, 10)
+	c.Assert(tasks, HasLen, 9)
 
 	// make sure slots for new device have been updated in the repo
 	slot, err := repo.SlotForHotplugKey("test-a", "key-1")

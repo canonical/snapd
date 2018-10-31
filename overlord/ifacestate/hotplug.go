@@ -354,17 +354,6 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 	m.enumeratedDeviceKeys = nil
 }
 
-func findConnsForDeviceKey(conns *map[string]connState, ifaceName, hotplugKey string) []string {
-	var connsForDevice []string
-	for id, connSt := range *conns {
-		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {
-			continue
-		}
-		connsForDevice = append(connsForDevice, id)
-	}
-	return connsForDevice
-}
-
 func (m *InterfaceManager) hotplugEnabled() (bool, error) {
 	tr := config.NewTransaction(m.state)
 	return snapstate.GetFeatureFlagBool(tr, "experimental.hotplug")
