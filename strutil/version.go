@@ -32,7 +32,7 @@ func max(a, b int) int {
 	return a
 }
 
-//go:generate go run github.com/snapcore/snapd/strutil/chrorder -package=strutil -output=chrorder.go
+//go:generate go run ./chrorder/main.go -package=strutil -output=chrorder.go
 
 func cmpString(as, bs string) int {
 	for i := 0; i < max(len(as), len(bs)); i++ {
