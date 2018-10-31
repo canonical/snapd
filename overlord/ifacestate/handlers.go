@@ -436,6 +436,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
+		HotplugKey:       slot.HotplugKey,
 	}
 	setConns(st, conns)
 
