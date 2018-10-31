@@ -66,7 +66,8 @@ get_image_url_for_nested_vm(){
 }
 
 create_nested_core_vm(){
-    local UBUNTU_IMAGE=$(command -v ubuntu-image)
+    local UBUNTU_IMAGE
+    UBUNTU_IMAGE=$(command -v ubuntu-image)
 
     # create ubuntu-core image
     local EXTRA_SNAPS=""
@@ -90,7 +91,8 @@ create_nested_core_vm(){
 }
 
 start_nested_core_vm(){
-    local QEMU=$(get_qemu_for_nested_vm)
+    local QEMU
+    QEMU=$(get_qemu_for_nested_vm)
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
@@ -106,9 +108,12 @@ create_nested_classic_vm(){
     mkdir -p "$WORK_DIR"
 
     # Get the cloud image
-    local IMAGE_URL=$(get_image_url_for_nested_vm)
+    local IMAGE_URL
+    IMAGE_URL=$(get_image_url_for_nested_vm)
     wget -P "$WORK_DIR" "$IMAGE_URL"
-    local IMAGE=$(ls $WORK_DIR/*.img)
+    # Check the image
+    local IMAGE
+    IMAGE=$(ls $WORK_DIR/*.img)
     test "$(echo "$IMAGE" | wc -l)" = "1"
 
     # Prepare the cloud-init configuration
@@ -132,7 +137,8 @@ EOF
 
 start_nested_classic_vm(){
     local IMAGE=$1
-    local QEMU=$(get_qemu_for_nested_vm)
+    local QEMU
+    QEMU=$(get_qemu_for_nested_vm)
 
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
