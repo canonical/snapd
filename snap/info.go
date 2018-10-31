@@ -1001,8 +1001,16 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	err = addImplicitHooks(info)
+	if err != nil {
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+	}
+
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	mountFile := MountFile(name, si.Revision)
-	st, err := os.Stat(mountFile)
+	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
 		// is still in place (it's a bind mount, it doesn't care about the
@@ -1013,15 +1021,12 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	info.Size = st.Size()
-
-	err = addImplicitHooks(info)
-	if err != nil {
-		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+	// If the file is a regular file than it must be a squashfs file that is
+	// used as the backing store for the snap. The size of that file is the
+	// size of the snap.
+	if st.Mode().IsRegular() {
+		info.Size = st.Size()
 	}
-
-	_, instanceKey := SplitInstanceName(name)
-	info.InstanceKey = instanceKey
 
 	return info, nil
 }

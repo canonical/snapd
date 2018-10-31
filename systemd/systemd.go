@@ -235,6 +235,8 @@ var unitProperties = map[string][]string{
 	".mount": extendedProperties,
 }
 
+// Status fetches the status of given units. Statuses are returned in the same
+// order as unit names passed in argument.
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"

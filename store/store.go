@@ -1654,6 +1654,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		return err
 	}
 
+	if err := os.Chmod(partialTargetPath, 0600); err != nil {
+		return err
+	}
+
 	bsha3_384, _, err := osutil.FileDigest(partialTargetPath, crypto.SHA3_384)
 	if err != nil {
 		return err
