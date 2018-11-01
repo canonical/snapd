@@ -81,6 +81,7 @@ backends:
                 manual: true
             - fedora-28-64:
                 workers: 4
+                manual: true
 
             - opensuse-42.3-64:
                 workers: 4
