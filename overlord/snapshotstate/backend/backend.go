@@ -28,7 +28,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"time"
 
@@ -227,6 +226,8 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	return snapshot, nil
 }
 
+var isTesting = osutil.GetenvBool("SNAPPY_TESTING")
+
 func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
 	hasher := crypto.SHA3_384.New()
 	if exists, isDir, err := osutil.DirExists(dir); !exists || !isDir || err != nil {
@@ -250,8 +251,12 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		"--directory", parent, dir, "common")
 	cmd.Env = []string{"GZIP=-9 -n"}
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
-	matchCounter := &strutil.MatchCounter{Regexp: regexp.MustCompile(".*"), N: 1}
+	matchCounter := &strutil.MatchCounter{N: 1}
 	cmd.Stderr = matchCounter
+	if isTesting {
+		matchCounter.N = -1
+		cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
+	}
 	if err := osutil.RunWithContext(ctx, cmd); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
