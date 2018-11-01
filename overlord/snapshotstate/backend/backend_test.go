@@ -419,6 +419,7 @@ func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	d := filepath.Join(s.root, "foo")
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -453,6 +454,28 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
+	s.testHappyRoundtrip(c, "marker")
+}
+
+func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
+	for _, t := range table(snap.MinimalPlaceInfo("hello-snap", snap.R(42)), filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
+		if _, d := filepath.Split(t.dir); d == "common" {
+			c.Assert(os.RemoveAll(t.dir), check.IsNil)
+		}
+	}
+	s.testHappyRoundtrip(c, "marker")
+}
+
+func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
+	for _, t := range table(snap.MinimalPlaceInfo("hello-snap", snap.R(42)), filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
+		if _, d := filepath.Split(t.dir); d == "42" {
+			c.Assert(os.RemoveAll(t.dir), check.IsNil)
+		}
+	}
+	s.testHappyRoundtrip(c, "../common/marker")
+}
+
+func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -521,7 +544,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(diff().Run(), check.IsNil, comm)
 
 		// dirty it -> no longer like it was
-		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), "marker"), []byte("scribble\n"), 0644), check.IsNil, comm)
+		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), marker), []byte("scribble\n"), 0644), check.IsNil, comm)
 	}
 }
 
