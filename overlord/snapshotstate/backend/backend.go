@@ -229,14 +229,59 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 var isTesting = osutil.GetenvBool("SNAPPY_TESTING")
 
 func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
-	hasher := crypto.SHA3_384.New()
-	if exists, isDir, err := osutil.DirExists(dir); !exists || !isDir || err != nil {
-		if exists && !isDir {
-			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, snapshot.SetID, snapshot.Snap)
-		}
+	parent, revdir := filepath.Split(dir)
+	exists, isDir, err := osutil.DirExists(parent)
+	if err != nil {
 		return err
 	}
-	parent, dir := filepath.Split(dir)
+	if exists && !isDir {
+		logger.Noticef("Not saving directories under %q in snapshot #%d of %q as it is not a directory.", parent, snapshot.SetID, snapshot.Snap)
+		return nil
+	}
+	if !exists {
+		logger.Debugf("Not saving directories under %q in snapshot #%d of %q as it is does not exist.", parent, snapshot.SetID, snapshot.Snap)
+		return nil
+	}
+	tarArgs := []string{
+		"--create",
+		"--sparse", "--gzip",
+		"--directory", parent,
+	}
+
+	noRev, noCommon := true, true
+
+	exists, isDir, err = osutil.DirExists(dir)
+	if err != nil {
+		return err
+	}
+	switch {
+	case exists && isDir:
+		tarArgs = append(tarArgs, revdir)
+		noRev = false
+	case exists && !isDir:
+		logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, snapshot.SetID, snapshot.Snap)
+	case !exists:
+		logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", dir, snapshot.SetID, snapshot.Snap)
+	}
+
+	common := filepath.Join(parent, "common")
+	exists, isDir, err = osutil.DirExists(common)
+	if err != nil {
+		return err
+	}
+	switch {
+	case exists && isDir:
+		tarArgs = append(tarArgs, "common")
+		noCommon = false
+	case exists && !isDir:
+		logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", common, snapshot.SetID, snapshot.Snap)
+	case !exists:
+		logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", common, snapshot.SetID, snapshot.Snap)
+	}
+
+	if noCommon && noRev {
+		return nil
+	}
 
 	archiveWriter, err := w.CreateHeader(&zip.FileHeader{Name: entry})
 	if err != nil {
@@ -244,12 +289,9 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	}
 
 	var sz sizer
+	hasher := crypto.SHA3_384.New()
 
-	cmd := tarAsUser(username,
-		"--create",
-		"--sparse", "--gzip",
-		"--directory", parent, dir, "common")
-	cmd.Env = []string{"GZIP=-9 -n"}
+	cmd := tarAsUser(username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
 	matchCounter := &strutil.MatchCounter{N: 1}
 	cmd.Stderr = matchCounter
