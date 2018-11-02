@@ -42,6 +42,7 @@ var (
 	SetHotplugAttrs              = setHotplugAttrs
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
+	FindConnsForHotplugKey       = findConnsForHotplugKey
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

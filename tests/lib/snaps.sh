@@ -8,7 +8,7 @@ make_snap() {
     # assigned in a separate step to avoid hiding a failure
     SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
     fi
     # echo the snap name
     if [ -f "$SNAP_FILE" ]; then
