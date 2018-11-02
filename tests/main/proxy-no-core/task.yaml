@@ -1,0 +1,49 @@
+summary: Ensure that the core.proxy.* settings are honored without core
+
+# only needs a test on classic
+systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+
+restore: |
+    iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j ACCEPT -p tcp
+    iptables -D OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
+    iptables -D OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+    snap set core proxy.https=
+    systemctl stop tinyproxy || true
+
+execute: |
+    if ! command -v python3; then
+       echo "SKIP: need python3"
+       exit 0
+    fi
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+    systemctl stop snapd.socket snapd.service
+    rm -rf /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd.service
+
+    # only allow test user to connect to http/https
+    iptables -I OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
+    iptables -I OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+    iptables -I OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
+
+    # run a proxy that can access http/https (via the owner rule)
+    systemd-run --uid=test --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
+    # shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    wait_for_service tinyproxy
+
+    echo "Ensure normal install without proxy does not work"
+    if snap install core; then
+        echo "without a proxy core install should fail, test broken"
+        exit 1
+    fi
+
+    echo "Setup proxy config"
+    snap set core proxy.https=http://localhost:3128
+
+    echo "Ensure that snap install works even without an installed core to install core"
+    snap install core
+
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+    check_journalctl_log 'CONNECT fastly.cdn.snapcraft.io' -u tinyproxy
