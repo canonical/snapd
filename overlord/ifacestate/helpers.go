@@ -526,7 +526,7 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 // getConns returns information about connections from the state.
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
-func getConns(st *state.State) (conns map[string]connState, err error) {
+func getConns(st *state.State) (conns map[string]*connState, err error) {
 	var raw *json.RawMessage
 	err = st.Get("conns", &raw)
 	if err != nil && err != state.ErrNoState {
@@ -539,9 +539,9 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		}
 	}
 	if conns == nil {
-		conns = make(map[string]connState)
+		conns = make(map[string]*connState)
 	}
-	remapped := make(map[string]connState, len(conns))
+	remapped := make(map[string]*connState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -561,8 +561,8 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 // setConns sets information about connections in the state.
 //
 // Connections are transparently re-mapped according to remapOutgoingConnRef
-func setConns(st *state.State, conns map[string]connState) {
-	remapped := make(map[string]connState, len(conns))
+func setConns(st *state.State, conns map[string]*connState) {
+	remapped := make(map[string]*connState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -822,7 +822,7 @@ func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
 }
 
-func findConnsForHotplugKey(conns map[string]connState, ifaceName, hotplugKey string) []string {
+func findConnsForHotplugKey(conns map[string]*connState, ifaceName, hotplugKey string) []string {
 	var connsForDevice []string
 	for id, connSt := range conns {
 		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {
