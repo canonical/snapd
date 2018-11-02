@@ -42,6 +42,7 @@ var (
 	SetHotplugAttrs              = setHotplugAttrs
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
+	FindConnsForHotplugKey       = findConnsForHotplugKey
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -78,19 +79,19 @@ func MockUDevInitRetryTimeout(t time.Duration) (restore func()) {
 
 // UpperCaseConnState returns a canned connection state map.
 // This allows us to keep connState private and still write some tests for it.
-func UpperCaseConnState() map[string]connState {
-	return map[string]connState{
+func UpperCaseConnState() map[string]*connState {
+	return map[string]*connState{
 		"APP:network CORE:network": {Auto: true, Interface: "network"},
 	}
 }
 
-func UpdateConnectionInConnState(conns map[string]connState, conn *interfaces.Connection, autoConnect, byGadget bool) {
+func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget bool) {
 	connRef := &interfaces.ConnRef{
 		PlugRef: *conn.Plug.Ref(),
 		SlotRef: *conn.Slot.Ref(),
 	}
 
-	conns[connRef.ID()] = connState{
+	conns[connRef.ID()] = &connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
 		DynamicPlugAttrs: conn.Plug.DynamicAttrs(),
@@ -101,7 +102,7 @@ func UpdateConnectionInConnState(conns map[string]connState, conn *interfaces.Co
 	}
 }
 
-func GetConnStateAttrs(conns map[string]connState, connID string) (plugStatic, plugDynamic, slotStatic, SlotDynamic map[string]interface{}, ok bool) {
+func GetConnStateAttrs(conns map[string]*connState, connID string) (plugStatic, plugDynamic, slotStatic, SlotDynamic map[string]interface{}, ok bool) {
 	conn, ok := conns[connID]
 	if !ok {
 		return nil, nil, nil, nil, false
