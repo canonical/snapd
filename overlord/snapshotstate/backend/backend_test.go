@@ -46,12 +46,18 @@ import (
 )
 
 type snapshotSuite struct {
-	root    string
-	restore []func()
-	tarPath string
+	root      string
+	restore   []func()
+	tarPath   string
+	isTesting bool
 }
 
-var _ = check.Suite(&snapshotSuite{})
+// silly wrappers to get better failure messages
+type isTestingSuite struct{ snapshotSuite }
+type noTestingSuite struct{ snapshotSuite }
+
+var _ = check.Suite(&isTestingSuite{snapshotSuite{isTesting: true}})
+var _ = check.Suite(&noTestingSuite{snapshotSuite{isTesting: false}})
 
 // tie gocheck into testing
 func TestSnapshot(t *testing.T) { check.TestingT(t) }
@@ -107,7 +113,9 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		rv.Username = username
 		rv.HomeDir = filepath.Join(dirs.GlobalRootDir, "home/snapuser")
 		return &rv, nil
-	}))
+	}),
+		backend.MockIsTesting(s.isTesting),
+	)
 
 	s.tarPath, err = exec.LookPath("tar")
 	c.Assert(err, check.IsNil)
