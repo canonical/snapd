@@ -73,7 +73,7 @@ install_generic_consumer() {
 
 is_classic_confinement_supported() {
     case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-*)
+        ubuntu-core-*)
             return 1
             ;;
         ubuntu-*|debian-*)
