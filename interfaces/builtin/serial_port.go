@@ -210,7 +210,7 @@ func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bo
 }
 
 func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-	if di.Subsystem() == "tty" && strings.HasPrefix(di.DeviceName(), "/dev/ttyUSB") {
+	if di.Subsystem() == "tty" && serialDeviceNodePattern.MatchString(di.DeviceName()) {
 		slot := hotplug.RequestedSlotSpec{
 			Attrs: map[string]interface{}{
 				"path": di.DeviceName(),
