@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -55,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -416,7 +418,9 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	macaroon, discharge, err := store.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
+	overlord := c.d.overlord
+	st := overlord.State()
+	macaroon, discharge, err := store.LoginUser(makeHttpClient(st), loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -463,20 +467,18 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// continue
 	}
-	overlord := c.d.overlord
-	state := overlord.State()
-	state.Lock()
+	st.Lock()
 	if user != nil {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
 		// user's email address authenticated by the store
 		user.Email = loginData.Email
-		err = auth.UpdateUser(state, user)
+		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
-	state.Unlock()
+	st.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
@@ -2185,8 +2187,17 @@ var (
 	osutilAddUser             = osutil.AddUser
 )
 
-func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
-	v, err := storeUserInfo(email)
+func makeHttpClient(st *state.State) *http.Client {
+	proxyConf := proxyconf.New(st)
+	return httputil.NewHTTPClient(&httputil.ClientOptions{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+		Proxy:      proxyConf.Conf,
+	})
+}
+
+func getUserDetailsFromStore(client *http.Client, email string) (string, *osutil.AddUserOptions, error) {
+	v, err := storeUserInfo(client, email)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
@@ -2409,7 +2420,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(createData.Email)
+		username, opts, err = getUserDetailsFromStore(makeHttpClient(st), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
