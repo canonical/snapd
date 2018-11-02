@@ -230,15 +230,16 @@ var isTesting = osutil.GetenvBool("SNAPPY_TESTING")
 
 func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
 	parent, revdir := filepath.Split(dir)
-	if exists, isDir, err := osutil.DirExists(parent); !(err == nil && exists && isDir) {
-		if err != nil {
-			return err
-		}
-		if exists {
-			logger.Noticef("Not saving directories under %q in snapshot #%d of %q as it is not a directory.", parent, snapshot.SetID, snapshot.Snap)
-		} else {
-			logger.Debugf("Not saving directories under %q in snapshot #%d of %q as it is does not exist.", parent, snapshot.SetID, snapshot.Snap)
-		}
+	exists, isDir, err := osutil.DirExists(parent)
+	if err != nil {
+		return err
+	}
+	if exists && !isDir {
+		logger.Noticef("Not saving directories under %q in snapshot #%d of %q as it is not a directory.", parent, snapshot.SetID, snapshot.Snap)
+		return nil
+	}
+	if !exists {
+		logger.Debugf("Not saving directories under %q in snapshot #%d of %q as it is does not exist.", parent, snapshot.SetID, snapshot.Snap)
 		return nil
 	}
 	tarArgs := []string{
@@ -249,33 +250,33 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	noRev, noCommon := true, true
 
-	if exists, isDir, err := osutil.DirExists(dir); err == nil && exists && isDir {
+	exists, isDir, err = osutil.DirExists(dir)
+	if err != nil {
+		return err
+	}
+	switch {
+	case exists && isDir:
 		tarArgs = append(tarArgs, revdir)
 		noRev = false
-	} else {
-		if err != nil {
-			return err
-		}
-		if exists {
-			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, snapshot.SetID, snapshot.Snap)
-		} else {
-			logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", dir, snapshot.SetID, snapshot.Snap)
-		}
+	case exists && !isDir:
+		logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, snapshot.SetID, snapshot.Snap)
+	case !exists:
+		logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", dir, snapshot.SetID, snapshot.Snap)
 	}
 
 	common := filepath.Join(parent, "common")
-	if exists, isDir, err := osutil.DirExists(common); err == nil && exists && isDir {
+	exists, isDir, err = osutil.DirExists(common)
+	if err != nil {
+		return err
+	}
+	switch {
+	case exists && isDir:
 		tarArgs = append(tarArgs, "common")
 		noCommon = false
-	} else {
-		if err != nil {
-			return err
-		}
-		if exists {
-			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", common, snapshot.SetID, snapshot.Snap)
-		} else {
-			logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", common, snapshot.SetID, snapshot.Snap)
-		}
+	case exists && !isDir:
+		logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", common, snapshot.SetID, snapshot.Snap)
+	case !exists:
+		logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", common, snapshot.SetID, snapshot.Snap)
 	}
 
 	if noCommon && noRev {
