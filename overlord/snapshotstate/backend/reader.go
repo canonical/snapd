@@ -309,11 +309,20 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			"--directory", tempdir)
 		cmd.Env = []string{}
 		cmd.Stdin = tr
-		cmd.Stderr = os.Stderr
+		matchCounter := &strutil.MatchCounter{N: 1}
+		cmd.Stderr = matchCounter
 		cmd.Stdout = os.Stderr
+		if isTesting {
+			matchCounter.N = -1
+			cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
+		}
 
 		if err = osutil.RunWithContext(ctx, cmd); err != nil {
-			return rs, err
+			matches, count := matchCounter.Matches()
+			if count > 0 {
+				return rs, fmt.Errorf("cannot unpack archive: %s (and %d more)", matches[0], count-1)
+			}
+			return rs, fmt.Errorf("tar failed: %v", err)
 		}
 
 		if sz.size != expectedSize {
