@@ -193,6 +193,7 @@ func (strutilSuite) TestCommaSeparatedList(c *check.C) {
 		{"foo , bar", []string{"foo", "bar"}},
 		{"foo ,, bar", []string{"foo", "bar"}},
 		{" foo ,, bar,baz", []string{"foo", "bar", "baz"}},
+		{" foo bar ,,,baz", []string{"foo bar", "baz"}},
 	}
 
 	for _, test := range table {
