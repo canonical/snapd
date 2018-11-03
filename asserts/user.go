@@ -158,6 +158,9 @@ func parseShadowLine(line string) (*shadow, error) {
 	}, nil
 }
 
+// see crypt(3) for the legal chars
+var isValidSaltAndHash = regexp.MustCompile(`^[a-zA-Z0-9./]+$`).MatchString
+
 func checkHashedPassword(headers map[string]interface{}, name string) (string, error) {
 	pw, err := checkOptionalString(headers, name)
 	if err != nil {
@@ -197,12 +200,10 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 		}
 	}
 
-	// see crypt(3) for the legal chars
-	validSaltAndHash := regexp.MustCompile(`^[a-zA-Z0-9./]+$`)
-	if !validSaltAndHash.MatchString(shd.Salt) {
+	if !isValidSaltAndHash(shd.Salt) {
 		return "", fmt.Errorf("%q header has invalid chars in salt %q", name, shd.Salt)
 	}
-	if !validSaltAndHash.MatchString(shd.Hash) {
+	if !isValidSaltAndHash(shd.Hash) {
 		return "", fmt.Errorf("%q header has invalid chars in hash %q", name, shd.Hash)
 	}
 
