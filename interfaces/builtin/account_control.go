@@ -46,6 +46,10 @@ const accountControlConnectedPlugAppArmor = `
 /var/lib/extrausers/ r,
 /var/lib/extrausers/** rwkl,
 
+# Allow removal of users home directories
+/home/ r,
+/home/** rwkl,
+
 # Needed by useradd
 /etc/login.defs r,
 /etc/default/useradd r,
