@@ -277,7 +277,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 	affected := make(map[string]bool)
 	for id, conn := range conns {
-		if conn.Undesired {
+		if conn.Undesired || conn.HotplugGone {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(id)
