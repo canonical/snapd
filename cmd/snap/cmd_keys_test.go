@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -60,6 +61,9 @@ done
 `)
 
 func (s *SnapKeysSuite) SetUpTest(c *C) {
+	if testing.Short() && s.GnupgCmd == "/usr/bin/gpg2" {
+		c.Skip("gpg2 does not do short tests")
+	}
 	s.BaseSnapSuite.SetUpTest(c)
 
 	s.tempdir = c.MkDir()

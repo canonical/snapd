@@ -1,6 +1,101 @@
-snapd (2.36~pre1) xenial; urgency=medium
+snapd (2.36) xenial; urgency=medium
 
   * New upstream release, LP: #1795590
+    - overlord/snapstate, snap, wrappers: start services in the right
+      order during install
+    - tests: the store has caught up, drop gccgo test, update cosmic
+      image
+    - cmd/snap: try not to panic on error from "snap try"`--devmode`
+    - overlord/ifacestate: don't conflict on own discard-snap tasks when
+      refreshing & doing garbage collection
+    - snapstate: add command-chain to supported featureset
+    - daemon, snap: mark screenshots as deprecated
+    - interfaces: fix decoding of json numbers for static/dynamic
+      attributes
+    - data/systemd, wrappers: tweak system-shutdown helper for core18
+    - interfaces/system-key: add parser mtime and only discover features
+      on write
+    - interfaces: fix NormalizeInterfaceAttributes, add tests
+    - systemd,wrappers: don't start disabled services
+    - ifacestate/hooks: only create interface hook tasks if hooks exist
+    - tests: do not run degraded test in autopkgtest env
+    - osutil: workaround overlayfs on ubuntu 18.10
+    - interfaces: include invalid type in Attr error
+    - many: enable layouts by default
+    - interfaces/default: don't scrub with change_profile with classic
+    - cmd/snap: speed up unit tests
+    - vendor, cmd/snap: refactor to accommodate the new less buggy go-
+      flags
+    - daemon: expose snapshots to the API
+    - interfaces: updates for default, screen-inhibit-control, tpm,
+      {hardware,system,network}-observe
+    - interfaces/hotplug: rename HotplugDeviceKey method to HotplugKey,
+      update test interface
+    - interfaces/tests: use TestInterface instead of a custom local
+      helper
+    - overlord/snapstate: export getFeatureFlagBool.
+    - osutil,asserts,daemon: support force password change in system-
+      user assertion
+    - snap, wrappers: support restart-delay, generate RestartSec=<value>
+      in service units
+    - tests/ifacestate: moved asserts-related mocking into helper
+    - image: fetch device store assertion if available
+    - many: enable AppArmor on Arch
+    - interfaces/repo: two helper methods for hotplug
+    - overlord/ifacestate: add hotplug slots with implicit slots
+    - interfaces/hotplug: helpers and struct updates
+    - tests: run the snapd tests on Ubuntu 18.10
+    - snapstate: only report errors if there is an actual error
+    - store: speedup unit tests
+    - spread-shellcheck: fix interleaved error messages, tweaks
+    - apparmor: create SnapAppArmorDir in setupSnapConfineReexec
+    - ifacestate: implementation of defaultDeviceKey function for
+      hotplug
+    - cmd/snap-update-ns: remove empty placeholders used for mounting
+    - snapshotstate: restore to current revision
+    - tests/lib: rework the CLA checker
+    - many: support and consider store friendly-stores when checking
+      device scope constraints
+    - overlord/snapstate: block parallel installs of snapd, core, base,
+      kernel, gadget snaps
+    - overlord/patch: patch for static plug/slot attributes
+    - interfaces: honor static attributes when reloading conns
+    - osutils: unit tests speedup; introduce «run-checks --short-
+      unit».
+    - systemd, wrappers: speed up wrappers unit tests
+    - client: speedup unit tests
+    - spread-shellcheck: use threads to parallelise
+    - snap: validate plug and slot names
+    - osutil, interfaces/apparmor: add and use of osutil.UnlinkMany
+    - wrappers: do not depend on network.taget in socket units, tweak
+      generated units
+    - interfaces/apparmor: (un)load profiles in one apparmor_parser call
+    - store: gracefully handle unexpected errors in 'action'
+      response
+    - cmd: put our manpages in section 8
+    - overlord: don't make become-operational interfere with user
+      requests
+    - store: tweak unmatched refresh result error log
+    - snap, client, daemon, store: use and expose "media" more
+    - tests,cmd/snap-update-ns: add test showing mount update bug
+      cmd/snap-update-ns: better detection of snapd-made tmpfs
+    - tests: spread tests for aliases with parallel installed snaps
+    - interfaces/seccomp: allow using statx by default
+    - store: gracefully handle unexpected errors in 'action' response
+    - overlord/snapshotstate: chown the tempdir
+    - cmd/snap: attempt to start the document portal if running with a
+      session bus
+    - snap: detect layouts vs layout in snap.yaml
+    - interfaces/apparmor: handle overlayfs snippet for snap-update-ns
+    - snapcraft.yaml: set grade to stable
+    - tests: shellchecks, final round
+    - interfaces/apparmor: handle overlayfs snippet for snap-update-ns
+    - snap: detect layouts vs layout in snap.yaml
+    - overlord/snapshotstate: store epoch in snapshot, check on restore
+    - cmd/snap: tweak UX of snap refresh --list
+    - overlord/snapstate: improve consistency, use validateInfoAndFlags
+      also in InstallPath
+    - snap: give Epoch a CanRead helper
     - overlord/snapshotstate: small refactor of internal helpers
     - interfaces/builtin: adding missing permission to create
       /run/wpa_supplicant directory
@@ -183,7 +278,6 @@ snapd (2.36~pre1) xenial; urgency=medium
     - overlord/devicestate: use OpenSSL's PEM format when generating
       keys
     - cmd: remove --skip-command-chain from snap run and snap-exec
-      (#5723)
     - selftest: detect if apparmor is unusable and error
     - snap,snap-exec: support command-chain for hooks
     - tests: significantly reduce execution time for managers test
@@ -268,7 +362,15 @@ snapd (2.36~pre1) xenial; urgency=medium
     - cmd,dirs: fix various issues discovered by a Fedora base snap
     - tests/lib/prepare: fix extra snaps test
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 02 Oct 2018 10:38:11 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 24 Oct 2018 11:30:45 -0600
+
+snapd (2.35.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1786438
+    - interfaces/home: don't allow snaps to write to $HOME/bin
+    - osutil: workaround overlayfs on ubuntu 18.10
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 15 Oct 2018 22:23:02 +0200
 
 snapd (2.35.4) xenial; urgency=medium
 

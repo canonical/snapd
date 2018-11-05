@@ -54,8 +54,8 @@ Connects the provided plug to the slot in the core snap with a name matching
 the plug name.
 
 [connect command options]
-          --no-wait        Do not wait for the operation to finish but just
-                           print the change id.
+      --no-wait          Do not wait for the operation to finish but just print
+                         the change id.
 `
 	s.testSubCommandHelp(c, "connect", msg)
 }

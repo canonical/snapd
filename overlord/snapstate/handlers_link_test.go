@@ -72,18 +72,18 @@ func (s *linkSnapSuite) TearDownTest(c *C) {
 	snapstate.Model = nil
 }
 
-func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
+func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
 	var contexts map[string]interface{}
 	err := st.Get("snap-cookies", &contexts)
 	c.Assert(err, IsNil)
 	c.Check(contexts, HasLen, 1)
 
 	for _, snap := range contexts {
-		if snapName == snap {
+		if instanceName == snap {
 			return
 		}
 	}
-	panic(fmt.Sprintf("Cookie missing for snap %q", snapName))
+	panic(fmt.Sprintf("Cookie missing for snap %q", instanceName))
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {

@@ -10,12 +10,12 @@ pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
 optdepends=('bash-completion: bash completion support')
-pkgver=2.35.4
+pkgver=2.36
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/snapcore/snapd"
 license=('GPL3')
-makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'systemd' 'xfsprogs' 'python-docutils')
+makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'systemd' 'xfsprogs' 'python-docutils' 'apparmor')
 # the following checkdepends are only required for static checks and unit tests,
 # unit tests are currently enabled
 checkdepends=('python' 'squashfs-tools' 'shellcheck')
@@ -94,7 +94,7 @@ build() {
     --prefix=/usr \
     --libexecdir=/usr/lib/snapd \
     --with-snap-mount-dir=/var/lib/snapd/snap \
-    --disable-apparmor \
+    --enable-apparmor \
     --enable-nvidia-biarch \
     --enable-merged-usr
   make $MAKEFLAGS
@@ -152,6 +152,7 @@ package() {
   # pre-create directories
   install -dm755 "$pkgdir/var/lib/snapd/snap"
   install -dm755 "$pkgdir/var/cache/snapd"
+  install -dm755 "$pkgdir/var/lib/snapd/apparmor"
   install -dm755 "$pkgdir/var/lib/snapd/assertions"
   install -dm755 "$pkgdir/var/lib/snapd/desktop/applications"
   install -dm755 "$pkgdir/var/lib/snapd/device"
@@ -182,12 +183,10 @@ package() {
   # Remove snappy core specific units
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.system-shutdown.service"
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.autoimport.service"
-  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.apparmor.service"
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.snap-repair.*
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.core-fixup.*
   # and scripts
   rm -fv "$pkgdir/usr/lib/snapd/snapd.core-fixup.sh"
   rm -fv "$pkgdir/usr/bin/ubuntu-core-launcher"
   rm -fv "$pkgdir/usr/lib/snapd/system-shutdown"
-  rm -fv "$pkgdir/usr/lib/snapd/snapd-apparmor"
 }

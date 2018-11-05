@@ -8,6 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
+  adb-support:
+    command: bin/run
+    plugs: [ adb-support ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -143,6 +146,9 @@ apps:
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
+  kernel-module-observe:
+    command: bin/run
+    plugs: [ kernel-module-observe ]
   kubernetes-support:
     command: bin/run
     plugs: [ kubernetes-support ]

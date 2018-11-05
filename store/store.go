@@ -428,8 +428,8 @@ func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
-func LoginUser(username, password, otp string) (string, string, error) {
-	macaroon, err := requestStoreMacaroon()
+func LoginUser(httpClient *http.Client, username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon(httpClient)
 	if err != nil {
 		return "", "", err
 	}
@@ -444,7 +444,7 @@ func LoginUser(username, password, otp string) (string, string, error) {
 		return "", "", err
 	}
 
-	discharge, err := dischargeAuthCaveat(loginCaveat, username, password, otp)
+	discharge, err := dischargeAuthCaveat(httpClient, loginCaveat, username, password, otp)
 	if err != nil {
 		return "", "", err
 	}
@@ -501,7 +501,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 }
 
 // refreshDischarges will request refreshed discharge macaroons for the user
-func refreshDischarges(user *auth.UserState) ([]string, error) {
+func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
 		discharge, err := auth.MacaroonDeserialize(d)
@@ -513,7 +513,7 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 			continue
 		}
 
-		refreshedDischarge, err := refreshDischargeMacaroon(d)
+		refreshedDischarge, err := refreshDischargeMacaroon(httpClient, d)
 		if err != nil {
 			return nil, err
 		}
@@ -527,7 +527,7 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 	if s.authContext == nil {
 		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
 	}
-	newDischarges, err := refreshDischarges(user)
+	newDischarges, err := refreshDischarges(s.client, user)
 	if err != nil {
 		return err
 	}
@@ -548,7 +548,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := requestStoreDeviceNonce(s.endpointURL(deviceNonceEndpPath, nil).String())
+	nonce, err := requestStoreDeviceNonce(s.client, s.endpointURL(deviceNonceEndpPath, nil).String())
 	if err != nil {
 		return err
 	}
@@ -558,7 +558,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := requestDeviceSession(s.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device.SessionMacaroon)
+	session, err := requestDeviceSession(s.client, s.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -1651,6 +1651,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
+		return err
+	}
+
+	if err := os.Chmod(partialTargetPath, 0600); err != nil {
 		return err
 	}
 

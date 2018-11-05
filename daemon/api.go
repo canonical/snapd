@@ -38,15 +38,15 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -56,10 +56,12 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -96,6 +98,7 @@ var api = []*Command{
 	logsCmd,
 	warningsCmd,
 	debugCmd,
+	snapshotCmd,
 }
 
 var (
@@ -415,7 +418,9 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	macaroon, discharge, err := store.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
+	overlord := c.d.overlord
+	st := overlord.State()
+	macaroon, discharge, err := store.LoginUser(makeHttpClient(st), loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -462,20 +467,18 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// continue
 	}
-	overlord := c.d.overlord
-	state := overlord.State()
-	state.Lock()
+	st.Lock()
 	if user != nil {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
 		// user's email address authenticated by the store
 		user.Email = loginData.Email
-		err = auth.UpdateUser(state, user)
+		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
-	state.Unlock()
+	st.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
@@ -522,7 +525,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 	var macaroon string
 	var discharges []string
-	for _, field := range splitQS(authorizationData[1]) {
+	for _, field := range strutil.CommaSeparatedList(authorizationData[1]) {
 		if strings.HasPrefix(field, `root="`) {
 			macaroon = strings.TrimSuffix(field[6:], `"`)
 		}
@@ -822,7 +825,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	var wanted map[string]bool
 	if ns := query.Get("snaps"); len(ns) > 0 {
-		nsl := splitQS(ns)
+		nsl := strutil.CommaSeparatedList(ns)
 		wanted = make(map[string]bool, len(nsl))
 		for _, name := range nsl {
 			wanted[name] = true
@@ -887,6 +890,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
 	Snaps    []string     `json:"snaps"`
+	Users    []string     `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -908,9 +912,10 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 }
 
 type snapInstructionResult struct {
-	summary  string
-	affected []string
-	tasksets []*state.TaskSet
+	Summary  string
+	Affected []string
+	Tasksets []*state.TaskSet
+	Result   map[string]interface{}
 }
 
 var (
@@ -924,6 +929,12 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -988,9 +999,9 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	return &snapInstructionResult{
-		summary:  msg,
-		affected: updated,
-		tasksets: tasksets,
+		Summary:  msg,
+		Affected: updated,
+		Tasksets: tasksets,
 	}, nil
 }
 
@@ -1033,9 +1044,9 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 	}
 
 	return &snapInstructionResult{
-		summary:  msg,
-		affected: installed,
-		tasksets: tasksets,
+		Summary:  msg,
+		Affected: installed,
+		Tasksets: tasksets,
 	}, nil
 }
 
@@ -1113,9 +1124,9 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	return &snapInstructionResult{
-		summary:  msg,
-		affected: removed,
-		tasksets: tasksets,
+		Summary:  msg,
+		Affected: removed,
+		Tasksets: tasksets,
 	}, nil
 }
 
@@ -1187,6 +1198,28 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 
 	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
 	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if len(inst.Snaps) == 0 {
+		msg = i18n.G("Snapshot all snaps")
+	} else {
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Snapshot snaps %s"), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		Summary:  msg,
+		Affected: snapshotted,
+		Tasksets: []*state.TaskSet{ts},
+		Result:   map[string]interface{}{"set-id": setID},
+	}, nil
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
@@ -1361,6 +1394,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		op = snapInstallMany
 	case "remove":
 		op = snapRemoveMany
+	case "snapshot":
+		op = snapshotMany
 	default:
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
@@ -1370,17 +1405,17 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	var chg *state.Change
-	if len(res.tasksets) == 0 {
-		chg = st.NewChange(inst.Action+"-snap", res.summary)
+	if len(res.Tasksets) == 0 {
+		chg = st.NewChange(inst.Action+"-snap", res.Summary)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", res.summary, res.tasksets, res.affected)
+		chg = newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
 		ensureStateSoon(st)
 	}
 
-	chg.Set("api-data", map[string]interface{}{"snap-names": res.affected})
+	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(res.Result, &Meta{Change: chg.ID()})
 }
 
 func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1592,24 +1627,11 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	return iconGet(c.d.overlord.State(), name)
 }
 
-func splitQS(qs string) []string {
-	qsl := strings.Split(qs, ",")
-	split := make([]string, 0, len(qsl))
-	for _, elem := range qsl {
-		elem = strings.TrimSpace(elem)
-		if len(elem) > 0 {
-			split = append(split, elem)
-		}
-	}
-
-	return split
-}
-
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
-	keys := splitQS(r.URL.Query().Get("keys"))
+	keys := strutil.CommaSeparatedList(r.URL.Query().Get("keys"))
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -2165,8 +2187,17 @@ var (
 	osutilAddUser             = osutil.AddUser
 )
 
-func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
-	v, err := storeUserInfo(email)
+func makeHttpClient(st *state.State) *http.Client {
+	proxyConf := proxyconf.New(st)
+	return httputil.NewHTTPClient(&httputil.ClientOptions{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+		Proxy:      proxyConf.Conf,
+	})
+}
+
+func getUserDetailsFromStore(client *http.Client, email string) (string, *osutil.AddUserOptions, error) {
+	v, err := storeUserInfo(client, email)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
@@ -2280,9 +2311,10 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
 	opts := &osutil.AddUserOptions{
-		SSHKeys:  su.SSHKeys(),
-		Gecos:    gecos,
-		Password: su.Password(),
+		SSHKeys:             su.SSHKeys(),
+		Gecos:               gecos,
+		Password:            su.Password(),
+		ForcePasswordChange: su.ForcePasswordChange(),
 	}
 	return su.Username(), opts, nil
 }
@@ -2388,7 +2420,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(createData.Email)
+		username, opts, err = getUserDetailsFromStore(makeHttpClient(st), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
@@ -2770,7 +2802,7 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}
@@ -2799,7 +2831,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// only services have logs for now
 	opts := appInfoOptions{service: true}
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}
@@ -2901,6 +2933,7 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
+
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()

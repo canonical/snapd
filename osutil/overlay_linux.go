@@ -69,6 +69,16 @@ func IsRootWritableOverlay() (string, error) {
 					continue
 				}
 
+				if dir == "/media/root-rw/overlay" {
+					// On the Ubuntu server ephemeral image, '/' is setup via
+					// overlayroot (on at least 18.10), which uses a combination
+					// of overlayfs and chroot. This differs from the livecd setup
+					// so special case the detection logic to look for the known
+					// upperdir for this configuration, and return the required
+					// path. See LP: #1797218 for details.
+					return "/overlay", nil
+				}
+
 				// Make sure trailing slashes are predicatably
 				// missing
 				return dir, nil

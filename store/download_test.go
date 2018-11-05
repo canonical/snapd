@@ -35,6 +35,7 @@ import (
 	"github.com/juju/ratelimit"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
+	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -54,6 +55,11 @@ var _ = Suite(&downloadSuite{})
 
 func (s *downloadSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.Exponential{
+		Initial: time.Millisecond,
+		Factor:  2.5,
+	}))
 
 	mockXdelta := testutil.MockCommand(c, "xdelta3", "")
 	s.AddCleanup(mockXdelta.Restore)
@@ -149,7 +155,7 @@ func (s *downloadSuite) TestDownloadCancellation(c *C) {
 		io.WriteString(w, "foo")
 		syncCh <- struct{}{}
 		io.WriteString(w, "bar")
-		time.Sleep(time.Duration(1) * time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()

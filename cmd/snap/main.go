@@ -90,6 +90,7 @@ type cmdInfo struct {
 	optDescs                  map[string]string
 	argDescs                  []argDesc
 	alias                     string
+	extra                     func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -173,6 +174,19 @@ func (ch *clientMixin) setClient(cli *client.Client) {
 	ch.client = cli
 }
 
+func firstNonOptionIsRun() bool {
+	if len(os.Args) < 2 {
+		return false
+	}
+	for _, arg := range os.Args[1:] {
+		if len(arg) == 0 || arg[0] == '-' {
+			continue
+		}
+		return arg == "run"
+	}
+	return false
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
@@ -181,7 +195,11 @@ func Parser(cli *client.Client) *flags.Parser {
 		printVersions(cli)
 		panic(&exitStatus{0})
 	}
-	parser := flags.NewParser(&optionsData, flags.PassDoubleDash|flags.PassAfterNonOption)
+	flagopts := flags.Options(flags.PassDoubleDash)
+	if firstNonOptionIsRun() {
+		flagopts |= flags.PassAfterNonOption
+	}
+	parser := flags.NewParser(&optionsData, flagopts)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
@@ -244,6 +262,9 @@ func Parser(cli *client.Client) *flags.Parser {
 			lintArg(c.name, name, desc, arg.Description)
 			arg.Name = name
 			arg.Description = desc
+		}
+		if c.extra != nil {
+			c.extra(cmd)
 		}
 	}
 	// Add the debug command
@@ -380,12 +401,11 @@ func main() {
 		}
 		cmd := &cmdRun{}
 		cmd.client = mkClient()
-		args := []string{snapApp}
-		args = append(args, os.Args[1:]...)
+		os.Args[0] = snapApp
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
-		err = cmd.Execute(args)
+		err = cmd.Execute(os.Args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}
@@ -402,6 +422,9 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
+		if client.IsRetryable(err) {
+			os.Exit(10)
+		}
 		os.Exit(1)
 	}
 }
