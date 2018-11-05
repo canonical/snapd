@@ -79,15 +79,15 @@ func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
 # Description: Can access specific files or directories.
 # This is restricted because it gives file access to arbitrary locations.
-
-"/etc/read-dir2{,/,/**}" rk,
-"/etc/read-file2{,/,/**}" rk,
-"/etc/write-dir2{,/,/**}" rwkl,
-"/etc/write-file2{,/,/**}" rwkl,
 owner "@{HOME}/.read-dir1{,/,/**}" rk,
+"/etc/read-dir2{,/,/**}" rk,
 owner "@{HOME}/.read-file2{,/,/**}" rk,
+"/etc/read-file2{,/,/**}" rk,
 owner "@{HOME}/.write-dir1{,/,/**}" rwkl,
-owner "@{HOME}/.write-file2{,/,/**}" rwkl,`)
+"/etc/write-dir2{,/,/**}" rwkl,
+owner "@{HOME}/.write-file2{,/,/**}" rwkl,
+"/etc/write-file2{,/,/**}" rwkl,
+`)
 }
 
 func (s *dotfilesInterfaceSuite) TestSanitizeSlot(c *C) {
