@@ -1,7 +1,21 @@
 summary: Check that the system is not in "degraded" state
 
+# autopkgtest images sometimes have failing services (cosmic/s390x)
+# in their images so this test is not useful there.
+backends: [-autopkgtest]
+
 # run this early to ensure no test created failed units yet
 priority: 500
+
+debug: |
+    # Print the status for the failed units
+    for unit_type in service socket device mount automount swap target path timer slice scope; do
+        units="$(systemctl --failed --type=$unit_type --no-pager | grep -o -E ".*.$unit_type" | tr '●' ' ' )"
+        for unit in $units; do
+            echo " -- systemctl status $unit --"
+            systemctl status "$unit"
+        done
+    done
 
 execute: |
     #shellcheck source=tests/lib/systemd.sh

@@ -1,0 +1,90 @@
+summary: Check auto-aliases mechanism across different instances of the same snap
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+restore: |
+    snap set system experimental.parallel-instances=null
+    rm -f ./*.snap
+    rm -f aliases.out
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    echo "Install the snap with auto-aliases"
+    snap install test-snapd-auto-aliases
+
+    echo "Test the auto-aliases"
+    test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
+    test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
+
+    # TODO parallel-install: due to store not supporting actions when more than
+    # one snap with given snap ID is sent in the request, use a workaround and
+    # install the snap directly from the file, but still let snapd fetch the
+    # assertions from the store, leave a canary to catch when the store starts
+    # supporting parallel installations
+    ! snap install test-snapd-auto-aliases_foo
+
+    fname=$(find /var/lib/snapd/snaps -name 'test-snapd-auto-aliases*.snap')
+    test "$(echo "$fname" | wc -l)" = "1"
+    # make a copy, we'll remove the snap later on
+    cp "$fname" .
+    name="$(basename "$fname")"
+
+    snap install --unaliased --name test-snapd-auto-aliases_foo "$name"
+
+    # aliases are unchanged
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases.wellknown1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases.wellknown2"
+
+    echo "When test-snapd-auto-aliases_foo is preferred"
+    snap prefer test-snapd-auto-aliases_foo
+
+    echo "The symlinks should be updated accordingly"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases_foo.wellknown1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases_foo.wellknown2"
+
+    echo "And so is the list of aliases"
+    snap aliases > aliases.out
+    MATCH "test-snapd-auto-aliases_foo.wellknown1 +test_snapd_wellknown1 +-"    < aliases.out
+    MATCH "test-snapd-auto-aliases_foo.wellknown2 +test_snapd_wellknown2 +-"    < aliases.out
+    MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +disabled" < aliases.out
+    MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +disabled" < aliases.out
+
+    echo "Removing the snap should remove the aliases"
+    snap remove test-snapd-auto-aliases_foo
+    test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
+    test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
+    snap aliases > aliases.out
+    # test-snapd-auto-aliases_foo instance aliases are no more
+    ! MATCH "test-snapd-auto-aliases_foo.wellknown1 +test_snapd_wellknown1"       < aliases.out
+    ! MATCH "test-snapd-auto-aliases_foo.wellknown2 +test_snapd_wellknown2"       < aliases.out
+    # test-snapd-auto-aliases aliases are still disabled
+    MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +disabled" < aliases.out
+    MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +disabled" < aliases.out
+
+    echo "Switching back to test-snapd-auto-aliases"
+    snap prefer test-snapd-auto-aliases
+    echo "... they are created once again"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"
+    snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases.wellknown1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases.wellknown2"
+
+    # clean slate
+    snap remove test-snapd-auto-aliases
+
+    echo "When test-snapd-auto-aliases_foo is installed"
+    snap install test-snapd-auto-aliases_foo
+
+    echo "Installing test-snapd-auto-aliases will conflict"
+    # TODO parallel-install: need to install using file
+    ! snap install "$name"
+    snap change --last=install | MATCH 'cannot enable aliases .* for "test-snapd-auto-aliases", already enabled for "test-snapd-auto-aliases_foo"'
+
+    # make sure that symlinks are in place
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown1)" = "test-snapd-auto-aliases_foo.wellknown1"
+    test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases_foo.wellknown2"

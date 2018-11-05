@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
 	"github.com/snapcore/snapd/testutil"
+	"os"
 )
 
 type snapOpTestServer struct {
@@ -795,8 +796,8 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
-	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -905,6 +906,20 @@ func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
 }
 
+func (s *SnapSuite) TestRefreshListLessOptions(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("expected to get 0 requests")
+	})
+
+	for _, flag := range []string{"--beta", "--channel=potato", "--classic"} {
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag})
+		c.Assert(err, check.ErrorMatches, "--list does not accept additional arguments")
+
+		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", flag, "some-snap"})
+		c.Assert(err, check.ErrorMatches, "--list does not accept additional arguments")
+	}
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -1003,7 +1018,7 @@ func (s *SnapSuite) TestRefreshHold(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
 last: 2017-04-25T17:35:00+02:00
 hold: 2017-04-28T00:00:00+02:00
-next: 2017-04-26T00:58:00+02:00
+next: 2017-04-26T00:58:00+02:00 (but held)
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -1018,12 +1033,6 @@ func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time"})
 	c.Assert(err, check.ErrorMatches, `internal error: both refresh.timer and refresh.schedule are empty`)
-}
-
-func (s *SnapSuite) TestRefreshListErr(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list", "--beta"})
-	c.Check(err, check.ErrorMatches, "--list does not take .* flags")
 }
 
 func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
@@ -1272,9 +1281,48 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 
 	cmd := []string{"try", "/"}
 	_, err := snap.Parser(snap.Client()).ParseArgs(cmd)
-	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
+	c.Assert(err, testutil.EqualsWrapped, `
+"/" does not contain an unpacked snap.
 
 Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
+}
+
+func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
+	oldArgs := os.Args
+	defer func() {
+		os.Args = oldArgs
+	}()
+	os.Args = []string{"snap", "try", "./"}
+	var kind string
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST", check.Commentf("%q", kind))
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `
+{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "value": "some-snap",
+    "kind": %q
+  },
+  "status-code": 400
+}`, kind)
+	})
+
+	type table struct {
+		kind, expected string
+	}
+
+	tests := []table{
+		{"snap-needs-classic", "published using classic confinement"},
+		{"snap-needs-devmode", "only meant for development"},
+	}
+
+	for _, test := range tests {
+		kind = test.kind
+		c.Check(snap.RunMain(), testutil.ContainsWrapped, test.expected, check.Commentf("%q", kind))
+	}
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {

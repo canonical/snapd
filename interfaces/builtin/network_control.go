@@ -109,6 +109,7 @@ network sna,
 /{,usr/}{,s}bin/ip ixr,
 /{,usr/}{,s}bin/ipmaddr ixr,
 /{,usr/}{,s}bin/iptunnel ixr,
+/{,usr/}{,s}bin/iw ixr,
 /{,usr/}{,s}bin/nameif ixr,
 /{,usr/}{,s}bin/netstat ixr,              # -p not supported
 /{,usr/}{,s}bin/nstat ixr,
@@ -168,6 +169,7 @@ capability setuid,
 /etc/resolvconf/update.d/* ix,
 
 # wpa_suplicant
+/{,var/}run/wpa_supplicant/ w,
 /{,var/}run/wpa_supplicant/** rw,
 /etc/wpa_supplicant/{,**} ixr,
 
@@ -215,14 +217,9 @@ mount options=(rw, bind) /run/netns/ -> /run/netns/,
 mount options=(rw, bind) / -> /run/netns/*,
 umount /,
 
-# 'ip netns identify <pid>' and 'ip netns pids foo'
+# 'ip netns identify <pid>' and 'ip netns pids foo'. Intenionally omit 'ptrace
+# (trace)' here since ip netns doesn't actually need to trace other processes.
 capability sys_ptrace,
-# FIXME: ptrace can be used to break out of the seccomp sandbox unless the
-# kernel has 93e35efb8de45393cf61ed07f7b407629bf698ea (in 4.8+). Until this is
-# the default in snappy kernels, deny but audit as a reminder to get the
-# kernels patched.
-audit deny ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*, # eventually by default
-audit deny ptrace (trace), # for all other peers (process-control or other)
 
 # 'ip netns exec foo /bin/sh'
 mount options=(rw, rslave) /,
@@ -293,6 +290,7 @@ func init() {
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		connectedPlugUDev:     networkControlConnectedPlugUDev,
 		reservedForOS:         true,
+		suppressPtraceTrace:   true,
 	})
 
 }

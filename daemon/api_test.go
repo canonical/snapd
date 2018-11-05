@@ -562,6 +562,22 @@ apps:
   svc4:
     command: somed4
     daemon: notify
+  svc5:
+    command: some5
+    timer: mon1,12:15
+    daemon: simple
+  svc6:
+    command: some6
+    daemon: simple
+    sockets:
+       sock:
+         listen-stream: $SNAP_COMMON/run.sock
+  svc7:
+    command: some7
+    daemon: simple
+    sockets:
+       other-sock:
+         listen-stream: $SNAP_COMMON/other-run.sock
 `)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
 	s.sysctlBufs = [][]byte{
@@ -584,6 +600,33 @@ UnitFileState=static
 Id=snap.foo.svc4.service
 ActiveState=inactive
 UnitFileState=potatoes
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc5.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc5.timer
+ActiveState=active
+UnitFileState=enabled
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc6.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc6.sock.socket
+ActiveState=active
+UnitFileState=enabled
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc7.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc7.other-sock.socket
+ActiveState=inactive
+UnitFileState=enabled
 `),
 	}
 
@@ -681,6 +724,30 @@ UnitFileState=potatoes
 					Daemon:  "notify",
 					Enabled: false,
 					Active:  false,
+				}, {
+					Snap: "foo", Name: "svc5",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "svc5", Type: "timer", Active: true, Enabled: true},
+					},
+				}, {
+					Snap: "foo", Name: "svc6",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "sock", Type: "socket", Active: true, Enabled: true},
+					},
+				}, {
+					Snap: "foo", Name: "svc7",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "other-sock", Type: "socket", Active: false, Enabled: true},
+					},
 				},
 			},
 			Broken:    "",
@@ -766,7 +833,7 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
-	found := countCommandDeclsIn(c, "api.go", check.Commentf("TestListIncludesAll"))
+	found := countCommandDecls(c, check.Commentf("TestListIncludesAll"))
 
 	c.Check(found, check.Equals, len(api),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
@@ -1926,14 +1993,16 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Type:    snap.TypeApp,
 		Version: "v2",
-		Screenshots: []snap.ScreenshotInfo{
+		Media: []snap.MediaInfo{
 			{
+				Type:   "screenshot",
 				URL:    "http://example.com/screenshot.png",
 				Width:  800,
 				Height: 1280,
 			},
 			{
-				URL: "http://example.com/screenshot2.png",
+				Type: "screenshot",
+				URL:  "http://example.com/screenshot2.png",
 			},
 		},
 		MustBuy: true,
@@ -1962,9 +2031,23 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 			"url":    "http://example.com/screenshot.png",
 			"width":  float64(800),
 			"height": float64(1280),
+			"note":   snap.ScreenshotsDeprecationNotice,
 		},
 		map[string]interface{}{
-			"url": "http://example.com/screenshot2.png",
+			"url":  "http://example.com/screenshot2.png",
+			"note": snap.ScreenshotsDeprecationNotice,
+		},
+	})
+	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"type":   "screenshot",
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"type": "screenshot",
+			"url":  "http://example.com/screenshot2.png",
 		},
 	})
 }
@@ -3247,7 +3330,7 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 }
 
 func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
-	info := &snap.Info{SuggestedName: "notInstalledSnap", IconURL: "icon.svg"}
+	info := &snap.Info{SuggestedName: "notInstalledSnap", Media: []snap.MediaInfo{{Type: "icon", URL: "icon.svg"}}}
 	iconfile := snapIcon(info)
 	c.Check(iconfile, testutil.Contains, "icon.svg")
 }
@@ -3525,7 +3608,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		res, err := snapUpdateMany(inst, st)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
-		c.Check(res.summary, check.Equals, tst.msg)
+		c.Check(res.Summary, check.Equals, tst.msg)
 		c.Check(refreshSnapDecls, check.Equals, true)
 	}
 }
@@ -3549,7 +3632,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh all snaps: no updates`)
+	c.Check(res.Summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3573,8 +3656,8 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3598,8 +3681,8 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Refresh snap "foo"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Refresh snap "foo"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3617,8 +3700,8 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	res, err := snapInstallMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Install snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
@@ -3649,8 +3732,8 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	res, err := snapRemoveMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(res.summary, check.Equals, `Remove snaps "foo", "bar"`)
-	c.Check(res.affected, check.DeepEquals, inst.Snaps)
+	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
@@ -3950,7 +4033,7 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
@@ -4013,7 +4096,7 @@ func (s *apiSuite) TestInterfacesModern(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
@@ -4202,7 +4285,7 @@ func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	conns := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -4383,7 +4466,7 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	st := d.overlord.State()
@@ -4596,7 +4679,7 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	st := d.overlord.State()
@@ -5484,7 +5567,7 @@ func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
 			Username:         "karl",
@@ -5509,7 +5592,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	expectedEmail := "popper@lse.ac.uk"
 	expectedUsername := "karl"
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
 			Username:         expectedUsername,
@@ -5731,6 +5814,53 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		c.Check(opts.ForcePasswordChange, check.Equals, false)
+		return nil
+	}
+
+	defer func() {
+		osutilAddUser = osutil.AddUser
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &userResponseData{
+		Username: "guy",
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionWithForcePasswordChnage(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	lusers := []map[string]interface{}{goodUser}
+	lusers[0]["force-password-change"] = "true"
+	s.makeSystemUsers(c, lusers)
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		c.Check(opts.ForcePasswordChange, check.Equals, true)
 		return nil
 	}
 
@@ -6548,14 +6678,6 @@ func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
-}
-
-func (s *apiSuite) TestSplitQS(c *check.C) {
-	c.Check(splitQS("foo,bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo , bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS(""), check.HasLen, 0)
-	c.Check(splitQS(","), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
@@ -7476,7 +7598,7 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	})
 }
 
-func (s *appSuite) TestErrToResponse(c *check.C) {
+func (s *apiSuite) TestErrToResponse(c *check.C) {
 	aie := &snap.AlreadyInstalledError{Snap: "foo"}
 	nie := &snap.NotInstalledError{Snap: "foo"}
 	cce := &snapstate.ChangeConflictError{Snap: "foo"}

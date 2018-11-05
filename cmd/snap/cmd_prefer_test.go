@@ -37,8 +37,8 @@ to conflicting aliases of other snaps whose aliases will be disabled
 (or removed, for manual ones).
 
 [prefer command options]
-          --no-wait  Do not wait for the operation to finish but just print the
-                     change id.
+      --no-wait    Do not wait for the operation to finish but just print the
+                   change id.
 `
 	s.testSubCommandHelp(c, "prefer", msg)
 }
