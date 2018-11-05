@@ -1489,7 +1489,7 @@ out:
 	// we are in charge of the tempfile life cycle until we hand it off to the change
 	changeTriggered := false
 	// if you change this prefix, look for it in the tests
-	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
+	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, ".snapd-sideload-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
