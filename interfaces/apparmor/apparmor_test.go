@@ -227,3 +227,11 @@ func (s *appArmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
 		c.Check(apparmor.ValidateFreeFromAARE(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
 	}
 }
+
+func (s *appArmorSuite) TestValidateFreeFromAAREhappy(c *C) {
+	var testCases = []string{"foo", "BaR", "b-z", "foo+bar", "b00m!", "be/ep", "a%b", "a&b", "a(b", "a)b", "a=b", "a#b", "a~b", "a'b", "a_b", "a,b", "a;b", "a>b", "a<b", "a|b"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateFreeFromAARE(s), IsNil, Commentf("%q raised an error but shouldn't", s))
+	}
+}
