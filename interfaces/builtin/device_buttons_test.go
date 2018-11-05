@@ -91,17 +91,18 @@ func (s *DeviceButtonsInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *DeviceButtonsInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# device-buttons
 KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_KEY}=="1", ENV{ID_INPUT_KEYBOARD}!="1", TAG+="snap_consumer_app"`)
-	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"key"})
 }
 
 func (s *DeviceButtonsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to device buttons as input event`)
+	c.Assert(si.Summary, Equals, `allows access to device buttons as input events`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "device-buttons")
 }
 
