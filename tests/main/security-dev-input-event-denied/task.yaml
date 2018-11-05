@@ -35,14 +35,19 @@ execute: |
         exit 0
     fi
 
-    # 1. Joystick
+    # Default state of both interfaces
 
     echo "The joystick plug is not connected by default"
     snap interfaces -i joystick | MATCH '\- +test-snapd-event:joystick'
 
+    echo "The device-buttons plug is not connected by default"
+    snap interfaces -i device-buttons | MATCH '\- +test-snapd-event:device-buttons'
+
     if [ "$(snap debug confinement)" != "strict" ]; then
         exit 0
     fi
+
+    # 1. Joystick
 
     echo "Then the snap is not able to access an evdev keyboard"
     if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
@@ -71,20 +76,13 @@ execute: |
 
     # 2. Device Buttons
 
-    echo "The device-buttons plug is not connected by default"
-    snap interfaces -i device-buttons | MATCH '\- +test-snapd-event:device-buttons'
-
-    if [ "$(snap debug confinement)" != "strict" ]; then
-        exit 0
-    fi
-
     echo "Then the snap is not able to access an evdev keyboard"
     if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
         echo "Expected permission error calling evtest with disconnected plug"
         exit 1
     fi
     # AppArmor is 'Permission denied' which is expected with default policy
-    MATCH "Permission denied" < call.error
+    MATCH "Operation not permitted" < call.error
 
     echo "When the device-buttons plug is connected"
     snap connect test-snapd-event:device-buttons
