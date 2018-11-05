@@ -31,6 +31,7 @@ var (
 	CheckAutoconnectConflicts    = checkAutoconnectConflicts
 	FindSymmetricAutoconnectTask = findSymmetricAutoconnectTask
 	ConnectPriv                  = connect
+	DisconnectPriv               = disconnectTasks
 	GetConns                     = getConns
 	SetConns                     = setConns
 	DefaultDeviceKey             = defaultDeviceKey
@@ -47,6 +48,10 @@ var (
 
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
+}
+
+func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
+	return disconnectOpts{ByHotplug: true}
 }
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
