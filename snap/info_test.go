@@ -334,6 +334,23 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Check(info, IsNil)
 }
 
+func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
+	mpi := snap.MinimalPlaceInfo("sample", si.Revision)
+	p := filepath.Join(mpi.MountDir(), "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(p, []byte(`name: test`), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
+	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
+
+	info, err := snap.ReadInfo("sample", si)
+	c.Check(err, IsNil)
+	c.Check(info.SnapName(), Equals, "test")
+	c.Check(info.Revision, Equals, snap.R(42))
+	c.Check(info.Summary(), Equals, "esummary")
+	c.Check(info.Size, Equals, int64(0))
+}
+
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
 func makeTestSnap(c *C, snapYaml string) string {
 	var m struct {
@@ -1394,11 +1411,80 @@ func (s *infoSuite) TestMedia(c *C) {
 	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
 	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
 		{
-			URL: "https://example.com/shot1.svg",
+			URL:  "https://example.com/shot1.svg",
+			Note: snap.ScreenshotsDeprecationNotice,
 		}, {
 			URL:    "https://example.com/shot2.svg",
 			Width:  42,
 			Height: 17,
+			Note:   snap.ScreenshotsDeprecationNotice,
 		},
 	})
+}
+
+func (s *infoSuite) TestSortApps(c *C) {
+	tcs := []struct {
+		err    string
+		apps   []*snap.AppInfo
+		sorted []string
+	}{{
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "baz", After: []string{"bar", "foo"}},
+			{Name: "foo"},
+		},
+		sorted: []string{"bar", "foo", "baz"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", After: []string{"bar", "zed"}},
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "baz", After: []string{"foo"}},
+			{Name: "zed"},
+		},
+		sorted: []string{"bar", "zed", "foo", "baz"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", After: []string{"baz"}},
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "baz"},
+			{Name: "zed", After: []string{"foo", "bar", "baz"}},
+		},
+		sorted: []string{"bar", "baz", "foo", "zed"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", Before: []string{"bar"}, After: []string{"zed"}},
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "baz", Before: []string{"zed"}},
+			{Name: "zed"},
+		},
+		err: `applications are part of a before/after cycle: ((foo|bar|baz|zed)(, )?){4}`,
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "foo", Before: []string{"bar"}},
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "baz", Before: []string{"foo"}, After: []string{"bar"}},
+		},
+		err: `applications are part of a before/after cycle: ((foo|bar|baz)(, )?){3}`,
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "baz", After: []string{"bar"}},
+			{Name: "foo"},
+			{Name: "bar", After: []string{"foo"}},
+		},
+		sorted: []string{"foo", "bar", "baz"},
+	}}
+	for _, tc := range tcs {
+		sorted, err := snap.SortServices(tc.apps)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(sorted, HasLen, len(tc.sorted))
+			sortedNames := make([]string, len(sorted))
+			for i, app := range sorted {
+				sortedNames[i] = app.Name
+			}
+			c.Assert(sortedNames, DeepEquals, tc.sorted)
+		}
+	}
 }

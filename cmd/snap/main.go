@@ -90,6 +90,7 @@ type cmdInfo struct {
 	optDescs                  map[string]string
 	argDescs                  []argDesc
 	alias                     string
+	extra                     func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -262,6 +263,9 @@ func Parser(cli *client.Client) *flags.Parser {
 			arg.Name = name
 			arg.Description = desc
 		}
+		if c.extra != nil {
+			c.extra(cmd)
+		}
 	}
 	// Add the debug command
 	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
@@ -418,6 +422,9 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
+		if client.IsRetryable(err) {
+			os.Exit(10)
+		}
 		os.Exit(1)
 	}
 }

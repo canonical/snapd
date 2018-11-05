@@ -22,6 +22,7 @@ package backend_test
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,6 +31,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"golang.org/x/net/context"
@@ -38,16 +40,24 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
 )
 
 type snapshotSuite struct {
-	root    string
-	restore []func()
+	root      string
+	restore   []func()
+	tarPath   string
+	isTesting bool
 }
 
-var _ = check.Suite(&snapshotSuite{})
+// silly wrappers to get better failure messages
+type isTestingSuite struct{ snapshotSuite }
+type noTestingSuite struct{ snapshotSuite }
+
+var _ = check.Suite(&isTestingSuite{snapshotSuite{isTesting: true}})
+var _ = check.Suite(&noTestingSuite{snapshotSuite{isTesting: false}})
 
 // tie gocheck into testing
 func TestSnapshot(t *testing.T) { check.TestingT(t) }
@@ -103,7 +113,12 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		rv.Username = username
 		rv.HomeDir = filepath.Join(dirs.GlobalRootDir, "home/snapuser")
 		return &rv, nil
-	}))
+	}),
+		backend.MockIsTesting(s.isTesting),
+	)
+
+	s.tarPath, err = exec.LookPath("tar")
+	c.Assert(err, check.IsNil)
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -404,6 +419,7 @@ func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	d := filepath.Join(s.root, "foo")
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -438,6 +454,28 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
+	s.testHappyRoundtrip(c, "marker")
+}
+
+func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
+	for _, t := range table(snap.MinimalPlaceInfo("hello-snap", snap.R(42)), filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
+		if _, d := filepath.Split(t.dir); d == "common" {
+			c.Assert(os.RemoveAll(t.dir), check.IsNil)
+		}
+	}
+	s.testHappyRoundtrip(c, "marker")
+}
+
+func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
+	for _, t := range table(snap.MinimalPlaceInfo("hello-snap", snap.R(42)), filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
+		if _, d := filepath.Split(t.dir); d == "42" {
+			c.Assert(os.RemoveAll(t.dir), check.IsNil)
+		}
+	}
+	s.testHappyRoundtrip(c, "../common/marker")
+}
+
+func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -506,7 +544,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(diff().Run(), check.IsNil, comm)
 
 		// dirty it -> no longer like it was
-		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), "marker"), []byte("scribble\n"), 0644), check.IsNil, comm)
+		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), marker), []byte("scribble\n"), 0644), check.IsNil, comm)
 	}
 }
 
@@ -558,4 +596,119 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rs.Cleanup()
 	c.Check(diff().Run(), check.IsNil)
+}
+
+func (s *snapshotSuite) TestPickUserWrapperRunuser(c *check.C) {
+	n := 0
+	defer backend.MockExecLookPath(func(s string) (string, error) {
+		n++
+		if s != "runuser" {
+			c.Fatalf(`expected to get "runuser", got %q`, s)
+		}
+		return "/sbin/runuser", nil
+	})()
+
+	c.Check(backend.PickUserWrapper(), check.Equals, "/sbin/runuser")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *snapshotSuite) TestPickUserWrapperSudo(c *check.C) {
+	n := 0
+	defer backend.MockExecLookPath(func(s string) (string, error) {
+		n++
+		if n == 1 {
+			if s != "runuser" {
+				c.Fatalf(`expected to get "runuser" first, got %q`, s)
+			}
+			return "", errors.New("no such thing")
+		}
+		if s != "sudo" {
+			c.Fatalf(`expected to get "sudo" next, got %q`, s)
+		}
+		return "/usr/bin/sudo", nil
+	})()
+
+	c.Check(backend.PickUserWrapper(), check.Equals, "/usr/bin/sudo")
+	c.Check(n, check.Equals, 2)
+}
+
+func (s *snapshotSuite) TestPickUserWrapperNothing(c *check.C) {
+	n := 0
+	defer backend.MockExecLookPath(func(s string) (string, error) {
+		n++
+		return "", errors.New("no such thing")
+	})()
+
+	c.Check(backend.PickUserWrapper(), check.Equals, "")
+	c.Check(n, check.Equals, 2)
+}
+
+func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.SetUserWrapper("/sbin/runuser")()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: "/sbin/runuser",
+		Args: []string{"/sbin/runuser", "-u", "test", "--", "tar", "--bar"},
+	})
+	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	uid = 42
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	c.Check(logbuf.String(), check.Equals, "")
+}
+
+func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.SetUserWrapper("/usr/bin/sudo")()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	cmd := backend.TarAsUser("test", "--bar")
+	c.Check(cmd, check.DeepEquals, &exec.Cmd{
+		Path: "/usr/bin/sudo",
+		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "tar", "--bar"},
+	})
+	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	uid = 42
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	c.Check(logbuf.String(), check.Equals, "")
+}
+
+func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
+	uid := sys.UserID(0)
+	defer backend.MockSysGeteuid(func() sys.UserID { return uid })()
+	defer backend.SetUserWrapper("")()
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	uid = 42
+	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+		Path: s.tarPath,
+		Args: []string{"tar", "--bar"},
+	})
+	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }

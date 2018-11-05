@@ -361,59 +361,78 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 }
 
+type interfaceHooksTestData struct {
+	consumer  []string
+	producer  []string
+	waitChain []string
+}
+
+func hookNameOrTaskKind(c *C, t *state.Task) string {
+	if t.Kind() == "run-hook" {
+		var hookSup hookstate.HookSetup
+		c.Assert(t.Get("hook-setup", &hookSup), IsNil)
+		return fmt.Sprintf("hook:%s", hookSup.Hook)
+	}
+	return fmt.Sprintf("task:%s", t.Kind())
+}
+
+func testInterfaceHooksTasks(c *C, tasks []*state.Task, waitChain []string, undoHooks map[string]string) {
+	for i, t := range tasks {
+		c.Assert(waitChain[i], Equals, hookNameOrTaskKind(c, t))
+		waits := t.WaitTasks()
+		if i == 0 {
+			c.Assert(waits, HasLen, 0)
+		} else {
+			c.Assert(waits, HasLen, 1)
+			waiting := hookNameOrTaskKind(c, waits[0])
+			// check that this task waits on previous one
+			c.Assert(waiting, Equals, waitChain[i-1])
+		}
+
+		// check undo hook setup if applicable
+		if t.Kind() == "run-hook" {
+			var hooksup hookstate.HookSetup
+			var undosup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &hooksup), IsNil)
+			c.Assert(t.Get("undo-hook-setup", &undosup), IsNil)
+			c.Assert(undosup.Hook, Equals, undoHooks[hooksup.Hook], Commentf("unexpected undo hook: %s", undosup.Hook))
+		}
+	}
+
+}
+
 func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
-	hooksTests := []struct {
-		consumer  []string
-		producer  []string
-		waitChain []string
-	}{
-		{
-			consumer:  []string{"prepare-plug-plug"},
-			producer:  []string{"prepare-slot-slot"},
-			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect"},
-		},
-		{
-			consumer:  []string{"prepare-plug-plug"},
-			producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
-			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect", "connect-slot-slot"},
-		},
-		{
-			consumer:  []string{"prepare-plug-plug"},
-			producer:  []string{"connect-slot-slot"},
-			waitChain: []string{"prepare-plug-plug", "connect", "connect-slot-slot"},
-		},
-		{
-			consumer:  []string{"connect-plug-plug"},
-			producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
-			waitChain: []string{"prepare-slot-slot", "connect", "connect-slot-slot", "connect-plug-plug"},
-		},
-		{
-			consumer:  []string{"connect-plug-plug"},
-			producer:  []string{"connect-slot-slot"},
-			waitChain: []string{"connect", "connect-slot-slot", "connect-plug-plug"},
-		},
-		{
-			consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
-			producer:  []string{"prepare-slot-slot"},
-			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect", "connect-plug-plug"},
-		},
-		{
-			consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
-			producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
-			waitChain: []string{"prepare-plug-plug", "prepare-slot-slot", "connect", "connect-slot-slot", "connect-plug-plug"},
-		},
-	}
-
-	hookNameOrTaskKind := func(t *state.Task) string {
-		if t.Kind() == "run-hook" {
-			var hookSup hookstate.HookSetup
-			c.Assert(t.Get("hook-setup", &hookSup), IsNil)
-			return hookSup.Hook
-		}
-		return t.Kind()
-	}
+	hooksTests := []interfaceHooksTestData{{
+		consumer:  []string{"prepare-plug-plug"},
+		producer:  []string{"prepare-slot-slot"},
+		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect"},
+	}, {
+		consumer:  []string{"prepare-plug-plug"},
+		producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot"},
+	}, {
+		consumer:  []string{"prepare-plug-plug"},
+		producer:  []string{"connect-slot-slot"},
+		waitChain: []string{"hook:prepare-plug-plug", "task:connect", "hook:connect-slot-slot"},
+	}, {
+		consumer:  []string{"connect-plug-plug"},
+		producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+		waitChain: []string{"hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
+	}, {
+		consumer:  []string{"connect-plug-plug"},
+		producer:  []string{"connect-slot-slot"},
+		waitChain: []string{"task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
+	}, {
+		consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
+		producer:  []string{"prepare-slot-slot"},
+		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-plug-plug"},
+	}, {
+		consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
+		producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
+	}}
 
 	_ = s.manager(c)
 	for _, hooks := range hooksTests {
@@ -446,28 +465,63 @@ func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 			"connect-slot-slot": "disconnect-slot-slot",
 		}
 
-		for i, t := range ts.Tasks() {
-			c.Assert(hooks.waitChain[i], Equals, hookNameOrTaskKind(t))
-			waits := t.WaitTasks()
-			if i == 0 {
-				c.Assert(waits, HasLen, 0)
-			} else {
-				c.Assert(waits, HasLen, 1)
-				waiting := hookNameOrTaskKind(waits[0])
-				// check that this task waits on previous one
-				c.Assert(waiting, Equals, hooks.waitChain[i-1])
-			}
+		testInterfaceHooksTasks(c, ts.Tasks(), hooks.waitChain, undoHooks)
+		s.state.Unlock()
+	}
+}
 
-			// check undo hook setup if applicable
-			if t.Kind() == "run-hook" {
-				var hooksup hookstate.HookSetup
-				var undosup hookstate.HookSetup
-				c.Assert(t.Get("hook-setup", &hooksup), IsNil)
-				c.Assert(t.Get("undo-hook-setup", &undosup), IsNil)
-				c.Assert(undosup.Hook, Equals, undoHooks[hooksup.Hook], Commentf("unexpected undo hook: %s", undosup.Hook))
-			}
+func (s *interfaceManagerSuite) TestDisconnectTaskHooksConditionals(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	hooksTests := []interfaceHooksTestData{{
+		consumer:  []string{"disconnect-plug-plug"},
+		producer:  []string{"disconnect-slot-slot"},
+		waitChain: []string{"hook:disconnect-slot-slot", "hook:disconnect-plug-plug", "task:disconnect"},
+	}, {
+		producer:  []string{"disconnect-slot-slot"},
+		waitChain: []string{"hook:disconnect-slot-slot", "task:disconnect"},
+	}, {
+		consumer:  []string{"disconnect-plug-plug"},
+		waitChain: []string{"hook:disconnect-plug-plug", "task:disconnect"},
+	}, {
+		waitChain: []string{"task:disconnect"},
+	}}
+
+	_ = s.manager(c)
+	for _, hooks := range hooksTests {
+		var hooksYaml string
+		for _, name := range hooks.consumer {
+			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
+		}
+		consumer := fmt.Sprintf(consumerYaml3, hooksYaml)
+
+		hooksYaml = ""
+		for _, name := range hooks.producer {
+			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
+		}
+		producer := fmt.Sprintf(producerYaml3, hooksYaml)
+
+		plugSnap := s.mockSnap(c, consumer)
+		slotSnap := s.mockSnap(c, producer)
+
+		conn := &interfaces.Connection{
+			Plug: interfaces.NewConnectedPlug(plugSnap.Plugs["plug"], nil, nil),
+			Slot: interfaces.NewConnectedSlot(slotSnap.Slots["slot"], nil, nil),
 		}
 
+		s.state.Lock()
+
+		ts, err := ifacestate.Disconnect(s.state, conn)
+		c.Assert(err, IsNil)
+		c.Assert(ts.Tasks(), HasLen, len(hooks.producer)+len(hooks.consumer)+1)
+		c.Assert(ts.Tasks(), HasLen, len(hooks.waitChain))
+
+		undoHooks := map[string]string{
+			"disconnect-plug-plug": "connect-plug-plug",
+			"disconnect-slot-slot": "connect-slot-slot",
+		}
+
+		testInterfaceHooksTasks(c, ts.Tasks(), hooks.waitChain, undoHooks)
 		s.state.Unlock()
 	}
 }
@@ -722,7 +776,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	ignore, err := ifacestate.FindSymmetricAutoconnectTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
-	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer"), IsNil)
+	c.Assert(ifacestate.CheckAutoconnectConflicts(s.state, t, "consumer", "producer"), IsNil)
 
 	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithAutoSet())
 	c.Assert(err, IsNil)
@@ -761,7 +815,7 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
-	return ifacestate.CheckAutoconnectConflicts(s.state, "consumer", "producer")
+	return ifacestate.CheckAutoconnectConflicts(s.state, t2, "consumer", "producer")
 }
 
 func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
@@ -1233,36 +1287,18 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	plugSnap := s.mockSnap(c, consumerYaml)
+	slotSnap := s.mockSnap(c, producerYaml)
+
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(plugSnap.Plugs["plug"], nil, map[string]interface{}{"attr3": "value3"}),
+		Slot: interfaces.NewConnectedSlot(slotSnap.Slots["slot"], nil, map[string]interface{}{"attr4": "value4"}),
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
-	snapInfo := snaptest.MockSnap(c, consumerYaml, sideInfo)
-	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  sideInfo.Revision,
-	})
-	snapInfo = snaptest.MockSnap(c, producerYaml, sideInfo)
-	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  sideInfo.Revision,
-	})
-
-	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{
-			Snap:  &snap.Info{SuggestedName: "consumer"},
-			Name:  "plug",
-			Attrs: map[string]interface{}{"attr1": "value1"}}, nil,
-			map[string]interface{}{"attr3": "value3"}),
-
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{
-			Snap:  &snap.Info{SuggestedName: "producer"},
-			Name:  "slot",
-			Attrs: map[string]interface{}{"attr2": "value2"}}, nil,
-			map[string]interface{}{"attr4": "value4"}),
-	}
 	ts, err := ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 3)
@@ -1713,6 +1749,7 @@ slots:
  slot:
   interface: test
   attr2: value2
+  number: 1
 `
 
 var producerYaml3 = `
@@ -4412,7 +4449,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	c.Assert(tasks, HasLen, 1)
 
 	c.Check(t.Status(), Equals, state.DoingStatus)
-	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried because of "consumer" - "producer" conflict`)
+	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried: conflicting snap producer with task "link-snap"`)
 }
 
 func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
@@ -4723,4 +4760,47 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	// and udev monitor is now created
 	c.Assert(mgr.Ensure(), IsNil)
 	c.Assert(udevMonitorCreated, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
+	slotSnap := s.mockSnap(c, producer2Yaml)
+	plugSnap := s.mockSnap(c, consumerYaml)
+
+	slot := slotSnap.Slots["slot"]
+	c.Assert(slot, NotNil)
+	plug := plugSnap.Plugs["plug"]
+	c.Assert(plug, NotNil)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	conns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	// create connection in conns state
+	dynamicAttrs := map[string]interface{}{"dynamic-number": 7}
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(plug, nil, nil),
+		Slot: interfaces.NewConnectedSlot(slot, nil, dynamicAttrs),
+	}
+
+	var number, dynnumber int64
+	c.Check(conn.Slot.Attr("number", &number), IsNil)
+	c.Check(number, Equals, int64(1))
+
+	ifacestate.UpdateConnectionInConnState(conns, conn, false, false)
+	ifacestate.SetConns(st, conns)
+
+	// restore connection from conns state
+	newConns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	_, _, slotStaticAttrs, slotDynamicAttrs, ok := ifacestate.GetConnStateAttrs(newConns, "consumer:plug producer2:slot")
+	c.Assert(ok, Equals, true)
+
+	restoredSlot := interfaces.NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
+	c.Check(restoredSlot.Attr("number", &number), IsNil)
+	c.Check(number, Equals, int64(1))
+	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
 }
