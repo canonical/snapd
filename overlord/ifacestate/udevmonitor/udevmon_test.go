@@ -61,7 +61,7 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 		remInfo = inf
 		callbackChannel <- struct{}{}
 	}
-	done := func() {
+	enumerationFinished := func() {
 		// enumerationDone is signalled after udevadm parsing ends and before other devices are reported
 		c.Assert(addInfos, HasLen, 2)
 		c.Check(addInfos[0].DevicePath(), Equals, "/sys/a/path")
@@ -91,7 +91,7 @@ E: DEVTYPE=bzz
 `)
 	defer cmd.Restore()
 
-	udevmon := udevmonitor.New(added, removed, done).(*udevmonitor.Monitor)
+	udevmon := udevmonitor.New(added, removed, enumerationFinished).(*udevmonitor.Monitor)
 	events := udevmon.EventsChannel()
 
 	c.Assert(udevmon.Run(), IsNil)
