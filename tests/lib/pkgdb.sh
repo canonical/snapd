@@ -38,6 +38,9 @@ fedora_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -70,6 +73,13 @@ opensuse_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-dbus)
+                # In OpenSUSE Leap 15, this is renamed to python3-dbus-python
+                echo "dbus-1-python3"
+                ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -94,6 +104,12 @@ arch_name_package() {
             ;;
         man)
             echo "man-db"
+            ;;
+        python3-dbus)
+            echo "python-dbus"
+            ;;
+        python3-gi)
+            echo "python-gobject"
             ;;
         *)
             echo "$1"
@@ -437,6 +453,11 @@ distro_install_build_snapd(){
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload
+
+            # AppArmor policy needs to be reloaded
+            if systemctl show -p ActiveState apparmor.service | MATCH 'ActiveState=active'; then
+                systemctl restart apparmor.service
+            fi
         fi
 
         # On some distributions the snapd.socket is not yet automatically
@@ -547,6 +568,11 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 "
             ;;
+        ubuntu-18.10-64)
+            echo "
+                evolution-data-server
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
@@ -601,6 +627,7 @@ pkg_dependencies_fedora(){
         rpm-build
         udisks2
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -611,17 +638,18 @@ pkg_dependencies_amazon(){
         expect
         git
         golang
+        grub2-tools
         jq
         iptables-services
         man
         mock
+        nc
         net-tools
         nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
-        grub2-tools
-        nc
+        xdg-utils
         udisks2
         "
 }
@@ -644,8 +672,8 @@ pkg_dependencies_opensuse(){
         osc
         udisks2
         uuidd
-        xdg-utils
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -675,7 +703,9 @@ pkg_dependencies_arch(){
     strace
     udisks2
     xdg-user-dirs
+    xdg-utils
     xfsprogs
+    apparmor
     "
 }
 

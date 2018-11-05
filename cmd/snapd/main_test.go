@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -59,9 +60,13 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	defer restore()
 
 	sanityErr := fmt.Errorf("foo failed")
-	sanityCheckWasRun := 0
+	sanityCalled := make(chan bool)
+	sanityClosed := false
 	restore = snapd.MockSanityCheck(func() error {
-		sanityCheckWasRun += 1
+		if !sanityClosed {
+			sanityClosed = true
+			close(sanityCalled)
+		}
 		return sanityErr
 	})
 	defer restore()
@@ -71,19 +76,31 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 
 	// run the daemon
 	ch := make(chan os.Signal)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := snapd.Run(ch)
-		c.Assert(err, IsNil)
+		c.Check(err, IsNil)
 	}()
-	time.Sleep(100 * time.Millisecond)
+
+	sanityCheckWasRun := false
+	select {
+	case <-time.After(5 * time.Second):
+	case _, stillOpen := <-sanityCalled:
+		c.Assert(stillOpen, Equals, false)
+		sanityCheckWasRun = true
+	}
+	c.Check(sanityCheckWasRun, Equals, true)
+	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
 
 	// verify that talking to the daemon yields the sanity error
 	// message
-	cli := client.New(nil)
+	// disable keepliave as it would sometimes cause the daemon to be
+	// blocked when closing connections during graceful shutdown
+	cli := client.New(&client.Config{DisableKeepAlive: true})
 	_, err := cli.Abort("123")
-	c.Check(sanityCheckWasRun >= 1, Equals, true)
 	c.Check(err, ErrorMatches, "system does not fully support snapd: foo failed")
-	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
 
 	// verify that the sysinfo command is still available
 	_, err = cli.SysInfo()
@@ -91,4 +108,5 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 
 	// stop the daemon
 	close(ch)
+	wg.Wait()
 }

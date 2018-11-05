@@ -562,6 +562,14 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	return showDone(x.client, []string{name}, "refresh", x.getEscapes())
 }
 
+func parseSysinfoTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 func (x *cmdRefresh) showRefreshTimes() error {
 	sysinfo, err := x.client.SysInfo()
 	if err != nil {
@@ -575,17 +583,27 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else {
 		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Last); err == nil {
-		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(t))
+	last := parseSysinfoTime(sysinfo.Refresh.Last)
+	hold := parseSysinfoTime(sysinfo.Refresh.Hold)
+	next := parseSysinfoTime(sysinfo.Refresh.Next)
+
+	if !last.IsZero() {
+		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(last))
 	} else {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
-
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Hold); err == nil {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(t))
+	if !hold.IsZero() {
+		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Next); err == nil {
-		fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(t))
+	// only show "next" if its after "hold" to not confuse users
+	if !next.IsZero() {
+		// Snapstate checks for holdTime.After(limitTime) so we need
+		// to check for before or equal here to be fully correct.
+		if next.Before(hold) || next.Equal(hold) {
+			fmt.Fprintf(Stdout, "next: %s (but held)\n", x.fmtTime(next))
+		} else {
+			fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(next))
+		}
 	} else {
 		fmt.Fprintf(Stdout, "next: n/a\n")
 	}
@@ -629,14 +647,14 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.Time {
 		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+			return errors.New(i18n.G("--time does not take mode or channel flags"))
 		}
 		return x.showRefreshTimes()
 	}
 
 	if x.List {
-		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--list does not take mode nor channel flags"))
+		if len(x.Positional.Snaps) > 0 || x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--list does not accept additional arguments"))
 		}
 
 		return x.listRefresh()
@@ -721,13 +739,13 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	changeID, err := x.client.Try(path, opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
-		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
-
-Try 'snapcraft prime' in your project directory, then 'snap try' again.`), path)
-	}
 	if err != nil {
-		return err
+		msg, err := errorToCmdMessage(name, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	chg, err := x.wait(changeID)
@@ -932,7 +950,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Refresh to the given revision, to which you must have developer access"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"list": i18n.G("Show available snaps for refresh but do not perform a refresh"),
+			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"time": i18n.G("Show auto refresh information but do not perform a refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.

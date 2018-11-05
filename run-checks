@@ -29,6 +29,8 @@ fi
 export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
 export PATH="$PATH:${GOPATH%%:*}/bin"
 
+short=
+
 STATIC=
 UNIT=
 SPREAD=
@@ -45,6 +47,10 @@ case "${1:-all}" in
         ;;
     --unit)
         UNIT=1
+        ;;
+    --short-unit)
+        UNIT=1
+        short=1
         ;;
     --spread)
         SPREAD=1
@@ -170,7 +176,7 @@ if [ "$STATIC" = 1 ]; then
                 find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
-            xargs --verbose shellcheck
+            xargs shellcheck
         regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
         if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
@@ -216,30 +222,34 @@ fi
 if [ "$UNIT" = 1 ]; then
     ./get-deps.sh
 
-    # Prepare the coverage output profile.
-    rm -rf .coverage
-    mkdir .coverage
-    echo "mode: $COVERMODE" > .coverage/coverage.out
-
     echo Building
     go build -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from "$PWD"
-    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
-        # shellcheck disable=SC2046
-        $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+    if [ "$short" = 1 ]; then
+            # shellcheck disable=SC2046
+            $goctest -short -v $(go list ./... | grep -v '/vendor/' )
     else
-        for pkg in $(go list ./... | grep -v '/vendor/' ); do
-            go test -i "$pkg"
-            $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-            append_coverage .coverage/profile.out
-        done
-    fi
+        # Prepare the coverage output profile.
+        rm -rf .coverage
+        mkdir .coverage
+        echo "mode: $COVERMODE" > .coverage/coverage.out
 
-    # upload to codecov.io if on travis
-    if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
-        curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
+        if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+            # shellcheck disable=SC2046
+            $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+        else
+            for pkg in $(go list ./... | grep -v '/vendor/' ); do
+                go test -i "$pkg"
+                $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                append_coverage .coverage/profile.out
+            done
+        fi
+        # upload to codecov.io if on travis
+        if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
+            curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
+        fi
     fi
 fi
 
@@ -250,7 +260,7 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread google: linode:
+    spread google:
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04

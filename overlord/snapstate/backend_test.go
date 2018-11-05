@@ -63,6 +63,8 @@ type fakeOp struct {
 	userID int
 
 	otherInstances bool
+
+	services []string
 }
 
 type fakeOps []fakeOp
@@ -188,6 +190,12 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeOS
 	case "some-base":
 		typ = snap.TypeBase
+	case "some-kernel":
+		typ = snap.TypeKernel
+	case "some-gadget":
+		typ = snap.TypeGadget
+	case "some-snapd":
+		typ = snap.TypeSnapd
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -563,6 +571,9 @@ type fakeSnappyBackend struct {
 	ops fakeOps
 	mu  sync.Mutex
 
+	linkSnapWaitCh      chan int
+	linkSnapWaitTrigger string
+
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
@@ -659,12 +670,19 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Type = snap.TypeOS
 	case "services-snap":
 		var err error
+		// fix services after/before so that there is only one solution
+		// to dependency ordering
 		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
 apps:
   svc1:
     daemon: simple
+    before: [svc3]
   svc2:
     daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
 `))
 		if err != nil {
 			panic(err)
@@ -731,6 +749,11 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 }
 
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+	if info.MountDir() == f.linkSnapWaitTrigger {
+		f.linkSnapWaitCh <- 1
+		<-f.linkSnapWaitCh
+	}
+
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",
@@ -757,9 +780,14 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 }
 
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
+	services := make([]string, 0, len(svcs))
+	for _, svc := range svcs {
+		services = append(services, svc.Name)
+	}
 	f.appendOp(&fakeOp{
-		op:   "start-snap-services",
-		path: svcSnapMountDir(svcs),
+		op:       "start-snap-services",
+		path:     svcSnapMountDir(svcs),
+		services: services,
 	})
 	return nil
 }

@@ -400,3 +400,48 @@ func (s *CheckersS) TestIntChecker(c *check.C) {
 	testCheck(c, unexpected, false, `unexpected relation "==="`, 1, 2)
 
 }
+
+func (s *CheckersS) TestPaddedChecker(c *check.C) {
+	type row struct {
+		lhs     string
+		checker check.Checker
+		rhs     string
+	}
+
+	table := []row{
+		{" a  b\tc", EqualsPadded, "a b c"},
+		{" a  b\nc", check.Not(EqualsPadded), "a b c"},
+
+		{" a  b\tc", EqualsWrapped, "a b c"},
+		{" a  b\nc", EqualsWrapped, "a b c"},
+
+		{" a  b\tc    d\t\te", ContainsPadded, "b c d"},
+		{" a  b\nc    d\t\te", check.Not(ContainsPadded), "b c d"},
+
+		{" a  b\tc    d\t\te", ContainsWrapped, "b c d"},
+		{" a  b\nc    d\t\te", ContainsWrapped, "b c d"},
+
+		{"\tfoo baah ", MatchesPadded, `fo+ b\S+`},
+		{"\tfoo\nbaah ", check.Not(MatchesPadded), `fo+ b\S+`},
+
+		{"\tfoo baah ", MatchesWrapped, `fo+ b\S+`},
+		{"\tfoo\nbaah ", MatchesWrapped, `fo+ b\S+`},
+	}
+
+	for i, test := range table {
+		for _, lhs := range []interface{}{test.lhs, []byte(test.lhs), errors.New(test.lhs)} {
+			for _, rhs := range []interface{}{test.rhs, []byte(test.rhs)} {
+				comm := check.Commentf("%d:%s:%T/%T", i, test.checker.Info().Name, lhs, rhs)
+				c.Check(lhs, test.checker, rhs, comm)
+			}
+		}
+	}
+
+	for _, checker := range []check.Checker{EqualsPadded, EqualsWrapped, ContainsPadded, ContainsWrapped, MatchesPadded, MatchesWrapped} {
+		testCheck(c, checker, false, "right-hand value must be a string or []byte", "a b c", 42)
+		testCheck(c, checker, false, "left-hand value must be a string or []byte or error", 42, "a b c")
+	}
+	for _, checker := range []check.Checker{MatchesPadded, MatchesWrapped} {
+		testCheck(c, checker, false, "right-hand value must be a valid regexp: error parsing regexp: missing argument to repetition operator: `+`", "a b c", "+a b c")
+	}
+}

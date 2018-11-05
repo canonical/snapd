@@ -46,7 +46,7 @@ func snapIcon(info *snap.Info) string {
 	// XXX: copy of snap.Snap.Icon which will go away
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return info.IconURL
+		return info.Media.IconURL()
 	}
 
 	return found[0]
@@ -282,29 +282,71 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	//       (Status doesn't _need_ it, but benefits from it)
 	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 
-	out := make([]client.AppInfo, len(apps))
-	for i, app := range apps {
-		out[i] = client.AppInfo{
+	out := make([]client.AppInfo, 0, len(apps))
+	for _, app := range apps {
+		appInfo := client.AppInfo{
 			Snap:     app.Snap.InstanceName(),
 			Name:     app.Name,
 			CommonID: app.CommonID,
 		}
 		if fn := app.DesktopFile(); osutil.FileExists(fn) {
-			out[i].DesktopFile = fn
+			appInfo.DesktopFile = fn
 		}
 
-		out[i].Daemon = app.Daemon
-		if app.IsService() && app.Snap.IsActive() {
-			// TODO: look into making a single call to Status for all services
-			if sts, err := sysd.Status(app.ServiceName()); err != nil {
-				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
-			} else if len(sts) != 1 {
-				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
-			} else {
-				out[i].Enabled = sts[0].Enabled
-				out[i].Active = sts[0].Active
+		appInfo.Daemon = app.Daemon
+		if !app.IsService() || !app.Snap.IsActive() {
+			out = append(out, appInfo)
+			continue
+		}
+
+		// collect all services for a single call to systemctl
+		serviceNames := make([]string, 0, 1+len(app.Sockets)+1)
+		serviceNames = append(serviceNames, app.ServiceName())
+
+		sockSvcFileToName := make(map[string]string, len(app.Sockets))
+		for _, sock := range app.Sockets {
+			sockUnit := filepath.Base(sock.File())
+			sockSvcFileToName[sockUnit] = sock.Name
+			serviceNames = append(serviceNames, sockUnit)
+		}
+		if app.Timer != nil {
+			timerUnit := filepath.Base(app.Timer.File())
+			serviceNames = append(serviceNames, timerUnit)
+		}
+
+		// sysd.Status() makes sure that we get only the units we asked
+		// for and raises an error otherwise
+		sts, err := sysd.Status(serviceNames...)
+		if err != nil {
+			logger.Noticef("cannot get status of services of app %q: %v", app.Name, err)
+			continue
+		}
+		if len(sts) != len(serviceNames) {
+			logger.Noticef("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
+			continue
+		}
+		for _, st := range sts {
+			switch filepath.Ext(st.UnitName) {
+			case ".service":
+				appInfo.Enabled = st.Enabled
+				appInfo.Active = st.Active
+			case ".timer":
+				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+					Name:    app.Name,
+					Enabled: st.Enabled,
+					Active:  st.Active,
+					Type:    "timer",
+				})
+			case ".socket":
+				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+					Name:    sockSvcFileToName[st.UnitName],
+					Enabled: st.Enabled,
+					Active:  st.Active,
+					Type:    "socket",
+				})
 			}
 		}
+		out = append(out, appInfo)
 	}
 
 	return out
@@ -385,15 +427,6 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		confinement = snap.StrictConfinement
 	}
 
-	screenshots := make([]client.Screenshot, len(remoteSnap.Screenshots))
-	for i, screenshot := range remoteSnap.Screenshots {
-		screenshots[i] = client.Screenshot{
-			URL:    screenshot.URL,
-			Width:  screenshot.Width,
-			Height: screenshot.Height,
-		}
-	}
-
 	publisher := remoteSnap.Publisher
 	result := &client.Snap{
 		Description:  remoteSnap.Description(),
@@ -415,7 +448,8 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Contact:      remoteSnap.Contact,
 		Title:        remoteSnap.Title(),
 		License:      remoteSnap.License,
-		Screenshots:  screenshots,
+		Screenshots:  remoteSnap.Media.Screenshots(),
+		Media:        remoteSnap.Media,
 		Prices:       remoteSnap.Prices,
 		Channels:     remoteSnap.Channels,
 		Tracks:       remoteSnap.Tracks,

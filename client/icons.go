@@ -31,6 +31,8 @@ type Icon struct {
 	Content  []byte
 }
 
+var contentDispositionMatcher = regexp.MustCompile(`attachment; filename=(.+)`).FindStringSubmatch
+
 // Icon returns the Icon belonging to an installed snap
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
@@ -45,8 +47,7 @@ func (c *Client) Icon(pkgID string) (*Icon, error) {
 		return nil, fmt.Errorf("%s: Not Found", errPrefix)
 	}
 
-	re := regexp.MustCompile(`attachment; filename=(.+)`)
-	matches := re.FindStringSubmatch(response.Header.Get("Content-Disposition"))
+	matches := contentDispositionMatcher(response.Header.Get("Content-Disposition"))
 
 	if matches == nil || matches[1] == "" {
 		return nil, fmt.Errorf("%s: cannot determine filename", errPrefix)

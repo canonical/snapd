@@ -16,15 +16,15 @@ details: |
     bind-mounted view of the mounted snap).
 
 execute: |
-    cp -a  $TESTSLIB/snaps/test-snapd-sh .
+    cp -a  "$TESTSLIB"/snaps/test-snapd-sh .
     snap try test-snapd-sh
 
     snap list | MATCH test-snapd-sh
-    mv test-snapd-sh test-snapd-sh.moved
+    mv test-snapd-sh/meta/snap.yaml test-snapd-sh/meta/snap.yaml.moved
     snap list # should not break
     snap list test-snapd-sh | MATCH broken
 
-    mv test-snapd-sh.moved test-snapd-sh
+    mv test-snapd-sh/meta/snap.yaml.moved test-snapd-sh/meta/snap.yaml
     snap list # should still just work
     snap list test-snapd-sh | MATCH -v broken
 

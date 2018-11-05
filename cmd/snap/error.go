@@ -91,6 +91,10 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 	if !ok {
 		return "", e
 	}
+	// retryable errors are just passed through
+	if client.IsRetryable(err) {
+		return "", err
+	}
 
 	// ensure the "real" error is available if we ask for it
 	logger.Debugf("error: %s", err)
@@ -101,6 +105,16 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 	usesSnapName := true
 	var msg string
 	switch err.Kind {
+	case client.ErrorKindNotSnap:
+		msg = i18n.G(`%q does not contain an unpacked snap.
+
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
+		if snapName == "" || snapName == "./" {
+			errValStr, ok := err.Value.(string)
+			if ok && errValStr != "" {
+				snapName = errValStr
+			}
+		}
 	case client.ErrorKindSnapNotFound:
 		msg = i18n.G("snap %q not found")
 		if snapName == "" {
@@ -155,6 +169,10 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)
 	case client.ErrorKindSnapNeedsDevMode:
+		if opts != nil && opts.Dangerous {
+			msg = i18n.G("snap %q requires devmode or confinement override")
+			break
+		}
 		msg = i18n.G(`
 The publisher of snap %q has indicated that they do not consider this revision
 to be of production quality and that it is only meant for development or testing
