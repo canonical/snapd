@@ -143,6 +143,14 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
+func MockSideloadCleanupWait(d time.Duration) (restore func()) {
+	old := sideloadCleanupWait
+	sideloadCleanupWait = d
+	return func() {
+		sideloadCleanupWait = old
+	}
+}
+
 func SetModelWithBase(baseName string) {
 	setModel(map[string]string{"base": baseName})
 }
