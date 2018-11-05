@@ -10,17 +10,10 @@ environment:
     DISPLAY: :placeholder
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package xdg-utils
     touch /usr/bin/zenity
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
     umount -f /usr/bin/zenity || :
-    distro_purge_package xdg-utils
-    distro_auto_remove_packages
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
