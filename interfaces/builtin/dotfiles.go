@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -117,13 +118,13 @@ func formatPath(ip interface{}) (string, error) {
 	return fmt.Sprintf("%s%q", prefix, filepath.Clean(p)), nil
 }
 
-func allowPathAccess(spec *apparmor.Specification, perm string, paths []interface{}) error {
+func allowPathAccess(buf *bytes.Buffer, perm string, paths []interface{}) error {
 	for _, rawPath := range paths {
 		p, err := formatPath(rawPath)
 		if err != nil {
 			return err
 		}
-		spec.AddSnippet(fmt.Sprintf("%s %s", p, perm))
+		fmt.Fprintf(buf, "%s %s\n", p, perm)
 	}
 	return nil
 }
@@ -134,13 +135,15 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	_ = plug.Attr("write", &writes)
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
-	spec.AddSnippet(dotfilesConnectedPlugAppArmor)
-	if err := allowPathAccess(spec, "rk,", reads); err != nil {
+	buf := bytes.NewBufferString(dotfilesConnectedPlugAppArmor)
+	if err := allowPathAccess(buf, "rk,", reads); err != nil {
 		return fmt.Errorf("%s%v", errPrefix, err)
 	}
-	if err := allowPathAccess(spec, "rwkl,", writes); err != nil {
+	if err := allowPathAccess(buf, "rwkl,", writes); err != nil {
 		return fmt.Errorf("%s%v", errPrefix, err)
 	}
+	spec.AddSnippet(buf.String())
+
 	return nil
 }
 
