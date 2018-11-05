@@ -91,15 +91,8 @@ func (m *Monitor) Connect() error {
 		return fmt.Errorf("cannot start udev monitor: %s", err)
 	}
 
-	var filter netlink.Matcher
-	// TODO: extend with other criteria based on the hotplug interfaces
-	filter = &netlink.RuleDefinitions{
-		Rules: []netlink.RuleDefinition{
-			{Env: map[string]string{"SUBSYSTEM": "tty"}},
-			{Env: map[string]string{"SUBSYSTEM": "net"}},
-			{Env: map[string]string{"SUBSYSTEM": "usb"}}}}
-
-	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, filter)
+	// TODO: consider passing a device filter to reduce noise from irrelevant devices.
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
 
 	return nil
 }
