@@ -17,6 +17,8 @@
 %bcond_with testkeys
 
 # Enable AppArmor on openSUSE Tumbleweed (post 15.0) or higher
+# N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
+# did not support what we needed to be able to turn on basic integration.
 %if 0%{?suse_version} >= 1550
 %bcond_without apparmor
 %else
@@ -42,6 +44,16 @@
 %global repo            snapd
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
+
+# Additional entry of $GOPATH during the build process.
+# This is designed to be a sub-directory of {_builddir}/{name}-{version}
+# because that directory is automatically cleaned-up by the build process.
+%global         indigo_gopath   %{_builddir}/%{name}-%{version}/gopath
+
+# Directory where "name-version" directory from upstream taball is unpacked to.
+# This directory is arranged so that it is already contained inside the future
+# GOPATH so that nothing needs to be moved or copied for "go build" to work.
+%global         indigo_srcdir   %{indigo_gopath}/src/%{import_path}
 
 %global with_test_keys  0
 
@@ -76,7 +88,7 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  golang-packaging
+BuildRequires:  go
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libapparmor-devel
@@ -124,17 +136,12 @@ Conflicts:      xdg-desktop-portal < 0.11
 
 %{?systemd_requires}
 
-# TODO strip the C executables but don't strip the go executables
-# as that breaks the world in some ways.
-# reenable {go_nostrip}
-%{go_provides}
-
 %description
 This package contains that snapd daemon and the snap command line tool.
 Together they can be used to install, refresh (update), remove and configure
 snap packages on a system. Snap packages are a novel format based on simple
 principles. Bundle your dependencies, run in a predictable environment, use
-moder kernel features for setting up the execution environment and security.
+modern kernel features for setting up the execution environment and security.
 The same binary snap package can be installed and used on many diverse systems
 such as Debian, Fedora and OpenSUSE as well as their multiple derivatives.
 
@@ -143,18 +150,36 @@ updated as soon as new upstream releases are made and is designed to live in
 the system:snappy repository.
 
 %prep
-%setup -q
+# NOTE: Instead of using setup -q we are unpacking a subdirectory of the source
+# tarball into a directory that is automatically on the future GOPATH. This
+# means that while go doesn't care at all the current working directory is not
+# the top-level directory of the source tarball which some people may find
+# unusual.
 
-# Set the version that is compiled into the various executables
+# Create indigo compatible build layout.
+mkdir -p %{indigo_srcdir}
+tar -axf %{_sourcedir}/%{name}_%{version}.vendor.tar.xz --strip-components=1 -C %{indigo_srcdir}
+
+# Patch the source in the place it got extracted to.
+pushd %{indigo_srcdir}
+# Add patch0 -p1 ... as appropriate here.
+popd
+
+# Patch snap-seccomp to use dynamic linking. This is not a problem because
+# snap-seccomp only requires static linking when it runs from the core-snap via
+# re-exec.
+sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{indigo_srcdir}/cmd/snap-seccomp/main.go
+
+# Set the version that is compiled into the various executables/
+pushd %{indigo_srcdir}
 ./mkversion.sh %{version}-%{release}
-
-# Generate autotools build system files
-cd cmd && autoreconf -i -f
+popd
 
 # Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
 CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 CXXFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
 LDFLAGS=""
+
 # On openSUSE Leap 15 or more recent build position independent executables.
 # For a helpful guide about the versions and macros used below, please see:
 # https://en.opensuse.org/openSUSE:Build_Service_cross_distribution_howto
@@ -168,8 +193,9 @@ export CFLAGS
 export CXXFLAGS
 export LDFLAGS
 
-# N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
-# did not support what we needed to be able to turn on basic integration.
+# Generate autotools build system files.
+pushd %{indigo_srcdir}/cmd
+autoreconf -i -f
 %configure \
     %{!?with_apparmor:--disable-apparmor} \
     --libexecdir=%{_libexecdir}/snapd \
@@ -177,74 +203,56 @@ export LDFLAGS
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{snap_mount_dir} \
     --enable-merged-usr
+popd
 
 %build
-# Build golang executables
-%goprep %{import_path}
+# Build golang executables, with the following exceptions everything is built the same way:
+# - snap-exec and snap-update-ns is built statically.
+# - snapd has a variant that uses test keys instead of production keys.
 
+# build snap-exec and snap-update-ns completely static for base snaps
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snap
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snapctl
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snap-seccomp
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default --ldflags '-extldflags "-static"' %{import_path}/cmd/snap-update-ns
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default --ldflags '-extldflags "-static"' %{import_path}/cmd/snap-exec
 %if 0%{?with_test_keys}
-# The gobuild macro doesn't allow us to pass any additional parameters
-# so we we have to invoke `go install` here manually.
-export GOPATH=%{_builddir}/go:%{_libdir}/go/contrib
-export GOBIN=%{_builddir}/go/bin
-# Options used are the same as the gobuild macro does but as it
-# doesn't allow us to amend new flags we have to repeat them here:
-# -s: tell long running tests to shorten their build time
-# -v: be verbose
-# -p 4: allow parallel execution of tests
-# -x: print commands
-go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie -tags withtestkeys %{import_path}/cmd/snapd
 %else
-%gobuild cmd/snapd
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snapd
 %endif
 
-%gobuild cmd/snap
-%gobuild cmd/snapctl
-# build snap-exec and snap-update-ns completely static for base snaps
-# NOTE: openSUSE's golang rpm helpers pass -buildmode=pie, but glibc is not
-# built with -fPIC so it'll blow up during linking, need to pass
-# -buildmode=default to override this
-%gobuild -buildmode=default -ldflags=-extldflags=-static cmd/snap-exec
-%gobuild -buildmode=default -ldflags=-extldflags=-static cmd/snap-update-ns
-# build snap-seccomp
-%gobuild cmd/snap-seccomp
-
 # Build C executables
-%make_build -C cmd
+%make_build -C %{indigo_srcdir}/cmd
 
 %check
-%{gotest} %{import_path}/...
-%make_build -C cmd check
+# Run tests with fixed locale that is expected by unicode/color code.
+LC_ALL=C.UTF-8 GOPATH=$GOPATH:%{indigo_gopath} go test %{import_path}/...
+%make_build -C %{indigo_srcdir}/cmd check
 
 %install
-# Install all the go stuff
-%goinstall
-# TODO: instead of removing it move this to a dedicated golang package
-rm -rf %{buildroot}%{_libdir}/go
-# Move snapd, snap-exec, snap-seccomp and snap-update-ns into {_libexecdir}/snapd
-install -m 755 -d %{buildroot}%{_libexecdir}/snapd
-mv %{buildroot}%{_bindir}/snapd %{buildroot}%{_libexecdir}/snapd/snapd
-mv %{buildroot}%{_bindir}/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
-mv %{buildroot}%{_bindir}/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
-mv %{buildroot}%{_bindir}/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
+# Install all systemd and dbus units, and env files.
+%make_install -C %{indigo_srcdir}/data \
+		BINDIR=%{_bindir} \
+		LIBEXECDIR=%{_libexecdir} \
+		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+		SNAP_MOUNT_DIR=%{snap_mount_dir}
+# Install all the C executables.
+%make_install -C %{indigo_srcdir}/cmd
+# Install all the Go executables.
+install -d -m 755 %{buildroot}%{_bindir}
+install -m 755 snap %{buildroot}%{_bindir}
 # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
-mv %{buildroot}%{_bindir}/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
+install -m 755 snapctl %{buildroot}%{_libexecdir}/snapd
 ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
-
-# Install all systemd and dbus units, and env files
-%make_install -C data BINDIR=%{_bindir} LIBEXECDIR=%{_libexecdir} \
-                      SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
-                      SNAP_MOUNT_DIR=%{snap_mount_dir}
-
+install -d -m 755 %{buildroot}%{_libexecdir}/snapd
+install -m 755 snapd %{buildroot}%{_libexecdir}/snapd/
+install -m 755 snap-exec %{buildroot}%{_libexecdir}/snapd/
+install -m 755 snap-update-ns %{buildroot}%{_libexecdir}/snapd/
+install -m 755 snap-seccomp %{buildroot}%{_libexecdir}/snapd/
 # Generate and install man page for snap command
-install -m 755 -d %{buildroot}%{_mandir}/man8
-%{buildroot}%{_bindir}/snap help --man >  %{buildroot}%{_mandir}/man8/snap.8
-
-# TODO: enable gosrc
-# TODO: enable gofilelist
-
-# Install all the C executables
-%make_install -C cmd
+install -d -m 755 %{buildroot}%{_mandir}/man8
+./snap help --man > %{buildroot}%{_mandir}/man8/snap.8
 # Undo special permissions of the void directory
 chmod 755 %{buildroot}%{_sharedstatedir}/snapd/void
 # Remove traces of ubuntu-core-launcher. It is a phased-out executable that is
@@ -266,8 +274,8 @@ install -d %{buildroot}%{snap_mount_dir}/bin
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
-install -m 644 -D packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
-install -m 644 -D packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
+install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
+install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
 # Remove unwanted systemd units
 for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
     rm -f %{buildroot}%{_unitdir}/$s
@@ -276,7 +284,7 @@ done
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
 # Install Polkit configuration
-install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
+install -m 644 -D %{indigo_srcdir}/data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
@@ -286,11 +294,11 @@ ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
 %endif
 # Install the "info" data file with snapd version
-install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
+install -m 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/info
 # Install bash completion for "snap"
-install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D %{indigo_srcdir}/data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
+install -m 644 -D %{indigo_srcdir}/data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 
 # Don't ship apparmor helper service when AppArmor is not enabled
 %if ! %{with apparmor}
