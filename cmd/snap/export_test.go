@@ -35,6 +35,8 @@ var RunMain = run
 var (
 	Client = mkClient
 
+	FirstNonOptionIsRun = firstNonOptionIsRun
+
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
@@ -68,6 +70,8 @@ var (
 	SnapHelpAllFooter       = snapHelpAllFooter
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories
+
+	NotesForSvc = notesForSvc
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

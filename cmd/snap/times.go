@@ -20,9 +20,11 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil/quantity"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -42,4 +44,20 @@ func (mx timeMixin) fmtTime(t time.Time) string {
 		return t.Format(time.RFC3339)
 	}
 	return timeutilHuman(t)
+}
+
+type durationMixin struct {
+	AbsTime bool `long:"abs-time"`
+}
+
+var durationDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"abs-time": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display short relative times."),
+}
+
+func (mx durationMixin) fmtDuration(t time.Time) string {
+	if mx.AbsTime {
+		return t.Format(time.RFC3339)
+	}
+	return strings.TrimSpace(quantity.FormatDuration(time.Since(t).Seconds()))
 }

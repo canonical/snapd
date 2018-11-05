@@ -1,8 +1,9 @@
 summary: Ensure that lxd works
 
-# only run this on ubuntu 16+, lxd will not work on !ubuntu systems
+# Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
+# No ubuntu 18.10 imaga available so far
+systems: [ubuntu-16*, ubuntu-18.04*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro

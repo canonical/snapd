@@ -54,15 +54,19 @@ check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
+new_format = snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
-fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
+fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
+	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
+
+fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
-	sudo install -D -m 6755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
+	sudo install -D -m 6755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor

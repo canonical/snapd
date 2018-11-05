@@ -106,6 +106,14 @@ execute: |
     fi
 
     if [ "$(snap debug confinement)" = strict ] ; then
+        if [ "$ALLOW_SANDBOX" = "false" ]; then
+            echo "And the policy has the ptrace suppression rule without sandbox"
+            MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.browser-support-consumer.cmd
+        else
+            echo "And the policy has the ptrace suppression rule with sandbox"
+            MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.browser-support-consumer.cmd && echo "Found ptrace rule, but shouldn't have" && exit 1
+        fi
+
         echo "And the resources available with sandbox are not reachable without it"
         if [ "$ALLOW_SANDBOX" = "false" ]; then
             for readable_file in $READABLE_WITH_SANDBOX_FILES; do

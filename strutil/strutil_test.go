@@ -181,3 +181,22 @@ func (ts *strutilSuite) TestParseByteSizeUnhappy(c *check.C) {
 		c.Check(err, check.ErrorMatches, t.errStr, check.Commentf("incorrect error for %q", t.str))
 	}
 }
+
+func (strutilSuite) TestCommaSeparatedList(c *check.C) {
+	table := []struct {
+		in  string
+		out []string
+	}{
+		{"", []string{}},
+		{",", []string{}},
+		{"foo,bar", []string{"foo", "bar"}},
+		{"foo , bar", []string{"foo", "bar"}},
+		{"foo ,, bar", []string{"foo", "bar"}},
+		{" foo ,, bar,baz", []string{"foo", "bar", "baz"}},
+		{" foo bar ,,,baz", []string{"foo bar", "baz"}},
+	}
+
+	for _, test := range table {
+		c.Check(strutil.CommaSeparatedList(test.in), check.DeepEquals, test.out, check.Commentf("%q", test.in))
+	}
+}
