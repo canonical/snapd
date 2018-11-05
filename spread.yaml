@@ -76,14 +76,12 @@ backends:
                 workers: 6
                 manual: true
 
-            - fedora-26-64:
-                workers: 4
-                manual: true
             - fedora-27-64:
                 workers: 4
                 manual: true
             - fedora-28-64:
                 workers: 4
+                manual: true
 
             - opensuse-42.3-64:
                 workers: 4
@@ -186,10 +184,10 @@ backends:
             - debian-sid-64:
                 username: debian
                 password: debian
-            - fedora-26-64:
+            - fedora-27-64:
                 username: fedora
                 password: fedora
-            - fedora-27-64:
+            - fedora-28-64:
                 username: fedora
                 password: fedora
     autopkgtest:

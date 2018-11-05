@@ -46,12 +46,18 @@ import (
 )
 
 type snapshotSuite struct {
-	root    string
-	restore []func()
-	tarPath string
+	root      string
+	restore   []func()
+	tarPath   string
+	isTesting bool
 }
 
-var _ = check.Suite(&snapshotSuite{})
+// silly wrappers to get better failure messages
+type isTestingSuite struct{ snapshotSuite }
+type noTestingSuite struct{ snapshotSuite }
+
+var _ = check.Suite(&isTestingSuite{snapshotSuite{isTesting: true}})
+var _ = check.Suite(&noTestingSuite{snapshotSuite{isTesting: false}})
 
 // tie gocheck into testing
 func TestSnapshot(t *testing.T) { check.TestingT(t) }
@@ -107,7 +113,9 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		rv.Username = username
 		rv.HomeDir = filepath.Join(dirs.GlobalRootDir, "home/snapuser")
 		return &rv, nil
-	}))
+	}),
+		backend.MockIsTesting(s.isTesting),
+	)
 
 	s.tarPath, err = exec.LookPath("tar")
 	c.Assert(err, check.IsNil)
@@ -411,6 +419,7 @@ func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	d := filepath.Join(s.root, "foo")
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -445,6 +454,28 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
+	s.testHappyRoundtrip(c, "marker")
+}
+
+func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
+	for _, t := range table(snap.MinimalPlaceInfo("hello-snap", snap.R(42)), filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
+		if _, d := filepath.Split(t.dir); d == "common" {
+			c.Assert(os.RemoveAll(t.dir), check.IsNil)
+		}
+	}
+	s.testHappyRoundtrip(c, "marker")
+}
+
+func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
+	for _, t := range table(snap.MinimalPlaceInfo("hello-snap", snap.R(42)), filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
+		if _, d := filepath.Split(t.dir); d == "42" {
+			c.Assert(os.RemoveAll(t.dir), check.IsNil)
+		}
+	}
+	s.testHappyRoundtrip(c, "../common/marker")
+}
+
+func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -513,7 +544,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(diff().Run(), check.IsNil, comm)
 
 		// dirty it -> no longer like it was
-		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), "marker"), []byte("scribble\n"), 0644), check.IsNil, comm)
+		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), marker), []byte("scribble\n"), 0644), check.IsNil, comm)
 	}
 }
 

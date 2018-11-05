@@ -1,5 +1,10 @@
 #!/bin/sh
 
+echo "before notify"
+sleep 5
+echo "notify ready"
+systemd-notify --ready
+
 while true; do
     echo "running"
     sleep 10

@@ -270,7 +270,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	removed := make(map[string]connState)
+	removed := make(map[string]*connState)
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -291,7 +291,7 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
-	var removed map[string]connState
+	var removed map[string]*connState
 	err := task.Get("removed", &removed)
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -428,7 +428,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{
+	conns[connRef.ID()] = &connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
 		DynamicPlugAttrs: conn.Plug.DynamicAttrs(),
@@ -504,17 +504,30 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("auto-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
 		return fmt.Errorf("internal error: failed to read 'auto-disconnect' flag: %s", err)
 	}
-	if conn.Auto && !autoDisconnect {
+
+	// "by-hotplug" flag indicates it's a disconnect triggered by hotplug remove event;
+	// we want to keep information of the connection and just mark it as hotplug-gone.
+	var byHotplug bool
+	if err := task.Get("by-hotplug", &byHotplug); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: cannot read 'by-hotplug' flag: %s", err)
+	}
+
+	switch {
+	case byHotplug:
+		conn.HotplugGone = true
+		conns[cref.ID()] = conn
+	case conn.Auto && !autoDisconnect:
 		conn.Undesired = true
 		conn.DynamicPlugAttrs = nil
 		conn.DynamicSlotAttrs = nil
 		conn.StaticPlugAttrs = nil
 		conn.StaticSlotAttrs = nil
 		conns[cref.ID()] = conn
-	} else {
+	default:
 		delete(conns, cref.ID())
 	}
 	setConns(st, conns)
+
 	return nil
 }
 
@@ -576,7 +589,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	conns[connRef.ID()] = oldconn
+	conns[connRef.ID()] = &oldconn
 	setConns(st, conns)
 
 	return nil
