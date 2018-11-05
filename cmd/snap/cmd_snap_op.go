@@ -60,8 +60,7 @@ store's collaboration feature, and to be logged in (see 'snap help login').
 Note a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
 
-Instance key can be appended to the snap name after an underscore. Use --name
-to set instance name when installing directly from snap file.
+Use --name to set the instance name when installing from snap file.
 `)
 
 var longRemoveHelp = i18n.G(`
