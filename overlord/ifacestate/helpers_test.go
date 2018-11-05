@@ -117,6 +117,9 @@ func (s *helpersSuite) TestGetConns(c *C) {
 		"app:network core:network": map[string]interface{}{
 			"auto":      true,
 			"interface": "network",
+			"slot-static": map[string]interface{}{
+				"number": int(78),
+			},
 		},
 	})
 
@@ -129,6 +132,7 @@ func (s *helpersSuite) TestGetConns(c *C) {
 		c.Assert(id, Equals, "APP:network CORE:network")
 		c.Assert(connState.Auto, Equals, true)
 		c.Assert(connState.Interface, Equals, "network")
+		c.Assert(connState.StaticSlotAttrs["number"], Equals, int64(78))
 	}
 }
 
@@ -208,4 +212,43 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 	slots, err = ifacestate.GetHotplugSlots(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(slots, DeepEquals, defs)
+}
+
+func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	// Set conns in the state and get them via GetConns to avoid having to
+	// know the internals of connState struct.
+	st.Set("conns", map[string]interface{}{
+		"snap1:plug1 core:slot1": map[string]interface{}{
+			"interface":   "iface1",
+			"hotplug-key": "key1",
+		},
+		"snap1:plug2 core:slot2": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key1",
+		},
+		"snap1:plug3 core:slot3": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key2",
+		},
+		"snap2:plug1 core:slot1": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key2",
+		},
+	})
+
+	conns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	hotplugConns := ifacestate.FindConnsForHotplugKey(conns, "iface1", "key1")
+	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug1 core:slot1"})
+
+	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "iface2", "key2")
+	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug3 core:slot3", "snap2:plug1 core:slot1"})
+
+	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "unknown", "key1")
+	c.Assert(hotplugConns, HasLen, 0)
 }

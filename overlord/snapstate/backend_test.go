@@ -63,6 +63,8 @@ type fakeOp struct {
 	userID int
 
 	otherInstances bool
+
+	services []string
 }
 
 type fakeOps []fakeOp
@@ -668,12 +670,19 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Type = snap.TypeOS
 	case "services-snap":
 		var err error
+		// fix services after/before so that there is only one solution
+		// to dependency ordering
 		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
 apps:
   svc1:
     daemon: simple
+    before: [svc3]
   svc2:
     daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
 `))
 		if err != nil {
 			panic(err)
@@ -771,9 +780,14 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 }
 
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
+	services := make([]string, 0, len(svcs))
+	for _, svc := range svcs {
+		services = append(services, svc.Name)
+	}
 	f.appendOp(&fakeOp{
-		op:   "start-snap-services",
-		path: svcSnapMountDir(svcs),
+		op:       "start-snap-services",
+		path:     svcSnapMountDir(svcs),
+		services: services,
 	})
 	return nil
 }

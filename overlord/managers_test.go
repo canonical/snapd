@@ -77,6 +77,7 @@ type mgrsSuite struct {
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
+	mockSnapCmd    *testutil.MockCmd
 
 	devAcct *asserts.Account
 
@@ -112,6 +113,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(ms.tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	// needed by hooks
+	ms.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
@@ -269,6 +273,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.restoreTrusted()
 	ms.restore()
 	ms.restoreSystemctl()
+	ms.mockSnapCmd.Restore()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	ms.udev.Restore()
 	ms.aa.Restore()
@@ -2412,6 +2417,88 @@ version: @VERSION@`
 	c.Assert(connections, HasLen, 3)
 }
 
+func (ms *mgrsSuite) TestUpdateWithAutoconnectAndInactiveRevisions(c *C) {
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   foo:
+        command: bin/bar
+        plugs: [network]
+`
+	const coreSnapYaml = `name: core
+type: os
+version: 1`
+
+	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
+	ms.serveSnap(snapPath, "40")
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si1)
+	c.Assert(snapInfo.Plugs, HasLen, 1)
+
+	csi := &snap.SideInfo{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)}
+	coreInfo := snaptest.MockSnap(c, coreSnapYaml, csi)
+
+	// add implicit slots
+	coreInfo.Slots["network"] = &snap.SlotInfo{
+		Name:      "network",
+		Snap:      coreInfo,
+		Interface: "network",
+	}
+
+	// some-snap has inactive revisions
+	si0 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(0)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si0, si1, si2},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(coreInfo), IsNil)
+
+	// refresh all
+	err := assertstate.RefreshSnapDeclarations(st, 0)
+	c.Assert(err, IsNil)
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 1)
+	c.Assert(tts, HasLen, 1)
+
+	// to make TaskSnapSetup work
+	chg := st.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true},
+	})
+}
+
 const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
@@ -2506,7 +2593,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	}
 
 	c.Check(retryCheck, Equals, true)
-	c.Assert(autoconnectLog, Matches, `.*Waiting for conflicting change in progress...`)
+	c.Assert(autoconnectLog, Matches, `.*Waiting for conflicting change in progress: conflicting snap.*`)
 
 	// back to default state, that will unblock autoconnect
 	ts2.Tasks()[0].SetStatus(state.DefaultStatus)
@@ -2539,6 +2626,8 @@ apps:
    foo:
         command: bin/bar
         slots: [media-hub]
+hooks:
+   disconnect-slot-media-hub:
 `
 	const otherSnapYaml = `name: other-snap
 version: 1.0
@@ -2546,6 +2635,8 @@ apps:
    baz:
         command: bin/bar
         plugs: [media-hub]
+hooks:
+   disconnect-plug-media-hub:
 `
 	st := ms.o.State()
 	st.Lock()

@@ -562,6 +562,22 @@ apps:
   svc4:
     command: somed4
     daemon: notify
+  svc5:
+    command: some5
+    timer: mon1,12:15
+    daemon: simple
+  svc6:
+    command: some6
+    daemon: simple
+    sockets:
+       sock:
+         listen-stream: $SNAP_COMMON/run.sock
+  svc7:
+    command: some7
+    daemon: simple
+    sockets:
+       other-sock:
+         listen-stream: $SNAP_COMMON/other-run.sock
 `)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
 	s.sysctlBufs = [][]byte{
@@ -584,6 +600,33 @@ UnitFileState=static
 Id=snap.foo.svc4.service
 ActiveState=inactive
 UnitFileState=potatoes
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc5.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc5.timer
+ActiveState=active
+UnitFileState=enabled
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc6.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc6.sock.socket
+ActiveState=active
+UnitFileState=enabled
+`),
+		[]byte(`Type=simple
+Id=snap.foo.svc7.service
+ActiveState=inactive
+UnitFileState=static
+
+Id=snap.foo.svc7.other-sock.socket
+ActiveState=inactive
+UnitFileState=enabled
 `),
 	}
 
@@ -681,6 +724,30 @@ UnitFileState=potatoes
 					Daemon:  "notify",
 					Enabled: false,
 					Active:  false,
+				}, {
+					Snap: "foo", Name: "svc5",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "svc5", Type: "timer", Active: true, Enabled: true},
+					},
+				}, {
+					Snap: "foo", Name: "svc6",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "sock", Type: "socket", Active: true, Enabled: true},
+					},
+				}, {
+					Snap: "foo", Name: "svc7",
+					Daemon:  "simple",
+					Enabled: true,
+					Active:  false,
+					Activators: []client.AppActivator{
+						{Name: "other-sock", Type: "socket", Active: false, Enabled: true},
+					},
 				},
 			},
 			Broken:    "",
@@ -1964,9 +2031,23 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 			"url":    "http://example.com/screenshot.png",
 			"width":  float64(800),
 			"height": float64(1280),
+			"note":   snap.ScreenshotsDeprecationNotice,
 		},
 		map[string]interface{}{
-			"url": "http://example.com/screenshot2.png",
+			"url":  "http://example.com/screenshot2.png",
+			"note": snap.ScreenshotsDeprecationNotice,
+		},
+	})
+	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"type":   "screenshot",
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"type": "screenshot",
+			"url":  "http://example.com/screenshot2.png",
 		},
 	})
 }
@@ -5486,7 +5567,7 @@ func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
 			Username:         "karl",
@@ -5511,7 +5592,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	expectedEmail := "popper@lse.ac.uk"
 	expectedUsername := "karl"
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
 			Username:         expectedUsername,
@@ -6597,14 +6678,6 @@ func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
-}
-
-func (s *apiSuite) TestSplitQS(c *check.C) {
-	c.Check(splitQS("foo,bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo , bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS(""), check.HasLen, 0)
-	c.Check(splitQS(","), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {

@@ -480,10 +480,24 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
+func maybeMockClassicSupport(c *C) (restore func()) {
+	if dirs.SupportsClassicConfinement() {
+		return func() {}
 	}
+
+	d := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap")
+	err := os.MkdirAll(d, 0755)
+	c.Assert(err, IsNil)
+	snapSymlink := filepath.Join(dirs.GlobalRootDir, "snap")
+	err = os.Symlink(d, snapSymlink)
+	c.Assert(err, IsNil)
+
+	return func() { os.Remove(snapSymlink) }
+}
+
+func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -642,9 +656,8 @@ func (s *snapmgrTestSuite) TestRevertTasksFromJailMode(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksFromClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	// the snap is installed in classic, but the request to revert does not specify classic
 	s.testRevertTasksFullFlags(fullFlags{
@@ -664,9 +677,9 @@ func (s *snapmgrTestSuite) TestRevertTasksJailMode(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
 	s.testRevertTasks(snapstate.Flags{Classic: true}, c)
 }
 
@@ -868,9 +881,8 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -890,9 +902,8 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1790,9 +1801,8 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1816,9 +1826,8 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1856,9 +1865,8 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1928,9 +1936,8 @@ func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2705,6 +2712,33 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	})
 	c.Assert(snapst.Required, Equals, false)
 }
+func (s *snapmgrTestSuite) TestInstallStartOrder(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "services-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(snapstate.Installing(s.state), Equals, false)
+	op := s.fakeBackend.ops.First("start-snap-services")
+	c.Assert(op, NotNil)
+	c.Assert(op, DeepEquals, &fakeOp{
+		op:   "start-snap-services",
+		path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+		// ordered to preserve after/before relation
+		services: []string{"svc1", "svc3", "svc2"},
+	})
+}
 
 func (s *snapmgrTestSuite) TestInstalling(c *C) {
 	s.state.Lock()
@@ -2853,8 +2887,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+			op:       "start-snap-services",
+			path:     filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
 			op:    "cleanup-trash",
@@ -3069,8 +3104,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "start-snap-services",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+			op:       "start-snap-services",
+			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
 			op:    "cleanup-trash",
@@ -5053,13 +5089,13 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	}
 
 	for _, scenario := range orthogonalAutoAliasesScenarios {
-		for _, snapName := range []string{"some-snap", "other-snap"} {
+		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(s.state, snapName, &snapst)
+			err := snapstate.Get(s.state, instanceName, &snapst)
 			c.Assert(err, IsNil)
 			snapst.Aliases = nil
 			snapst.AutoAliasesDisabled = false
-			if autoAliases := scenario.aliasesBefore[snapName]; autoAliases != nil {
+			if autoAliases := scenario.aliasesBefore[instanceName]; autoAliases != nil {
 				targets := make(map[string]*snapstate.AliasTarget)
 				for _, alias := range autoAliases {
 					targets[alias] = &snapstate.AliasTarget{Auto: "cmd" + alias[len(alias)-1:]}
@@ -5067,7 +5103,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 
 				snapst.Aliases = targets
 			}
-			snapstate.Set(s.state, snapName, &snapst)
+			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
 		updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, scenario.names, s.user.ID, nil)
@@ -5094,9 +5130,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
-			for _, snapName := range scenario.prune {
-				expectedPruned[snapName] = expectedSet(dropped[snapName])
-				if snapName == "other-snap" && !scenario.new && !scenario.update {
+			for _, instanceName := range scenario.prune {
+				expectedPruned[instanceName] = expectedSet(dropped[instanceName])
+				if instanceName == "other-snap" && !scenario.new && !scenario.update {
 					expectedUpdatesSet["other-snap"] = true
 				}
 			}
@@ -5200,13 +5236,13 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 			continue
 		}
 
-		for _, snapName := range []string{"some-snap", "other-snap"} {
+		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(s.state, snapName, &snapst)
+			err := snapstate.Get(s.state, instanceName, &snapst)
 			c.Assert(err, IsNil)
 			snapst.Aliases = nil
 			snapst.AutoAliasesDisabled = false
-			if autoAliases := scenario.aliasesBefore[snapName]; autoAliases != nil {
+			if autoAliases := scenario.aliasesBefore[instanceName]; autoAliases != nil {
 				targets := make(map[string]*snapstate.AliasTarget)
 				for _, alias := range autoAliases {
 					targets[alias] = &snapstate.AliasTarget{Auto: "cmd" + alias[len(alias)-1:]}
@@ -5214,7 +5250,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 				snapst.Aliases = targets
 			}
-			snapstate.Set(s.state, snapName, &snapst)
+			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
 		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -5241,8 +5277,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.InstanceName()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
-			for _, snapName := range scenario.prune {
-				expectedPruned[snapName] = expectedSet(dropped[snapName])
+			for _, instanceName := range scenario.prune {
+				expectedPruned[instanceName] = expectedSet(dropped[instanceName])
 			}
 			c.Check(taskAliases, DeepEquals, expectedPruned)
 		}
@@ -9088,9 +9124,9 @@ func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
 func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
 
@@ -9116,6 +9152,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 
 	// verify snap is in TryMode
 	var snapst snapstate.SnapState
@@ -9144,9 +9183,8 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 }
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 	s.testTrySetsTryMode(snapstate.Flags{}, c)
 }
 
@@ -9157,9 +9195,8 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
-	if !dirs.SupportsClassicConfinement() {
-		c.Skip("no support for classic")
-	}
+	restore := maybeMockClassicSupport(c)
+	defer restore()
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
 
@@ -11014,16 +11051,16 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, snapName := range []string{"a-snap", "b-snap"} {
-		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	for _, instanceName := range []string{"a-snap", "b-snap"} {
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Sequence: []*snap.SideInfo{
-				{RealName: snapName, Revision: snap.R(11)},
+				{RealName: instanceName, Revision: snap.R(11)},
 			},
 			Current: snap.R(11),
 			Active:  false,
 		})
 
-		ts, err := snapstate.Enable(s.state, snapName)
+		ts, err := snapstate.Enable(s.state, instanceName)
 		c.Assert(err, IsNil)
 		// need a change to make the tasks visible
 		s.state.NewChange("enable", "...").AddAll(ts)

@@ -1024,7 +1024,9 @@ func (s *storeTestSuite) TestApplyDelta(c *C) {
 				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
 			})
 			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
-			c.Assert(osutil.FileExists(targetSnapPath), Equals, true)
+			st, err := os.Stat(targetSnapPath)
+			c.Assert(err, IsNil)
+			c.Check(st.Mode(), Equals, os.FileMode(0600))
 			c.Assert(os.Remove(targetSnapPath), IsNil)
 		} else {
 			c.Assert(err, NotNil)
@@ -1434,7 +1436,7 @@ func (s *storeTestSuite) TestLoginUser(c *C) {
 	defer mockSSOServer.Close()
 	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := store.LoginUser("username", "password", "otp")
+	userMacaroon, userDischarge, err := store.LoginUser(&http.Client{}, "username", "password", "otp")
 
 	c.Assert(err, IsNil)
 	c.Check(userMacaroon, Equals, serializedMacaroon)
@@ -1450,7 +1452,7 @@ func (s *storeTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	defer mockServer.Close()
 	store.MacaroonACLAPI = mockServer.URL + "/acl/"
 
-	userMacaroon, userDischarge, err := store.LoginUser("username", "password", "otp")
+	userMacaroon, userDischarge, err := store.LoginUser(&http.Client{}, "username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: .*")
 	c.Check(userMacaroon, Equals, "")
@@ -1479,7 +1481,7 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 	defer mockSSOServer.Close()
 	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := store.LoginUser("username", "password", "otp")
+	userMacaroon, userDischarge, err := store.LoginUser(&http.Client{}, "username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: .*")
 	c.Check(userMacaroon, Equals, "")

@@ -1115,7 +1115,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 			// finished and needed to be undone (UndoneStatus); it's
 			// a race, but either is fine.
 			if task.Status() == state.ErrorStatus {
-				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR context canceled`)
+				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR.* context canceled`)
 			} else {
 				c.Check(task.Status(), check.Equals, state.UndoneStatus)
 			}

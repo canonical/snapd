@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,7 +52,6 @@ var (
 
 func init() {
 	appArmorLevel, appArmorSummary = probeAppArmor()
-	appArmorParserFeatures = probeAppArmorParser()
 }
 
 // AppArmorLevel quantifies how well apparmor is supported on the
@@ -65,11 +64,6 @@ func AppArmorLevel() AppArmorLevelType {
 // current kernel.
 func AppArmorSummary() string {
 	return appArmorSummary
-}
-
-// AppArmorParserFeatures returns a list of apparmor parser features
-func AppArmorParserFeatures() []string {
-	return appArmorParserFeatures
 }
 
 // MockAppArmorSupportLevel makes the system believe it has certain
@@ -150,14 +144,32 @@ type apparmorParserFeature struct {
 	rule    string
 }
 
-var requestedParserFeatures = []apparmorParserFeature{
-	{"unsafe", "change_profile unsafe /**,"},
+var (
+	requestedParserFeatures = []apparmorParserFeature{
+		{"unsafe", "change_profile unsafe /**,"},
+	}
+	// Since AppArmorParserMtime() will be called by generateKey() in
+	// system-key and that could be called by different users on the
+	// system, use a predictable search path for finding the parser.
+	parserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin"
+)
+
+// lookupParser will look for apparmor_parser in a predictable search path
+func lookupParser() (string, error) {
+	for _, dir := range filepath.SplitList(parserSearchPath) {
+		path := filepath.Join(dir, "apparmor_parser")
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("apparmor_parser not found in '%s'", parserSearchPath)
 }
 
 // tryParser will run the parser on the rule to determine if the feature is
 // supported.
-func tryParser(rule string) bool {
-	cmd := exec.Command("apparmor_parser", "--preprocess")
+func tryParser(parser, rule string) bool {
+	cmd := exec.Command(parser, "--preprocess")
 	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
 	if err := cmd.Run(); err != nil {
 		return false
@@ -165,12 +177,30 @@ func tryParser(rule string) bool {
 	return true
 }
 
-// probeAppArmorParser returns a sorted list of apparmor features like
-// []string{"unsafe", ...}.
-func probeAppArmorParser() []string {
+// AppArmorParserMtime returns the mtime of the parser, else 0
+func AppArmorParserMtime() int64 {
+	var mtime int64
+	mtime = 0
+
+	if path, err := lookupParser(); err == nil {
+		if s, err := os.Stat(path); err == nil {
+			mtime = s.ModTime().Unix()
+		}
+	}
+	return mtime
+}
+
+// AppArmorParserFeatures returns a sorted list of apparmor parser features
+// like []string{"unsafe", ...}.
+func AppArmorParserFeatures() []string {
+	parser, err := lookupParser()
+	if err != nil {
+		return nil
+	}
+
 	parserFeatures := make([]string, 0, len(requestedParserFeatures))
 	for _, f := range requestedParserFeatures {
-		if tryParser(f.rule) {
+		if tryParser(parser, f.rule) {
 			parserFeatures = append(parserFeatures, f.feature)
 		}
 	}
