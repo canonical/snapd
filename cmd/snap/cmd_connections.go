@@ -80,6 +80,9 @@ func (x *cmdConnections) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	if x.Positionals.Query.Name != "" {
+		return errors.New("filtering by slot/plug name is not supported")
+	}
 
 	ifaces, err := x.client.Connections()
 	if err != nil {
@@ -87,9 +90,6 @@ func (x *cmdConnections) Execute(args []string) error {
 	}
 	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
 		return fmt.Errorf(i18n.G("no interfaces found"))
-	}
-	if x.Positionals.Query.Name != "" {
-		return errors.New("filtering by slot/plug name is not supported")
 	}
 	wanted := x.Positionals.Query.Snap
 
