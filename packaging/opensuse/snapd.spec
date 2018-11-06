@@ -165,11 +165,6 @@ pushd %{indigo_srcdir}
 # Add patch0 -p1 ... as appropriate here.
 popd
 
-# Patch snap-seccomp to use dynamic linking. This is not a problem because
-# snap-seccomp only requires static linking when it runs from the core-snap via
-# re-exec.
-sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{indigo_srcdir}/cmd/snap-seccomp/main.go
-
 # Set the version that is compiled into the various executables/
 pushd %{indigo_srcdir}
 ./mkversion.sh %{version}-%{release}
