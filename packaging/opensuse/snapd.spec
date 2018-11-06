@@ -204,17 +204,18 @@ popd
 # Build golang executables, with the following exceptions everything is built the same way:
 # - snap-exec and snap-update-ns is built statically.
 # - snapd has a variant that uses test keys instead of production keys.
-
-# build snap-exec and snap-update-ns completely static for base snaps
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snap
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snapctl
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snap-seccomp
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-update-ns
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-exec
+#
+# NOTE: indigo_gopath takes priority over GOPATH. This ensures that we
+# build the code that we intended in case GOPATH points to another copy.
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snap
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snapctl
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snap-seccomp
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-update-ns
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-exec
 %if 0%{?with_test_keys}
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie -tags withtestkeys %{import_path}/cmd/snapd
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie -tags withtestkeys %{import_path}/cmd/snapd
 %else
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snapd
+GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snapd
 %endif
 
 # Build C executables
@@ -222,7 +223,7 @@ GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snapd
 
 %check
 # Run tests with fixed locale that is expected by unicode/color code.
-LC_ALL=C.UTF-8 GOPATH=$GOPATH:%{indigo_gopath} go test %{import_path}/...
+LC_ALL=C.UTF-8 GOPATH=%{indigo_gopath}:$GOPATH go test %{import_path}/...
 %make_build -C %{indigo_srcdir}/cmd check
 
 %install
