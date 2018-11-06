@@ -18,6 +18,15 @@
 #ifndef SNAP_CONFINE_UDEV_SUPPORT_H
 #define SNAP_CONFINE_UDEV_SUPPORT_H
 
-void sc_setup_device_cgroup(const char *security_tag);
+typedef enum {
+	/* Require device cgroup, even if no devices are assigned to the snap */
+	SC_DEVICE_CGROUP_MODE_REQUIRED = 0x0,
+	/* Device cgroup is optional if no devices are assigned to the snap. This is
+	 * to comply with the legacy behavior */
+	SC_DEVICE_CGROUP_MODE_OPTIONAL = 0x1,
+} sc_device_cgroup_mode;
+
+void sc_setup_device_cgroup(const char *security_tag,
+			    sc_device_cgroup_mode mode);
 
 #endif
