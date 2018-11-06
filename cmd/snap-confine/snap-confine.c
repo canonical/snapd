@@ -315,8 +315,8 @@ int main(int argc, char **argv)
 				}
 			}
 			struct snappy_udev udev_s;
-			if (snappy_udev_init(security_tag, &udev_s) == 0)
-				setup_devices_cgroup(security_tag, &udev_s);
+			snappy_udev_init(security_tag, &udev_s);
+			setup_devices_cgroup(security_tag, &udev_s);
 			snappy_udev_cleanup(&udev_s);
 		}
 		// The rest does not so temporarily drop privs back to calling

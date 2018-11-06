@@ -185,8 +185,6 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		die("snappy_udev->udev is NULL");
 	if (udev_s->devices == NULL)
 		die("snappy_udev->devices is NULL");
-	if (udev_s->assigned == NULL)
-		die("snappy_udev->assigned is NULL");
 	if (udev_s->tagname_len == 0
 	    || udev_s->tagname_len >= MAX_BUF
 	    || strnlen(udev_s->tagname, MAX_BUF) != udev_s->tagname_len
