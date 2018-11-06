@@ -1,0 +1,61 @@
+summary: test snapshots work when core snap is refreshed and reverted
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    create_nested_classic_vm
+
+    # configure hosts file
+    execute_remote 'echo "127.0.1.1 $HOSTNAME" | sudo tee /etc/hosts'
+
+    # install snapd and snaps on nested vm
+    copy_remote "${GOHOME}"/snapd_*.deb
+    execute_remote "sudo apt update"
+    execute_remote "sudo apt install -y ./snapd_*.deb"
+    execute_remote "sudo snap install test-snapd-tools"
+    execute_remote "sudo snap install test-snapd-rsync"
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    # Make sure the core in the nested vm is the correct one
+    execute_remote "sudo snap refresh core --${CORE_CHANNEL}"
+
+    # use the snaps, so they create the dirs:
+    execute_remote "sudo test-snapd-tools.echo"
+    execute_remote "sudo test-snapd-rsync.rsync --version >/dev/null"
+    for snap in test-snapd-tools test-snapd-rsync; do
+       execute_remote "echo "hello versioned $snap" | sudo tee /root/snap/$snap/current/canary.txt"
+       execute_remote "echo "hello common $snap" | sudo tee /root/snap/$snap/common/canary.txt"
+    done
+
+    # create snapshot, grab its id
+    SET_ID=$( execute_remote "sudo snap save test-snapd-tools test-snapd-rsync" | cut -d\  -f1 | tail -n1 )
+
+    # delete the canary files
+    execute_remote "sudo rm /root/snap/test-snapd-tools/{current,common}/canary.txt"
+    execute_remote "sudo rm /root/snap/test-snapd-rsync/{current,common}/canary.txt"
+
+    # when the core is refreshed the snap snapshot can be restored"
+    execute_remote "sudo snap refresh core --${CORE_REFRESH_CHANNEL}"
+    execute_remote "sudo snap restore "$SET_ID" test-snapd-rsync"
+    test "$( execute_remote "sudo cat /root/snap/test-snapd-rsync/current/canary.txt" )" = "hello versioned test-snapd-rsync"
+    test "$( execute_remote "sudo cat /root/snap/test-snapd-rsync/common/canary.txt" )" = "hello common test-snapd-rsync"
+    execute_remote "sudo test ! -f /root/snap/test-snapd-tools/common/canary.txt"
+    execute_remote "sudo test ! -f /root/snap/test-snapd-tools/current/canary.txt"
+
+    # when the core is reverted the snap snapshot can be restored"
+    execute_remote "sudo snap revert core"
+    execute_remote "sudo snap restore "$SET_ID" test-snapd-tools"
+    test "$( execute_remote "sudo cat /root/snap/test-snapd-tools/current/canary.txt" )" = "hello versioned test-snapd-tools"
+    test "$( execute_remote "sudo cat /root/snap/test-snapd-tools/common/canary.txt" )" = "hello common test-snapd-tools"
+
+    echo "And the snapshot can be removed"
+    execute_remote "sudo snap forget $SET_ID"
+    execute_remote "sudo snap saved --id=$SET_ID" | MATCH "No snapshots found"

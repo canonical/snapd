@@ -620,7 +620,7 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/nested/:
+    tests/nested/classic/:
         summary: Tests for nested images
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
@@ -629,7 +629,29 @@ suites:
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
-            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    tests/nested/core/:
+        summary: Tests for nested images
+        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # we keep them disabled. A later PR will enable most tests and
+        # drop this blacklist.
+        backends: [google-nested]
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
