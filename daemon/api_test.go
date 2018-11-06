@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -2514,7 +2515,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
 	c.Assert(installQueue, check.HasLen, n)
-	c.Check(installQueue[n-1], check.Matches, `local::.*/\.snapd-sideload-.*`)
+	c.Check(installQueue[n-1], check.Matches, "local::.*/"+regexp.QuoteMeta(dirs.SideloadedBlobTempPrefix)+".*")
 
 	st := d.overlord.State()
 	st.Lock()

@@ -122,6 +122,11 @@ const (
 
 	// Directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
+
+	// SideloadedBlobTempPrefix is used as the second argument to
+	// ioutil.TempFile in daemon, and looked for by auto-cleanup
+	// from snapstate
+	SideloadedBlobTempPrefix = ".snapd-sideload-"
 )
 
 var (

@@ -608,7 +608,7 @@ func (m *SnapManager) cleanOldTemps() error {
 		// fis is nil if err isn't
 		for _, fi := range fis {
 			name := fi.Name()
-			if !strings.HasPrefix(name, ".snapd-sideload-") {
+			if !strings.HasPrefix(name, dirs.SideloadedBlobTempPrefix) {
 				continue
 			}
 			if fi.ModTime().After(cutoff) {
