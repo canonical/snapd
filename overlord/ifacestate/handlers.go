@@ -1181,3 +1181,55 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	task.SetStatus(state.DoneStatus)
 	return nil
 }
+
+// doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
+// This task must necessarily be run after all affected slot gets disconnected in the repo.
+func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return fmt.Errorf("cannot determine slots: %s", err)
+	}
+	if slot != nil {
+		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
+			return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
+		}
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
+	}
+
+	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
+	// including connection with hotplug-gone=true.
+Loop:
+	for slotName, def := range stateSlots {
+		if def.Interface != ifaceName || def.HotplugKey != hotplugKey {
+			continue
+		}
+		conns, err := getConns(st)
+		if err != nil {
+			return err
+		}
+		for _, conn := range conns {
+			if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
+				// there is a connection referencing this slot, do not remove it
+				break Loop
+			}
+		}
+		delete(stateSlots, slotName)
+		setHotplugSlots(st, stateSlots)
+		break
+	}
+
+	return nil
+}
