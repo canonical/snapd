@@ -29,14 +29,17 @@
 %{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 
+# Define the variable for systemd generators, if missing.
+%{?!_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
+%{?!_systemdusergeneratordir: %global _systemdusergeneratordir %{_prefix}/lib/systemd/user-generators}
+%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
+%{?!_systemd_user_env_generator_dir: %global _systemd_user_env_generator_dir %{_prefix}/lib/systemd/user-environment-generators}
+
 # This is fixed in SUSE Linux 15
 # Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
 %if 0%{?suse_version} < 1500
 %global _sharedstatedir %{_localstatedir}/lib
 %endif
-
-# Define the variable for systemd generators, if missing.
-%{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 
 %global provider        github
 %global provider_tld    com
@@ -103,6 +106,9 @@ BuildRequires:  pkg-config
 BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
+# Due to: rpm -q --whatprovides /usr/share/pkgconfig/systemd.pc
+BuildRequires:  systemd
+BuildRequires:  systemd-rpm-macros
 BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
@@ -169,6 +175,12 @@ popd
 pushd %{indigo_srcdir}
 ./mkversion.sh %{version}-%{release}
 popd
+
+# Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
+if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
+  echo "pkg-confing and rpm macros disagree about the location of systemd system generator directory"
+  exit 1
+fi
 
 # Enable hardening; Also see https://bugzilla.redhat.com/show_bug.cgi?id=1343892
 CFLAGS="$RPM_OPT_FLAGS -fPIC -Wl,-z,relro -Wl,-z,now"
@@ -361,6 +373,8 @@ fi
 %dir %{_sharedstatedir}/snapd/lib/gl32
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
+%dir %{_environmentdir}
+%dir %{_systemd_system_env_generator_dir}
 %dir %{_systemdgeneratordir}
 %dir %{_datadir}/dbus-1
 %dir %{_datadir}/dbus-1/services
@@ -400,7 +414,7 @@ fi
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
-%{_prefix}/lib/systemd/system-generators/snapd-generator
+%{_systemdgeneratordir}/snapd-generator
 %{_mandir}/man8/snap.8*
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
@@ -412,7 +426,7 @@ fi
 %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %{_environmentdir}/990-snapd.conf
-%{_prefix}/lib/systemd/system-environment-generators/snapd-env-generator
+%{_systemd_system_env_generator_dir}/snapd-env-generator
 
 %changelog
 
