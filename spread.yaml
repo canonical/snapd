@@ -162,6 +162,24 @@ backends:
             - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-19.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-32:
+                username: ubuntu
+                password: ubuntu
             - debian-sid-64:
                 username: debian
                 password: debian
@@ -267,6 +285,64 @@ backends:
             - ubuntu-18.10-arm64:
                 username: ubuntu
                 password: ubuntu
+            # Disco
+            - ubuntu-19.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Eccentric Eel (not final name!)
+            - ubuntu-19.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Flaming Falcon (not final name!)
+            - ubuntu-20.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-arm64:
+                username: ubuntu
+                password: ubuntu
+
     external:
         type: adhoc
         environment:
