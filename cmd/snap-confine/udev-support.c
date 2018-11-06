@@ -264,9 +264,11 @@ static void setup_current_tags_support(void)
 	/* coverity[leaked_storage] */
 }
 
-void sc_setup_device_cgroup(const char *security_tag)
+void sc_setup_device_cgroup(const char *security_tag,
+			    sc_device_cgroup_mode mode)
 {
-	debug("setting up device cgroup");
+	debug("setting up device cgroup, mode \"%s\"",
+	      mode == SC_DEVICE_CGROUP_MODE_REQUIRED ? "required" : "optional");
 
 	setup_current_tags_support();
 	if (__sc_udev_device_has_current_tag == NULL) {
@@ -305,15 +307,34 @@ void sc_setup_device_cgroup(const char *security_tag)
 	struct udev_list_entry *assigned;
 	assigned = udev_enumerate_get_list_entry(devices);
 	if (assigned == NULL) {
-		/* NOTE: Nothing is assigned, don't create or use the device cgroup. */
-		debug("no devices tagged with %s, skipping device cgroup setup",
-		      udev_tag);
-		return;
+		if (mode == SC_DEVICE_CGROUP_MODE_OPTIONAL) {
+			/* NOTE: Nothing is assigned, don't create or use the device cgroup. */
+			debug
+			    ("no devices tagged with %s, skipping device cgroup setup",
+			     udev_tag);
+			return;
+		} else {
+			/* the device cgroup was requested to be set up despite of no
+			 * devices being assigned to this snap */
+			debug
+			    ("no devices tagged with %s, but device cgroup is required, proceeding with setup",
+			     udev_tag);
+		}
 	}
 
 	/* cgroup wrapper is lazily initialized when devices are actually
 	 * assigned */
 	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) = NULL;
+
+	if (mode == SC_DEVICE_CGROUP_MODE_REQUIRED) {
+		/* Normally the cgroup setup is done lazily, but since device cgroup is
+		 * required, prepare for mediation of device access regardless of
+		 * devices being properly tagged. */
+		cgroup = sc_device_cgroup_new(security_tag, 0);
+		/* Setup the device group access control list */
+		sc_udev_setup_acls_common(cgroup);
+	}
+
 	for (struct udev_list_entry * entry = assigned; entry != NULL;
 	     entry = udev_list_entry_get_next(entry)) {
 		const char *path = udev_list_entry_get_name(entry);
@@ -350,12 +371,13 @@ void sc_setup_device_cgroup(const char *security_tag)
 		}
 
 		if (cgroup == NULL) {
-			/* initialize cgroup wrapper only when we are sure that there are
-			 * devices assigned to this snap */
+			/* Lazy initialization of cgroup wrapper only when we are sure that
+			 * there are devices assigned to this snap */
 			cgroup = sc_device_cgroup_new(security_tag, 0);
 			/* Setup the device group access control list */
 			sc_udev_setup_acls_common(cgroup);
 		}
+
 		sc_udev_allow_assigned_device(cgroup, device);
 		udev_device_unref(device);
 	}
@@ -366,7 +388,6 @@ void sc_setup_device_cgroup(const char *security_tag)
 		    ("associated snap application process %i with device cgroup %s",
 		     getpid(), security_tag);
 	} else {
-		debug("no devices tagged with %s, skipping device cgroup setup",
-		      udev_tag);
+		debug("device cgroup not set up for  %s", udev_tag);
 	}
 }

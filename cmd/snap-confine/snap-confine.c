@@ -649,7 +649,24 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	sc_check_rootfs_dir(inv);
 
 	/** Conditionally create, populate and join the device cgroup. */
-	sc_setup_device_cgroup(inv->security_tag);
+	sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
+	const char *non_required_cgroup_bases[] = {
+		/* XXX the list is subject to change if no 'bare' base snaps using
+		 * system-files interface are found in the snap store */
+		"bare",
+		"core", "core16", "core18", "core20", "core22",
+		NULL,
+	};
+	for (const char **non_required_on_base = non_required_cgroup_bases;
+	     *non_required_on_base != NULL; non_required_on_base++) {
+		if (sc_streq(inv->base_snap_name, *non_required_on_base)) {
+			debug("device cgroup not required due to base %s",
+			      *non_required_on_base);
+			mode = SC_DEVICE_CGROUP_MODE_OPTIONAL;
+			break;
+		}
+	}
+	sc_setup_device_cgroup(inv->security_tag, mode);
 
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.
